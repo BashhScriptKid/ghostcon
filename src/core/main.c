@@ -517,7 +517,7 @@ main(int argc, char **argv)
 
     bool running = true;
     while (running) {
-        struct pollfd fds[4];
+        struct pollfd fds[5];
         int nfds = 0;
         int vtctl_idx = nfds++;
         fds[vtctl_idx] = (struct pollfd){ .fd = ghostcon_vtctl_signal_fd(app.vt), .events = POLLIN };
@@ -549,9 +549,18 @@ main(int argc, char **argv)
            it. `app.input` being NULL while inactive is what keeps it
            out of the pollfd set below. */
         int input_idx = -1;
+        int repeat_idx = -1;
         if (app.input) {
             input_idx = nfds++;
             fds[input_idx] = (struct pollfd){ .fd = ghostcon_input_fd(app.input), .events = POLLIN };
+            /* -1 when timerfd_create() failed at input_open() time --
+               key auto-repeat just silently doesn't work, same
+               tolerance given to the ctl_fd/CLEAR path above. */
+            int rfd = ghostcon_input_repeat_fd(app.input);
+            if (rfd >= 0) {
+                repeat_idx = nfds++;
+                fds[repeat_idx] = (struct pollfd){ .fd = rfd, .events = POLLIN };
+            }
         }
 
         int rv = poll(fds, (nfds_t)nfds, POLL_INTERVAL_MS);
@@ -683,6 +692,11 @@ main(int argc, char **argv)
                notice and trigger a render -- check dirty state here too. */
             if (ghostcon_screen_get_dirty(&app.term.screen).y_min >= 0)
                 need_render = true;
+        }
+
+        if (repeat_idx >= 0 && (fds[repeat_idx].revents & POLLIN)) {
+            if (!ghostcon_input_repeat_fire(app.input, &app.transport))
+                fprintf(stderr, "ghostcon-core: repeat-fire transport write error (continuing)\n");
         }
 
         if (need_render && app.display_acquired) {

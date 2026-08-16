@@ -66,6 +66,20 @@ void ghostcon_input_close(ghostcon_input_t *input);
 /* fd suitable for poll()'ing in the main event loop. */
 int ghostcon_input_fd(const ghostcon_input_t *input);
 
+/* Key auto-repeat timer fd, suitable for poll()'ing (POLLIN) alongside
+   ghostcon_input_fd() above -- fires once after an initial delay, then
+   at a fixed interval, for as long as a repeatable key (per the active
+   XKB keymap -- modifiers are excluded automatically) is held. -1 if
+   repeat is unavailable (timerfd_create() failed at ghostcon_input_open()
+   time) -- not fatal, caller should just skip polling it. */
+int ghostcon_input_repeat_fd(const ghostcon_input_t *input);
+
+/* Call when ghostcon_input_repeat_fd()'s fd is POLLIN-ready: drains the
+   timer and, if a key is still marked as repeating, resends the exact
+   bytes its initial press produced. Returns false only on a transport
+   write failure, matching ghostcon_input_dispatch()'s own convention. */
+bool ghostcon_input_repeat_fire(ghostcon_input_t *input, ghostcon_transport_t *transport);
+
 /* Mirrors the handful of terminal modes the key encoder needs to know
    about (currently just DECCKM/application-cursor) from live screen
    state into the encoder. Cheap; call before dispatch each time,

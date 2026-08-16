@@ -3147,6 +3147,48 @@ to-live, all matched on first run), live on tty4 — Shift+Up/Down/
 PageUp/PageDown scroll correctly, cursor hides while scrolled back,
 typing snaps back to live.
 
+### Key auto-repeat
+
+Not implemented at all until now — `libinput` never generates repeat
+events itself (that's userspace's job), and `core/input.c` had zero
+repeat handling anywhere.
+
+Mirrors kmscon's own proven approach (`input_uxkb.c`), adapted to
+ghostcon's plain `poll()` loop instead of kmscon's `eloop` abstraction:
+`xkb_keymap_key_repeats()` gates which keys repeat at all (the active
+XKB keymap excludes modifiers automatically — no manual blocklist
+needed), and a `timerfd` resends the exact bytes the initial press
+produced, first after an initial delay then at a fixed interval
+(kmscon's own documented defaults: 250ms delay, 50ms rate — not made
+configurable yet, matching this session's "don't build config plumbing
+nobody asked for" scoping).
+
+**`core/input.c`**: new `repeat_fd`/`repeating`/`repeat_evdev_code`/
+`repeat_encoded`/`repeat_len` fields on `ghostcon_input_t`. On a
+forwarded press whose key repeats per the keymap, arms the timer and
+remembers the encoded bytes; on release of that same key, disarms it
+(checked unconditionally right after computing press/release action,
+not folded into the write-path arm logic, since a release often
+encodes to zero bytes in legacy mode and would otherwise never reach
+that code). `timerfd_settime()` unconditionally replaces the timer's
+prior state, so a different key pressed mid-repeat naturally takes
+over with no separate "stop the old one" step. New
+`ghostcon_input_repeat_fd()`/`ghostcon_input_repeat_fire()` — the
+latter drains the timer and resends the stored bytes.
+
+**`core/main.c`**: `fds[]` bumped 4 -> 5 for the new timer fd (added
+only when `app.input` exists and `timerfd_create()` succeeded, same
+tolerance pattern as the ctl-socket/CLEAR fd); on fire, calls
+`ghostcon_input_repeat_fire()`. No explicit render trigger needed here
+unlike the scrollback shortcuts — repeated keystrokes just forward to
+the shell like normal typing, and its echo coming back through
+`transport_idx` triggers rendering the same way any other keypress
+does.
+
+Verified: `meson test -C build-release` (12/12), live on tty4 —
+holding a printable key auto-repeats after the initial delay, and
+releasing it stops cleanly.
+
 ### Phase 2 — IPC and overlay
 
 7. **`ghostcon-ipc`** — build the real broker (separate sockets for

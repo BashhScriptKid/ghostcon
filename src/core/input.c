@@ -1,11 +1,16 @@
+#define _DEFAULT_SOURCE /* CLOCK_MONOTONIC under -std=c11 without this */
+
 #include "ghostcon/core/input.h"
 
+#include <errno.h>
 #include <fcntl.h>
 #include <libinput.h>
 #include <libudev.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/timerfd.h>
+#include <time.h>
 #include <unistd.h>
 #include <xkbcommon/xkbcommon.h>
 
@@ -227,7 +232,27 @@ struct ghostcon_input {
     struct xkb_state *xkb_state_unshifted;
 
     GhosttyKeyEncoder encoder;
+
+    /* Key auto-repeat -- libinput itself never generates repeat events
+       (that's userspace's job); mirrors kmscon's own approach
+       (input_uxkb.c: xkb_keymap_key_repeats() gates which keys repeat
+       at all -- modifiers are excluded by the keymap itself, no manual
+       blocklist needed -- plus a timer that resends the same encoded
+       bytes the initial press produced). repeat_fd < 0 means repeat is
+       unavailable (timerfd_create failed) -- not fatal, matches this
+       module's existing tolerance for the ctl socket/etc being absent. */
+    int      repeat_fd;
+    bool     repeating;
+    uint32_t repeat_evdev_code;
+    char     repeat_encoded[128];
+    size_t   repeat_len;
 };
+
+/* kmscon's own documented defaults (xkb-repeat-delay/xkb-repeat-rate) --
+   not made configurable yet, same "don't build config plumbing nobody
+   asked for" scoping as everything else added this session. */
+#define GHOSTCON_REPEAT_DELAY_MS 250
+#define GHOSTCON_REPEAT_RATE_MS 50
 
 static int
 open_restricted(const char *path, int flags, void *user_data)
@@ -254,6 +279,7 @@ ghostcon_input_open(const char *seat_id)
     ghostcon_input_t *input = calloc(1, sizeof(*input));
     if (!input)
         return NULL;
+    input->repeat_fd = -1; /* calloc() zeroes to fd 0, a real (if unlikely) fd */
 
     input->udev = udev_new();
     if (!input->udev) {
@@ -314,6 +340,11 @@ ghostcon_input_open(const char *seat_id)
                                 GHOSTTY_KEY_ENCODER_OPT_MODIFY_OTHER_KEYS_STATE_2,
                                 &modify_other_keys_off);
 
+    input->repeat_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
+    if (input->repeat_fd < 0)
+        fprintf(stderr, "input: timerfd_create failed, key auto-repeat disabled: %s\n",
+                strerror(errno));
+
     return input;
 
 fail:
@@ -326,6 +357,8 @@ ghostcon_input_close(ghostcon_input_t *input)
 {
     if (!input)
         return;
+    if (input->repeat_fd >= 0)
+        close(input->repeat_fd);
     if (input->encoder)
         ghostty_key_encoder_free(input->encoder);
     if (input->xkb_state)
@@ -347,6 +380,28 @@ int
 ghostcon_input_fd(const ghostcon_input_t *input)
 {
     return libinput_get_fd(input->li);
+}
+
+int
+ghostcon_input_repeat_fd(const ghostcon_input_t *input)
+{
+    return input->repeat_fd;
+}
+
+bool
+ghostcon_input_repeat_fire(ghostcon_input_t *input, ghostcon_transport_t *transport)
+{
+    uint64_t expirations;
+    ssize_t r = read(input->repeat_fd, &expirations, sizeof(expirations));
+    (void)r; /* EAGAIN if the timer fired zero times since last drain; nothing to do either way */
+
+    if (!input->repeating)
+        return true;
+
+    ssize_t w = ghostcon_transport_write(transport,
+                                          (const uint8_t *)input->repeat_encoded,
+                                          input->repeat_len);
+    return w == (ssize_t)input->repeat_len;
 }
 
 void
@@ -447,6 +502,17 @@ handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
                                    ? GHOSTTY_KEY_ACTION_PRESS
                                    : GHOSTTY_KEY_ACTION_RELEASE;
 
+    /* Releasing the key currently auto-repeating stops it -- checked
+       unconditionally here (not folded into the write-path arm logic
+       below) since a release often encodes to zero bytes in legacy
+       mode and would otherwise never reach that code. */
+    if (action == GHOSTTY_KEY_ACTION_RELEASE && input->repeating &&
+        input->repeat_evdev_code == evdev_code) {
+        input->repeating = false;
+        if (input->repeat_fd >= 0)
+            timerfd_settime(input->repeat_fd, 0, &(struct itimerspec){0}, NULL);
+    }
+
     char utf8[32] = {0};
     int utf8_len = 0;
     uint32_t unshifted_cp = 0;
@@ -504,7 +570,32 @@ handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
         ghostcon_screen_scroll_view(screen, -(int)screen->view_offset);
 
     ssize_t w = ghostcon_transport_write(transport, (const uint8_t *)encoded, written);
-    return w == (ssize_t)written;
+    if (w != (ssize_t)written)
+        return false;
+
+    /* Arm/restart auto-repeat for this press if the active keymap says
+       this key should repeat (modifiers etc. are excluded by the
+       keymap itself). timerfd_settime() unconditionally replaces
+       whatever the timer was previously doing, so a different key
+       pressed while one was already repeating naturally takes over --
+       no separate "stop the old one first" step needed. */
+    if (action == GHOSTTY_KEY_ACTION_PRESS && input->repeat_fd >= 0 &&
+        xkb_keymap_key_repeats(input->xkb_keymap, xkb_code)) {
+        input->repeating = true;
+        input->repeat_evdev_code = evdev_code;
+        memcpy(input->repeat_encoded, encoded, written);
+        input->repeat_len = written;
+
+        struct itimerspec spec = {
+            .it_value    = { .tv_sec = GHOSTCON_REPEAT_DELAY_MS / 1000,
+                              .tv_nsec = (long)(GHOSTCON_REPEAT_DELAY_MS % 1000) * 1000000L },
+            .it_interval = { .tv_sec = GHOSTCON_REPEAT_RATE_MS / 1000,
+                              .tv_nsec = (long)(GHOSTCON_REPEAT_RATE_MS % 1000) * 1000000L },
+        };
+        timerfd_settime(input->repeat_fd, 0, &spec, NULL);
+    }
+
+    return true;
 }
 
 bool
