@@ -1,0 +1,45 @@
+# Example ghostcon config. Copy to /etc/ghostcon/ghostcon.toml (or point
+# GHOSTCON_CONFIG_PATH at a copy elsewhere) and uncomment/edit as needed.
+# A missing file is not an error -- every value below is also the
+# hardcoded default undead-head falls back to if this file doesn't exist
+# or a key is left out.
+#
+# Only undead-head (the top-level process systemd starts) reads this file
+# directly -- it re-exports every value here as a GHOSTCON_* environment
+# variable for the rest of the process tree (ghost-ptyserv, supervisor,
+# ghostcon-core) to inherit, same as if you'd set that env var by hand.
+# An env var that's already set (e.g. by a test harness, or set manually
+# before launching undead-head) always wins over what's written here.
+
+[general]
+
+# The DRM render node ghostcon-core opens for KMS/GLES rendering. Find
+# yours with `ls /dev/dri/` -- on multi-GPU machines this is NOT always
+# card0.
+# drm_node = "/dev/dri/card1"
+
+# Directory for the ptyserv registry socket and the supervisor's
+# recovery/state files.
+# run_dir = "/run/ghostcon"
+
+# How long (in milliseconds) the supervisor waits for a canary heartbeat
+# from ghostcon-core before assuming it's wedged and falling back.
+# canary_deadline_ms = 4000
+
+# Skip the `wall` broadcast the supervisor sends when falling back to
+# kmscon/agetty (useful on headless/CI-like setups with no interactive
+# users to notify).
+# disable_wall = false
+
+# Skip the kmscon fallback entirely on canary failure -- supervisor falls
+# straight to a bare agetty instead. Set this if kmscon isn't installed.
+# disable_kmscon_fallback = false
+
+# Font size (points) for the terminal's glyph atlas.
+# font_size = 16
+
+# Wipe the screen and scrollback the moment a login session ends
+# (before the next one's login prompt appears), instead of leaving the
+# old session's last screenful visible underneath it. Set to false to
+# keep the old behavior.
+# clear_on_logout = true

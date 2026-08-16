@@ -1,0 +1,39 @@
+# ghostcon virtual console renderer -- replaces kmscon/agetty on the VTs
+# it's told to claim.
+#
+# Unlike kmscon's kmsconvt@.service, this is NOT a per-VT template unit:
+# undead-head (the single process this unit starts) accepts multiple VT
+# numbers on its own command line and supervises all of them in one
+# process (see PLAN.md's "undead-head" section for why one process, not
+# one-per-VT, is the right shape here). The VT list below is a literal
+# argument, not read from ghostcon.toml -- config covers behavioral knobs
+# (DRM node, timings, fallback toggles), not which VTs to claim, since a
+# variable-length arg list driven by an external file needs a systemd
+# generator unit, more machinery than this project needs yet.
+#
+# To change which VTs ghostcon manages, override this unit rather than
+# editing it in place:
+#   systemctl edit ghostcon.service
+# and set a replacement ExecStart= under [Service].
+#
+# This unit does NOT automatically conflict with or mask getty@.service /
+# kmsconvt@.service on the VTs listed above -- do that yourself for each
+# VT you hand to ghostcon, e.g.:
+#   systemctl mask kmsconvt@tty4.service getty@tty4.service
+# (matches how this was actually operated throughout development; see
+# PLAN.md. Auto-masking arbitrary VTs from a unit file is a foot-gun for
+# a first packaging pass with exactly one real deployment to learn from.)
+
+[Unit]
+Description=ghostcon virtual console renderer
+Documentation=file:///usr/share/doc/ghostcon/PLAN.md
+After=systemd-user-sessions.service
+ConditionPathExists=/dev/tty0
+
+[Service]
+ExecStart=@LIBEXECDIR@/undead-head /run/ghostcon/ptyserv.sock 4
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

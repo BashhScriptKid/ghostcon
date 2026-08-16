@@ -1,0 +1,13 @@
+# Meson build directories
+build/
+build-release/
+
+# Editor/tooling caches
+.cache/
+
+# Meson subproject wrap tooling state (re-derived from *.wrap on fetch)
+subprojects/.wraplock
+subprojects/packagecache/
+
+# Claude Code runtime state (session locks, not project config)
+.claude/

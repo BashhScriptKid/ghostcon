@@ -1,0 +1,5 @@
+#gc:cols=80 rows=24
+red: [31mRED[0m, bold: [1mBOLD[0m
+bg: [41mBG[0m
+256: [38;5;196mX[0m
+true: [38;2;10;20;30mY[0m

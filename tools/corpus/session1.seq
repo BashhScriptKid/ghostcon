@@ -1,0 +1,13 @@
+date now: Fri Jul 31 09:56:58 PM +08 2026
+uptime:  21:56:58 up  2:18,  1 user,  load average: 7.53, 6.26, 4.88
+total 136
+drwxr-xr-x  2 bashh bashh  4096 Jul 31 21:56 .
+drwxrwxrwt 32 root  root   4096 Jul 31 21:55 ..
+-rw-r--r--  1 bashh bashh 51005 Jul 31 20:41 fp32_full.log
+-rwxr-xr-x  1 bashh bashh 17136 Jul 31 21:55 ghostty_dump
+-rw-r--r--  1 bashh bashh 51321 Jul 31 21:07 i16_full.log
+-rw-r--r--  1 bashh bashh     0 Jul 31 21:56 session1.raw
+-rw-r--r--  1 bashh bashh    24 Jul 31 21:55 smoke.bin
+all done
+
+Script done on 2026-07-31 21:56:58+08:00 [COMMAND_EXIT_CODE="0"]

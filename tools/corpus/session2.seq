@@ -1,0 +1,22 @@
+top - 21:56:58 up  2:18,  1 user,  load average: 7.53, 6.26, 4.88
+Tasks: 439 total, 3 running, 432 sleep, 1 d-sleep, 0 stopped, 3 zombie
+%Cpu(s): 34.1 us,  6.7 sy,  0.0 ni, 44.1 id, 13.7 wa,  1.1 hi,  0.4 si,  0.0 st 
+MiB Mem :  15301.3 total,   1970.8 free,  10048.6 used,   4396.5 buff/cache     
+MiB Swap:  33350.0 total,  31428.8 free,   1921.2 used.   5252.7 avail Mem 
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+   4613 bashh     20   0   74.8g   1.0g  44280 R 233.3   6.8 114:37.99 opencode
+   8410 bashh     20   0   73.2g 891936  34824 S  98.0   5.7  69:25.75 opencode
+   4340 bashh     20   0 3606344 155936  95200 S  60.7   1.0  26:24.60 ghostty
+  16561 bashh     20   0 1925276 109312   5924 S  56.0   0.7  14:36.27 mission+
+  16504 bashh     20   0 3558996 242632 142356 S  14.0   1.5   3:19.40 mission+
+    634 dbus      20   0   10524   6728   2324 S   4.7   0.0   0:20.22 dbus-br+
+   1450 bashh     20   0 9432616 304228 124468 R   4.7   1.9  14:59.18 gnome-s+
+   1834 bashh     20   0 1071872  54000  41940 S   4.7   0.3   0:46.91 Xwayland
+   9649 bashh     20   0 1316744 118208  32744 S   4.7   0.8   4:11.54 steam
+  10037 bashh     20   0   51.1g 384752  59792 S   4.7   2.5   7:21.13 steamwe+
+  18755 bashh     20   0 1246.7g   1.5g 245784 S   4.7  10.4   3:02.09 QtWebEn+
+  24478 bashh     20   0   10244   7156   5016 R   4.7   0.0   0:00.02 top
+      1 root      20   0   23268  15692  10092 S   0.0   0.1   0:10.20 systemd
+
+Script done on 2026-07-31 21:56:58+08:00 [COMMAND_EXIT_CODE="0"]
