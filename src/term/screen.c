@@ -196,6 +196,13 @@ bool
 ghostcon_screen_resize(ghostcon_screen_t *s,
                        uint16_t new_cols, uint16_t new_rows)
 {
+    /* Row layout (both rows_visible's ring geometry and every row's
+       width) is about to change -- a view_offset computed against the
+       old layout would splice in the wrong lines. Simplest correct
+       behavior: snap back to live, matching how a resize already
+       disrupts scroll position in most real terminals. */
+    s->view_offset = 0;
+
     /* TODO: proper reflow — for now, simple truncate/extend */
     if (new_cols != s->cols) {
         for (uint16_t i = 0; i < s->rows_visible; i++)
@@ -622,6 +629,17 @@ ghostcon_screen_erase_display(ghostcon_screen_t *s, int mode) {
             for (uint16_t i = 0; i < s->history_count; i++)
                 ghostcon_row_clear(&s->history[i]);
             s->history_count = 0;
+        }
+        /* Nothing left to be scrolled back into -- e.g. clear_on_logout
+           wiping scrollback on session death while the outgoing user
+           happened to be scrolled up would otherwise leave view_offset
+           pointing past the now-empty history (harmless, ghostcon_screen_row()
+           clamps defensively, but the new session should start at live
+           regardless). */
+        if (s->view_offset > 0) {
+            s->view_offset = 0;
+            s->dirty.y_min = 0;
+            s->dirty.y_max = (int16_t)(s->rows_visible - 1);
         }
         return;
     case GC_ERASE_DISPLAY_SCROLL_COMPLETE:
@@ -1175,5 +1193,49 @@ ghostcon_row_t *
 ghostcon_screen_row(ghostcon_screen_t *s, uint16_t y) {
     if (y >= s->rows_visible)
         return NULL;
+
+    if (s->view_offset > 0) {
+        /* Splice history in above the live grid. Chronological order,
+           oldest to newest: history[0..history_count) then
+           rows[0..rows_visible). Scrolled back by `view_offset` lines,
+           viewport row y shows chronological position
+           (history_count - view_offset + y). */
+        uint16_t offset = s->view_offset;
+        if (offset > s->history_count)
+            offset = s->history_count; /* defensive; scroll_view() already clamps */
+
+        long logical = (long)s->history_count - (long)offset + (long)y;
+        if (logical < (long)s->history_count) {
+            /* history_head is the ring buffer's next-write slot, so the
+               oldest live entry (chronological index 0) sits at
+               history_head - history_count, wrapping mod history_cap. */
+            long slot = (long)s->history_head - (long)s->history_count + logical;
+            slot = ((slot % s->history_cap) + s->history_cap) % s->history_cap;
+            return &s->history[slot];
+        }
+        int16_t live_y = (int16_t)(logical - (long)s->history_count);
+        return &s->rows[row_idx(s, live_y)];
+    }
+
     return &s->rows[row_idx(s, (int16_t)y)];
+}
+
+void
+ghostcon_screen_scroll_view(ghostcon_screen_t *s, int delta) {
+    int new_offset = (int)s->view_offset + delta;
+    if (new_offset < 0)
+        new_offset = 0;
+    if (new_offset > (int)s->history_count)
+        new_offset = (int)s->history_count;
+
+    if ((uint16_t)new_offset == s->view_offset)
+        return;
+
+    s->view_offset = (uint16_t)new_offset;
+
+    /* The whole viewport's content just changed (scrolled), not any
+       one line -- mark everything dirty rather than diffing old vs
+       new per-row. */
+    s->dirty.y_min = 0;
+    s->dirty.y_max = (int16_t)(s->rows_visible - 1);
 }

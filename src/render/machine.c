@@ -118,7 +118,14 @@ ghostcon_machine_render_cursor(ghostcon_screen_t *screen,
                                 ghostcon_gles_t *gles,
                                 int cell_w, int cell_h)
 {
-    if (!screen->cursor_visible)
+    /* While scrolled back into history (view_offset > 0, see screen.h's
+       own doc comment), the grid coordinates the cursor was last left
+       at are now showing spliced-in history content, not the live line
+       the cursor actually belongs to -- drawing it there just looks
+       like a stray mark sitting on the wrong text. Matches how most
+       terminals handle this: hide the cursor while scrolled back,
+       rather than drawing it somewhere misleading. */
+    if (!screen->cursor_visible || screen->view_offset > 0)
         return;
 
     int16_t x = screen->cursor.x;

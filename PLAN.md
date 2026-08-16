@@ -3088,6 +3088,65 @@ comment, no DRM mock exists to unit test this against), live on tty4 —
 moving the DE's cursor then switching to tty4 no longer shows it
 anywhere on ghostcon's rendered frame.
 
+### Scrollback view shortcuts (Shift+Up/Down/PageUp/PageDown)
+
+First feature-shaped addition after a long run of core reliability/
+correctness fixes — deliberately scoped down from full kmscon-style
+mouse support (discussed and compared: mouse would need libinput
+pointer-capability handling, cell coordinate math, a whole new escape-
+sequence-encoding subsystem with nothing existing to build on unlike
+keyboard, and a cursor-plane or per-frame-quad rendering decision —
+multi-day scope). Scrollback shortcuts reuse two already-existing,
+previously-unused pieces: the `history[]` ring buffer (populated on
+every scroll-up, never read by anything) and the keyboard shortcut
+interception pattern already established for the Ctrl+Alt+F VT-switch
+filter.
+
+**`term/screen.h`/`screen.c`**: new `view_offset` field (0 = live,
+distinct from the pre-existing `scrollback_top`, which is an internal
+ring-rotation index for the live grid, not a user-facing scroll
+position). `ghostcon_screen_row()` — the renderer's sole row-read path
+(`render/machine.c`) — transparently splices in `history[]` rows when
+`view_offset > 0`, computed as a single chronological sequence
+(oldest history ... newest history, then live rows 0..rows_visible)
+windowed by `view_offset`; this is the only place scrollback viewing
+needed touching, since everything downstream already goes through this
+one function. New `ghostcon_screen_scroll_view(screen, delta)` clamps
+to `[0, history_count]` and marks the whole viewport dirty on change.
+`view_offset` resets to 0 on resize (layout changes invalidate it) and
+when scrollback is erased (`GC_ERASE_DISPLAY_SCROLLBACK`, e.g. via
+`clear_on_logout`).
+
+**`core/input.c`**: new `handle_scroll_shortcut()`, checked right after
+the existing VT-switch filter in `handle_keyboard_event()` — exact
+Shift-only match (not "Shift among other mods"), mirroring kmscon's own
+default grab specificity so e.g. Shift+Ctrl+Up still forwards normally.
+`ghostcon_input_dispatch()`/`handle_keyboard_event()` gained a `screen`
+parameter to reach it. `core/main.c` passes `&app.term.screen` through
+and checks `ghostcon_screen_get_dirty()` after dispatch, since a
+scrollback shortcut changes the screen directly with no pty output to
+trigger the usual render-on-new-data path.
+
+**Two UX bugs found live after the shortcuts themselves worked**,
+fixed same-session:
+- Cursor stayed visibly rendered at its live grid position while
+  scrolled back, sitting on top of spliced-in history content that
+  wasn't the line it actually belonged to. Fixed:
+  `ghostcon_machine_render_cursor()` now skips entirely while
+  `view_offset > 0`, matching how most terminals hide the cursor
+  rather than draw it somewhere misleading.
+- Typing while scrolled back left the view stuck in history instead of
+  snapping back to live. Fixed: `handle_keyboard_event()` now resets
+  `view_offset` to 0 the moment any (non-shortcut) key actually reaches
+  the shell.
+
+Verified: `meson test -C build-release` (12/12; new `tests/test_term.c`
+"scrollback view" case added — isolated 5x3 term, traces exact line
+contents through offset 0 -> 1 -> clamped-fully-back -> clamped-back-
+to-live, all matched on first run), live on tty4 — Shift+Up/Down/
+PageUp/PageDown scroll correctly, cursor hides while scrolled back,
+typing snaps back to live.
+
 ### Phase 2 — IPC and overlay
 
 7. **`ghostcon-ipc`** — build the real broker (separate sockets for

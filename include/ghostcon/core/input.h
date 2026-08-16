@@ -74,10 +74,17 @@ void ghostcon_input_sync_modes(ghostcon_input_t *input, const ghostcon_screen_t 
 
 /* Drains all pending libinput events. Keyboard key events are encoded
    (see ghostcon_input_encode_key) and written directly to `transport`
-   — no keybind interception yet, see the file-level comment. Pointer/
-   touchpad events are currently observed and discarded (mouse
+   — no keybind interception yet, see the file-level comment — except
+   for a small fixed set of scrollback shortcuts (Shift+Up/Down/PageUp/
+   PageDown, mirroring kmscon's grab-scroll/grab-page defaults)
+   which are intercepted and applied directly to `screen` via
+   ghostcon_screen_scroll_view() instead of being forwarded to the pty.
+   Pointer/touchpad events are currently observed and discarded (mouse
    reporting is `wrap`'s job per PLAN.md and isn't wired up yet).
    Returns false only on a transport write failure or fatal libinput
    error; individual malformed/unmappable events are skipped, not
-   fatal. */
-bool ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport);
+   fatal. Caller should check screen's dirty region after this call
+   (a scrollback shortcut marks it dirty without producing any pty
+   output to trigger the caller's usual render-on-new-data path). */
+bool ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport,
+                              ghostcon_screen_t *screen);

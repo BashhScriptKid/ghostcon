@@ -405,9 +405,33 @@ is_vt_switch_combo(uint32_t evdev_code, GhosttyMods mods)
     }
 }
 
+/* Shift+Up/Down/PageUp/PageDown — scrollback view shortcuts, mirroring
+   kmscon's grab-scroll-up/-down/grab-page-up/-down defaults. Exact
+   Shift-only match (not "Shift held among others"), same specificity
+   kmscon's own default grabs use, so e.g. an app that wants Shift+Ctrl+Up
+   for something else still gets it forwarded normally. Press-only
+   (release is a no-op, same as is_vt_switch_combo's handling doesn't
+   need to distinguish press/release since nothing forwards on release
+   either once true is returned here). */
+static bool
+handle_scroll_shortcut(ghostcon_screen_t *screen, uint32_t evdev_code,
+                        GhosttyMods mods, GhosttyKeyAction action)
+{
+    if (mods != GHOSTTY_MODS_SHIFT || action != GHOSTTY_KEY_ACTION_PRESS)
+        return false;
+
+    switch (evdev_code) {
+    case KEY_UP:       ghostcon_screen_scroll_view(screen, 1); return true;
+    case KEY_DOWN:     ghostcon_screen_scroll_view(screen, -1); return true;
+    case KEY_PAGEUP:   ghostcon_screen_scroll_view(screen, (int)screen->rows_visible); return true;
+    case KEY_PAGEDOWN: ghostcon_screen_scroll_view(screen, -(int)screen->rows_visible); return true;
+    default: return false;
+    }
+}
+
 static bool
 handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
-                       ghostcon_transport_t *transport)
+                       ghostcon_transport_t *transport, ghostcon_screen_t *screen)
 {
     struct libinput_event_keyboard *kbev = libinput_event_get_keyboard_event(ev);
     uint32_t evdev_code = libinput_event_keyboard_get_key(kbev);
@@ -459,6 +483,9 @@ handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
     if (is_vt_switch_combo(evdev_code, mods))
         return true; /* reserved for the kernel's own VT switch, never forward */
 
+    if (handle_scroll_shortcut(screen, evdev_code, mods, action))
+        return true; /* consumed locally, never forwarded to the pty */
+
     char encoded[128];
     size_t written = ghostcon_input_encode_key(input->encoder, action, evdev_code, mods,
                                                 utf8, (size_t)utf8_len, unshifted_cp,
@@ -466,12 +493,23 @@ handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
     if (written == (size_t)-1 || written == 0)
         return true; /* nothing to send (e.g. bare modifier), not an error */
 
+    /* Any other key that actually reaches the shell snaps the view back
+       to live -- found live: after scrolling back, typing kept the
+       scrolled-back history on screen instead of returning to where the
+       new input (and its echo) actually lands, matching every other
+       terminal's behavior of "typing means you want to see what you're
+       doing". Scroll shortcuts themselves already returned above and
+       never reach here. */
+    if (screen->view_offset > 0)
+        ghostcon_screen_scroll_view(screen, -(int)screen->view_offset);
+
     ssize_t w = ghostcon_transport_write(transport, (const uint8_t *)encoded, written);
     return w == (ssize_t)written;
 }
 
 bool
-ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport)
+ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport,
+                         ghostcon_screen_t *screen)
 {
     if (libinput_dispatch(input->li) != 0) {
         fprintf(stderr, "input: libinput_dispatch failed\n");
@@ -483,7 +521,7 @@ ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport
         enum libinput_event_type type = libinput_event_get_type(ev);
 
         if (type == LIBINPUT_EVENT_KEYBOARD_KEY) {
-            if (!handle_keyboard_event(input, ev, transport)) {
+            if (!handle_keyboard_event(input, ev, transport, screen)) {
                 libinput_event_destroy(ev);
                 return false;
             }

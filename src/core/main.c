@@ -675,8 +675,14 @@ main(int argc, char **argv)
 
         if (input_idx >= 0 && (fds[input_idx].revents & POLLIN)) {
             ghostcon_input_sync_modes(app.input, &app.term.screen);
-            if (!ghostcon_input_dispatch(app.input, &app.transport))
+            if (!ghostcon_input_dispatch(app.input, &app.transport, &app.term.screen))
                 fprintf(stderr, "ghostcon-core: input dispatch error (continuing)\n");
+            /* A scrollback shortcut (Shift+Up/Down/PageUp/PageDown)
+               changes the screen directly and produces no pty output,
+               so it can't rely on the transport_idx branch below to
+               notice and trigger a render -- check dirty state here too. */
+            if (ghostcon_screen_get_dirty(&app.term.screen).y_min >= 0)
+                need_render = true;
         }
 
         if (need_render && app.display_acquired) {

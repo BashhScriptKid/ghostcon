@@ -96,7 +96,83 @@ int main(void) {
     }
     printf("PASS: alt screen\n");
 
-    /* Test 8: resize */
+    /* Test 8: scrollback view (Shift+Up/Down/PageUp/PageDown shortcuts'
+       underlying mechanism — ghostcon_screen_scroll_view()/the history
+       splicing in ghostcon_screen_row()). Isolated small term (5 cols x
+       3 rows) so exact line contents at each viewport position are easy
+       to reason about, independent of the 80x24 term used above. */
+    {
+        ghostcon_term_t stest;
+        if (!ghostcon_term_init(&stest, 5, 3, 100)) {
+            fprintf(stderr, "FAIL: scrollback test term_init\n");
+            return 1;
+        }
+        /* Each line exactly fills the 5-col width; \r\n avoids relying
+           on auto-wrap behavior at the last column. After this, the
+           live grid holds "DDDDD"/"EEEEE"/"" and history holds
+           "AAAAA","BBBBB","CCCCC" (oldest to newest). */
+        ghostcon_term_feed(&stest, (const uint8_t *)
+            "AAAAA\r\nBBBBB\r\nCCCCC\r\nDDDDD\r\nEEEEE\r\n", 35);
+
+        if (stest.screen.history_count != 3) {
+            fprintf(stderr, "FAIL: scrollback expected history_count=3, got %u\n",
+                    stest.screen.history_count);
+            return 1;
+        }
+
+        /* view_offset=0 (live, default): row0 should be "DDDDD". */
+        ghostcon_row_t *r = ghostcon_screen_row(&stest.screen, 0);
+        if (!r || ghostcon_cell_get_codepoint(r->cells[0]) != 'D') {
+            fprintf(stderr, "FAIL: scrollback live row0 expected 'D'\n");
+            return 1;
+        }
+
+        /* Scroll back 1 line: row0 becomes "CCCCC" (the most recently
+           scrolled-off line), row2 becomes "EEEEE" (was live row1). */
+        ghostcon_screen_scroll_view(&stest.screen, 1);
+        r = ghostcon_screen_row(&stest.screen, 0);
+        if (!r || ghostcon_cell_get_codepoint(r->cells[0]) != 'C') {
+            fprintf(stderr, "FAIL: scrollback offset=1 row0 expected 'C'\n");
+            return 1;
+        }
+        r = ghostcon_screen_row(&stest.screen, 2);
+        if (!r || ghostcon_cell_get_codepoint(r->cells[0]) != 'E') {
+            fprintf(stderr, "FAIL: scrollback offset=1 row2 expected 'E'\n");
+            return 1;
+        }
+
+        /* Scroll back further than history_count -- clamps rather than
+           going out of bounds. Fully back: row0="AAAAA" (oldest). */
+        ghostcon_screen_scroll_view(&stest.screen, 10);
+        if (stest.screen.view_offset != 3) {
+            fprintf(stderr, "FAIL: scrollback offset expected clamped to 3, got %u\n",
+                    stest.screen.view_offset);
+            return 1;
+        }
+        r = ghostcon_screen_row(&stest.screen, 0);
+        if (!r || ghostcon_cell_get_codepoint(r->cells[0]) != 'A') {
+            fprintf(stderr, "FAIL: scrollback fully-back row0 expected 'A'\n");
+            return 1;
+        }
+
+        /* Scroll forward past live -- clamps to 0, not negative. */
+        ghostcon_screen_scroll_view(&stest.screen, -100);
+        if (stest.screen.view_offset != 0) {
+            fprintf(stderr, "FAIL: scrollback offset expected clamped to 0, got %u\n",
+                    stest.screen.view_offset);
+            return 1;
+        }
+        r = ghostcon_screen_row(&stest.screen, 0);
+        if (!r || ghostcon_cell_get_codepoint(r->cells[0]) != 'D') {
+            fprintf(stderr, "FAIL: scrollback back-to-live row0 expected 'D'\n");
+            return 1;
+        }
+
+        ghostcon_term_deinit(&stest);
+        printf("PASS: scrollback view\n");
+    }
+
+    /* Test 9: resize */
     if (!ghostcon_term_resize(&term, 40, 12)) {
         fprintf(stderr, "FAIL: resize\n");
         return 1;

@@ -119,6 +119,13 @@ typedef struct {
     uint16_t         history_count;
     int16_t          history_head;  /* write cursor in history ring buffer */
 
+    /* How many lines back into `history` the VIEW currently is (0 =
+       live, showing `rows`; up to history_count = fully scrolled back).
+       Distinct from `scrollback_top` above, which is an internal ring-
+       buffer rotation index for `rows` itself, not a user-facing scroll
+       position — see ghostcon_screen_row()'s own doc comment. */
+    uint16_t         view_offset;
+
     /* Alternate screen */
     ghostcon_row_t  *alt_rows;        /* saved visible rows when switching to alt screen */
     uint16_t         alt_rows_visible;
@@ -373,5 +380,20 @@ ghostcon_dirty_region_t ghostcon_screen_get_dirty(const ghostcon_screen_t *scree
    y is 0-based from the top of the visible area. */
 ghostcon_cell_t *ghostcon_screen_cell(ghostcon_screen_t *screen, uint16_t x, uint16_t y);
 
-/* Get a pointer to the row at y in the visible grid */
+/* Get a pointer to the row at y in the visible grid. When
+   screen->view_offset > 0 (see its own doc comment), this transparently
+   splices in rows from `history` instead — the sole read path the
+   renderer uses (render/machine.c), so scrollback viewing needs no
+   changes anywhere else in the render pipeline. */
 ghostcon_row_t *ghostcon_screen_row(ghostcon_screen_t *screen, uint16_t y);
+
+/* ------------------------------------------------------------------ */
+/* Scrollback viewing (kmscon-style grab-scroll/grab-page shortcuts)   */
+/* ------------------------------------------------------------------ */
+
+/* Adjusts view_offset by `delta` lines (negative = toward live/bottom,
+   positive = further back into history), clamped to [0, history_count].
+   A no-op if the clamped result doesn't change view_offset. Otherwise
+   marks the whole visible grid dirty (the entire viewport's content
+   just changed, not any specific line) so the next render repaints it. */
+void ghostcon_screen_scroll_view(ghostcon_screen_t *screen, int delta);
