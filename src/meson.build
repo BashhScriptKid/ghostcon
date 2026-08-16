@@ -1,4 +1,7 @@
-# Config (TOML, loaded only by undead-head — see config.h's doc comment)
+# Config (TOML) -- undead-head, supervisor, and ghostcon-core each link
+# this directly (see config.h's doc comment: startup loading stays
+# undead-head-only, but config hot-reload has each process independently
+# re-load and watch the same file, no propagation IPC between them).
 config_lib = static_library('ghostcon-config',
     'config/config.c',
     include_directories: include_directories('../include'),
@@ -236,11 +239,12 @@ ghostcon_core_exe = executable('ghostcon-core',
     link_with: [
         core_vtctl_lib, core_kms_lib, core_egl_lib, core_transport_lib,
         core_input_lib, core_diag_lib, render_lib, term_lib, ptyserv_protocol_lib,
+        config_lib,
     ],
     dependencies: [
         dep_ghostty_vt, dep_libdrm, dep_libgbm, dep_egl, dep_glesv2,
         dep_libinput, dep_libudev, dep_xkbcommon, dep_systemd,
-        dep_fontconfig, dep_freetype,
+        dep_fontconfig, dep_freetype, dep_tomlc99,
     ],
     install: true,
     install_dir: get_option('libexecdir') / 'ghostcon',
@@ -252,7 +256,8 @@ supervisor_exe = executable('supervisor',
     install: true,
     install_dir: get_option('libexecdir') / 'ghostcon',
     include_directories: include_directories('../include'),
-    link_with: ptyserv_protocol_lib,
+    link_with: [ptyserv_protocol_lib, config_lib],
+    dependencies: [dep_tomlc99],
 )
 
 # undead-head (Phase 1 item 7)

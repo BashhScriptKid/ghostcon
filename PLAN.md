@@ -3189,6 +3189,128 @@ Verified: `meson test -C build-release` (12/12), live on tty4 —
 holding a printable key auto-repeats after the initial delay, and
 releasing it stops cleanly.
 
+### General config hot-reload (inotify), starting with font_size
+
+Started as "add a font size in/decrease shortcut," but the user's
+actual intent was different: config values should be hot-reloadable by
+editing `ghostcon.toml` and having it apply live, Hyprland-style — no
+keybinding, no restart, no VT blink, no lost session state. Confirmed
+via AskUserQuestion before implementing (this touches every process's
+own event loop shape, genuinely architectural): reload trigger is
+inotify (auto-apply on save), and scope is general — every applicable
+config key, not just `font_size`.
+
+**Why this couldn't just be a bigger version of what existed**:
+`config.h`'s own doc comment stated undead-head was "the one and only
+place that needs to know a config file exists" — it parsed
+`ghostcon.toml` once at startup and `setenv()`'d `GHOSTCON_*` for the
+rest of the tree. Env vars can't change under an already-running
+process, so hot-reload needed a genuinely different delivery path.
+
+**Design chosen**: each config-consuming process
+(`undead-head`/`supervisor`/`ghostcon-core`) watches the file directly
+and independently — no reload-propagation IPC between them. All three
+now link `config_lib`/`tomlc99` (previously undead-head-only) and
+re-call `ghostcon_config_load()` on change, applying whichever fields
+they individually understand.
+
+**New shared helpers, `config.c`/`config.h`** (used by all three, so
+the inotify boilerplate and its one real gotcha only needed solving
+once): `ghostcon_config_watch_open(path)` watches the parent
+*directory*, not the file itself — editors that save via write-temp-
+then-rename (vim's default) orphan a watch placed on the file's own
+inode, which then silently never fires again; watching the directory
+with `IN_CLOSE_WRITE | IN_MOVED_TO | IN_MODIFY` catches both a plain
+in-place write and the rename pattern. `ghostcon_config_watch_check()`
+drains all pending events and filters by basename (ignores unrelated
+files in the same directory). `ghostcon_config_export_env()` gained a
+`bool overwrite` parameter — startup keeps `overwrite=false` (an
+already-set env var, e.g. from a test harness, still wins the first
+time); a reload uses `overwrite=true` (the file's new value must
+actually take effect) — including correctly *unsetting* a bool that
+flipped back to its default, since the existing readers
+(`GHOSTCON_DISABLE_WALL` etc.) check presence, not value, so a stale
+`setenv` left over from a previous reload would otherwise stick.
+`GHOSTCON_CONFIG_PATH` itself is now also exported unconditionally, so
+supervisor/ghostcon-core know what to watch without duplicating
+undead-head's default-path/env-override resolution.
+
+**Per-process integration**:
+- `undead_head/main.c`'s reaper loop was a *blocking* `waitpid(-1, ...,
+  0)` with no `poll()` at all — converted to a poll-based loop (SIGCHLD
+  self-pipe, mirroring `pty_child.c`'s own established pattern) so it
+  can also watch the inotify fd. On change: reload, re-export
+  (`overwrite=true`) — undead-head owns no live runtime state itself by
+  design, so this only affects *future* respawns (correctly covers
+  `drm_node`/`run_dir`, which can't safely apply to an already-running
+  process anyway — see below).
+- `supervisor/main.c` had three separate single-fd `poll(&pfd, 1,
+  timeout)` call sites (one per state), not one shared loop. A naive
+  "just add a second fd" would have been a real bug: a config-only
+  wakeup (state fd's own revents at 0) is indistinguishable from an
+  actual timeout to the existing `rv>0`/`revents` branching, which
+  would have made saving `ghostcon.toml` spuriously trigger "renderer
+  hung"/"did not claim VT in time". Fixed with a small
+  `poll_state_fd()` wrapper that transparently consumes config-only
+  wakeups (applies the reload, polls again) before ever returning to
+  the caller, so all three call sites keep their exact original
+  semantics. `canary_deadline_ms` applies immediately (loop re-reads
+  it each call); `disable_wall`/`disable_kmscon_fallback` apply for
+  free with zero extra code, since `wall_broadcast()`/
+  `spawn_kmscon_fallback()` already call `getenv()` fresh at point of
+  use rather than caching at startup — re-exporting the env is
+  sufficient. `drm_node` is a mutable buffer now (was a plain pointer
+  into argv/getenv storage) so reload can update it in place; only
+  takes effect on the *next* `spawn_renderer()` call, and never
+  overrides an explicit `argv[3]`, at reload same as at startup.
+- `core/main.c`: `fds[]` bumped 5 -> 6 for the inotify fd.
+  `clear_on_logout` applies immediately (trivial bool).  `font_size`
+  triggers a live rebuild: create the NEW atlas first
+  (`ghostcon_atlas_create()`) and only destroy the old one + swap
+  pointers on success (a failed rebuild — e.g. requested size doesn't
+  fit `ATLAS_DIM` — can't leave `app.atlas` NULL), then reuse the exact
+  cols/rows-from-`kms.width/height`/`cell_w`/`cell_h` +
+  `ghostcon_term_resize()` + `ghostcon_transport_resize()` (TIOCSWINSZ)
+  sequence already used on VT reacquire. No `render/gles.c` changes
+  needed — confirmed by reading it: `gles->atlas_tex` is one fixed-size
+  GL texture (`ATLAS_DIM`, unrelated to font size) that re-uploads based
+  on `ghostcon_atlas_dirty()` on whatever atlas pointer is passed each
+  frame, and a freshly-created atlas is already dirty by construction.
+  Also fixed in passing: `GHOSTCON_FONT_SIZE` was already exported by
+  `config.c` but never actually *read* at startup (`FONT_SIZE` was a
+  bare compile-time constant) — now read the same
+  getenv()-with-fallback way every other tunable is.
+
+**Honest limitation, not a scope cut**: `drm_node`/`run_dir` set up
+hardware/filesystem resources (EGL/GBM context, file paths) at process
+start — swapping those under an already-running process is a
+fundamentally different, riskier operation than updating a runtime
+value (even real compositors don't hot-swap which GPU they render on).
+These two apply on the next natural respawn, not immediately. Every
+other key applies with zero restart.
+
+**Minor known rough edge**: a single save can occasionally fire the
+reload twice in one process (a plain in-place write, e.g. via `tee`,
+can generate both `IN_MODIFY` and `IN_CLOSE_WRITE` as two separate
+events if they land in different `poll()` wakeups) — harmless since
+reload is idempotent (same file, same result), just an extra log line;
+not worth debouncing for what it costs to fix.
+
+Verified: new `ghostcon_config_watch_open()`/`_watch_check()` test
+coverage in `test_config.c` (unrelated-file-ignored, write-via-rename
+detected — both passed first run) plus `overwrite=true` bool-flip-in-
+both-directions coverage; `meson test -C build-release` (12/12,
+`test_undead_head` reran 3x isolated-clean after the reaper-loop
+rewrite specifically because that's exactly the code touched, not just
+assumed-flaky). Live on tty4: created `/etc/ghostcon/ghostcon.toml` for
+the first time on this machine, restarted once (a watch can't exist on
+a directory that didn't exist yet), then edited `font_size` 16 -> 24
+*without* any further restart — all three processes logged "config
+changed, applied" within about a second, same pids throughout
+(confirmed via `systemctl status`), text visibly larger on the
+physical screen, session/scrollback intact. `clear_on_logout` flip
+verified the same way.
+
 ### Phase 2 — IPC and overlay
 
 7. **`ghostcon-ipc`** — build the real broker (separate sockets for

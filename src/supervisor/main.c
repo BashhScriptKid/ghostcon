@@ -68,6 +68,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "ghostcon/config/config.h"
 #include "ghostcon/ptyserv/protocol.h"
 
 #define DEFAULT_DRM_NODE "/dev/dri/card1" /* mirrors core/main.c's own default -- see its comment */
@@ -306,6 +307,73 @@ spawn_agetty_fallback(int vtnum)
     return pid;
 }
 
+/* Re-reads config_path and applies whichever fields this process cares
+   about. disable_wall/disable_kmscon_fallback need no explicit handling
+   here at all -- wall_broadcast()/spawn_kmscon_fallback() already call
+   getenv() fresh at each point of use rather than caching a value at
+   startup, so re-exporting the env (ghostcon_config_export_env) alone
+   makes them live. canary_deadline_ms applies immediately (the state
+   machine below re-reads it every poll() call). drm_node only applies
+   on the NEXT spawn_renderer() call -- see drm_node_buf's own doc
+   comment at its declaration in main() for why -- and never overrides
+   an explicit argv[3], at reload same as at startup. */
+static void
+apply_config_reload(const char *config_path, int vtnum, bool drm_node_from_argv,
+                     char *drm_node_buf, size_t drm_node_buf_len, int *canary_deadline_ms)
+{
+    ghostcon_config_t new_cfg;
+    if (!ghostcon_config_load(config_path, &new_cfg)) {
+        fprintf(stderr, "supervisor: vt %d: %s changed but failed to parse -- keeping previous values\n",
+                vtnum, config_path);
+        return;
+    }
+    ghostcon_config_export_env(&new_cfg, config_path, true);
+    *canary_deadline_ms = new_cfg.canary_deadline_ms;
+    if (!drm_node_from_argv)
+        snprintf(drm_node_buf, drm_node_buf_len, "%s", new_cfg.drm_node);
+    fprintf(stderr, "supervisor: vt %d: config changed, applied\n", vtnum);
+}
+
+/* Polls `state_fd` (canary_fd or the SIGHUP pipe, depending on which
+   state calls this) for `timeout_ms`, transparently handling and
+   consuming config hot-reload wakeups along the way so callers see
+   exactly the same poll()-return semantics they had before config
+   watching existed. Without this, a config-file-only wakeup (state_fd
+   itself has nothing pending) would make poll() return rv>0 with
+   state_fd's revents at 0 -- indistinguishable, to the three existing
+   state-machine call sites below, from an actual timeout, which would
+   incorrectly fire "renderer hung"/"did not claim VT in time" purely
+   because someone saved ghostcon.toml. Instead: a config-only wakeup
+   applies the reload and polls again rather than returning. */
+static int
+poll_state_fd(int state_fd, int timeout_ms, int config_watch_fd, const char *config_path,
+              int vtnum, bool drm_node_from_argv, char *drm_node_buf, size_t drm_node_buf_len,
+              int *canary_deadline_ms, short *out_revents)
+{
+    for (;;) {
+        struct pollfd fds[2];
+        fds[0] = (struct pollfd){ .fd = state_fd, .events = POLLIN };
+        int nfds = 1;
+        int watch_idx = -1;
+        if (config_watch_fd >= 0) {
+            watch_idx = 1;
+            fds[1] = (struct pollfd){ .fd = config_watch_fd, .events = POLLIN };
+            nfds = 2;
+        }
+
+        int rv = poll(fds, (nfds_t)nfds, timeout_ms);
+        *out_revents = fds[0].revents;
+
+        if (rv > 0 && watch_idx >= 0 && (fds[watch_idx].revents & POLLIN) && fds[0].revents == 0) {
+            if (ghostcon_config_watch_check(config_watch_fd, config_path))
+                apply_config_reload(config_path, vtnum, drm_node_from_argv,
+                                     drm_node_buf, drm_node_buf_len, canary_deadline_ms);
+            continue; /* config-only wakeup -- doesn't count, poll again */
+        }
+        return rv;
+    }
+}
+
 /* ------------------------------------------------------------------ */
 /* main                                                                 */
 /* ------------------------------------------------------------------ */
@@ -334,13 +402,41 @@ main(int argc, char **argv)
        set via `pkexec env GHOSTCON_DRM_NODE=... CMD`, not a plain
        `VAR=val pkexec CMD` prefix (that only sets it in the calling
        shell, never reaching the exec'd program). */
-    const char *drm_node_env = getenv("GHOSTCON_DRM_NODE");
-    const char *drm_node = argc > 3 ? argv[3]
-                          : (drm_node_env && *drm_node_env) ? drm_node_env
-                          : DEFAULT_DRM_NODE;
+    /* drm_node is a mutable buffer (not a plain pointer into argv/getenv
+       storage) so a config hot-reload can update it in place -- only
+       takes effect on the NEXT spawn_renderer() call, since an
+       already-running ghostcon-core has an already-open EGL/GBM context
+       on the OLD device; see PLAN.md's "General config hot-reload"
+       section for why that's an accepted limitation, not a bug. argv
+       always wins over the file, at startup AND on every reload --
+       drm_node_from_argv tracks that so the reload handler below knows
+       not to clobber an explicit override. */
+    bool drm_node_from_argv = argc > 3;
+    char drm_node_buf[256];
+    if (drm_node_from_argv) {
+        snprintf(drm_node_buf, sizeof(drm_node_buf), "%s", argv[3]);
+    } else {
+        const char *drm_node_env = getenv("GHOSTCON_DRM_NODE");
+        snprintf(drm_node_buf, sizeof(drm_node_buf), "%s",
+                 (drm_node_env && *drm_node_env) ? drm_node_env : DEFAULT_DRM_NODE);
+    }
+    const char *drm_node = drm_node_buf;
 
     const char *deadline_str = getenv("GHOSTCON_CANARY_DEADLINE_MS");
     int canary_deadline_ms = deadline_str ? atoi(deadline_str) : DEFAULT_CANARY_DEADLINE_MS;
+
+    /* Hot-reload: GHOSTCON_CONFIG_PATH is exported unconditionally by
+       undead-head (see config.h's doc comment) regardless of whether
+       THIS process needed a config file before -- watch it directly,
+       independent of undead-head, same reasoning as every other
+       process in this tree per PLAN.md's "General config hot-reload"
+       section (no reload-propagation IPC between processes, each just
+       re-reads the same file). Not fatal if either step fails --
+       hot-reload just silently doesn't happen. */
+    const char *config_path = getenv("GHOSTCON_CONFIG_PATH");
+    if (!config_path)
+        config_path = "/etc/ghostcon/ghostcon.toml";
+    int config_watch_fd = ghostcon_config_watch_open(config_path);
 
     /* PLAN.md: "Each supervisor calls setpgid(0, 0) at startup so its
        renderer and overlay children belong to a single group that
@@ -375,9 +471,11 @@ main(int argc, char **argv)
                 continue;
             }
 
-            struct pollfd pfd = { .fd = canary_fd, .events = POLLIN };
-            int rv = poll(&pfd, 1, canary_deadline_ms);
-            if (rv > 0 && (pfd.revents & POLLIN)) {
+            short revents;
+            int rv = poll_state_fd(canary_fd, canary_deadline_ms, config_watch_fd, config_path,
+                                    vtnum, drm_node_from_argv, drm_node_buf, sizeof(drm_node_buf),
+                                    &canary_deadline_ms, &revents);
+            if (rv > 0 && (revents & POLLIN)) {
                 uint8_t byte;
                 read(canary_fd, &byte, 1);
                 fprintf(stderr, "supervisor: vt %d: renderer claimed VT, ACTIVE\n", vtnum);
@@ -408,15 +506,17 @@ main(int argc, char **argv)
         }
 
         case ST_ACTIVE: {
-            struct pollfd pfd = { .fd = canary_fd, .events = POLLIN };
-            int rv = poll(&pfd, 1, canary_deadline_ms);
-            if (rv > 0 && (pfd.revents & POLLHUP)) {
+            short revents;
+            int rv = poll_state_fd(canary_fd, canary_deadline_ms, config_watch_fd, config_path,
+                                    vtnum, drm_node_from_argv, drm_node_buf, sizeof(drm_node_buf),
+                                    &canary_deadline_ms, &revents);
+            if (rv > 0 && (revents & POLLHUP)) {
                 fprintf(stderr, "supervisor: vt %d: renderer exited, respawning\n", vtnum);
                 close(canary_fd);
                 canary_fd = -1;
                 waitpid(child_pid, NULL, 0);
                 state = ST_SPAWNING;
-            } else if (rv > 0 && (pfd.revents & POLLIN)) {
+            } else if (rv > 0 && (revents & POLLIN)) {
                 /* POLLIN guarantees at least one byte is available, so
                    a single read is safe without blocking -- looping
                    read() until it returns <=0 is wrong here: on a
@@ -445,8 +545,11 @@ main(int argc, char **argv)
         }
 
         case ST_FALLBACK: {
-            struct pollfd pfd = { .fd = g_sighup_pipe[0], .events = POLLIN };
-            int rv = poll(&pfd, 1, -1);
+            short revents;
+            int rv = poll_state_fd(g_sighup_pipe[0], -1, config_watch_fd, config_path,
+                                    vtnum, drm_node_from_argv, drm_node_buf, sizeof(drm_node_buf),
+                                    &canary_deadline_ms, &revents);
+            (void)revents; /* this state only cares that rv>0 happened, not which bit */
             if (rv > 0) {
                 drain_sighup_pipe();
                 fprintf(stderr, "supervisor: vt %d: SIGHUP received, retrying ghostcon\n", vtnum);

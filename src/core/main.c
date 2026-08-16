@@ -29,6 +29,7 @@
 
 #define _DEFAULT_SOURCE
 
+#include "ghostcon/config/config.h"
 #include "ghostcon/core/diag.h"
 #include "ghostcon/core/egl.h"
 #include "ghostcon/core/input.h"
@@ -75,6 +76,14 @@ typedef struct {
     const char *drm_node;
     int canary_fd;
     bool clear_on_logout;
+    /* Hot-reload -- see PLAN.md's "General config hot-reload" section.
+       config_path is what config_watch_fd (-1 if unavailable) watches;
+       font_size is tracked here (not just derived from the atlas each
+       time) purely to detect "did this actually change" cheaply on
+       reload without re-deriving it from the atlas first. */
+    const char *config_path;
+    int config_watch_fd;
+    int font_size;
 
     /* argv[0]'s original address/length, captured once in main() before
        anything overwrites it -- OSC 0/2 process-identity repurposing
@@ -416,6 +425,63 @@ vtctl_pre_ack(char event, void *userdata)
         release_display((app_t *)userdata);
 }
 
+/* Re-reads app->config_path and applies whichever fields this process
+   cares about (see PLAN.md's "General config hot-reload" section for
+   the full design). Returns true if the caller should render (screen
+   shape changed). clear_on_logout applies immediately, trivially.
+   font_size rebuilds the atlas at the new size, then reuses the exact
+   same cols/rows-from-kms-dimensions/term_resize/transport_resize
+   sequence acquire_display()'s own reacquire path already uses. */
+static bool
+apply_config_reload(app_t *app)
+{
+    ghostcon_config_t new_cfg;
+    if (!ghostcon_config_load(app->config_path, &new_cfg)) {
+        fprintf(stderr, "ghostcon-core: %s changed but failed to parse -- keeping previous values\n",
+                app->config_path);
+        return false;
+    }
+
+    app->clear_on_logout = new_cfg.clear_on_logout;
+
+    bool need_render = false;
+    if (new_cfg.font_size > 0 && new_cfg.font_size != app->font_size) {
+        /* Create the new atlas FIRST -- only destroy the old one and
+           swap pointers if creation actually succeeded, so a failed
+           rebuild (e.g. the requested size doesn't fit ATLAS_DIM)
+           can't leave app->atlas NULL and every subsequent render
+           crashing on a null deref. */
+        ghostcon_atlas_t *new_atlas = ghostcon_atlas_create(NULL, new_cfg.font_size, ATLAS_DIM);
+        if (!new_atlas) {
+            fprintf(stderr, "ghostcon-core: font_size reload to %d failed, keeping %d\n",
+                    new_cfg.font_size, app->font_size);
+        } else {
+            ghostcon_atlas_destroy(app->atlas);
+            app->atlas = new_atlas;
+            app->font_size = new_cfg.font_size;
+            ghostcon_atlas_cell_size(app->atlas, &app->cell_w, &app->cell_h);
+
+            if (app->display_acquired) {
+                uint16_t new_cols = (uint16_t)(app->kms.width / (uint32_t)app->cell_w);
+                uint16_t new_rows = (uint16_t)(app->kms.height / (uint32_t)app->cell_h);
+                if (!ghostcon_term_resize(&app->term, new_cols, new_rows))
+                    fprintf(stderr, "ghostcon-core: term_resize after font_size reload failed\n");
+                else
+                    ghostcon_transport_resize(&app->transport, new_rows, new_cols);
+                /* If the VT isn't currently acquired, cell_w/cell_h are
+                   already updated above -- acquire_display()'s own
+                   reacquire path recomputes cols/rows from them on the
+                   next acquire, no special-casing needed here for that
+                   case. */
+            }
+            need_render = true;
+        }
+    }
+
+    fprintf(stderr, "ghostcon-core: config changed, applied\n");
+    return need_render;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -438,6 +504,21 @@ main(int argc, char **argv)
     app.clear_on_logout = (clear_on_logout_str && strcmp(clear_on_logout_str, "0") == 0)
                                ? false : CLEAR_ON_LOGOUT_DEFAULT;
 
+    const char *font_size_str = getenv("GHOSTCON_FONT_SIZE");
+    app.font_size = font_size_str ? atoi(font_size_str) : FONT_SIZE;
+    if (app.font_size <= 0)
+        app.font_size = FONT_SIZE; /* malformed/nonsensical env value -- fall back rather than pass 0/negative to atlas_create */
+
+    /* Hot-reload watch -- see PLAN.md's "General config hot-reload"
+       section. GHOSTCON_CONFIG_PATH is exported unconditionally by
+       undead-head regardless of whether this process needed a config
+       file before (config.h's doc comment); not fatal if either step
+       fails, live-reload just silently doesn't happen. */
+    app.config_path = getenv("GHOSTCON_CONFIG_PATH");
+    if (!app.config_path)
+        app.config_path = "/etc/ghostcon/ghostcon.toml";
+    app.config_watch_fd = ghostcon_config_watch_open(app.config_path);
+
     ghostcon_diag_init("ghostcon-core", app.vt_num);
 
     app.vt = ghostcon_vtctl_open(app.vt_num);
@@ -446,7 +527,7 @@ main(int argc, char **argv)
         return 1;
     }
 
-    app.atlas = ghostcon_atlas_create(NULL, FONT_SIZE, ATLAS_DIM);
+    app.atlas = ghostcon_atlas_create(NULL, app.font_size, ATLAS_DIM);
     if (!app.atlas) {
         fprintf(stderr, "ghostcon-core: atlas_create failed\n");
         ghostcon_vtctl_close(app.vt);
@@ -517,10 +598,15 @@ main(int argc, char **argv)
 
     bool running = true;
     while (running) {
-        struct pollfd fds[5];
+        struct pollfd fds[6];
         int nfds = 0;
         int vtctl_idx = nfds++;
         fds[vtctl_idx] = (struct pollfd){ .fd = ghostcon_vtctl_signal_fd(app.vt), .events = POLLIN };
+        int config_watch_idx = -1;
+        if (app.config_watch_fd >= 0) {
+            config_watch_idx = nfds++;
+            fds[config_watch_idx] = (struct pollfd){ .fd = app.config_watch_fd, .events = POLLIN };
+        }
         int transport_idx = nfds++;
         fds[transport_idx] = (struct pollfd){ .fd = ghostcon_transport_fd(&app.transport), .events = POLLIN };
         /* app.transport.ctl_fd is -1 when the control connection never
@@ -577,6 +663,13 @@ main(int argc, char **argv)
         }
 
         bool need_render = false;
+
+        if (config_watch_idx >= 0 && (fds[config_watch_idx].revents & POLLIN)) {
+            if (ghostcon_config_watch_check(app.config_watch_fd, app.config_path)) {
+                if (apply_config_reload(&app))
+                    need_render = true;
+            }
+        }
 
         if (fds[vtctl_idx].revents & POLLIN) {
             ghostcon_vt_state_t before = ghostcon_vtctl_state(app.vt);

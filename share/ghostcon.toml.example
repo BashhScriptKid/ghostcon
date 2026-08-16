@@ -4,12 +4,22 @@
 # hardcoded default undead-head falls back to if this file doesn't exist
 # or a key is left out.
 #
-# Only undead-head (the top-level process systemd starts) reads this file
-# directly -- it re-exports every value here as a GHOSTCON_* environment
-# variable for the rest of the process tree (ghost-ptyserv, supervisor,
-# ghostcon-core) to inherit, same as if you'd set that env var by hand.
-# An env var that's already set (e.g. by a test harness, or set manually
-# before launching undead-head) always wins over what's written here.
+# At startup, only undead-head reads this file directly -- it
+# re-exports every value here as a GHOSTCON_* environment variable for
+# the rest of the process tree (ghost-ptyserv, supervisor, ghostcon-core)
+# to inherit, same as if you'd set that env var by hand. An env var
+# that's already set (e.g. by a test harness, or set manually before
+# launching undead-head) always wins over what's written here.
+#
+# Changes apply LIVE, no restart needed: undead-head/supervisor/
+# ghostcon-core each independently watch this file and re-apply
+# whatever changed within about a second of saving. Two exceptions --
+# drm_node and run_dir set up hardware/filesystem resources at process
+# start, so a live edit only takes effect the next time the affected
+# process naturally restarts (a crash/hang recovery, or `systemctl
+# restart ghostcon.service`), not instantly. Every other key below
+# applies with zero restart and no visible disruption (no VT blink, no
+# lost session/scrollback).
 
 [general]
 
