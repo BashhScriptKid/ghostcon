@@ -659,7 +659,7 @@ handle_csi_dec_set(ghostcon_stream_t *st, ghostcon_screen_t *s) {
         case 1002: s->mouse_tracking = true; s->mouse_protocol = 1002; break;
         case 1003: s->mouse_tracking = true; s->mouse_protocol = 1003; break;
         case 1005: /* URXVT extension */ break;
-        case 1006: /* SGR mouse mode */ break;
+        case 1006: s->mouse_sgr = true; break;                     /* SGR mouse mode */
         case 2026: s->synchronized_output = true; break;           /* synchronized output */
         case 1047: ghostcon_screen_alt_screen_enter(s); break;     /* alt screen */
         case 1048: ghostcon_screen_cursor_save(s); break;         /* save cursor */
@@ -682,6 +682,7 @@ handle_csi_dec_reset(ghostcon_stream_t *st, ghostcon_screen_t *s) {
         case 47: ghostcon_screen_alt_screen_exit(s); break;        /* alt screen (legacy) */
         case 69: s->left_right_margin = false; break;              /* DECLRMM */
         case 1000: case 1002: case 1003: s->mouse_tracking = false; s->mouse_protocol = 0; break;
+        case 1006: s->mouse_sgr = false; break;
         case 2026: s->synchronized_output = false; break;          /* synchronized output */
         case 1047: ghostcon_screen_alt_screen_exit(s); break;      /* alt screen */
         case 1048: ghostcon_screen_cursor_restore(s); break;      /* restore cursor */

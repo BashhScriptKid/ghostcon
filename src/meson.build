@@ -28,6 +28,7 @@ term_srcs = files(
     'term/kitty.c',
     'term/hyperlink.c',
     'term/selection.c',
+    'term/mouse.c',
     'term/screen.c',
     'term/stream.c',
     'term/term.c',
@@ -71,6 +72,14 @@ if not meson.is_subproject()
         dependencies: [dep_ghostty_vt],
     )
     test('test_osc', test_osc_exe)
+
+    test_mouse_exe = executable('test_mouse',
+        '../tests/test_mouse.c',
+        include_directories: include_directories('../include'),
+        link_with: term_lib,
+        dependencies: [dep_ghostty_vt],
+    )
+    test('test_mouse', test_mouse_exe)
 endif
 
 # Renderer (Phase 1 item 2)
@@ -96,12 +105,38 @@ core_egl_lib = static_library('ghostcon-core-egl',
     install: false,
 )
 
+# core/cursor_image.c — pure BMP/Xcursor decode+encode, no DRM
+# dependency (see cursor_image.h's own doc comment) -- kept as its own
+# lib so tools/xcursor2bmp.c can link it without pulling in libdrm/
+# libgbm at all.
+core_cursor_image_lib = static_library('ghostcon-core-cursor-image',
+    'core/cursor_image.c',
+    include_directories: include_directories('../include'),
+    install: false,
+)
+
+if not meson.is_subproject()
+    xcursor2bmp_exe = executable('xcursor2bmp',
+        '../tools/xcursor2bmp.c',
+        include_directories: include_directories('../include'),
+        link_with: core_cursor_image_lib,
+    )
+
+    test_cursor_image_exe = executable('test_cursor_image',
+        '../tests/test_cursor_image.c',
+        include_directories: include_directories('../include'),
+        link_with: core_cursor_image_lib,
+    )
+    test('test_cursor_image', test_cursor_image_exe)
+endif
+
 # core/kms.c — compile-checked only, not runtime-tested; see kms.h's
 # doc comment and PLAN.md's Phase 1 item 2 note for why.
 core_kms_lib = static_library('ghostcon-core-kms',
     'core/kms.c',
     include_directories: include_directories('../include'),
     dependencies: [dep_libdrm, dep_libgbm],
+    link_with: core_cursor_image_lib,
     install: false,
 )
 

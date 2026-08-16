@@ -35,6 +35,31 @@ typedef struct {
     int  zoom_step; /* points per Ctrl+=/Ctrl+Minus press -- see
                         core/input.c's handle_zoom_shortcut() doc
                         comment for why the default (2) isn't 1 */
+
+    /* Hardware cursor sprite -- see PLAN.md's "Cursor sprite: raster
+       images, per-state, config-driven" section. Empty string = unset.
+       Precedence per state: cursor_<state>_path (explicit override) >
+       cursor_theme's auto-resolved asset for that state > the built-in
+       procedural I-beam fallback. */
+    char cursor_theme[256];
+    char cursor_default_path[256];
+    char cursor_link_path[256];
+
+    /* Raster cursor scaling -- see core/main.c's load_cursor_state(),
+       which resizes decoded pixels (via ghostcon_cursor_scale()) before
+       handing them to ghostcon_kms_set_cursor_image(). base_scale is a
+       flat multiplier applied to the asset's own decoded pixel size
+       (1.0 = native size, at the reference cell height below).
+       scale_with_terminal additionally scales that baseline by the
+       ratio of the terminal's current cell height to a fixed reference
+       cell height (CURSOR_SCALE_REFERENCE_CELL_H in main.c), so a
+       raster cursor grows/shrinks with Ctrl+=/Ctrl+Minus the same way
+       the procedural I-beam already does. Doesn't apply to the
+       procedural fallback itself (pixels==NULL path), which is already
+       always sized from the live cell height regardless of these two
+       knobs. */
+    float cursor_base_scale;
+    bool  cursor_scale_with_terminal;
 } ghostcon_config_t;
 
 /* Fills `cfg` with the hardcoded defaults (matching what every binary

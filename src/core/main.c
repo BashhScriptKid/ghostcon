@@ -30,6 +30,7 @@
 #define _DEFAULT_SOURCE
 
 #include "ghostcon/config/config.h"
+#include "ghostcon/core/cursor_image.h"
 #include "ghostcon/core/diag.h"
 #include "ghostcon/core/egl.h"
 #include "ghostcon/core/input.h"
@@ -60,6 +61,21 @@
    correct here beats depending on that. */
 #define DEFAULT_DRM_NODE "/dev/dri/card1"
 #define FONT_SIZE 16
+/* Fallback cell height for [cursor].scale_with_terminal=false (a
+   raster cursor's size should stay fixed regardless of zoom) --
+   measured directly via FreeType against this project's default font
+   (NotoSansMono-Regular) at FONT_SIZE=16: face->size->metrics.height
+   >> 6 == 22. Only used as a reference when scale_with_terminal is
+   off; when it's on, the LIVE app->cell_h is used directly instead
+   (see load_cursor_state()), so this constant being an approximation
+   for OTHER fonts/sizes doesn't matter in that case. */
+#define CURSOR_SCALE_REFERENCE_CELL_H 22
+/* base_scale=1.0 means a raster cursor's height is this many cells
+   tall -- 1.25x rather than exactly 1x so it reads as a slightly
+   larger sprite than a single line of text (matches most desktop
+   cursor themes, which render taller than the text they hover over,
+   and was explicitly requested at this ratio). */
+#define CURSOR_BASE_SCALE_CELL_RATIO 1.25f
 /* Default true, unlike every other GHOSTCON_* boolean flag in this tree
    (which are all off-by-default, presence-means-on) -- see config.c's
    ghostcon_config_export_env() for why: undead-head only setenv()s this
@@ -90,6 +106,22 @@ typedef struct {
     int config_watch_fd;
     int font_size;
     int zoom_step; /* points per Ctrl+=/Ctrl+Minus press, config-driven */
+
+    /* Cursor sprite config -- see PLAN.md's "Cursor sprite: raster
+       images, per-state, config-driven" section. Persisted here (not
+       just used transiently at load time) so reload_cursor_images()
+       can be re-run from apply_font_size() (new fallback_font_height,
+       same configured paths) without re-reading config. */
+    char cursor_theme[256];
+    char cursor_default_path[256];
+    char cursor_link_path[256];
+    float cursor_base_scale;
+    bool cursor_scale_with_terminal;
+    /* Which state the hardware cursor is currently showing, tracked so
+       the main loop only calls ghostcon_kms_set_cursor_state() when it
+       actually changes (hovering the same hyperlink cell across many
+       motion events shouldn't re-commit every time). */
+    ghostcon_cursor_state_t cursor_state;
 
     /* argv[0]'s original address/length, captured once in main() before
        anything overwrites it -- OSC 0/2 process-identity repurposing
@@ -128,6 +160,124 @@ typedef struct {
        for free, since a brand-new context has no history. */
     ghostcon_input_t *input;
 } app_t;
+
+/* Conventional Xcursor names to try, in order, when a state has no
+   explicit override path but app->cursor_theme is set -- first match
+   in the theme wins. "text"/"xterm" (not "left_ptr"/"default", the
+   arrow) for the default state, matching this project's existing
+   I-beam-by-default choice (kmscon's own convention for a terminal). */
+static const char *CURSOR_THEME_NAMES_DEFAULT[] = { "text", "xterm" };
+static const char *CURSOR_THEME_NAMES_LINK[] = { "pointer", "hand2", "hand1" };
+
+/* Resolves and uploads the cursor image for one state, per the
+   precedence documented on app_t's cursor_theme/cursor_*_path fields:
+   explicit override path (BMP) > theme's auto-resolved asset (first
+   name in `theme_names` found in app->cursor_theme) > procedural
+   fallback (ghostcon_kms_set_cursor_image()'s own pixels==NULL path). */
+static void
+load_cursor_state(app_t *app, ghostcon_cursor_state_t state, const char *override_path,
+                   const char **theme_names, size_t n_theme_names)
+{
+    uint32_t w = 0, h = 0, hot_x = 0, hot_y = 0;
+    uint32_t *pixels = NULL;
+
+    if (override_path && *override_path)
+        pixels = ghostcon_cursor_load_bmp(override_path, &w, &h);
+        /* BMP carries no hotspot -- hot_x/hot_y correctly stay 0. */
+
+    if (!pixels && app->cursor_theme[0]) {
+        for (size_t i = 0; i < n_theme_names && !pixels; i++)
+            pixels = ghostcon_cursor_load_xcursor(app->cursor_theme, theme_names[i],
+                                                   &w, &h, &hot_x, &hot_y);
+    }
+
+    if (pixels && w > 0 && h > 0) {
+        /* Trim built-in transparent padding first -- real cursor
+           assets (especially ones pulled from an Xcursor theme) often
+           ship with the actual glyph occupying only a fraction of the
+           image's own bounding box (shadow/antialiasing headroom).
+           Left untrimmed, that padding gets scaled and centered right
+           along with the glyph, throwing off both the visible size
+           (base_scale ends up sizing the padding, not the glyph) and
+           the position (the glyph sits well inside the letterboxed
+           canvas instead of flush with the hotspot). See PLAN.md. */
+        uint32_t cropped_w, cropped_h;
+        uint32_t *cropped = ghostcon_cursor_crop_to_content(pixels, w, h, &cropped_w, &cropped_h,
+                                                              &hot_x, &hot_y);
+        if (cropped) {
+            free(pixels);
+            pixels = cropped;
+            w = cropped_w;
+            h = cropped_h;
+        }
+        /* cropped == NULL: fully transparent asset -- keep the
+           original as-is (nothing sensible to crop to). */
+    }
+
+    if (pixels && w > 0 && h > 0) {
+        /* base_scale is normalized to cell height, NOT the asset's own
+           native pixel size -- base_scale=1.0 means "this cursor's
+           height is CURSOR_BASE_SCALE_CELL_RATIO (1.25x) of a cell",
+           regardless of whether the source asset is a 16px or 256px
+           bitmap. Aspect ratio is preserved (width scales by the same
+           factor as height) rather than scaling w/h independently.
+           scale_with_terminal picks whether that cell height is the
+           LIVE one (cursor grows/shrinks with Ctrl+=/Ctrl+Minus, like
+           the procedural I-beam already does) or a fixed reference
+           (cursor stays a constant on-screen size regardless of zoom). */
+        int ref_cell_h = app->cursor_scale_with_terminal ? app->cell_h
+                                                           : CURSOR_SCALE_REFERENCE_CELL_H;
+        if (ref_cell_h <= 0)
+            ref_cell_h = CURSOR_SCALE_REFERENCE_CELL_H;
+
+        float target_h_f = app->cursor_base_scale * CURSOR_BASE_SCALE_CELL_RATIO * (float)ref_cell_h;
+        float scale = target_h_f / (float)h;
+
+        uint32_t target_w = (uint32_t)((float)w * scale + 0.5f);
+        uint32_t target_h = (uint32_t)(target_h_f + 0.5f);
+        if (target_w < 1)
+            target_w = 1;
+        if (target_h < 1)
+            target_h = 1;
+
+        if (target_w != w || target_h != h) {
+            uint32_t *scaled = ghostcon_cursor_scale(pixels, w, h, target_w, target_h);
+            if (scaled) {
+                /* Hotspot scales proportionally with the image -- an
+                   unscaled hotspot would point at the wrong pixel the
+                   moment the asset is resized. */
+                hot_x = (uint32_t)((float)hot_x * scale + 0.5f);
+                hot_y = (uint32_t)((float)hot_y * scale + 0.5f);
+                free(pixels);
+                pixels = scaled;
+                w = target_w;
+                h = target_h;
+            }
+            /* scaled == NULL: allocation failure -- fall through and
+               upload the unscaled image rather than dropping it. */
+        }
+    }
+
+    ghostcon_kms_set_cursor_image(&app->kms, state, pixels, w, h, hot_x, hot_y,
+                                   (unsigned int)app->cell_h);
+    free(pixels);
+}
+
+/* Re-resolves and uploads both cursor states -- called after the
+   cursor plane is first discovered (acquire_display()), whenever
+   app->cell_h changes (apply_font_size(), so the procedural fallback
+   rescales), and whenever the [cursor] config section changes
+   (apply_config_reload()). */
+static void
+reload_cursor_images(app_t *app)
+{
+    load_cursor_state(app, GC_CURSOR_STATE_DEFAULT, app->cursor_default_path,
+                       CURSOR_THEME_NAMES_DEFAULT,
+                       sizeof(CURSOR_THEME_NAMES_DEFAULT) / sizeof(CURSOR_THEME_NAMES_DEFAULT[0]));
+    load_cursor_state(app, GC_CURSOR_STATE_LINK, app->cursor_link_path,
+                       CURSOR_THEME_NAMES_LINK,
+                       sizeof(CURSOR_THEME_NAMES_LINK) / sizeof(CURSOR_THEME_NAMES_LINK[0]));
+}
 
 static void
 release_display(app_t *app)
@@ -183,6 +333,14 @@ acquire_display(app_t *app)
         fprintf(stderr, "ghostcon-core: kms init failed\n");
         goto fail;
     }
+    /* app->cell_h is already valid here -- the atlas (and cell_w/cell_h
+       derived from it) is created once, unconditionally, before the
+       very first call to acquire_display() anywhere in main(), and
+       both are "long-lived: survive every acquire/release cycle" per
+       app_t's own doc comment. Not fatal if this fails (no CURSOR-type
+       plane, or the image setup itself failed) -- the cursor just
+       never renders, ghostcon_kms_move_cursor() checks for that. */
+    reload_cursor_images(app);
 
     if (!ghostcon_egl_init_with_gbm(&app->egl, app->kms.gbm_dev, app->kms.gbm_surf,
                                      app->kms.width, app->kms.height) ||
@@ -208,7 +366,7 @@ acquire_display(app_t *app)
        reacquire cycle (kernel-level event backlog, not a polling
        issue). Not fatal if it fails: continue without keyboard input,
        matching main()'s own original startup behavior. */
-    app->input = ghostcon_input_open("seat0");
+    app->input = ghostcon_input_open("seat0", (int)app->kms.width, (int)app->kms.height);
     if (!app->input)
         fprintf(stderr, "ghostcon-core: input_open failed -- continuing without keyboard input\n");
 
@@ -472,6 +630,16 @@ apply_font_size(app_t *app, int new_size)
            updated above -- acquire_display()'s own reacquire path
            recomputes cols/rows from them on the next acquire, no
            special-casing needed here for that case. */
+
+        /* Rescale the hardware cursor too, matching kmscon's own
+           refresh_hw_cursor() being called on every font/resize change
+           (src/terminal.c) -- a procedural-fallback I-beam sized for
+           the old font would look visibly wrong (too small/large) at
+           the new one. Re-resolves configured raster assets too, not
+           just the fallback -- redundant work for a state that has one
+           (same image gets redecoded/reuploaded), but simplest given
+           this only runs on a zoom keypress, not a hot path. */
+        reload_cursor_images(app);
     }
     return true;
 }
@@ -490,6 +658,21 @@ apply_config_reload(app_t *app)
     if (new_cfg.zoom_step > 0)
         app->zoom_step = new_cfg.zoom_step;
     bool need_render = apply_font_size(app, new_cfg.font_size);
+
+    /* apply_font_size() above already calls reload_cursor_images() when
+       font_size actually changed -- but if ONLY the [cursor] section
+       changed (the common case: font_size usually doesn't move on the
+       same edit), that early-returns before ever reaching it. Always
+       re-copy the cursor config and reload here too; redundant (one
+       extra decode/reupload) on the rare edit that changes both, not
+       incorrect. */
+    snprintf(app->cursor_theme, sizeof(app->cursor_theme), "%s", new_cfg.cursor_theme);
+    snprintf(app->cursor_default_path, sizeof(app->cursor_default_path), "%s", new_cfg.cursor_default_path);
+    snprintf(app->cursor_link_path, sizeof(app->cursor_link_path), "%s", new_cfg.cursor_link_path);
+    app->cursor_base_scale = new_cfg.cursor_base_scale;
+    app->cursor_scale_with_terminal = new_cfg.cursor_scale_with_terminal;
+    if (app->display_acquired)
+        reload_cursor_images(app);
 
     fprintf(stderr, "ghostcon-core: config changed, applied\n");
     return need_render;
@@ -536,6 +719,26 @@ main(int argc, char **argv)
     if (!app.config_path)
         app.config_path = "/etc/ghostcon/ghostcon.toml";
     app.config_watch_fd = ghostcon_config_watch_open(app.config_path);
+
+    /* [cursor] fields have no individual GHOSTCON_* env var (unlike
+       font_size/zoom_step/clear_on_logout above) -- undead-head only
+       exports one env var per config key for values every process in
+       the tree might plausibly need at spawn time, and cursor assets
+       are ghostcon-core-only. Simplest to just load the file directly
+       here once for these three fields, same struct/function
+       apply_config_reload() already uses for every later reload. */
+    app.cursor_base_scale = 1.0f;
+    app.cursor_scale_with_terminal = true;
+    {
+        ghostcon_config_t initial_cfg;
+        if (ghostcon_config_load(app.config_path, &initial_cfg)) {
+            snprintf(app.cursor_theme, sizeof(app.cursor_theme), "%s", initial_cfg.cursor_theme);
+            snprintf(app.cursor_default_path, sizeof(app.cursor_default_path), "%s", initial_cfg.cursor_default_path);
+            snprintf(app.cursor_link_path, sizeof(app.cursor_link_path), "%s", initial_cfg.cursor_link_path);
+            app.cursor_base_scale = initial_cfg.cursor_base_scale;
+            app.cursor_scale_with_terminal = initial_cfg.cursor_scale_with_terminal;
+        }
+    }
 
     ghostcon_diag_init("ghostcon-core", app.vt_num);
 
@@ -796,8 +999,40 @@ main(int argc, char **argv)
         if (input_idx >= 0 && (fds[input_idx].revents & POLLIN)) {
             ghostcon_input_sync_modes(app.input, &app.term.screen);
             int zoom_delta = 0;
-            if (!ghostcon_input_dispatch(app.input, &app.transport, &app.term.screen, &zoom_delta))
+            ghostcon_input_pointer_t pointer = {0};
+            if (!ghostcon_input_dispatch(app.input, &app.transport, &app.term.screen,
+                                          app.cell_w, app.cell_h, &zoom_delta, &pointer))
                 fprintf(stderr, "ghostcon-core: input dispatch error (continuing)\n");
+            /* Hardware cursor movement is deliberately NOT folded into
+               need_render/render_frame() -- see kms.h's own doc comment
+               on ghostcon_kms_move_cursor() for why: the whole point of
+               a real DRM cursor plane over a GLES quad is that its
+               latency doesn't depend on content rendering. Called
+               directly here instead. */
+            if (pointer.moved && app.display_acquired) {
+                ghostcon_kms_move_cursor(&app.kms, pointer.x, pointer.y);
+
+                /* Hover-state detection: switch to the "link" cursor
+                   sprite while over an OSC-8 hyperlink cell, back to
+                   "default" otherwise. Only commits a plane change
+                   when the state actually differs from last time
+                   (ghostcon_kms_set_cursor_state()'s own no-op guard),
+                   so hovering the same cell across many motion events
+                   in a row doesn't re-commit every time. */
+                ghostcon_cursor_state_t new_cursor_state = GC_CURSOR_STATE_DEFAULT;
+                if (app.cell_w > 0 && app.cell_h > 0) {
+                    int col = pointer.x / app.cell_w;
+                    int row = pointer.y / app.cell_h;
+                    ghostcon_row_t *hover_row = ghostcon_screen_row(&app.term.screen, (uint16_t)row);
+                    if (hover_row && col >= 0 && col < hover_row->cols &&
+                        ghostcon_cell_get_hyperlink(hover_row->cells[col]))
+                        new_cursor_state = GC_CURSOR_STATE_LINK;
+                }
+                if (new_cursor_state != app.cursor_state) {
+                    app.cursor_state = new_cursor_state;
+                    ghostcon_kms_set_cursor_state(&app.kms, new_cursor_state);
+                }
+            }
             /* A scrollback shortcut (Shift+Up/Down/PageUp/PageDown)
                changes the screen directly and produces no pty output,
                so it can't rely on the transport_idx branch below to

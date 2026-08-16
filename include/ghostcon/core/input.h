@@ -60,7 +60,16 @@ typedef struct ghostcon_input ghostcon_input_t;
    distros (this machine included), and libinput's udev backend
    doesn't grab devices exclusively, so this never interferes with the
    desktop session's own input handling. */
-ghostcon_input_t *ghostcon_input_open(const char *seat_id);
+/* viewport_w/viewport_h are the physical screen pixel dimensions
+   (core/kms.c's kms->width/height) -- used to clamp the absolute
+   pointer position tracked internally. Stable for this input context's
+   whole lifetime (a fresh context is opened per VT acquire, same as
+   everything else in app_t's "per-acquire-cycle" category -- see
+   core/main.c's own doc comment on `input`), unlike cell_w/cell_h
+   (which CAN change mid-lifetime via a font_size zoom/reload) --
+   that's why those are passed fresh to ghostcon_input_dispatch() below
+   instead of being fixed here too. */
+ghostcon_input_t *ghostcon_input_open(const char *seat_id, int viewport_w, int viewport_h);
 void ghostcon_input_close(ghostcon_input_t *input);
 
 /* fd suitable for poll()'ing in the main event loop. */
@@ -86,6 +95,19 @@ bool ghostcon_input_repeat_fire(ghostcon_input_t *input, ghostcon_transport_t *t
    there's no dirty-tracking for this on the screen side. */
 void ghostcon_input_sync_modes(ghostcon_input_t *input, const ghostcon_screen_t *screen);
 
+/* Reported by ghostcon_input_dispatch() below -- the absolute pointer
+   pixel position (top-left origin, same space as everything else in
+   this tree), always valid, plus whether it changed this call. Caller
+   (core/main.c) uses `moved` to decide whether to call
+   ghostcon_kms_move_cursor() -- deliberately NOT folded into the
+   render-on-dirty path, since the whole point of a hardware cursor
+   plane is that its movement latency doesn't depend on content
+   rendering (see kms.h's own doc comment on ghostcon_kms_move_cursor). */
+typedef struct {
+    int  x, y;
+    bool moved;
+} ghostcon_input_pointer_t;
+
 /* Drains all pending libinput events. Keyboard key events are encoded
    (see ghostcon_input_encode_key) and written directly to `transport`
    — no keybind interception yet, see the file-level comment — except
@@ -99,12 +121,24 @@ void ghostcon_input_sync_modes(ghostcon_input_t *input, const ghostcon_screen_t 
        accumulates the net requested change into *out_zoom_delta (each
        press is +-1; caller starts it at 0 and applies the final value,
        e.g. via a helper that rebuilds the glyph atlas at the new size).
-   Pointer/touchpad events are currently observed and discarded (mouse
-   reporting is `wrap`'s job per PLAN.md and isn't wired up yet).
+
+   Pointer events (motion, buttons, wheel -- mice AND touchpads alike,
+   see core/input.c's handle_pointer_event() doc comment for why
+   libinput makes that automatic) are converted to a terminal column/
+   row using `cell_w`/`cell_h` and encoded via term/mouse.c's
+   ghostcon_mouse_encode() per `screen`'s currently negotiated
+   protocol, written to `transport` the same way keyboard bytes are
+   (0 bytes encoded — tracking off, or this event type isn't reported
+   in the current mode — is silently not sent, not an error). The
+   absolute pointer pixel position (independent of whether any app
+   requested mouse reporting -- the visible cursor sprite always
+   tracks it) is reported via `*out_pointer`.
+
    Returns false only on a transport write failure or fatal libinput
    error; individual malformed/unmappable events are skipped, not
    fatal. Caller should check screen's dirty region after this call
    (a scrollback shortcut marks it dirty without producing any pty
    output to trigger the caller's usual render-on-new-data path). */
 bool ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport,
-                              ghostcon_screen_t *screen, int *out_zoom_delta);
+                              ghostcon_screen_t *screen, int cell_w, int cell_h,
+                              int *out_zoom_delta, ghostcon_input_pointer_t *out_pointer);

@@ -1,6 +1,7 @@
 #define _DEFAULT_SOURCE /* CLOCK_MONOTONIC under -std=c11 without this */
 
 #include "ghostcon/core/input.h"
+#include "ghostcon/term/mouse.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -246,6 +247,18 @@ struct ghostcon_input {
     uint32_t repeat_evdev_code;
     char     repeat_encoded[128];
     size_t   repeat_len;
+
+    /* Pointer -- absolute pixel position (mice/touchpads both report
+       RELATIVE motion via libinput, see handle_pointer_event()'s own
+       doc comment; this is the position that relative motion
+       accumulates into), clamped to [0,viewport_w) x [0,viewport_h).
+       pressed_buttons is a bitmask of which of GC_MOUSE_LEFT/MIDDLE/
+       RIGHT are currently held, needed for mode-1002 drag-motion
+       filtering (term/mouse.c's ghostcon_mouse_encode()) and to know
+       what button a MOTION event should report as "held". */
+    int      viewport_w, viewport_h;
+    int      pointer_x, pointer_y;
+    uint32_t pressed_buttons; /* bit i set = (ghostcon_mouse_button_t)i is held */
 };
 
 /* kmscon's own documented defaults (xkb-repeat-delay/xkb-repeat-rate) --
@@ -274,12 +287,16 @@ static const struct libinput_interface LI_INTERFACE = {
 };
 
 ghostcon_input_t *
-ghostcon_input_open(const char *seat_id)
+ghostcon_input_open(const char *seat_id, int viewport_w, int viewport_h)
 {
     ghostcon_input_t *input = calloc(1, sizeof(*input));
     if (!input)
         return NULL;
     input->repeat_fd = -1; /* calloc() zeroes to fd 0, a real (if unlikely) fd */
+    input->viewport_w = viewport_w;
+    input->viewport_h = viewport_h;
+    input->pointer_x = viewport_w / 2;
+    input->pointer_y = viewport_h / 2;
 
     input->udev = udev_new();
     if (!input->udev) {
@@ -634,10 +651,141 @@ handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
     return true;
 }
 
+/* Maps an evdev button code (BTN_LEFT/BTN_RIGHT/BTN_MIDDLE, as
+   returned by libinput_event_pointer_get_button()) to our button enum.
+   Returns false for anything else (side/extra buttons, etc.) -- not
+   handled in this pass, event is a silent no-op rather than an error. */
+static bool
+evdev_button_to_mouse(uint32_t code, ghostcon_mouse_button_t *out)
+{
+    switch (code) {
+    case BTN_LEFT:   *out = GC_MOUSE_LEFT;   return true;
+    case BTN_MIDDLE: *out = GC_MOUSE_MIDDLE; return true;
+    case BTN_RIGHT:  *out = GC_MOUSE_RIGHT;  return true;
+    default:         return false;
+    }
+}
+
+/* Encodes and sends one mouse report (if term/mouse.c's
+   ghostcon_mouse_encode() decides this event should be reported at
+   all, per screen's negotiated protocol) using input's current
+   pointer_x/y. Returns false only on a transport write failure. */
+static bool
+send_mouse_report(ghostcon_input_t *input, ghostcon_transport_t *transport,
+                   ghostcon_screen_t *screen, int cell_w, int cell_h,
+                   ghostcon_mouse_button_t button, ghostcon_mouse_action_t action)
+{
+    int col = cell_w > 0 ? input->pointer_x / cell_w : 0;
+    int row = cell_h > 0 ? input->pointer_y / cell_h : 0;
+
+    char encoded[32];
+    size_t written = ghostcon_mouse_encode(screen, button, action, current_mods(input->xkb_state),
+                                            col, row, encoded, sizeof(encoded));
+    if (written == 0)
+        return true; /* not reportable in the current mode -- not an error */
+
+    ssize_t w = ghostcon_transport_write(transport, (const uint8_t *)encoded, written);
+    return w == (ssize_t)written;
+}
+
+/* Pointer capture -- mice AND touchpads alike. libinput's own device
+   model groups mice/trackballs/touchpads under one
+   LIBINPUT_DEVICE_CAP_POINTER capability, and touchpad relative
+   dragging is delivered as the exact same LIBINPUT_EVENT_POINTER_MOTION
+   (relative dx/dy) a mouse produces -- MOTION_ABSOLUTE is for
+   genuinely absolute-positioning devices (touchscreens/tablets), not
+   touchpads used as a relative pointer. kmscon, by contrast, hand-
+   rolls touchpad support at the raw evdev level (manual ABS_X/ABS_Y
+   offset-tracking per touchpad in its own input_pointer.c) because it
+   doesn't route pointer input through libinput at all -- verified
+   against that source before writing this; nothing device-type-
+   specific is needed here, both flow through the same already-open
+   libinput context ghostcon_input_open() uses for keyboard. Returns
+   false only on a transport write failure. */
+static bool
+handle_pointer_event(ghostcon_input_t *input, struct libinput_event *ev,
+                      enum libinput_event_type type, ghostcon_transport_t *transport,
+                      ghostcon_screen_t *screen, int cell_w, int cell_h,
+                      ghostcon_input_pointer_t *out_pointer)
+{
+    struct libinput_event_pointer *p = libinput_event_get_pointer_event(ev);
+
+    switch (type) {
+    case LIBINPUT_EVENT_POINTER_MOTION:
+        input->pointer_x += (int)libinput_event_pointer_get_dx(p);
+        input->pointer_y += (int)libinput_event_pointer_get_dy(p);
+        break;
+    case LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE:
+        input->pointer_x = (int)libinput_event_pointer_get_absolute_x_transformed(
+            p, (uint32_t)input->viewport_w);
+        input->pointer_y = (int)libinput_event_pointer_get_absolute_y_transformed(
+            p, (uint32_t)input->viewport_h);
+        break;
+    case LIBINPUT_EVENT_POINTER_BUTTON: {
+        ghostcon_mouse_button_t button;
+        if (!evdev_button_to_mouse(libinput_event_pointer_get_button(p), &button))
+            return true; /* side/extra button we don't map -- silent no-op */
+        bool pressed = libinput_event_pointer_get_button_state(p) == LIBINPUT_BUTTON_STATE_PRESSED;
+        if (pressed)
+            input->pressed_buttons |= (1u << button);
+        else
+            input->pressed_buttons &= ~(1u << button);
+        return send_mouse_report(input, transport, screen, cell_w, cell_h, button,
+                                  pressed ? GC_MOUSE_PRESS : GC_MOUSE_RELEASE);
+    }
+    case LIBINPUT_EVENT_POINTER_SCROLL_WHEEL:
+    case LIBINPUT_EVENT_POINTER_SCROLL_FINGER: {
+        /* v120 for a real wheel (per-detent already discretized by
+           libinput); plain scroll_value for touchpad two-finger scroll
+           (a continuous pixel-ish distance) -- it is an application
+           bug to call get_scroll_value_v120() on a non-wheel event
+           (per libinput.h's own doc comment), hence the split here.
+           Not accumulated/thresholded for finger-scroll (a possible
+           follow-up if it fires too eagerly in practice) -- any
+           nonzero value on the vertical axis fires one tick, matching
+           the wheel case exactly for simplicity in this pass. */
+        if (!libinput_event_pointer_has_axis(p, LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL))
+            return true;
+        double value = (type == LIBINPUT_EVENT_POINTER_SCROLL_WHEEL)
+                            ? libinput_event_pointer_get_scroll_value_v120(p, LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL)
+                            : libinput_event_pointer_get_scroll_value(p, LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL);
+        if (value == 0.0)
+            return true;
+        ghostcon_mouse_button_t wheel = (value > 0) ? GC_MOUSE_WHEEL_DOWN : GC_MOUSE_WHEEL_UP;
+        return send_mouse_report(input, transport, screen, cell_w, cell_h, wheel, GC_MOUSE_PRESS);
+    }
+    default:
+        return true; /* other pointer/gesture event types: not handled in this pass */
+    }
+
+    if (input->pointer_x < 0) input->pointer_x = 0;
+    if (input->pointer_y < 0) input->pointer_y = 0;
+    if (input->pointer_x >= input->viewport_w) input->pointer_x = input->viewport_w - 1;
+    if (input->pointer_y >= input->viewport_h) input->pointer_y = input->viewport_h - 1;
+
+    out_pointer->x = input->pointer_x;
+    out_pointer->y = input->pointer_y;
+    out_pointer->moved = true;
+
+    ghostcon_mouse_button_t held = GC_MOUSE_NONE;
+    for (int b = 0; b < 3; b++) {
+        if (input->pressed_buttons & (1u << b)) {
+            held = (ghostcon_mouse_button_t)b;
+            break;
+        }
+    }
+    return send_mouse_report(input, transport, screen, cell_w, cell_h, held, GC_MOUSE_MOTION);
+}
+
 bool
 ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport,
-                         ghostcon_screen_t *screen, int *out_zoom_delta)
+                         ghostcon_screen_t *screen, int cell_w, int cell_h,
+                         int *out_zoom_delta, ghostcon_input_pointer_t *out_pointer)
 {
+    out_pointer->x = input->pointer_x;
+    out_pointer->y = input->pointer_y;
+    out_pointer->moved = false;
+
     if (libinput_dispatch(input->li) != 0) {
         fprintf(stderr, "input: libinput_dispatch failed\n");
         return false;
@@ -652,10 +800,20 @@ ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport
                 libinput_event_destroy(ev);
                 return false;
             }
+        } else if (type == LIBINPUT_EVENT_POINTER_MOTION ||
+                   type == LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE ||
+                   type == LIBINPUT_EVENT_POINTER_BUTTON ||
+                   type == LIBINPUT_EVENT_POINTER_SCROLL_WHEEL ||
+                   type == LIBINPUT_EVENT_POINTER_SCROLL_FINGER) {
+            if (!handle_pointer_event(input, ev, type, transport, screen, cell_w, cell_h, out_pointer)) {
+                libinput_event_destroy(ev);
+                return false;
+            }
         }
-        /* Pointer/touchpad/gesture events: observed and discarded for
-           now -- mouse-reporting escape sequences are wrap's job per
-           PLAN.md's ordered input pipeline, not wired up yet. */
+        /* Other pointer/gesture event types (LIBINPUT_EVENT_POINTER_AXIS
+           -- deprecated/legacy, superseded by SCROLL_WHEEL/FINGER above;
+           tablet/gesture events): observed and discarded, not handled
+           in this pass. */
 
         libinput_event_destroy(ev);
     }

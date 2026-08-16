@@ -26,6 +26,11 @@ main(void)
     CHECK(cfg.font_size == 16, "default font_size");
     CHECK(cfg.clear_on_logout == true, "default clear_on_logout");
     CHECK(cfg.zoom_step == 2, "default zoom_step");
+    CHECK(cfg.cursor_theme[0] == '\0', "default cursor_theme is empty");
+    CHECK(cfg.cursor_default_path[0] == '\0', "default cursor_default_path is empty");
+    CHECK(cfg.cursor_link_path[0] == '\0', "default cursor_link_path is empty");
+    CHECK(cfg.cursor_base_scale == 1.0f, "default cursor_base_scale");
+    CHECK(cfg.cursor_scale_with_terminal == true, "default cursor_scale_with_terminal");
 
     /* mkstemp() overwrites its template with the resolved name in place,
        so each use below needs a fresh copy of the template string --
@@ -65,7 +70,13 @@ main(void)
             "disable_kmscon_fallback = true\n"
             "font_size = 20\n"
             "clear_on_logout = false\n"
-            "zoom_step = 3\n";
+            "zoom_step = 3\n"
+            "[cursor]\n"
+            "theme = \"/usr/share/icons/Breeze\"\n"
+            "default = \"/etc/terminalcursor/default.bmp\"\n"
+            "link = \"/etc/terminalcursor/link.bmp\"\n"
+            "base_scale = 0.5\n"
+            "scale_with_terminal = false\n";
         write(fd, contents, strlen(contents));
         close(fd);
 
@@ -79,6 +90,13 @@ main(void)
         CHECK(cfg.font_size == 20, "full config font_size");
         CHECK(cfg.clear_on_logout == false, "full config clear_on_logout");
         CHECK(cfg.zoom_step == 3, "full config zoom_step");
+        CHECK(strcmp(cfg.cursor_theme, "/usr/share/icons/Breeze") == 0, "full config cursor_theme");
+        CHECK(strcmp(cfg.cursor_default_path, "/etc/terminalcursor/default.bmp") == 0,
+              "full config cursor_default_path");
+        CHECK(strcmp(cfg.cursor_link_path, "/etc/terminalcursor/link.bmp") == 0,
+              "full config cursor_link_path");
+        CHECK(cfg.cursor_base_scale == 0.5f, "full config cursor_base_scale");
+        CHECK(cfg.cursor_scale_with_terminal == false, "full config cursor_scale_with_terminal");
         unlink(path);
     }
 

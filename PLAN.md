@@ -3361,6 +3361,147 @@ temporary debug logging, removed after) and 2pt fix confirmed clean on
 a single press, then `zoom_step = 4` set via a live `ghostcon.toml`
 edit (no restart) and confirmed each press now jumps by 4pt.
 
+### Mouse support, pass 1 — app mouse-reporting + hardware cursor plane
+
+Scoped explicitly into two passes (app mouse-reporting now, selection
+later): this pass covers X10/SGR mouse-reporting escape encoding
+(`term/mouse.c`, pure/unit-testable, mirroring `term/box_draw.c`'s own
+split between logic and hardware-facing dispatch) plus a **real DRM
+hardware cursor plane** for the visible pointer sprite, rather than
+compositing it as a GLES quad — chosen so cursor position updates are
+decoupled from content rendering latency (a plain atomic commit
+touching only `CRTC_X`/`CRTC_Y`, independent of `commit_frame()`'s
+per-content-frame path).
+
+DECSET/DECRST mode 1006 (SGR extended mouse coordinates) was a
+complete no-op before this — `screen->mouse_sgr` is now tracked and
+actually switches the wire encoding between X10 legacy framing
+(`ESC[M` + 3 raw bytes, value+32, coordinate-capped at 223) and SGR
+(`ESC[<Cb;Cx;Cy` + `M`/`m`, decimal, unlimited range).
+
+**Touchpad support** was verified rather than assumed: checked
+directly against kmscon's own `src/input/input_pointer.c`, which
+hand-rolls raw evdev `ABS_X`/`ABS_Y` tracking per touchpad because it
+doesn't use libinput for pointer input at all. ghostcon already goes
+through libinput, whose `LIBINPUT_DEVICE_CAP_POINTER` capability
+covers mice, trackballs, and touchpads uniformly — touchpad relative
+dragging already arrives as ordinary `LIBINPUT_EVENT_POINTER_MOTION`
+(`MOTION_ABSOLUTE` is for genuinely absolute devices like touchscreens
+and tablets), so no extra touchpad-specific code was needed.
+
+**Real bug found live, fixed during this pass**: the cursor plane's
+buffer must be **square** on this machine's amdgpu — a narrower-than-
+tall procedural I-beam buffer was rejected outright with `EINVAL` on
+atomic commit. Fixed with a fixed square canvas (queried via
+`DRM_CAP_CURSOR_WIDTH`/`DRM_CAP_CURSOR_HEIGHT`) with the glyph
+letterboxed/centered within it — not universal across every DRM
+driver, but safe to always honor.
+
+Verified: `meson test -C build-release`; live on tty4 — mouse
+reporting confirmed against a real mouse-aware TUI app, hardware
+cursor motion and the procedural I-beam confirmed working.
+
+### Cursor sprite: raster images, per-state, config-driven
+
+Follow-up to the hardware cursor plane work above: the cursor image
+can now be loaded from real raster files, per interaction *state*
+(`default`, and `link` — hovering an OSC-8 hyperlink cell), each
+independently overridable via `ghostcon.toml`, with a shared Xcursor
+theme as the fallback source for states not explicitly overridden.
+Precedence: **explicit per-state asset path > theme's auto-resolved
+asset for that state > procedural I-beam fallback**.
+
+New `[cursor]` config table: `theme`, `default`, `link` (paths),
+`base_scale` and `scale_with_terminal` (see below). New pure,
+DRM-independent module `core/cursor_image.c` (hand-rolled uncompressed
+BMP decoder/encoder plus a minimal Xcursor binary-format decoder —
+deliberately hand-rolled rather than pulling in `libpng`/`libXcursor`,
+matching this project's existing preference, e.g. vendoring `tomlc99`
+rather than a bigger TOML library). `core/kms.c`'s single cursor image
+became N *simultaneously loaded* per-state images (`GC_CURSOR_STATE_*`
+enum) so hover-switching is a cheap FB swap, not a decode-and-reupload.
+Companion tool `tools/xcursor2bmp.c` flattens a whole Xcursor theme
+into a directory of per-name BMP files.
+
+**Real bug, `XCURSOR_MAGIC` typo**: defined as `0x72754358` (a
+transposition of the correct `0x72756358`, verified via `xxd` on a
+real theme file plus manual bit-math) — every real-world Xcursor file
+failed to parse, but the hand-written synthetic unit test used the
+*same* wrong constant for both writing and reading, so it passed while
+rejecting every real file. Fixed the constant and changed the test to
+write literal ASCII magic bytes instead of a precomputed constant,
+specifically so this self-consistent-but-wrong bug class can't recur
+silently — never validate a decoder's magic number against a
+hand-computed constant used by its own test.
+
+**Follow-up bug #1, wrong cursor-plane size ceiling**: a "cursor
+becomes clipped" report after zooming down led to finding
+`GHOSTCON_CURSOR_MAX_SIZE` was hardcoded to 64 (copied from kmscon's
+own convention without verifying against real hardware) while this
+machine's actual `DRM_CAP_CURSOR_WIDTH`/`HEIGHT` is 256. Fixed by
+raising the constant to 256 — necessary but not sufficient (see #2).
+
+**Follow-up bug #2, raster images didn't scale with terminal zoom at
+all**: the 256 fix only stopped clipping; a raster asset's on-screen
+size never actually tracked font-size changes the way the procedural
+I-beam already did. Added a real nearest-neighbor image scaler
+(`ghostcon_cursor_scale()`) plus `[cursor].base_scale` (default `1.0`)
+and `[cursor].scale_with_terminal` (default `true`). Semantics went
+through two iterations based on live testing:
+- v1: `base_scale=1.0` meant "the asset's own raw native pixel size."
+  Live-tested with a 96×96 BMP at `font_size=24` and found "comically
+  larger" than intended — a 96px asset is already huge for a cursor,
+  and `scale_with_terminal` compounded it further.
+- v2 (final): `base_scale=1.0` means "this cursor's height is
+  `CURSOR_BASE_SCALE_CELL_RATIO` (1.25×) of a cell," independent of
+  the asset's own native pixel dimensions; aspect ratio is preserved.
+  `scale_with_terminal` picks whether that cell height is the *live*
+  one (grows/shrinks with Ctrl+=/Ctrl+Minus) or a fixed reference
+  (`CURSOR_SCALE_REFERENCE_CELL_H`, measured directly via FreeType
+  against the default font rather than guessed).
+
+**Follow-up bug #3, hotspot didn't account for canvas letterboxing**:
+once the canvas (256×256) became much larger than typical scaled
+raster glyphs (~41px), the visible glyph sat deep inside the
+letterboxed canvas while the stored hotspot only accounted for the
+glyph's own local coordinates — `commit_cursor()` was anchoring the
+canvas's mostly-empty top-left corner at the pointer instead of the
+actual glyph. Fixed by folding `blit_cursor_image()`/
+`draw_cursor_ibeam()`'s own centering offset into the stored hotspot.
+
+**Follow-up bug #4, dead zone at the top-left screen edge**: after
+fixing #3, the (now much larger) hotspot revealed that `CRTC_X`/
+`CRTC_Y` were being computed and floored as *unsigned*, to dodge
+underflow — so any pointer position with `x`/`y` smaller than the
+hotspot all collapsed to `crtc=0,0`, pinning the glyph a fixed
+distance from the true top-left corner. `CRTC_X`/`CRTC_Y` on a DRM
+plane are actually a **signed** property (`DRM_MODE_PROP_SIGNED_RANGE`)
+— hardware already tolerates a plane extending past the bottom/right
+edge with no clamp; the fix was signed math with no floor at all,
+sign-extended correctly through `int64_t` when building the atomic
+property value (a plain `(uint64_t)` cast would have zero-extended a
+negative offset into a huge positive one).
+
+**Follow-up bug #5, built-in transparent padding in the asset itself**:
+even with #3 and #4 fixed, a real Xcursor-derived BMP (extracted via
+`xcursor2bmp` from a real theme) still showed a visible gap between
+the pointer and the glyph, and the glyph looked too small for
+`base_scale=1.0`. Diagnosed by inspecting the raw BMP pixel data
+directly: the asset's actual opaque content didn't start until column
+35 of a 96px-wide image — over a third of it was transparent padding
+baked into the source theme (headroom for shadow/antialiasing). Fixed
+with `ghostcon_cursor_crop_to_content()`, called before scaling: crops
+to the tightest opaque bounding box and shifts the hotspot to match,
+so `base_scale` sizes and positions the actual glyph, not the padding
+around it.
+
+Verified: `meson test -C build-release` (18 checks across
+`test_cursor_image`, including the crop function); live on tty4 across
+all five follow-ups — BMP override and Xcursor-theme fallback both
+confirmed, hyperlink-hover state switching confirmed, all four screen
+corners confirmed reachable, sizing confirmed proportional to cell
+height after the v2 semantics + crop fix.
+
 ### Phase 2 — IPC and overlay
 
 7. **`ghostcon-ipc`** — build the real broker (separate sockets for

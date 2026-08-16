@@ -161,6 +161,12 @@ typedef struct {
     bool             left_right_margin;   /* DECSLRM — mode 69 */
     bool             mouse_tracking;      /* Mode 1000/1002/1003/etc. */
     uint16_t         mouse_protocol;      /* 0=none, 1000=button, 1002=button+drag, 1003=motion, 1005=ext, 1006=SGR */
+    bool             mouse_sgr;           /* Mode 1006 -- SGR extended coordinate framing.
+                                              Was previously untracked entirely: DECSET 1006 was a
+                                              no-op and DECRST had no 1006 case at all. See
+                                              term/mouse.c's ghostcon_mouse_encode(), which needs
+                                              this to choose SGR (unlimited coords) vs legacy X10
+                                              (23-bit-clamped) framing. */
     bool             mouse_shift_capture; /* XTSHIFTESCAPE */
     ghostcon_protected_mode_t protected_mode; /* DECSCA */
     ghostcon_saved_modes_t    saved_modes;    /* CSI ? s / CSI ? r */

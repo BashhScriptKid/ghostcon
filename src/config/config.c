@@ -26,6 +26,8 @@ ghostcon_config_defaults(ghostcon_config_t *cfg)
     cfg->font_size = 16;
     cfg->clear_on_logout = true;
     cfg->zoom_step = 2;
+    cfg->cursor_base_scale = 1.0f;
+    cfg->cursor_scale_with_terminal = true;
 }
 
 static void
@@ -54,6 +56,14 @@ load_bool(toml_table_t *tab, const char *key, bool *out)
         *out = d.u.b;
 }
 
+static void
+load_double(toml_table_t *tab, const char *key, float *out)
+{
+    toml_datum_t d = toml_double_in(tab, key);
+    if (d.ok)
+        *out = (float)d.u.d;
+}
+
 bool
 ghostcon_config_load(const char *path, ghostcon_config_t *cfg)
 {
@@ -79,6 +89,15 @@ ghostcon_config_load(const char *path, ghostcon_config_t *cfg)
         load_int(general, "font_size", &cfg->font_size);
         load_bool(general, "clear_on_logout", &cfg->clear_on_logout);
         load_int(general, "zoom_step", &cfg->zoom_step);
+    }
+
+    toml_table_t *cursor = toml_table_in(root, "cursor");
+    if (cursor) {
+        load_string(cursor, "theme", cfg->cursor_theme, sizeof(cfg->cursor_theme));
+        load_string(cursor, "default", cfg->cursor_default_path, sizeof(cfg->cursor_default_path));
+        load_string(cursor, "link", cfg->cursor_link_path, sizeof(cfg->cursor_link_path));
+        load_double(cursor, "base_scale", &cfg->cursor_base_scale);
+        load_bool(cursor, "scale_with_terminal", &cfg->cursor_scale_with_terminal);
     }
 
     toml_free(root);
