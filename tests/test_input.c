@@ -82,6 +82,49 @@ main(void)
 
     ghostty_key_encoder_free(enc);
 
+    /* --- ghostcon_parse_keybinding() --- */
+    {
+        GhosttyMods mods;
+        uint32_t evdev;
+
+        if (ghostcon_parse_keybinding("ctrl+shift+c", &mods, &evdev) &&
+            mods == (GHOSTTY_MODS_CTRL | GHOSTTY_MODS_SHIFT) && evdev == KEY_C)
+            printf("PASS: parse_keybinding: ctrl+shift+c\n");
+        else { fprintf(stderr, "FAIL: parse_keybinding: ctrl+shift+c\n"); failures++; }
+
+        if (ghostcon_parse_keybinding("ctrl+shift+v", &mods, &evdev) &&
+            mods == (GHOSTTY_MODS_CTRL | GHOSTTY_MODS_SHIFT) && evdev == KEY_V)
+            printf("PASS: parse_keybinding: ctrl+shift+v\n");
+        else { fprintf(stderr, "FAIL: parse_keybinding: ctrl+shift+v\n"); failures++; }
+
+        /* Case-insensitive, order-independent. */
+        if (ghostcon_parse_keybinding("SHIFT+CTRL+C", &mods, &evdev) &&
+            mods == (GHOSTTY_MODS_CTRL | GHOSTTY_MODS_SHIFT) && evdev == KEY_C)
+            printf("PASS: parse_keybinding: case-insensitive, reordered mods\n");
+        else { fprintf(stderr, "FAIL: parse_keybinding: case-insensitive, reordered mods\n"); failures++; }
+
+        if (ghostcon_parse_keybinding("shift+insert", &mods, &evdev) &&
+            mods == GHOSTTY_MODS_SHIFT && evdev == KEY_INSERT)
+            printf("PASS: parse_keybinding: named key (insert)\n");
+        else { fprintf(stderr, "FAIL: parse_keybinding: named key (insert)\n"); failures++; }
+
+        if (ghostcon_parse_keybinding("a", &mods, &evdev) && mods == 0 && evdev == KEY_A)
+            printf("PASS: parse_keybinding: bare key, no modifiers\n");
+        else { fprintf(stderr, "FAIL: parse_keybinding: bare key, no modifiers\n"); failures++; }
+
+        if (!ghostcon_parse_keybinding("ctrl+boguskey", &mods, &evdev))
+            printf("PASS: parse_keybinding: unrecognized key name rejected\n");
+        else { fprintf(stderr, "FAIL: parse_keybinding: unrecognized key name rejected\n"); failures++; }
+
+        if (!ghostcon_parse_keybinding("", &mods, &evdev))
+            printf("PASS: parse_keybinding: empty spec rejected\n");
+        else { fprintf(stderr, "FAIL: parse_keybinding: empty spec rejected\n"); failures++; }
+
+        if (!ghostcon_parse_keybinding("ctrl+c+v", &mods, &evdev))
+            printf("PASS: parse_keybinding: two key tokens rejected\n");
+        else { fprintf(stderr, "FAIL: parse_keybinding: two key tokens rejected\n"); failures++; }
+    }
+
     if (failures > 0) {
         fprintf(stderr, "%d test(s) failed\n", failures);
         return 1;

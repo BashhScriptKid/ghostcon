@@ -28,6 +28,8 @@ ghostcon_config_defaults(ghostcon_config_t *cfg)
     cfg->zoom_step = 2;
     cfg->cursor_base_scale = 1.0f;
     cfg->cursor_scale_with_terminal = true;
+    snprintf(cfg->copy_to_clipboard_binding, sizeof(cfg->copy_to_clipboard_binding), "%s", "ctrl+shift+c");
+    snprintf(cfg->paste_from_clipboard_binding, sizeof(cfg->paste_from_clipboard_binding), "%s", "ctrl+shift+v");
 }
 
 static void
@@ -98,6 +100,16 @@ ghostcon_config_load(const char *path, ghostcon_config_t *cfg)
         load_string(cursor, "link", cfg->cursor_link_path, sizeof(cfg->cursor_link_path));
         load_double(cursor, "base_scale", &cfg->cursor_base_scale);
         load_bool(cursor, "scale_with_terminal", &cfg->cursor_scale_with_terminal);
+        load_string(cursor, "default_hot_pos", cfg->cursor_default_hot_pos, sizeof(cfg->cursor_default_hot_pos));
+        load_string(cursor, "link_hot_pos", cfg->cursor_link_hot_pos, sizeof(cfg->cursor_link_hot_pos));
+    }
+
+    toml_table_t *keybindings = toml_table_in(root, "keybindings");
+    if (keybindings) {
+        load_string(keybindings, "copy_to_clipboard", cfg->copy_to_clipboard_binding,
+                    sizeof(cfg->copy_to_clipboard_binding));
+        load_string(keybindings, "paste_from_clipboard", cfg->paste_from_clipboard_binding,
+                    sizeof(cfg->paste_from_clipboard_binding));
     }
 
     toml_free(root);

@@ -29,3 +29,18 @@ void ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
 void ghostcon_machine_render_cursor(ghostcon_screen_t *screen,
                                      ghostcon_gles_t *gles,
                                      int cell_w, int cell_h);
+
+/* Pushes one semi-transparent, alpha-blended rect per selected row
+   (not per cell -- a char-kind selection's row range is always
+   contiguous, see ghostcon_selection_row_range()) for the active text
+   selection, if any. No-op if there's no active selection, or while
+   scrolled back into history (screen->view_offset > 0) -- same
+   reasoning ghostcon_machine_render_cursor() already uses: the grid
+   coordinates would be pointing at spliced-in history content, not
+   the live rows the selection actually belongs to. Called every frame
+   alongside render_dirty/render_cursor -- no dirty-region tracking
+   needed, ghostcon_gles_begin()'s full framebuffer clear each frame
+   already means a cleared selection just stops being redrawn. */
+void ghostcon_machine_render_selection(ghostcon_screen_t *screen,
+                                        ghostcon_gles_t *gles,
+                                        int cell_w, int cell_h);

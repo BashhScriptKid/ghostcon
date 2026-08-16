@@ -152,8 +152,30 @@ spawn_session(const char *shell, int *out_master_fd)
             execlp(shell, shell, (char *)NULL);
         } else {
             const char *term = getenv("TERM");
-            if (!term || !*term)
-                term = "linux";
+            if (!term || !*term) {
+                /* NOT "linux" -- that's the bare Linux console's own
+                   terminfo entry (minimal color, no xterm-style mouse
+                   escapes), which undersells what ghostcon's
+                   libghostty-vt engine actually implements (SGR/24-bit
+                   color, X10/SGR mouse reporting, OSC 8) and visibly
+                   degrades apps that query terminfo to decide what to
+                   use -- found live: nano showed noticeably fewer
+                   colors and no mouse response under TERM=linux
+                   compared to the same session under kmscon. */
+                term = "xterm-256color";
+                /* term = "xterm-ghostty"; -- Ghostty itself defaults to
+                   this (its own real terminfo entry, already installed
+                   on this machine as the ghostty-terminfo package) --
+                   but that entry advertises Ghostty's FULL feature set
+                   (Kitty graphics protocol, certain OSC extensions)
+                   which ghostcon doesn't implement yet (see PLAN.md's
+                   OSC support matrix); claiming it before ghostcon's
+                   coverage is actually close enough would make apps
+                   attempt features that then silently misbehave, worse
+                   than xterm-256color's more conservative but honest
+                   feature set. Revisit once ghostcon's OSC/CSI coverage
+                   is closer to real Ghostty's. */
+            }
             /* "-" = use the already-attached line (our pty slave, via
                forkpty) instead of agetty opening a tty device itself --
                same convention kmscon's own unit file uses. */

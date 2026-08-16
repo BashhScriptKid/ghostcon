@@ -31,6 +31,10 @@ main(void)
     CHECK(cfg.cursor_link_path[0] == '\0', "default cursor_link_path is empty");
     CHECK(cfg.cursor_base_scale == 1.0f, "default cursor_base_scale");
     CHECK(cfg.cursor_scale_with_terminal == true, "default cursor_scale_with_terminal");
+    CHECK(strcmp(cfg.copy_to_clipboard_binding, "ctrl+shift+c") == 0, "default copy_to_clipboard_binding");
+    CHECK(strcmp(cfg.paste_from_clipboard_binding, "ctrl+shift+v") == 0, "default paste_from_clipboard_binding");
+    CHECK(cfg.cursor_default_hot_pos[0] == '\0', "default cursor_default_hot_pos is empty");
+    CHECK(cfg.cursor_link_hot_pos[0] == '\0', "default cursor_link_hot_pos is empty");
 
     /* mkstemp() overwrites its template with the resolved name in place,
        so each use below needs a fresh copy of the template string --
@@ -76,7 +80,12 @@ main(void)
             "default = \"/etc/terminalcursor/default.bmp\"\n"
             "link = \"/etc/terminalcursor/link.bmp\"\n"
             "base_scale = 0.5\n"
-            "scale_with_terminal = false\n";
+            "scale_with_terminal = false\n"
+            "default_hot_pos = \"12,8\"\n"
+            "link_hot_pos = \"3,4\"\n"
+            "[keybindings]\n"
+            "copy_to_clipboard = \"ctrl+alt+c\"\n"
+            "paste_from_clipboard = \"ctrl+alt+v\"\n";
         write(fd, contents, strlen(contents));
         close(fd);
 
@@ -97,6 +106,10 @@ main(void)
               "full config cursor_link_path");
         CHECK(cfg.cursor_base_scale == 0.5f, "full config cursor_base_scale");
         CHECK(cfg.cursor_scale_with_terminal == false, "full config cursor_scale_with_terminal");
+        CHECK(strcmp(cfg.copy_to_clipboard_binding, "ctrl+alt+c") == 0, "full config copy_to_clipboard_binding");
+        CHECK(strcmp(cfg.paste_from_clipboard_binding, "ctrl+alt+v") == 0, "full config paste_from_clipboard_binding");
+        CHECK(strcmp(cfg.cursor_default_hot_pos, "12,8") == 0, "full config cursor_default_hot_pos");
+        CHECK(strcmp(cfg.cursor_link_hot_pos, "3,4") == 0, "full config cursor_link_hot_pos");
         unlink(path);
     }
 

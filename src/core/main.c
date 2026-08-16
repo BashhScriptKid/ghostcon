@@ -117,6 +117,21 @@ typedef struct {
     char cursor_link_path[256];
     float cursor_base_scale;
     bool cursor_scale_with_terminal;
+
+    /* Configurable copy/paste shortcuts -- persisted here (not just
+       applied transiently at load time) so acquire_display() can
+       re-push them into a freshly-opened ghostcon_input_t after every
+       VT release/reacquire cycle (a fresh input context always starts
+       back at ghostcon_input_open()'s own hardcoded defaults otherwise,
+       silently reverting a user's configured rebind until the next
+       unrelated config edit happens to re-trigger apply_config_reload()). */
+    char copy_to_clipboard_binding[64];
+    char paste_from_clipboard_binding[64];
+
+    /* Explicit BMP hotspot overrides -- see config.h's own doc comment
+       on cursor_default_hot_pos/cursor_link_hot_pos. */
+    char cursor_default_hot_pos[32];
+    char cursor_link_hot_pos[32];
     /* Which state the hardware cursor is currently showing, tracked so
        the main loop only calls ghostcon_kms_set_cursor_state() when it
        actually changes (hovering the same hyperlink cell across many
@@ -176,19 +191,48 @@ static const char *CURSOR_THEME_NAMES_LINK[] = { "pointer", "hand2", "hand1" };
    fallback (ghostcon_kms_set_cursor_image()'s own pixels==NULL path). */
 static void
 load_cursor_state(app_t *app, ghostcon_cursor_state_t state, const char *override_path,
+                   const char *hot_pos_str,
                    const char **theme_names, size_t n_theme_names)
 {
     uint32_t w = 0, h = 0, hot_x = 0, hot_y = 0;
     uint32_t *pixels = NULL;
+    /* True once hot_x/hot_y holds a MEANINGFUL value -- either a real
+       Xcursor-embedded hotspot, or an explicit config override -- as
+       opposed to just BMP's structural default of (0,0). Gates
+       whether the post-crop/scale auto-center fallback below applies. */
+    bool have_real_hotspot = false;
 
     if (override_path && *override_path)
         pixels = ghostcon_cursor_load_bmp(override_path, &w, &h);
-        /* BMP carries no hotspot -- hot_x/hot_y correctly stay 0. */
+        /* BMP carries no hotspot -- hot_x/hot_y stay 0 here; resolved
+           to either an explicit override or an auto-centered guess
+           below, once the final glyph size is known. */
 
     if (!pixels && app->cursor_theme[0]) {
-        for (size_t i = 0; i < n_theme_names && !pixels; i++)
+        for (size_t i = 0; i < n_theme_names && !pixels; i++) {
             pixels = ghostcon_cursor_load_xcursor(app->cursor_theme, theme_names[i],
                                                    &w, &h, &hot_x, &hot_y);
+            if (pixels)
+                have_real_hotspot = true; /* Xcursor always carries a real one */
+        }
+    }
+
+    /* An explicit config hotspot always wins, regardless of source --
+       parsed in the ORIGINAL, uncropped asset's own pixel coordinates
+       (matches what someone would read off in an image viewer), so it
+       must be set before crop_to_content() below, which shifts
+       hot_x/hot_y by its own crop offset the same way it would for a
+       real Xcursor hotspot. */
+    if (hot_pos_str && *hot_pos_str) {
+        unsigned int cfg_hot_x, cfg_hot_y;
+        if (sscanf(hot_pos_str, "%u,%u", &cfg_hot_x, &cfg_hot_y) == 2) {
+            hot_x = cfg_hot_x;
+            hot_y = cfg_hot_y;
+            have_real_hotspot = true;
+        } else {
+            fprintf(stderr, "ghostcon-core: invalid cursor hot_pos \"%s\" -- expected \"x,y\"\n",
+                    hot_pos_str);
+        }
     }
 
     if (pixels && w > 0 && h > 0) {
@@ -256,6 +300,19 @@ load_cursor_state(app_t *app, ghostcon_cursor_state_t state, const char *overrid
             /* scaled == NULL: allocation failure -- fall through and
                upload the unscaled image rather than dropping it. */
         }
+
+        /* No real hotspot (not from Xcursor, no explicit config
+           override) -- auto-center on the final, cropped-and-scaled
+           glyph rather than leaving it at BMP's structural (0,0). A
+           much better generic guess for most cursor shapes (I-beams,
+           crosshairs) than a bounding-box corner, which only makes
+           sense for an arrow-like pointer whose tip IS a corner --
+           same reasoning the procedural I-beam's own hotspot uses
+           (see core/kms.c's ghostcon_kms_set_cursor_image()). */
+        if (!have_real_hotspot) {
+            hot_x = w / 2;
+            hot_y = h / 2;
+        }
     }
 
     ghostcon_kms_set_cursor_image(&app->kms, state, pixels, w, h, hot_x, hot_y,
@@ -272,11 +329,39 @@ static void
 reload_cursor_images(app_t *app)
 {
     load_cursor_state(app, GC_CURSOR_STATE_DEFAULT, app->cursor_default_path,
+                       app->cursor_default_hot_pos,
                        CURSOR_THEME_NAMES_DEFAULT,
                        sizeof(CURSOR_THEME_NAMES_DEFAULT) / sizeof(CURSOR_THEME_NAMES_DEFAULT[0]));
     load_cursor_state(app, GC_CURSOR_STATE_LINK, app->cursor_link_path,
+                       app->cursor_link_hot_pos,
                        CURSOR_THEME_NAMES_LINK,
                        sizeof(CURSOR_THEME_NAMES_LINK) / sizeof(CURSOR_THEME_NAMES_LINK[0]));
+}
+
+/* Parses app->copy_to_clipboard_binding/paste_from_clipboard_binding
+   and pushes them into app->input -- called after every
+   ghostcon_input_open() (a fresh input context always starts back at
+   that function's own hardcoded defaults otherwise) and from
+   apply_config_reload() (see app_t's own doc comment on these two
+   fields for why they're persisted rather than applied transiently).
+   A no-op if app->input is NULL (not yet acquired) or either spec
+   fails to parse (keeps whatever the input context already has --
+   its own built-in defaults on first open, or the last-known-good
+   parse on a reload). */
+static void
+apply_keybindings(app_t *app)
+{
+    if (!app->input)
+        return;
+    GhosttyMods copy_mods, paste_mods;
+    uint32_t copy_evdev, paste_evdev;
+    if (ghostcon_parse_keybinding(app->copy_to_clipboard_binding, &copy_mods, &copy_evdev) &&
+        ghostcon_parse_keybinding(app->paste_from_clipboard_binding, &paste_mods, &paste_evdev)) {
+        ghostcon_input_set_clipboard_bindings(app->input, copy_mods, copy_evdev,
+                                               paste_mods, paste_evdev);
+    } else {
+        fprintf(stderr, "ghostcon-core: invalid [keybindings] entry -- keeping previous bindings\n");
+    }
 }
 
 static void
@@ -302,6 +387,16 @@ release_display(app_t *app)
     if (app->input)
         ghostcon_input_close(app->input);
     app->input = NULL;
+
+    /* A selection left mid-drag (pending) when the VT is released would
+       never see its release event -- the libinput context (and its
+       pressed_buttons state) is discarded here and rebuilt fresh on
+       reacquire, but screen->selection lives outside ghostcon_input_t
+       and survives untouched, so without this it would get stuck
+       pending forever. Clearing rather than finishing: there's no
+       release-in-visible-app-content event to treat as a real
+       finish. */
+    ghostcon_selection_clear(&app->term.screen.selection);
 
     ghostcon_diag_log_warning("vt %d: display released", app->vt_num);
 }
@@ -369,6 +464,7 @@ acquire_display(app_t *app)
     app->input = ghostcon_input_open("seat0", (int)app->kms.width, (int)app->kms.height);
     if (!app->input)
         fprintf(stderr, "ghostcon-core: input_open failed -- continuing without keyboard input\n");
+    apply_keybindings(app); /* fresh input context otherwise reverts to hardcoded defaults */
 
     app->display_acquired = true;
     app->did_modeset = false;
@@ -424,6 +520,8 @@ render_frame(app_t *app)
                                    app->cell_w, app->cell_h);
     ghostcon_machine_render_cursor(&app->term.screen, app->gles,
                                     app->cell_w, app->cell_h);
+    ghostcon_machine_render_selection(&app->term.screen, app->gles,
+                                       app->cell_w, app->cell_h);
     ghostcon_gles_sync_atlas(app->gles, app->atlas, false);
     ghostcon_gles_end(app->gles);
 
@@ -626,6 +724,15 @@ apply_font_size(app_t *app, int new_size)
             fprintf(stderr, "ghostcon-core: term_resize after font_size change failed\n");
         else
             ghostcon_transport_resize(&app->transport, new_rows, new_cols);
+
+        /* A selection recorded against the OLD grid width can point
+           past the new one's bounds (ghostcon_selection_t.cols exists
+           precisely to detect this) -- clear rather than try to remap
+           it, matching how selection is already dropped wholesale on a
+           VT release (see release_display()'s own doc comment). */
+        if (app->term.screen.selection.active &&
+            app->term.screen.selection.cols != (int16_t)app->term.screen.cols)
+            ghostcon_selection_clear(&app->term.screen.selection);
         /* If the VT isn't currently acquired, cell_w/cell_h are already
            updated above -- acquire_display()'s own reacquire path
            recomputes cols/rows from them on the next acquire, no
@@ -671,8 +778,16 @@ apply_config_reload(app_t *app)
     snprintf(app->cursor_link_path, sizeof(app->cursor_link_path), "%s", new_cfg.cursor_link_path);
     app->cursor_base_scale = new_cfg.cursor_base_scale;
     app->cursor_scale_with_terminal = new_cfg.cursor_scale_with_terminal;
+    snprintf(app->cursor_default_hot_pos, sizeof(app->cursor_default_hot_pos), "%s", new_cfg.cursor_default_hot_pos);
+    snprintf(app->cursor_link_hot_pos, sizeof(app->cursor_link_hot_pos), "%s", new_cfg.cursor_link_hot_pos);
     if (app->display_acquired)
         reload_cursor_images(app);
+
+    snprintf(app->copy_to_clipboard_binding, sizeof(app->copy_to_clipboard_binding),
+             "%s", new_cfg.copy_to_clipboard_binding);
+    snprintf(app->paste_from_clipboard_binding, sizeof(app->paste_from_clipboard_binding),
+             "%s", new_cfg.paste_from_clipboard_binding);
+    apply_keybindings(app);
 
     fprintf(stderr, "ghostcon-core: config changed, applied\n");
     return need_render;
@@ -729,6 +844,8 @@ main(int argc, char **argv)
        apply_config_reload() already uses for every later reload. */
     app.cursor_base_scale = 1.0f;
     app.cursor_scale_with_terminal = true;
+    snprintf(app.copy_to_clipboard_binding, sizeof(app.copy_to_clipboard_binding), "%s", "ctrl+shift+c");
+    snprintf(app.paste_from_clipboard_binding, sizeof(app.paste_from_clipboard_binding), "%s", "ctrl+shift+v");
     {
         ghostcon_config_t initial_cfg;
         if (ghostcon_config_load(app.config_path, &initial_cfg)) {
@@ -737,6 +854,14 @@ main(int argc, char **argv)
             snprintf(app.cursor_link_path, sizeof(app.cursor_link_path), "%s", initial_cfg.cursor_link_path);
             app.cursor_base_scale = initial_cfg.cursor_base_scale;
             app.cursor_scale_with_terminal = initial_cfg.cursor_scale_with_terminal;
+            snprintf(app.cursor_default_hot_pos, sizeof(app.cursor_default_hot_pos),
+                     "%s", initial_cfg.cursor_default_hot_pos);
+            snprintf(app.cursor_link_hot_pos, sizeof(app.cursor_link_hot_pos),
+                     "%s", initial_cfg.cursor_link_hot_pos);
+            snprintf(app.copy_to_clipboard_binding, sizeof(app.copy_to_clipboard_binding),
+                     "%s", initial_cfg.copy_to_clipboard_binding);
+            snprintf(app.paste_from_clipboard_binding, sizeof(app.paste_from_clipboard_binding),
+                     "%s", initial_cfg.paste_from_clipboard_binding);
         }
     }
 
@@ -1033,6 +1158,45 @@ main(int argc, char **argv)
                     ghostcon_kms_set_cursor_state(&app.kms, new_cursor_state);
                 }
             }
+
+            /* Click-drag text selection -- pointer.left_pressed/
+               left_released are only ever set when core/input.c's
+               should_intercept_for_selection() decided this click is
+               LOCAL (app hasn't grabbed mouse reporting, or Shift is
+               overriding it), so no further mode-checking is needed
+               here. Independent `if`s, not `else if` -- a fast click
+               (press+release within one dispatch() call) must apply
+               both in order, not have the release silently dropped.
+               Copying to the clipboard is a separate, explicit
+               keyboard-shortcut step (input.c's copy_to_clipboard
+               binding), not automatic on release -- see PLAN.md. */
+            if (app.cell_w > 0 && app.cell_h > 0) {
+                int16_t col = (int16_t)(pointer.x / app.cell_w);
+                int16_t row = (int16_t)(pointer.y / app.cell_h);
+
+                if (pointer.left_pressed) {
+                    ghostcon_selection_start(&app.term.screen.selection, col, row,
+                                              GC_SEL_CHAR, app.term.screen.cols);
+                    need_render = true;
+                }
+                if (pointer.moved && app.term.screen.selection.pending) {
+                    ghostcon_selection_update(&app.term.screen.selection, col, row);
+                    need_render = true;
+                }
+                if (pointer.left_released && app.term.screen.selection.pending) {
+                    ghostcon_selection_finish(&app.term.screen.selection);
+                    /* A plain click (no drag) deselects rather than
+                       "selecting" the one cell under the pointer --
+                       matches how a click in most terminals clears any
+                       existing selection instead of creating a
+                       zero-width one. */
+                    ghostcon_selection_t *sel = &app.term.screen.selection;
+                    if (sel->x1 == sel->x2 && sel->y1 == sel->y2)
+                        ghostcon_selection_clear(sel);
+                    need_render = true;
+                }
+            }
+
             /* A scrollback shortcut (Shift+Up/Down/PageUp/PageDown)
                changes the screen directly and produces no pty output,
                so it can't rely on the transport_idx branch below to

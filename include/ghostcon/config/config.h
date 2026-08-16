@@ -45,6 +45,18 @@ typedef struct {
     char cursor_default_path[256];
     char cursor_link_path[256];
 
+    /* Explicit hotspot override for a BMP-format per-state override
+       (BMP has no hotspot field in the format at all, unlike Xcursor,
+       which already carries a real one). "x,y" in the ORIGINAL,
+       uncropped asset's own pixel coordinates -- empty string (the
+       default) means "no explicit override": core/main.c falls back
+       to the asset's own real hotspot if it has one (Xcursor), or
+       auto-centers on the cropped glyph's own bounding box otherwise
+       (a much better generic guess than a fixed corner for most
+       cursor shapes -- see PLAN.md's "Mouse support, pass 2" section). */
+    char cursor_default_hot_pos[32];
+    char cursor_link_hot_pos[32];
+
     /* Raster cursor scaling -- see core/main.c's load_cursor_state(),
        which resizes decoded pixels (via ghostcon_cursor_scale()) before
        handing them to ghostcon_kms_set_cursor_image(). base_scale is a
@@ -60,6 +72,14 @@ typedef struct {
        knobs. */
     float cursor_base_scale;
     bool  cursor_scale_with_terminal;
+
+    /* Configurable copy/paste shortcuts -- see PLAN.md's "Mouse
+       support, pass 2" section. Syntax matches Ghostty's own Trigger
+       strings ("ctrl+shift+c"), parsed via core/input.c's
+       ghostcon_parse_keybinding(). Defaults are Ghostty's own Linux
+       defaults for copy_to_clipboard/paste_from_clipboard. */
+    char copy_to_clipboard_binding[64];
+    char paste_from_clipboard_binding[64];
 } ghostcon_config_t;
 
 /* Fills `cfg` with the hardcoded defaults (matching what every binary

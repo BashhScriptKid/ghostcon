@@ -1,8 +1,11 @@
 #define _DEFAULT_SOURCE /* CLOCK_MONOTONIC under -std=c11 without this */
 
 #include "ghostcon/core/input.h"
+#include "ghostcon/term/base64.h"
 #include "ghostcon/term/mouse.h"
+#include "ghostcon/term/selection.h"
 
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <libinput.h>
@@ -259,6 +262,27 @@ struct ghostcon_input {
     int      viewport_w, viewport_h;
     int      pointer_x, pointer_y;
     uint32_t pressed_buttons; /* bit i set = (ghostcon_mouse_button_t)i is held */
+
+    /* Whether the button/drag currently held down was intercepted for
+       LOCAL selection (should_intercept_for_selection() returned true
+       when it was pressed) rather than sent to the app as a mouse
+       report -- decided once, at press time, and remembered until
+       release, so a drag can't switch modes mid-gesture if e.g. the
+       app toggles mouse-reporting mid-drag (pathological, but cheap to
+       guard against). */
+    bool     left_button_intercepted;
+
+    /* Configurable copy/paste shortcuts (config.h's [keybindings]
+       table, parsed once via ghostcon_parse_keybinding() and pushed in
+       via ghostcon_input_set_clipboard_bindings() -- see that
+       function's own doc comment for why this is a mutable setter
+       rather than an ghostcon_input_open() parameter). Defaulted here
+       to this project's own defaults (ctrl+shift+c/v) so copy/paste
+       already work correctly even before the first config (re)load
+       completes, matching every other config-driven field's "sane
+       default until config says otherwise" convention. */
+    GhosttyMods copy_mods, paste_mods;
+    uint32_t    copy_evdev, paste_evdev;
 };
 
 /* kmscon's own documented defaults (xkb-repeat-delay/xkb-repeat-rate) --
@@ -297,6 +321,13 @@ ghostcon_input_open(const char *seat_id, int viewport_w, int viewport_h)
     input->viewport_h = viewport_h;
     input->pointer_x = viewport_w / 2;
     input->pointer_y = viewport_h / 2;
+
+    /* Sane defaults until config.c's [keybindings] table pushes real
+       values via ghostcon_input_set_clipboard_bindings() -- these
+       calls can't fail (both specs are this project's own hardcoded
+       defaults, always valid). */
+    ghostcon_parse_keybinding("ctrl+shift+c", &input->copy_mods, &input->copy_evdev);
+    ghostcon_parse_keybinding("ctrl+shift+v", &input->paste_mods, &input->paste_evdev);
 
     input->udev = udev_new();
     if (!input->udev) {
@@ -430,6 +461,97 @@ ghostcon_input_sync_modes(ghostcon_input_t *input, const ghostcon_screen_t *scre
                                 &app_cursor);
 }
 
+void
+ghostcon_input_set_clipboard_bindings(ghostcon_input_t *input,
+                                       GhosttyMods copy_mods, uint32_t copy_evdev,
+                                       GhosttyMods paste_mods, uint32_t paste_evdev)
+{
+    input->copy_mods = copy_mods;
+    input->copy_evdev = copy_evdev;
+    input->paste_mods = paste_mods;
+    input->paste_evdev = paste_evdev;
+}
+
+/* Named keys beyond plain letters -- deliberately small, only what's
+   plausible to rebind copy/paste to; not Ghostty's full W3C key table
+   (see ghostcon_parse_keybinding()'s own doc comment on scope). */
+static const struct { const char *name; uint32_t evdev; } KEYBINDING_NAMED_KEYS[] = {
+    { "insert", KEY_INSERT }, { "space", KEY_SPACE }, { "tab", KEY_TAB },
+    { "enter", KEY_ENTER }, { "return", KEY_ENTER }, { "escape", KEY_ESC },
+    { "comma", KEY_COMMA }, { "period", KEY_DOT }, { "slash", KEY_SLASH },
+    { "semicolon", KEY_SEMICOLON },
+};
+
+bool
+ghostcon_parse_keybinding(const char *spec, GhosttyMods *out_mods, uint32_t *out_evdev_code)
+{
+    if (!spec || !*spec)
+        return false;
+
+    GhosttyMods mods = 0;
+    uint32_t evdev = 0;
+    bool have_key = false;
+
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%s", spec);
+
+    char *saveptr = NULL;
+    for (char *tok = strtok_r(buf, "+", &saveptr); tok; tok = strtok_r(NULL, "+", &saveptr)) {
+        for (char *p = tok; *p; p++)
+            *p = (char)tolower((unsigned char)*p);
+
+        if (strcmp(tok, "ctrl") == 0) { mods |= GHOSTTY_MODS_CTRL; continue; }
+        if (strcmp(tok, "shift") == 0) { mods |= GHOSTTY_MODS_SHIFT; continue; }
+        if (strcmp(tok, "alt") == 0) { mods |= GHOSTTY_MODS_ALT; continue; }
+        if (strcmp(tok, "super") == 0) { mods |= GHOSTTY_MODS_SUPER; continue; }
+
+        if (have_key)
+            return false; /* only one key token allowed, and it must be last */
+
+        if (strlen(tok) == 1 && tok[0] >= 'a' && tok[0] <= 'z') {
+            /* evdev codes follow physical QWERTY layout, NOT alphabetical
+               order (e.g. KEY_A=30, KEY_Z=44, KEY_C=46 -- nowhere near
+               contiguous), so this needs an explicit table, not
+               KEY_A + offset. */
+            static const uint32_t LETTER_EVDEV[26] = {
+                KEY_A, KEY_B, KEY_C, KEY_D, KEY_E, KEY_F, KEY_G, KEY_H, KEY_I,
+                KEY_J, KEY_K, KEY_L, KEY_M, KEY_N, KEY_O, KEY_P, KEY_Q, KEY_R,
+                KEY_S, KEY_T, KEY_U, KEY_V, KEY_W, KEY_X, KEY_Y, KEY_Z,
+            };
+            evdev = LETTER_EVDEV[tok[0] - 'a'];
+            have_key = true;
+            continue;
+        }
+        if (strlen(tok) == 1 && tok[0] >= '0' && tok[0] <= '9') {
+            static const uint32_t DIGIT_EVDEV[10] = {
+                KEY_0, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9,
+            };
+            evdev = DIGIT_EVDEV[tok[0] - '0'];
+            have_key = true;
+            continue;
+        }
+
+        bool matched = false;
+        for (size_t i = 0; i < sizeof(KEYBINDING_NAMED_KEYS) / sizeof(KEYBINDING_NAMED_KEYS[0]); i++) {
+            if (strcmp(tok, KEYBINDING_NAMED_KEYS[i].name) == 0) {
+                evdev = KEYBINDING_NAMED_KEYS[i].evdev;
+                have_key = true;
+                matched = true;
+                break;
+            }
+        }
+        if (!matched)
+            return false; /* unrecognized token */
+    }
+
+    if (!have_key)
+        return false;
+
+    *out_mods = mods;
+    *out_evdev_code = evdev;
+    return true;
+}
+
 static GhosttyMods
 current_mods(struct xkb_state *state)
 {
@@ -533,6 +655,12 @@ handle_zoom_shortcut(int *zoom_delta, uint32_t evdev_code, GhosttyMods mods,
     }
 }
 
+/* Forward declarations -- defined later in this file (near
+   send_mouse_report()), but needed here since handle_keyboard_event()
+   comes first. */
+static void copy_selection_to_clipboard(ghostcon_screen_t *screen);
+static void paste_clipboard_to_pty(ghostcon_screen_t *screen, ghostcon_transport_t *transport);
+
 static bool
 handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
                        ghostcon_transport_t *transport, ghostcon_screen_t *screen,
@@ -604,6 +732,23 @@ handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
 
     if (handle_zoom_shortcut(zoom_delta, evdev_code, mods, action))
         return true; /* consumed locally, never forwarded to the pty */
+
+    /* Configurable copy/paste shortcuts ([keybindings] in ghostcon.toml,
+       parsed via ghostcon_parse_keybinding(), defaulting to
+       ctrl+shift+c/v -- Ghostty's own Linux defaults, matched
+       deliberately since ghostcon already wraps libghostty-vt). Exact
+       mods match (not "held among others"), same specificity as the
+       scroll/zoom shortcuts above. Press-only. */
+    if (mods == input->copy_mods && evdev_code == input->copy_evdev &&
+        action == GHOSTTY_KEY_ACTION_PRESS) {
+        copy_selection_to_clipboard(screen);
+        return true;
+    }
+    if (mods == input->paste_mods && evdev_code == input->paste_evdev &&
+        action == GHOSTTY_KEY_ACTION_PRESS) {
+        paste_clipboard_to_pty(screen, transport);
+        return true;
+    }
 
     char encoded[128];
     size_t written = ghostcon_input_encode_key(input->encoder, action, evdev_code, mods,
@@ -688,6 +833,61 @@ send_mouse_report(ghostcon_input_t *input, ghostcon_transport_t *transport,
     return w == (ssize_t)written;
 }
 
+/* Decides whether a click should be intercepted for LOCAL selection
+   (or middle-click paste) rather than forwarded to the app as a mouse
+   report -- mirrors xterm's own "shift bypasses an app's mouse grab"
+   convention: local wins if the app hasn't asked for mouse tracking at
+   all, or if Shift is held and the app hasn't set XTSHIFTESCAPE
+   (mouse_shift_capture) to ask for shift-clicks too. */
+static bool
+should_intercept_for_selection(const ghostcon_screen_t *screen, GhosttyMods mods)
+{
+    if (!screen->mouse_tracking)
+        return true;
+    if ((mods & GHOSTTY_MODS_SHIFT) && !screen->mouse_shift_capture)
+        return true;
+    return false;
+}
+
+/* Extracts the active selection as plain text and stores it, base64-
+   encoded, into screen->clipboard -- the same buffer OSC 52 already
+   uses, kept to its "always holds base64" convention regardless of
+   which path wrote it. A no-op if there's no active selection. Scratch
+   buffer sized for base64's ~4/3 expansion (clipboard's 4096 bytes can
+   only hold ~3072 raw bytes once encoded), not sizeof(screen->clipboard)
+   itself -- using the full 4096 there would silently truncate. */
+static void
+copy_selection_to_clipboard(ghostcon_screen_t *screen)
+{
+    char text[3072];
+    size_t n = ghostcon_selection_extract_text(screen, text, sizeof(text));
+    if (n == 0)
+        return;
+    ghostcon_base64_encode((const uint8_t *)text, n, screen->clipboard, sizeof(screen->clipboard));
+}
+
+/* Decodes screen->clipboard (base64, same buffer OSC 52 reads/writes)
+   and writes the raw bytes to the pty, wrapped in bracketed-paste
+   markers if the app has enabled mode 2004 -- skipping that wrap would
+   visibly break paste in any bracketed-paste-aware program (vim,
+   readline), since they'd have no way to tell pasted text apart from
+   typed keystrokes. Shared by the configurable paste shortcut and
+   middle-click paste. */
+static void
+paste_clipboard_to_pty(ghostcon_screen_t *screen, ghostcon_transport_t *transport)
+{
+    uint8_t decoded[sizeof(screen->clipboard)];
+    size_t n = ghostcon_base64_decode(screen->clipboard, decoded, sizeof(decoded));
+    if (n == 0)
+        return;
+
+    if (screen->bracketed_paste)
+        ghostcon_transport_write(transport, (const uint8_t *)"\x1b[200~", 6);
+    ghostcon_transport_write(transport, decoded, n);
+    if (screen->bracketed_paste)
+        ghostcon_transport_write(transport, (const uint8_t *)"\x1b[201~", 6);
+}
+
 /* Pointer capture -- mice AND touchpads alike. libinput's own device
    model groups mice/trackballs/touchpads under one
    LIBINPUT_DEVICE_CAP_POINTER capability, and touchpad relative
@@ -726,6 +926,38 @@ handle_pointer_event(ghostcon_input_t *input, struct libinput_event *ev,
         if (!evdev_button_to_mouse(libinput_event_pointer_get_button(p), &button))
             return true; /* side/extra button we don't map -- silent no-op */
         bool pressed = libinput_event_pointer_get_button_state(p) == LIBINPUT_BUTTON_STATE_PRESSED;
+
+        /* Middle-click paste (X11 convention) -- only when this click
+           would otherwise be intercepted for local selection; if the
+           app has grabbed mouse reporting and Shift isn't overriding
+           it, middle-click reports to the app like any other button,
+           same as before this feature existed. */
+        if (button == GC_MOUSE_MIDDLE && pressed &&
+            should_intercept_for_selection(screen, current_mods(input->xkb_state))) {
+            paste_clipboard_to_pty(screen, transport);
+            return true;
+        }
+
+        /* The intercept decision is made ONCE, at press time, and
+           remembered until release -- so a drag can't switch between
+           local selection and app-reported mid-gesture if e.g. the
+           app toggles mouse-reporting mid-drag (pathological, but
+           cheap to guard against; see the struct field's own doc
+           comment). */
+        if (button == GC_MOUSE_LEFT && pressed)
+            input->left_button_intercepted =
+                should_intercept_for_selection(screen, current_mods(input->xkb_state));
+
+        if (button == GC_MOUSE_LEFT && input->left_button_intercepted) {
+            if (pressed)
+                input->pressed_buttons |= (1u << button);
+            else
+                input->pressed_buttons &= ~(1u << button);
+            out_pointer->left_pressed = pressed;
+            out_pointer->left_released = !pressed;
+            return true; /* swallowed locally, never forwarded to the pty */
+        }
+
         if (pressed)
             input->pressed_buttons |= (1u << button);
         else
@@ -767,6 +999,15 @@ handle_pointer_event(ghostcon_input_t *input, struct libinput_event *ev,
     out_pointer->y = input->pointer_y;
     out_pointer->moved = true;
 
+    /* A drag currently intercepted for local selection must not ALSO
+       report motion to the app -- out_pointer->moved above already
+       lets main.c drive ghostcon_selection_update() from this event;
+       reporting it to the pty too would leak drag motion into a mouse-
+       aware app for a click that was, by definition, kept local (see
+       should_intercept_for_selection()). */
+    if (input->left_button_intercepted && (input->pressed_buttons & (1u << GC_MOUSE_LEFT)))
+        return true;
+
     ghostcon_mouse_button_t held = GC_MOUSE_NONE;
     for (int b = 0; b < 3; b++) {
         if (input->pressed_buttons & (1u << b)) {
@@ -785,6 +1026,8 @@ ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport
     out_pointer->x = input->pointer_x;
     out_pointer->y = input->pointer_y;
     out_pointer->moved = false;
+    out_pointer->left_pressed = false;
+    out_pointer->left_released = false;
 
     if (libinput_dispatch(input->li) != 0) {
         fprintf(stderr, "input: libinput_dispatch failed\n");

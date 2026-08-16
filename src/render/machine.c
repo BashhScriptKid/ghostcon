@@ -161,3 +161,37 @@ ghostcon_machine_render_cursor(ghostcon_screen_t *screen,
         break;
     }
 }
+
+/* Alpha for the selection tint -- low enough that the glyph/background
+   color underneath still reads clearly, unlike GC_STYLE_INVERSE (which
+   swaps colors outright rather than tinting). */
+#define GC_SELECTION_ALPHA 0.35f
+
+void
+ghostcon_machine_render_selection(ghostcon_screen_t *screen,
+                                   ghostcon_gles_t *gles,
+                                   int cell_w, int cell_h)
+{
+    const ghostcon_selection_t *sel = &screen->selection;
+    if (!sel->active || screen->view_offset > 0)
+        return;
+
+    int16_t ymin = sel->y1 < sel->y2 ? sel->y1 : sel->y2;
+    int16_t ymax = sel->y1 > sel->y2 ? sel->y1 : sel->y2;
+
+    GhosttyColorRgb c = screen->palette.cursor_color;
+    float r = (float)c.r / 255.0f, g = (float)c.g / 255.0f, b = (float)c.b / 255.0f;
+
+    for (int16_t y = ymin; y <= ymax && y < (int16_t)screen->rows_visible; y++) {
+        if (y < 0)
+            continue;
+        int16_t xstart, xend;
+        if (!ghostcon_selection_row_range(sel, y, (int16_t)screen->cols, &xstart, &xend))
+            continue;
+
+        float px = (float)(xstart * cell_w);
+        float py = (float)(y * cell_h);
+        float w = (float)((xend - xstart + 1) * cell_w);
+        ghostcon_gles_push_rect(gles, px, py, w, (float)cell_h, r, g, b, GC_SELECTION_ALPHA);
+    }
+}

@@ -385,11 +385,18 @@ ghostcon_kms_set_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t state
         uint32_t off_x, off_y;
         draw_cursor_ibeam((uint8_t *)map, kms->cursor_w, kms->cursor_h, creq.pitch, ibeam_h,
                            &off_x, &off_y);
-        /* Local hotspot is (0,0) -- top-left of the glyph itself --
-           same letterbox-offset reasoning as the blit_cursor_image()
-           branch above. */
-        kms->cursor_hot_x[state] = off_x;
-        kms->cursor_hot_y[state] = off_y;
+        (void)off_x; (void)off_y; /* unused here -- see hotspot comment below */
+        /* An I-beam's natural "pointing pixel" is the CENTER of its
+           vertical stem, not a bounding-box corner (that only makes
+           sense for an arrow-shaped pointer, whose tip IS a corner) --
+           matches how a real cursor theme's own "text" glyph bakes its
+           hotspot near the center of the stem into the file (see
+           ghostcon_cursor_load_xcursor(), which reads that out for
+           real assets). Since draw_cursor_ibeam() always centers the
+           glyph within the canvas, the glyph's own geometric center is
+           just the canvas's center -- no need for its w/h here. */
+        kms->cursor_hot_x[state] = kms->cursor_w / 2;
+        kms->cursor_hot_y[state] = kms->cursor_h / 2;
     }
     munmap(map, creq.size);
 

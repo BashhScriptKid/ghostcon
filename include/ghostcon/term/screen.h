@@ -106,7 +106,13 @@ typedef struct {
 /* Manages the grid, cursor, scrollback, alternate screen, and         */
 /* damage tracking.                                                    */
 /* ------------------------------------------------------------------ */
-typedef struct {
+/* Tagged (not anonymous) specifically so lower-level headers that only
+   need a pointer type (e.g. selection.h's extract_text() declaration)
+   can forward-declare `struct ghostcon_screen;` without including this
+   header -- screen.h itself includes selection.h transitively (via the
+   `selection` field below), so selection.h including screen.h back
+   would be circular. */
+struct ghostcon_screen {
     /* Grid */
     ghostcon_row_t  *rows;        /* visible grid rows (ring buffer) */
     uint16_t         cols;
@@ -211,7 +217,8 @@ typedef struct {
 
     /* Damage tracking */
     ghostcon_dirty_region_t dirty;
-} ghostcon_screen_t;
+};
+typedef struct ghostcon_screen ghostcon_screen_t;
 
 /* ------------------------------------------------------------------ */
 /* Screen lifecycle                                                    */

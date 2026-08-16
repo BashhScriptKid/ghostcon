@@ -3502,6 +3502,99 @@ confirmed, hyperlink-hover state switching confirmed, all four screen
 corners confirmed reachable, sizing confirmed proportional to cell
 height after the v2 semantics + crop fix.
 
+### Mouse support, pass 2 — click-drag selection + local clipboard
+
+Wires together four pieces that already existed but were entirely
+unwired: `ghostcon_selection_t` (start/update/finish/contains were all
+implemented, never called by anything but one `clear()` at init), the
+`screen_t.clipboard[4096]` buffer (OSC 52 only), the pass-1 mouse
+pipeline (`ghostcon_input_pointer_t` gained `left_pressed`/
+`left_released`, set only when `core/input.c`'s new
+`should_intercept_for_selection()` decides a click is local rather
+than reported to an app that's grabbed mouse tracking -- mirrors
+xterm's own Shift-bypass convention), and the alpha-blended overlay
+precedent the software cursor already established
+(`ghostcon_machine_render_selection()`, one rect per selected row via
+a new shared `ghostcon_selection_row_range()` helper -- also fixed a
+real pre-existing bug in `ghostcon_selection_contains()`, which didn't
+correctly bound a single-row selection's right edge).
+
+Copy/paste are **explicit, configurable keyboard shortcuts**, not
+copy-on-release -- click-drag only highlights; nothing touches the
+clipboard until `[keybindings].copy_to_clipboard`/`paste_from_clipboard`
+(default `ctrl+shift+c`/`ctrl+shift+v`, Ghostty's own Linux defaults,
+matched deliberately and verified against Ghostty's real source/
+terminfo) is pressed. New `ghostcon_parse_keybinding()` (Ghostty
+Trigger-string-compatible syntax) -- caught and fixed a real bug while
+writing it: evdev letter keycodes follow physical QWERTY layout, not
+alphabetical order (`KEY_A=30`, `KEY_Z=44`, `KEY_C=46` -- nowhere near
+contiguous), so `KEY_A + offset` would have silently mapped to the
+wrong keys for most letters; needed an explicit 26-entry table.
+Middle-click paste is a non-configurable bonus (X11 convention),
+handled entirely in `input.c` with no `main.c` round-trip needed.
+Clipboard scope deliberately stays local/in-process this pass -- no
+`ghostcon-ipc` broker, no desktop (`wl-copy`) bridge, no `copy_raw`/
+`paste_raw` (styled/HTML) variant -- all explicitly deferred alongside
+the not-yet-built Phase 2 IPC broker, the natural owner of any
+cross-session reach.
+
+New `src/term/base64.c`/`.h` (RFC 4648 encode/decode -- OSC 52
+previously only had a validity *checker*, never an actual decoder,
+since it stored/returned payloads verbatim without needing one).
+
+**Follow-up, hotspot UX**: after shipping, live testing surfaced a
+real design flaw the user caught precisely: the procedural I-beam
+fallback reported its own hotspot as its bounding-box corner (sensible
+for an arrow-shaped pointer, whose tip IS a corner) instead of the
+center of its own vertical stem (the natural "pointing pixel" for an
+I-beam) -- fixed in `core/kms.c` to `kms->cursor_w/2, kms->cursor_h/2`
+(the glyph is always centered in the square canvas, so its own
+geometric center needs no extra math). For BMP overrides -- which
+carry no hotspot field in the format at all, unlike Xcursor -- added
+explicit `[cursor].default_hot_pos`/`link_hot_pos` config (`"x,y"` in
+the original asset's own pixel coordinates) for precise cases (e.g. an
+arrow's tip), falling back to auto-centering the cropped glyph (a much
+better generic guess than a fixed corner) when unset and no real
+Xcursor-embedded hotspot exists either.
+
+**Follow-up, `TERM`**: live testing (`nano`'s colors/mouse response
+noticeably worse under ghostcon than kmscon) traced to
+`ptyserv/pty_child.c` falling back to `TERM=linux` (the bare Linux
+console's own minimal terminfo entry) whenever the environment didn't
+already set one -- undersells what ghostcon's libghostty-vt engine
+actually implements (24-bit color, OSC 8, X10/SGR mouse). Changed the
+fallback to `xterm-256color`, with `xterm-ghostty` (verified against
+Ghostty's own source as its real default, terminfo already installed
+on this machine) left as a commented alternative and a note on why it
+isn't the default yet: it advertises Ghostty's full feature set
+(Kitty graphics, certain OSC extensions) which ghostcon doesn't
+implement, so claiming it before coverage is close enough would make
+apps attempt features that then silently misbehave.
+
+Verified: `meson test -C build-release` (all suites, including new
+`test_selection` -- selection state machine, row-range, text
+extraction, and base64 round-trip coverage -- plus `parse_keybinding`
+tests added to `test_input`); live on tty4 -- click-drag highlight, Ctrl+
+Shift+C/V round-trip, middle-click paste, hot-reloaded `[keybindings]`
+override, corners/positioning after the hotspot fix, `nano` syntax
+highlighting confirmed improved after the `TERM` fix.
+
+**Known follow-up, not yet started**: live testing also surfaced that
+`core/input.c` hardcodes the key encoder to legacy mode permanently
+(`ghostcon_input_open()` forces `GHOSTTY_KITTY_KEY_DISABLED`, set once,
+never revisited) even though `term/kitty.c`/`kitty.h` already track an
+app's live Kitty keyboard protocol negotiation in `screen_t` -- nothing
+ever reads that tracked state back into the encoder. A Kitty-protocol-
+aware app (e.g. `opencode`) that successfully requests the protocol
+still receives legacy-encoded keys regardless, breaking anything
+relying on precise CSI-u modifier reporting (found live: Ctrl+Left/
+Right word-jump silently not working in `opencode`, but working in
+real Ghostty). This was already flagged as deliberately deferred when
+the original hardcode-to-legacy fix went in; wiring `ghostcon_input_
+sync_modes()` to also push `screen->kitty`'s live flags into the
+encoder (the same place `CURSOR_KEY_APPLICATION` already gets synced
+every dispatch) is the next scoped piece of work.
+
 ### Phase 2 — IPC and overlay
 
 7. **`ghostcon-ipc`** — build the real broker (separate sockets for

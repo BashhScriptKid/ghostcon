@@ -27,6 +27,7 @@ term_srcs = files(
     'term/color.c',
     'term/kitty.c',
     'term/hyperlink.c',
+    'term/base64.c',
     'term/selection.c',
     'term/mouse.c',
     'term/screen.c',
@@ -80,6 +81,14 @@ if not meson.is_subproject()
         dependencies: [dep_ghostty_vt],
     )
     test('test_mouse', test_mouse_exe)
+
+    test_selection_exe = executable('test_selection',
+        '../tests/test_selection.c',
+        include_directories: include_directories('../include'),
+        link_with: term_lib,
+        dependencies: [dep_ghostty_vt],
+    )
+    test('test_selection', test_selection_exe)
 endif
 
 # Renderer (Phase 1 item 2)
