@@ -25,6 +25,7 @@ ghostcon_config_defaults(ghostcon_config_t *cfg)
     cfg->disable_kmscon_fallback = false;
     cfg->font_size = 16;
     cfg->clear_on_logout = true;
+    cfg->zoom_step = 2;
 }
 
 static void
@@ -77,6 +78,7 @@ ghostcon_config_load(const char *path, ghostcon_config_t *cfg)
         load_bool(general, "disable_kmscon_fallback", &cfg->disable_kmscon_fallback);
         load_int(general, "font_size", &cfg->font_size);
         load_bool(general, "clear_on_logout", &cfg->clear_on_logout);
+        load_int(general, "zoom_step", &cfg->zoom_step);
     }
 
     toml_free(root);
@@ -128,6 +130,9 @@ ghostcon_config_export_env(const ghostcon_config_t *cfg, const char *config_path
         setenv("GHOSTCON_CLEAR_ON_LOGOUT", "0", ow);
     else if (overwrite)
         unsetenv("GHOSTCON_CLEAR_ON_LOGOUT");
+
+    snprintf(buf, sizeof(buf), "%d", cfg->zoom_step);
+    setenv("GHOSTCON_ZOOM_STEP", buf, ow);
 }
 
 int

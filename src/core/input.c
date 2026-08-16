@@ -484,9 +484,42 @@ handle_scroll_shortcut(ghostcon_screen_t *screen, uint32_t evdev_code,
     }
 }
 
+/* Ctrl+=/Ctrl+Minus -- zoom shortcuts, mirroring kmscon's grab-zoom-in/
+   grab-zoom-out defaults (kmscon documents them as <Ctrl>Plus/<Ctrl>Minus;
+   bound here to the unshifted '='/'-' keys instead, matching how most
+   terminals/browsers do Ctrl+= to zoom in without requiring Shift too).
+   KEY_KPPLUS/KEY_KPMINUS are aliases for the numpad. This function has
+   no font/atlas ownership (that's core/main.c's app_t) -- it just
+   accumulates the requested DIRECTION (+-1 "one zoom tick", not a point
+   count) into *zoom_delta; the caller multiplies by its own
+   config-driven step size (app->zoom_step) when actually applying it,
+   since input.c has no config access and shouldn't need any just for
+   this. Press-only, same reasoning as handle_scroll_shortcut. */
+static bool
+handle_zoom_shortcut(int *zoom_delta, uint32_t evdev_code, GhosttyMods mods,
+                      GhosttyKeyAction action)
+{
+    if (mods != GHOSTTY_MODS_CTRL || action != GHOSTTY_KEY_ACTION_PRESS)
+        return false;
+
+    switch (evdev_code) {
+    case KEY_EQUAL:
+    case KEY_KPPLUS:
+        *zoom_delta += 1;
+        return true;
+    case KEY_MINUS:
+    case KEY_KPMINUS:
+        *zoom_delta -= 1;
+        return true;
+    default:
+        return false;
+    }
+}
+
 static bool
 handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
-                       ghostcon_transport_t *transport, ghostcon_screen_t *screen)
+                       ghostcon_transport_t *transport, ghostcon_screen_t *screen,
+                       int *zoom_delta)
 {
     struct libinput_event_keyboard *kbev = libinput_event_get_keyboard_event(ev);
     uint32_t evdev_code = libinput_event_keyboard_get_key(kbev);
@@ -552,6 +585,9 @@ handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
     if (handle_scroll_shortcut(screen, evdev_code, mods, action))
         return true; /* consumed locally, never forwarded to the pty */
 
+    if (handle_zoom_shortcut(zoom_delta, evdev_code, mods, action))
+        return true; /* consumed locally, never forwarded to the pty */
+
     char encoded[128];
     size_t written = ghostcon_input_encode_key(input->encoder, action, evdev_code, mods,
                                                 utf8, (size_t)utf8_len, unshifted_cp,
@@ -600,7 +636,7 @@ handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
 
 bool
 ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport,
-                         ghostcon_screen_t *screen)
+                         ghostcon_screen_t *screen, int *out_zoom_delta)
 {
     if (libinput_dispatch(input->li) != 0) {
         fprintf(stderr, "input: libinput_dispatch failed\n");
@@ -612,7 +648,7 @@ ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport
         enum libinput_event_type type = libinput_event_get_type(ev);
 
         if (type == LIBINPUT_EVENT_KEYBOARD_KEY) {
-            if (!handle_keyboard_event(input, ev, transport, screen)) {
+            if (!handle_keyboard_event(input, ev, transport, screen, out_zoom_delta)) {
                 libinput_event_destroy(ev);
                 return false;
             }

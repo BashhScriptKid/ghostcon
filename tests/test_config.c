@@ -25,6 +25,7 @@ main(void)
     CHECK(cfg.canary_deadline_ms == 4000, "default canary_deadline_ms");
     CHECK(cfg.font_size == 16, "default font_size");
     CHECK(cfg.clear_on_logout == true, "default clear_on_logout");
+    CHECK(cfg.zoom_step == 2, "default zoom_step");
 
     /* mkstemp() overwrites its template with the resolved name in place,
        so each use below needs a fresh copy of the template string --
@@ -63,7 +64,8 @@ main(void)
             "disable_wall = true\n"
             "disable_kmscon_fallback = true\n"
             "font_size = 20\n"
-            "clear_on_logout = false\n";
+            "clear_on_logout = false\n"
+            "zoom_step = 3\n";
         write(fd, contents, strlen(contents));
         close(fd);
 
@@ -76,6 +78,7 @@ main(void)
         CHECK(cfg.disable_kmscon_fallback == true, "full config disable_kmscon_fallback");
         CHECK(cfg.font_size == 20, "full config font_size");
         CHECK(cfg.clear_on_logout == false, "full config clear_on_logout");
+        CHECK(cfg.zoom_step == 3, "full config zoom_step");
         unlink(path);
     }
 

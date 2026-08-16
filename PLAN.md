@@ -3311,6 +3311,56 @@ changed, applied" within about a second, same pids throughout
 physical screen, session/scrollback intact. `clear_on_logout` flip
 verified the same way.
 
+### Font zoom shortcut (Ctrl+=/Ctrl+Minus), and the 1pt-step squish bug
+
+Follow-up to the general config hot-reload work above, once font_size
+could already be rebuilt live: added Ctrl+=/Ctrl+Minus (kmscon's
+grab-zoom-in/grab-zoom-out defaults, bound to the unshifted '='/'-'
+keys rather than requiring Shift — matches most terminals/browsers).
+Small addition given the atlas-rebuild machinery and shortcut-
+interception pattern (`handle_scroll_shortcut`) already existed:
+`core/input.c` gained `handle_zoom_shortcut()`, `core/main.c` factored
+the config-reload path's inline font_size-rebuild code out into a
+reusable `apply_font_size()` (shared by both the config-file path and
+the new keyboard-shortcut path). `ghostcon_input_dispatch()` gained an
+`int *out_zoom_delta` out-param, since `core/input.c` has no
+atlas/font ownership at all (that's `core/main.c`'s `app_t`) — it only
+accumulates direction.
+
+**Live bug found immediately after the shortcut worked**: a single
+Ctrl+= press left text visibly stretched (persisted until another
+press), which a first guess (extra swap-flush cycles, theorizing GBM/
+EGL buffer-rotation staleness) didn't fix — confirmed live it made no
+difference, so that theory was wrong and got reverted rather than left
+in as dead code. Root-caused instead with targeted debug logging
+(temporary, removed once diagnosed) rather than guessing again:
+`font_size` 23->24 produced `cell_w=14->14` (completely unchanged)
+while `cell_h=31->33`. FreeType/fontconfig round the cell-width metric
+('M' advance) and line-height metric to whole pixels independently,
+and at 1pt granularity they frequently don't cross that rounding
+boundary at the same point size — cells got taller without getting
+wider for one press, a real visible aspect-ratio stretch, until a
+later press happened to bump `cell_w` too. Fixed by using a step size
+of 2pt (later made config-driven, see below) instead of 1pt, which
+in practice makes both dimensions round together far more reliably.
+
+**Then made configurable** (user: "configurable stuff are meant to be
+hot-reloadable... like hyprland" — this follows the same philosophy
+already established for `font_size` itself): new `zoom_step` key,
+default 2, flows through the exact same hot-reload pipeline as every
+other value in the "General config hot-reload" section above — no new
+mechanism needed, this was the point of building that generally rather
+than font_size-specifically. `core/input.c`'s `handle_zoom_shortcut()`
+was simplified to report direction only (+-1 "one zoom tick"); the
+actual magnitude (`app.zoom_step`) is applied in `core/main.c`, which
+is the only place with config access anyway.
+
+Verified: `meson test -C build-release` (12/12); live on tty4 across
+three rounds — the shortcut itself, the 1pt-squish diagnosis (via
+temporary debug logging, removed after) and 2pt fix confirmed clean on
+a single press, then `zoom_step = 4` set via a live `ghostcon.toml`
+edit (no restart) and confirmed each press now jumps by 4pt.
+
 ### Phase 2 — IPC and overlay
 
 7. **`ghostcon-ipc`** — build the real broker (separate sockets for

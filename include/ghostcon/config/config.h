@@ -32,6 +32,9 @@ typedef struct {
     bool disable_kmscon_fallback;
     int  font_size;
     bool clear_on_logout;
+    int  zoom_step; /* points per Ctrl+=/Ctrl+Minus press -- see
+                        core/input.c's handle_zoom_shortcut() doc
+                        comment for why the default (2) isn't 1 */
 } ghostcon_config_t;
 
 /* Fills `cfg` with the hardcoded defaults (matching what every binary

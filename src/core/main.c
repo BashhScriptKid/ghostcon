@@ -67,6 +67,11 @@
    the true default", not "off". */
 #define CLEAR_ON_LOGOUT_DEFAULT true
 #define ATLAS_DIM 1024
+#define ZOOM_MIN_FONT_SIZE 6  /* below this, glyphs are unreadable anyway */
+#define ZOOM_MAX_FONT_SIZE 96 /* well within ATLAS_DIM's headroom for a monospace face */
+/* Matches config.c's own default -- see core/input.c's
+   handle_zoom_shortcut() doc comment for why 1pt wasn't enough. */
+#define ZOOM_STEP_DEFAULT 2
 #define POLL_INTERVAL_MS 1000 /* canary heartbeat cadence when otherwise idle */
 #define DRM_MASTER_RETRIES 30
 #define DRM_MASTER_RETRY_DELAY_US 100000
@@ -84,6 +89,7 @@ typedef struct {
     const char *config_path;
     int config_watch_fd;
     int font_size;
+    int zoom_step; /* points per Ctrl+=/Ctrl+Minus press, config-driven */
 
     /* argv[0]'s original address/length, captured once in main() before
        anything overwrites it -- OSC 0/2 process-identity repurposing
@@ -425,13 +431,51 @@ vtctl_pre_ack(char event, void *userdata)
         release_display((app_t *)userdata);
 }
 
-/* Re-reads app->config_path and applies whichever fields this process
-   cares about (see PLAN.md's "General config hot-reload" section for
-   the full design). Returns true if the caller should render (screen
-   shape changed). clear_on_logout applies immediately, trivially.
-   font_size rebuilds the atlas at the new size, then reuses the exact
-   same cols/rows-from-kms-dimensions/term_resize/transport_resize
-   sequence acquire_display()'s own reacquire path already uses. */
+/* Shared by config hot-reload and the Ctrl+=/Ctrl+- zoom shortcut
+   below -- rebuilds the glyph atlas at `new_size` and resizes the
+   terminal grid to match, reusing the exact cols/rows-from-kms-
+   dimensions/term_resize/transport_resize sequence acquire_display()'s
+   own reacquire path already uses. Returns true if it actually did
+   something (caller should render); false for a no-op (size unchanged
+   or invalid) or a failed rebuild (logged, old atlas left in place). */
+static bool
+apply_font_size(app_t *app, int new_size)
+{
+    if (new_size <= 0 || new_size == app->font_size)
+        return false;
+
+    /* Create the new atlas FIRST -- only destroy the old one and swap
+       pointers if creation actually succeeded, so a failed rebuild
+       (e.g. the requested size doesn't fit ATLAS_DIM) can't leave
+       app->atlas NULL and every subsequent render crashing on a null
+       deref. */
+    ghostcon_atlas_t *new_atlas = ghostcon_atlas_create(NULL, new_size, ATLAS_DIM);
+    if (!new_atlas) {
+        fprintf(stderr, "ghostcon-core: font_size change to %d failed, keeping %d\n",
+                new_size, app->font_size);
+        return false;
+    }
+
+    ghostcon_atlas_destroy(app->atlas);
+    app->atlas = new_atlas;
+    app->font_size = new_size;
+    ghostcon_atlas_cell_size(app->atlas, &app->cell_w, &app->cell_h);
+
+    if (app->display_acquired) {
+        uint16_t new_cols = (uint16_t)(app->kms.width / (uint32_t)app->cell_w);
+        uint16_t new_rows = (uint16_t)(app->kms.height / (uint32_t)app->cell_h);
+        if (!ghostcon_term_resize(&app->term, new_cols, new_rows))
+            fprintf(stderr, "ghostcon-core: term_resize after font_size change failed\n");
+        else
+            ghostcon_transport_resize(&app->transport, new_rows, new_cols);
+        /* If the VT isn't currently acquired, cell_w/cell_h are already
+           updated above -- acquire_display()'s own reacquire path
+           recomputes cols/rows from them on the next acquire, no
+           special-casing needed here for that case. */
+    }
+    return true;
+}
+
 static bool
 apply_config_reload(app_t *app)
 {
@@ -443,40 +487,9 @@ apply_config_reload(app_t *app)
     }
 
     app->clear_on_logout = new_cfg.clear_on_logout;
-
-    bool need_render = false;
-    if (new_cfg.font_size > 0 && new_cfg.font_size != app->font_size) {
-        /* Create the new atlas FIRST -- only destroy the old one and
-           swap pointers if creation actually succeeded, so a failed
-           rebuild (e.g. the requested size doesn't fit ATLAS_DIM)
-           can't leave app->atlas NULL and every subsequent render
-           crashing on a null deref. */
-        ghostcon_atlas_t *new_atlas = ghostcon_atlas_create(NULL, new_cfg.font_size, ATLAS_DIM);
-        if (!new_atlas) {
-            fprintf(stderr, "ghostcon-core: font_size reload to %d failed, keeping %d\n",
-                    new_cfg.font_size, app->font_size);
-        } else {
-            ghostcon_atlas_destroy(app->atlas);
-            app->atlas = new_atlas;
-            app->font_size = new_cfg.font_size;
-            ghostcon_atlas_cell_size(app->atlas, &app->cell_w, &app->cell_h);
-
-            if (app->display_acquired) {
-                uint16_t new_cols = (uint16_t)(app->kms.width / (uint32_t)app->cell_w);
-                uint16_t new_rows = (uint16_t)(app->kms.height / (uint32_t)app->cell_h);
-                if (!ghostcon_term_resize(&app->term, new_cols, new_rows))
-                    fprintf(stderr, "ghostcon-core: term_resize after font_size reload failed\n");
-                else
-                    ghostcon_transport_resize(&app->transport, new_rows, new_cols);
-                /* If the VT isn't currently acquired, cell_w/cell_h are
-                   already updated above -- acquire_display()'s own
-                   reacquire path recomputes cols/rows from them on the
-                   next acquire, no special-casing needed here for that
-                   case. */
-            }
-            need_render = true;
-        }
-    }
+    if (new_cfg.zoom_step > 0)
+        app->zoom_step = new_cfg.zoom_step;
+    bool need_render = apply_font_size(app, new_cfg.font_size);
 
     fprintf(stderr, "ghostcon-core: config changed, applied\n");
     return need_render;
@@ -508,6 +521,11 @@ main(int argc, char **argv)
     app.font_size = font_size_str ? atoi(font_size_str) : FONT_SIZE;
     if (app.font_size <= 0)
         app.font_size = FONT_SIZE; /* malformed/nonsensical env value -- fall back rather than pass 0/negative to atlas_create */
+
+    const char *zoom_step_str = getenv("GHOSTCON_ZOOM_STEP");
+    app.zoom_step = zoom_step_str ? atoi(zoom_step_str) : ZOOM_STEP_DEFAULT;
+    if (app.zoom_step <= 0)
+        app.zoom_step = ZOOM_STEP_DEFAULT; /* malformed/nonsensical env value */
 
     /* Hot-reload watch -- see PLAN.md's "General config hot-reload"
        section. GHOSTCON_CONFIG_PATH is exported unconditionally by
@@ -777,7 +795,8 @@ main(int argc, char **argv)
 
         if (input_idx >= 0 && (fds[input_idx].revents & POLLIN)) {
             ghostcon_input_sync_modes(app.input, &app.term.screen);
-            if (!ghostcon_input_dispatch(app.input, &app.transport, &app.term.screen))
+            int zoom_delta = 0;
+            if (!ghostcon_input_dispatch(app.input, &app.transport, &app.term.screen, &zoom_delta))
                 fprintf(stderr, "ghostcon-core: input dispatch error (continuing)\n");
             /* A scrollback shortcut (Shift+Up/Down/PageUp/PageDown)
                changes the screen directly and produces no pty output,
@@ -785,6 +804,28 @@ main(int argc, char **argv)
                notice and trigger a render -- check dirty state here too. */
             if (ghostcon_screen_get_dirty(&app.term.screen).y_min >= 0)
                 need_render = true;
+            /* Ctrl+=/Ctrl+Minus zoom shortcut -- same reasoning as
+               above, plus it needs core/main.c's own apply_font_size()
+               since core/input.c has no atlas/font ownership. input.c
+               reports DIRECTION only (+-1 per press, "one zoom tick");
+               the actual magnitude is app.zoom_step, config-driven
+               (default 2pt -- see core/input.c's handle_zoom_shortcut()
+               doc comment for why 1pt wasn't enough) and reloadable via
+               ghostcon.toml like everything else in this block.
+               ZOOM_MIN/MAX_FONT_SIZE keep it away from nonsensical
+               extremes (a 0/negative size, or one large enough to
+               plausibly not fit ATLAS_DIM -- apply_font_size already
+               handles a failed rebuild gracefully regardless, this is
+               just to keep the common case sane). */
+            if (zoom_delta != 0) {
+                int new_size = app.font_size + zoom_delta * app.zoom_step;
+                if (new_size < ZOOM_MIN_FONT_SIZE)
+                    new_size = ZOOM_MIN_FONT_SIZE;
+                if (new_size > ZOOM_MAX_FONT_SIZE)
+                    new_size = ZOOM_MAX_FONT_SIZE;
+                if (apply_font_size(&app, new_size))
+                    need_render = true;
+            }
         }
 
         if (repeat_idx >= 0 && (fds[repeat_idx].revents & POLLIN)) {

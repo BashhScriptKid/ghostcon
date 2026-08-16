@@ -53,3 +53,11 @@
 # old session's last screenful visible underneath it. Set to false to
 # keep the old behavior.
 # clear_on_logout = true
+
+# Font size (points) changed per Ctrl+=/Ctrl+Minus press. 1 is not
+# recommended -- FreeType/fontconfig round the cell width and height
+# metrics to whole pixels independently, and at 1pt granularity they
+# frequently don't cross that rounding boundary together, producing a
+# visibly stretched cell (height changes, width doesn't) for one press
+# before a later press catches width up. 2 avoids that in practice.
+# zoom_step = 2

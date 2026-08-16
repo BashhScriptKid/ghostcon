@@ -89,10 +89,16 @@ void ghostcon_input_sync_modes(ghostcon_input_t *input, const ghostcon_screen_t 
 /* Drains all pending libinput events. Keyboard key events are encoded
    (see ghostcon_input_encode_key) and written directly to `transport`
    — no keybind interception yet, see the file-level comment — except
-   for a small fixed set of scrollback shortcuts (Shift+Up/Down/PageUp/
-   PageDown, mirroring kmscon's grab-scroll/grab-page defaults)
-   which are intercepted and applied directly to `screen` via
-   ghostcon_screen_scroll_view() instead of being forwarded to the pty.
+   for two small fixed sets of shortcuts:
+     - scrollback (Shift+Up/Down/PageUp/PageDown, mirroring kmscon's
+       grab-scroll/grab-page defaults), applied directly to `screen` via
+       ghostcon_screen_scroll_view() instead of being forwarded to the pty.
+     - zoom (Ctrl+=/Ctrl+Minus, plus Ctrl+Keypad+/Ctrl+Keypad- aliases),
+       which this function can't apply itself (it has no font/atlas
+       ownership -- that lives in core/main.c's app_t) -- instead it
+       accumulates the net requested change into *out_zoom_delta (each
+       press is +-1; caller starts it at 0 and applies the final value,
+       e.g. via a helper that rebuilds the glyph atlas at the new size).
    Pointer/touchpad events are currently observed and discarded (mouse
    reporting is `wrap`'s job per PLAN.md and isn't wired up yet).
    Returns false only on a transport write failure or fatal libinput
@@ -101,4 +107,4 @@ void ghostcon_input_sync_modes(ghostcon_input_t *input, const ghostcon_screen_t 
    (a scrollback shortcut marks it dirty without producing any pty
    output to trigger the caller's usual render-on-new-data path). */
 bool ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport,
-                              ghostcon_screen_t *screen);
+                              ghostcon_screen_t *screen, int *out_zoom_delta);
