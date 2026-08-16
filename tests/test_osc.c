@@ -306,6 +306,51 @@ main(void)
     CHECK(strcmp(term.screen.clipboard, "aGVsbG8=") == 0,
           "OSC 52 rejects a non-base64 payload, leaving the old value stored");
 
+    /* Kitty keyboard protocol CSI u variants -- shares the plain 'u'
+       final byte with DECRC (CSI u, no intermediate), distinguished by
+       the leading intermediate byte (>/</=/?), same convention DEC
+       private modes (?h/?l) already use to tell themselves apart from
+       ANSI ones. */
+    CHECK(ghostcon_kitty_current(&term.screen.kitty) == 0,
+          "kitty protocol starts disabled");
+
+    const char *kitty_push = "\x1b[>1u"; /* push flags=1 (DISAMBIGUATE) */
+    ghostcon_term_feed(&term, (const uint8_t *)kitty_push, strlen(kitty_push));
+    CHECK(ghostcon_kitty_current(&term.screen.kitty) == 1,
+          "CSI > 1 u pushes flags=1");
+
+    g_output_len = 0;
+    const char *kitty_query = "\x1b[?u";
+    ghostcon_term_feed(&term, (const uint8_t *)kitty_query, strlen(kitty_query));
+    g_output_buf[g_output_len] = '\0';
+    CHECK(strcmp(g_output_buf, "\x1b[?1u") == 0,
+          "CSI ? u reports the current flags");
+
+    const char *kitty_or = "\x1b[=2;2u"; /* OR in flags=2 (REPORT_EVENTS) */
+    ghostcon_term_feed(&term, (const uint8_t *)kitty_or, strlen(kitty_or));
+    CHECK(ghostcon_kitty_current(&term.screen.kitty) == 3,
+          "CSI = 2;2 u ORs flags in (1|2=3)");
+
+    const char *kitty_set = "\x1b[=5;1u"; /* replace with flags=5 */
+    ghostcon_term_feed(&term, (const uint8_t *)kitty_set, strlen(kitty_set));
+    CHECK(ghostcon_kitty_current(&term.screen.kitty) == 5,
+          "CSI = 5;1 u replaces the current flags (mode 1 = set)");
+
+    const char *kitty_pop = "\x1b[<1u";
+    ghostcon_term_feed(&term, (const uint8_t *)kitty_pop, strlen(kitty_pop));
+    CHECK(ghostcon_kitty_current(&term.screen.kitty) == 0,
+          "CSI < 1 u pops back to the pre-push stack entry (never written, still 0)");
+
+    /* Plain CSI u (no intermediate) must still mean DECRC, unaffected
+       by any of the kitty-protocol dispatch added above. */
+    ghostcon_screen_cursor_set(&term.screen, 3, 3);
+    ghostcon_screen_cursor_save(&term.screen);
+    ghostcon_screen_cursor_set(&term.screen, 7, 7);
+    const char *plain_restore = "\x1b[u";
+    ghostcon_term_feed(&term, (const uint8_t *)plain_restore, strlen(plain_restore));
+    CHECK(term.screen.cursor.x == 3 && term.screen.cursor.y == 3,
+          "plain CSI u (no intermediate) still restores the cursor, not kitty");
+
     ghostcon_term_deinit(&term);
 
     if (failures > 0) {

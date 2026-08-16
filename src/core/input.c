@@ -367,18 +367,26 @@ ghostcon_input_open(const char *seat_id, int viewport_w, int viewport_h)
         goto fail;
     }
 
-    /* Explicit legacy-mode defaults -- found live: Ctrl+D (and by
-       extension every other Ctrl+letter combo) was being encoded as
-       kitty keyboard protocol CSI-u sequences (e.g. "\x1b[4;5u")
-       instead of the plain single control byte (0x04) any ordinary
-       shell expects, landing as literal garbage text instead of being
-       interpreted. Real terminals only enable the kitty protocol (or
-       xterm's modifyOtherKeys) when the connected APPLICATION
-       explicitly requests it via its own CSI sequence -- ghostcon has
-       no code yet to intercept and track those requests (a real gap,
-       left for a future pass), so without setting these explicitly the
-       encoder's own out-of-the-box default apparently isn't the plain
-       legacy encoding a bare, unaware shell needs. */
+    /* Explicit legacy-mode defaults for this fresh encoder -- found
+       live: Ctrl+D (and by extension every other Ctrl+letter combo)
+       was being encoded as kitty keyboard protocol CSI-u sequences
+       (e.g. "\x1b[4;5u") instead of the plain single control byte
+       (0x04) any ordinary shell expects, landing as literal garbage
+       text instead of being interpreted -- the encoder's own out-of-
+       the-box default apparently isn't the plain legacy encoding a
+       bare, unaware shell needs. Just the STARTING point now, not
+       permanent: ghostcon_input_sync_modes() (called every dispatch)
+       re-syncs GHOSTTY_KEY_ENCODER_OPT_KITTY_FLAGS from
+       screen->kitty's live, connected-app-negotiated state (see that
+       function's own doc comment) -- this only matters for the brief
+       window before the first sync_modes() call, or if an app never
+       requests the protocol at all (screen->kitty then stays at its
+       own init default of 0/disabled anyway, so this and that agree).
+       GHOSTTY_KEY_ENCODER_OPT_MODIFY_OTHER_KEYS_STATE_2 (xterm's
+       older, separate mechanism for the same class of problem) has no
+       tracked live state anywhere in this tree yet, so it stays
+       permanently forced off here -- a smaller, still-open version of
+       the same gap the kitty flags used to have. */
     GhosttyKittyKeyFlags kitty_disabled = GHOSTTY_KITTY_KEY_DISABLED;
     ghostty_key_encoder_setopt(input->encoder,
                                 GHOSTTY_KEY_ENCODER_OPT_KITTY_FLAGS,
@@ -459,6 +467,26 @@ ghostcon_input_sync_modes(ghostcon_input_t *input, const ghostcon_screen_t *scre
     ghostty_key_encoder_setopt(input->encoder,
                                 GHOSTTY_KEY_ENCODER_OPT_CURSOR_KEY_APPLICATION,
                                 &app_cursor);
+
+    /* Live Kitty keyboard protocol negotiation -- previously
+       hardcoded to GHOSTTY_KITTY_KEY_DISABLED permanently at
+       ghostcon_input_open() time (see that function's own doc comment
+       on why: a real live bug where an unaware shell received CSI-u
+       sequences it couldn't parse). term/stream.c now actually tracks
+       what a connected app requests via its own CSI >/</=/? u
+       sequences (screen->kitty, previously write-only dead state --
+       nothing ever read it back), so this can finally honor that
+       instead of always forcing legacy mode -- GhosttyKittyKeyFlags
+       is bit-for-bit identical to this project's own GC_KITTY_* flags
+       (both DISAMBIGUATE=bit0/REPORT_EVENTS=bit1/.../REPORT_ASSOCIATED
+       =bit4), so no translation is needed, just a direct pass-through.
+       An app that never asked for Kitty protocol still gets flags=0
+       (GHOSTTY_KITTY_KEY_DISABLED) here, i.e. legacy encoding by
+       default -- unchanged behavior for the common case. */
+    GhosttyKittyKeyFlags kitty_flags = ghostcon_kitty_current(&screen->kitty);
+    ghostty_key_encoder_setopt(input->encoder,
+                                GHOSTTY_KEY_ENCODER_OPT_KITTY_FLAGS,
+                                &kitty_flags);
 }
 
 void

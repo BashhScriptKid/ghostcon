@@ -436,6 +436,56 @@ handle_csi_restore_cursor(ghostcon_stream_t *st, ghostcon_screen_t *s) {
     ghostcon_screen_cursor_restore(s);
 }
 
+/* Kitty keyboard protocol -- https://sw.kovidgoyal.net/kitty/keyboard-protocol/
+   Shares the plain 'u' final byte with DECRC (CSI u, no intermediate,
+   handled by handle_csi_restore_cursor above) -- distinguished the
+   same way DEC private modes (?) are told apart from ANSI ones,
+   via the leading intermediate byte (see csi_dispatch()'s own doc
+   comment on this). Tracked state (screen->kitty) previously existed
+   but was never actually written to by anything in this parser --
+   core/input.c's key encoder was permanently hardcoded to legacy mode
+   as a result, ignoring whatever an app actually negotiated. */
+
+static void
+handle_csi_kitty_push(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+    /* CSI > flags u -- push `flags` as a new stack entry. Omitted
+       flags defaults to 0 (fully disabled), matching this parser's
+       general "absent numeric param defaults to the safe/off value"
+       convention used throughout. */
+    ghostcon_kitty_push(&s->kitty, (uint8_t)PARAM1(st, 0));
+}
+
+static void
+handle_csi_kitty_pop(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+    /* CSI < n u -- pop n stack entries (default 1 per the protocol
+       spec, unlike most other sequences in this file that default
+       an omitted count to 0). */
+    ghostcon_kitty_pop(&s->kitty, (uint8_t)PARAM1(st, 1));
+}
+
+static void
+handle_csi_kitty_set(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+    /* CSI = flags ; mode u -- apply `flags` to the CURRENT (top-of-
+       stack) entry per `mode`: wire protocol 1=set (default), 2=OR,
+       3=AND-NOT. ghostcon_kitty_set_mode_t is 0-indexed
+       (GC_KITTY_SET=0/OR=1/NOT=2), hence the -1; any other wire value
+       is invalid per the spec and ignored, same as this file's other
+       handlers silently ignore an out-of-range mode. */
+    int wire_mode = PARAM2(st, 1);
+    if (wire_mode < 1 || wire_mode > 3)
+        return;
+    ghostcon_kitty_set_mode(&s->kitty, (ghostcon_kitty_set_mode_t)(wire_mode - 1),
+                             (uint8_t)PARAM1(st, 0));
+}
+
+static void
+handle_csi_kitty_query(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+    /* CSI ? u -- report the current (top-of-stack) flags as CSI ? {flags} u. */
+    char buf[16];
+    snprintf(buf, sizeof(buf), "\x1b[?%uu", (unsigned)ghostcon_kitty_current(&s->kitty));
+    stream_output(st, buf);
+}
+
 static void
 handle_csi_cursor_style(ghostcon_stream_t *st, ghostcon_screen_t *s) {
     if (!csi_param_count(st, 0, 1)) return;
@@ -875,6 +925,13 @@ csi_dispatch(ghostcon_stream_t *st, uint8_t final_byte) {
         if (inter_len == 2 && inter0 == '?' && st->intermediates[1] == '$')
             return handle_csi_request_mode;
         return NULL;
+    case 'u':
+        if (inter_len == 0) return handle_csi_restore_cursor;
+        if (inter_len == 1 && inter0 == '>') return handle_csi_kitty_push;
+        if (inter_len == 1 && inter0 == '<') return handle_csi_kitty_pop;
+        if (inter_len == 1 && inter0 == '=') return handle_csi_kitty_set;
+        if (inter_len == 1 && inter0 == '?') return handle_csi_kitty_query;
+        return NULL;
     default:
         break;
     }
@@ -900,7 +957,6 @@ csi_dispatch(ghostcon_stream_t *st, uint8_t final_byte) {
     case 'S': return handle_csi_scroll_up;
     case 'T': return handle_csi_scroll_down;
     case 'm': return handle_csi_sgr;
-    case 'u': return handle_csi_restore_cursor;
     case 'g': return handle_csi_tab_clear;
     case 'n': return handle_csi_device_status_report;
     case 'I': return handle_csi_tab_forward;       /* CHT */

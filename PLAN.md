@@ -3579,21 +3579,44 @@ Shift+C/V round-trip, middle-click paste, hot-reloaded `[keybindings]`
 override, corners/positioning after the hotspot fix, `nano` syntax
 highlighting confirmed improved after the `TERM` fix.
 
-**Known follow-up, not yet started**: live testing also surfaced that
-`core/input.c` hardcodes the key encoder to legacy mode permanently
-(`ghostcon_input_open()` forces `GHOSTTY_KITTY_KEY_DISABLED`, set once,
-never revisited) even though `term/kitty.c`/`kitty.h` already track an
-app's live Kitty keyboard protocol negotiation in `screen_t` -- nothing
-ever reads that tracked state back into the encoder. A Kitty-protocol-
-aware app (e.g. `opencode`) that successfully requests the protocol
-still receives legacy-encoded keys regardless, breaking anything
-relying on precise CSI-u modifier reporting (found live: Ctrl+Left/
-Right word-jump silently not working in `opencode`, but working in
-real Ghostty). This was already flagged as deliberately deferred when
-the original hardcode-to-legacy fix went in; wiring `ghostcon_input_
-sync_modes()` to also push `screen->kitty`'s live flags into the
-encoder (the same place `CURSOR_KEY_APPLICATION` already gets synced
-every dispatch) is the next scoped piece of work.
+**Follow-up, live Kitty keyboard protocol negotiation**: live testing
+surfaced that `core/input.c` hardcoded the key encoder to legacy mode
+permanently (`ghostcon_input_open()` forces `GHOSTTY_KITTY_KEY_DISABLED`,
+set once, never revisited), breaking Ctrl+Left/Right word-jump (and
+anything else relying on precise CSI-u modifier reporting) in
+Kitty-protocol-aware apps like `opencode` -- worked fine under real
+Ghostty. Investigating turned up a gap one level deeper than expected:
+`term/kitty.c`/`kitty.h` already existed (push/pop/set-mode stack
+logic, unit-testable) but were **entirely unwired from the actual
+parser** -- nothing in `term/stream.c` ever called them, so
+`screen->kitty` stayed permanently stuck at its own init default no
+matter what an app requested; the "read the tracked state back into
+the encoder" framing from when this was originally deferred undersold
+the actual scope, since there was no tracked state being written yet
+either.
+
+Fixed both halves: `term/stream.c`'s `csi_dispatch()` gained handling
+for the Kitty protocol's CSI u variants (`CSI > flags u` push,
+`CSI < n u` pop, `CSI = flags;mode u` set/OR/AND-NOT, `CSI ? u` query
+-- distinguished from plain `CSI u` (DECRC, unrelated) via the leading
+intermediate byte, the same convention DEC private modes already use
+to tell themselves apart from ANSI ones in this dispatch table), and
+`core/input.c`'s `ghostcon_input_sync_modes()` (called every dispatch,
+same place `CURSOR_KEY_APPLICATION` already gets synced) now pushes
+`ghostcon_kitty_current(&screen->kitty)` into
+`GHOSTTY_KEY_ENCODER_OPT_KITTY_FLAGS` -- a direct pass-through, no bit
+translation needed since `GhosttyKittyKeyFlags` turned out to be
+bit-for-bit identical to this project's own `GC_KITTY_*` flags. An app
+that never requests the protocol still gets legacy encoding by default
+(`screen->kitty` inits to 0), so the common case is unchanged.
+
+Verified: `meson test -C build-release` (new coverage in `test_osc.c`
+-- push/query/OR/set/pop round-trip, plus confirming plain `CSI u`
+still means DECRC and is unaffected by the new dispatch branches).
+xterm's older, separate `MODIFY_OTHER_KEYS_STATE_2` mechanism has no
+tracked live state anywhere in this tree yet and stays hardcoded off
+-- a smaller, still-open version of the same class of gap, noted but
+not in scope here.
 
 ### Phase 2 — IPC and overlay
 
