@@ -896,6 +896,52 @@ TEST(insert_delete_chars_cursor_past_margin_is_noop) {
     ghostcon_term_deinit(&t);
 }
 
+TEST(insert_delete_lines_huge_param_is_clamped_not_corrupted) {
+    /* Hardening regression: an earlier version of both handlers cast an
+       unclamped n (up to UINT16_MAX) straight into int16_t loop-bound
+       arithmetic (e.g. `top + (int16_t)n`) -- for n >= 32768 that cast
+       wraps negative, corrupting the loop bounds and walking far outside
+       the valid row range. Locks in that a huge IL/DL count is instead
+       clamped to the scroll region's actual height and behaves exactly
+       like a full-region clear, not a crash. */
+    ghostcon_term_t t;
+    ASSERT(ghostcon_term_init(&t, 20, 10, 500), "init");
+    feed(&t, "\x1b[3;7r");      /* DECSTBM region rows 3-7 (0-based 2-6) */
+    feed(&t, "\x1b[3;1H");      /* cursor to top of region */
+    feed(&t, "hello");
+    feed(&t, "\x1b[65535L");    /* IL with a huge count -- must clamp, not corrupt */
+    ghostcon_row_t *r2 = ghostcon_screen_row(&t.screen, 2);
+    ASSERT(ghostcon_cell_get_codepoint(r2->cells[0]) != 'h', "region cleared by clamped insert, not corrupted");
+
+    feed(&t, "\x1b[3;1H");
+    feed(&t, "world");
+    feed(&t, "\x1b[65535M");    /* DL with a huge count -- must clamp, not corrupt */
+    ghostcon_row_t *r2b = ghostcon_screen_row(&t.screen, 2);
+    ASSERT(ghostcon_cell_get_codepoint(r2b->cells[0]) != 'w', "region cleared by clamped delete, not corrupted");
+    ghostcon_term_deinit(&t);
+}
+
+TEST(csi_loop_handlers_huge_param_does_not_hang) {
+    /* REP/CNL/CPL/CHT/CBT drive a per-step loop directly off a raw CSI
+       param (up to UINT16_MAX). Locks in that a huge count is clamped
+       to something bounded by the screen instead of looping 65535 times
+       synchronously in the render/input loop. */
+    ghostcon_term_t t;
+    ASSERT(ghostcon_term_init(&t, 20, 10, 500), "init");
+    feed(&t, "x");
+    feed(&t, "\x1b[65535b");    /* REP -- must not hang */
+    ASSERT(t.screen.cursor.x >= 0 && t.screen.cursor.x < 20 &&
+           t.screen.cursor.y >= 0 && t.screen.cursor.y < 10,
+           "REP clamped: cursor stays within screen bounds");
+    feed(&t, "\x1b[1;1H\x1b[65535E"); /* CNL -- must not hang */
+    ASSERT_CURSOR(t, 0, 9, "CNL clamped to rows_visible");
+    feed(&t, "\x1b[65535F");    /* CPL -- must not hang */
+    ASSERT_CURSOR(t, 0, 0, "CPL clamped to rows_visible");
+    feed(&t, "\x1b[65535I");    /* CHT -- must not hang */
+    feed(&t, "\x1b[65535Z");    /* CBT -- must not hang */
+    ghostcon_term_deinit(&t);
+}
+
 TEST(erase_chars) {
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");

@@ -222,6 +222,18 @@ stream_output(ghostcon_stream_t *st, const char *s) {
 /* CSI dispatch handlers                                               */
 /* ------------------------------------------------------------------ */
 
+/* A raw CSI param can be up to UINT16_MAX (65535). Handlers that apply
+   it via an O(n) per-step loop (rather than O(1) arithmetic or a single
+   memmove) must not loop that many times just to hang synchronously in
+   the single-threaded render/input loop -- clamp to the largest count
+   that can still change anything observable. */
+static int
+clamp_loop_count(int n, int max_useful) {
+    if (n > max_useful) return max_useful;
+    if (n < 0) return 0;
+    return n;
+}
+
 static void
 handle_csi_cursor_up(ghostcon_stream_t *st, ghostcon_screen_t *s) {
     if (!csi_param_count(st, 0, 1)) return;
@@ -253,7 +265,7 @@ handle_csi_cursor_back(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 static void
 handle_csi_cursor_next_line(ghostcon_stream_t *st, ghostcon_screen_t *s) {
     if (!csi_param_count(st, 0, 1)) return;
-    int n = PARAM1(st, 1);
+    int n = clamp_loop_count(PARAM1(st, 1), s->rows_visible);
     for (int i = 0; i < n; i++)
         ghostcon_screen_cursor_next_line(s);
 }
@@ -261,7 +273,7 @@ handle_csi_cursor_next_line(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 static void
 handle_csi_cursor_prev_line(ghostcon_stream_t *st, ghostcon_screen_t *s) {
     if (!csi_param_count(st, 0, 1)) return;
-    int n = PARAM1(st, 1);
+    int n = clamp_loop_count(PARAM1(st, 1), s->rows_visible);
     for (int i = 0; i < n; i++)
         ghostcon_screen_cursor_prev_line(s);
 }
@@ -285,7 +297,7 @@ static void
 handle_csi_tab_forward(ghostcon_stream_t *st, ghostcon_screen_t *s) {
     /* CHT (CSI Ps I): move forward Ps tab stops. */
     if (!csi_param_count(st, 0, 1)) return;
-    int n = PARAM1(st, 1);
+    int n = clamp_loop_count(PARAM1(st, 1), s->cols);
     for (int i = 0; i < n; i++)
         ghostcon_screen_tab(s);
 }
@@ -294,7 +306,7 @@ static void
 handle_csi_tab_back(ghostcon_stream_t *st, ghostcon_screen_t *s) {
     /* CBT (CSI Ps Z): move backward Ps tab stops. */
     if (!csi_param_count(st, 0, 1)) return;
-    int n = PARAM1(st, 1);
+    int n = clamp_loop_count(PARAM1(st, 1), s->cols);
     for (int i = 0; i < n; i++)
         ghostcon_screen_tab_back(s);
 }
@@ -307,6 +319,9 @@ handle_csi_repeat(ghostcon_stream_t *st, ghostcon_screen_t *s) {
     if (s->last_codepoint == 0) return;
     int n = PARAM1(st, 1);
     if (n == 0) n = 1;
+    /* Beyond one full screen, further repeats just keep scrolling the
+       same character -- clamp instead of hanging synchronously. */
+    n = clamp_loop_count(n, (int)s->cols * (int)s->rows_visible);
     for (int i = 0; i < n; i++)
         ghostcon_screen_put_char(s, s->last_codepoint);
 }

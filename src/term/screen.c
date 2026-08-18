@@ -992,13 +992,24 @@ ghostcon_screen_delete_chars(ghostcon_screen_t *s, uint16_t n) {
 void
 ghostcon_screen_insert_lines(ghostcon_screen_t *s, uint16_t n) {
     if (n == 0) return;
-    int16_t top = s->cursor.y;
-    int16_t bottom = s->scroll_region.bottom;
+    int32_t top = s->cursor.y;
+    int32_t bottom = s->scroll_region.bottom;
+    if (top > bottom)
+        return;
 
-    /* Scroll lines [top, bottom-n] down by n */
-    for (int16_t y = bottom; y >= top + (int16_t)n; y--) {
-        ghostcon_row_t *dst = &s->rows[row_idx(s, y)];
-        ghostcon_row_t *src = &s->rows[row_idx(s, y - n)];
+    /* n is attacker-controlled (up to UINT16_MAX) and unrelated to the
+       scroll region's actual height -- clamp before any arithmetic so
+       a huge n can't wrap through int16_t and corrupt the loop bounds
+       (see the identical class of bug fixed in insert_chars/delete_chars). */
+    int32_t available = bottom - top + 1;
+    int32_t shift = n;
+    if (shift > available)
+        shift = available;
+
+    /* Scroll lines [top, bottom-shift] down by shift */
+    for (int32_t y = bottom; y >= top + shift; y--) {
+        ghostcon_row_t *dst = &s->rows[row_idx(s, (int16_t)y)];
+        ghostcon_row_t *src = &s->rows[row_idx(s, (int16_t)(y - shift))];
         /* Copy cells */
         memcpy(dst->cells, src->cells, s->cols * sizeof(ghostcon_cell_t));
         dst->wrap = src->wrap;
@@ -1007,26 +1018,33 @@ ghostcon_screen_insert_lines(ghostcon_screen_t *s, uint16_t n) {
         dst->styled = src->styled;
         dst->hyperlink = src->hyperlink;
         dst->dirty = true;
-        mark_dirty(s, y);
+        mark_dirty(s, (int16_t)y);
     }
 
-    /* Clear the top n lines */
-    for (int16_t y = top; y < top + (int16_t)n && y <= bottom; y++) {
-        ghostcon_row_clear(&s->rows[row_idx(s, y)]);
-        mark_dirty(s, y);
+    /* Clear the top shift lines */
+    for (int32_t y = top; y < top + shift && y <= bottom; y++) {
+        ghostcon_row_clear(&s->rows[row_idx(s, (int16_t)y)]);
+        mark_dirty(s, (int16_t)y);
     }
 }
 
 void
 ghostcon_screen_delete_lines(ghostcon_screen_t *s, uint16_t n) {
     if (n == 0) return;
-    int16_t top = s->cursor.y;
-    int16_t bottom = s->scroll_region.bottom;
+    int32_t top = s->cursor.y;
+    int32_t bottom = s->scroll_region.bottom;
+    if (top > bottom)
+        return;
 
-    /* Scroll lines [top+n, bottom] up by n */
-    for (int16_t y = top; y <= bottom - (int16_t)n; y++) {
-        ghostcon_row_t *dst = &s->rows[row_idx(s, y)];
-        ghostcon_row_t *src = &s->rows[row_idx(s, y + n)];
+    int32_t available = bottom - top + 1;
+    int32_t count_to_delete = n;
+    if (count_to_delete > available)
+        count_to_delete = available;
+
+    /* Scroll lines [top+count_to_delete, bottom] up by count_to_delete */
+    for (int32_t y = top; y <= bottom - count_to_delete; y++) {
+        ghostcon_row_t *dst = &s->rows[row_idx(s, (int16_t)y)];
+        ghostcon_row_t *src = &s->rows[row_idx(s, (int16_t)(y + count_to_delete))];
         memcpy(dst->cells, src->cells, s->cols * sizeof(ghostcon_cell_t));
         dst->wrap = src->wrap;
         dst->wrap_continuation = src->wrap_continuation;
@@ -1034,13 +1052,13 @@ ghostcon_screen_delete_lines(ghostcon_screen_t *s, uint16_t n) {
         dst->styled = src->styled;
         dst->hyperlink = src->hyperlink;
         dst->dirty = true;
-        mark_dirty(s, y);
+        mark_dirty(s, (int16_t)y);
     }
 
-    /* Clear the bottom n lines */
-    for (int16_t y = bottom - (int16_t)n + 1; y <= bottom; y++) {
-        ghostcon_row_clear(&s->rows[row_idx(s, y)]);
-        mark_dirty(s, y);
+    /* Clear the bottom count_to_delete lines */
+    for (int32_t y = bottom - count_to_delete + 1; y <= bottom; y++) {
+        ghostcon_row_clear(&s->rows[row_idx(s, (int16_t)y)]);
+        mark_dirty(s, (int16_t)y);
     }
 }
 
