@@ -309,3 +309,39 @@ ghostcon_gles_end(ghostcon_gles_t *gles)
     glDisableVertexAttribArray(gles->attr_color);
     glDisableVertexAttribArray(gles->attr_bg);
 }
+
+bool
+ghostcon_gles_screenshot_ppm(ghostcon_gles_t *gles, const char *path)
+{
+    uint32_t w = gles->viewport_w, h = gles->viewport_h;
+    uint8_t *pixels = malloc((size_t)w * h * 4);
+    if (!pixels)
+        return false;
+    glReadPixels(0, 0, (GLsizei)w, (GLsizei)h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+
+    FILE *f = fopen(path, "wb");
+    if (!f) {
+        free(pixels);
+        return false;
+    }
+    fprintf(f, "P6\n%u %u\n255\n", w, h);
+
+    /* GL's origin is bottom-left; PPM rows are written top-down. */
+    uint8_t *row_rgb = malloc((size_t)w * 3);
+    bool ok = row_rgb != NULL;
+    for (uint32_t y = 0; ok && y < h; y++) {
+        const uint8_t *src = pixels + (size_t)(h - 1 - y) * w * 4;
+        for (uint32_t x = 0; x < w; x++) {
+            row_rgb[x * 3 + 0] = src[x * 4 + 0];
+            row_rgb[x * 3 + 1] = src[x * 4 + 1];
+            row_rgb[x * 3 + 2] = src[x * 4 + 2];
+        }
+        if (fwrite(row_rgb, 1, (size_t)w * 3, f) != (size_t)w * 3)
+            ok = false;
+    }
+
+    free(row_rgb);
+    fclose(f);
+    free(pixels);
+    return ok;
+}

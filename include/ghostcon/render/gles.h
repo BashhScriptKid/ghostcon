@@ -114,3 +114,15 @@ void ghostcon_gles_set_gamma_correct(ghostcon_gles_t *gles, bool enabled);
 /* Issues the draw calls for everything pushed since ghostcon_gles_begin,
    then eglSwapBuffers via the caller's ghostcon_egl_t. */
 void ghostcon_gles_end(ghostcon_gles_t *gles);
+
+/* Reads back the just-rendered frame and writes it out as a binary PPM
+   (P6). MUST be called after ghostcon_gles_end() but before the
+   caller's ghostcon_egl_swap() -- glReadPixels reads whatever is
+   currently bound as the draw framebuffer, which is only guaranteed
+   to hold this frame's actual content in that window; past a swap,
+   an EGL surface's backbuffer is free to come back with undefined
+   content (multi-buffered presentation, no EGL_SWAP_BEHAVIOR_PRESERVED
+   guarantee here). Ground-truth pixel capture for comparing against a
+   reference render when a visual difference is hard to describe in
+   words -- see core/main.c's Ctrl+Alt+D dump hotkey. */
+bool ghostcon_gles_screenshot_ppm(ghostcon_gles_t *gles, const char *path);

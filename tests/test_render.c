@@ -107,6 +107,26 @@ main(void)
     }
     printf("PASS: %zu non-background pixels rendered (text visibly drawn)\n", non_bg);
 
+    const char *ppm_path = "/tmp/ghostcon-test-screenshot.ppm";
+    if (!ghostcon_gles_screenshot_ppm(gles, ppm_path)) {
+        fprintf(stderr, "FAIL: ghostcon_gles_screenshot_ppm\n");
+        return 1;
+    }
+    FILE *ppm = fopen(ppm_path, "rb");
+    if (!ppm) {
+        fprintf(stderr, "FAIL: screenshot PPM not readable\n");
+        return 1;
+    }
+    unsigned pw = 0, ph = 0, maxv = 0;
+    if (fscanf(ppm, "P6 %u %u %u", &pw, &ph, &maxv) != 3 ||
+        pw != (unsigned)vw || ph != (unsigned)vh || maxv != 255) {
+        fprintf(stderr, "FAIL: screenshot PPM header mismatch (%ux%u max=%u)\n", pw, ph, maxv);
+        fclose(ppm);
+        return 1;
+    }
+    fclose(ppm);
+    printf("PASS: screenshot PPM written, %ux%u header matches viewport\n", pw, ph);
+
     ghostcon_egl_swap(&egl);
     printf("PASS: eglSwapBuffers\n");
 

@@ -211,6 +211,12 @@ typedef struct {
        Not per-acquire-cycle state (survives release/reacquire trivially
        since it's just "is a render owed", not tied to any GPU handle). */
     bool render_deferred;
+    bool screenshot_requested; /* Ctrl+Alt+D also asks render_frame() to
+                                   glReadPixels the next frame it draws --
+                                   see ghostcon_gles_screenshot_ppm()'s doc
+                                   comment for why it must happen inside
+                                   render_frame(), not from the input
+                                   handler that sets this flag. */
 } app_t;
 
 /* Conventional Xcursor names to try, in order, when a state has no
@@ -637,6 +643,12 @@ render_frame(app_t *app)
                                        app->cell_w, app->cell_h);
     ghostcon_gles_sync_atlas(app->gles, app->atlas, false);
     ghostcon_gles_end(app->gles);
+
+    if (app->screenshot_requested) {
+        if (!ghostcon_gles_screenshot_ppm(app->gles, "/tmp/ghostcon-screenshot.ppm"))
+            fprintf(stderr, "ghostcon-core: screenshot requested but failed\n");
+        app->screenshot_requested = false;
+    }
 
     if (!ghostcon_egl_swap(&app->egl))
         return false;
@@ -1428,6 +1440,8 @@ main(int argc, char **argv)
                debug action, one dump at a time, no need for the
                per-vtN namespacing the ctl sockets use. */
             if (dump_requested) {
+                app.screenshot_requested = true;
+                need_render = true;
                 FILE *df = fopen("/tmp/ghostcon-dump.txt", "w");
                 if (df) {
                     ghostcon_screen_dump(df, &app.term.screen);
