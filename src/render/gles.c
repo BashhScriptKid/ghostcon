@@ -35,15 +35,34 @@ static const char *VERT_SRC =
    value, and mediump keeps everything else (varying storage size, GPU
    register pressure) unchanged from before. */
 /* Luminance-based alpha correction, ported from Ghostty's own
-   cell_text.f.glsl (USE_LINEAR_CORRECTION path): FreeType's raw
-   coverage value is the *linear* fraction of the pixel covered by the
-   glyph, but blending that straight into an sRGB-encoded framebuffer
-   (this shader's un-color-managed GL_SRC_ALPHA/GL_ONE_MINUS_SRC_ALPHA
-   blend) makes edges read soft/hazy compared to a renderer that
-   deliberately re-derives alpha from the *gamma-encoded* blend the eye
-   actually expects. Skipped when fg and bg luminance are within
-   0.001 of each other (near-invisible text) to avoid the correction's
-   division blowing up. */
+   cell_text.f.glsl (USE_LINEAR_CORRECTION path). Defaults OFF
+   (config.c's gamma_correct default) -- keep reading before turning
+   it on.
+
+   Ghostty only ever pairs this with USE_LINEAR_BLENDING: an
+   sRGB-format framebuffer where the GPU blends in true linear light
+   and re-encodes to sRGB on write, which naturally renders light-on-
+   dark text thinner than expected -- the correction exists purely to
+   fatten that back up to look like traditional gamma-incorrect
+   blending (confirmed straight from Ghostty's own config docs:
+   Config.zig's alpha-blending default is "linear-corrected" on
+   Linux, pairing both flags together; "linear" alone, without the
+   correction, is documented there as making light text "much
+   thicker" -- so the correction's whole job is undoing a thinning
+   effect that only exists when blending is actually linear).
+
+   ghostcon's GBM/EGL surface is a plain (non-sRGB) format with
+   standard fixed-function blending -- structurally Ghostty's
+   `native` mode already, the same "gamma-incorrect blending" the
+   correction curve exists to reproduce. Applying the curve on top of
+   that (found live: enabled by default for one deploy) over-corrects:
+   partial-coverage pixels get pushed darker to fight a thinning
+   effect that was never present, which reads as thin strokes (built
+   mostly from partial-coverage AA pixels) rendering visibly dimmer
+   than thick ones (built mostly from full-coverage pixels) within
+   the same glyph. Only useful again if ghostcon-core ever gains a
+   real linear-blending framebuffer (GL_FRAMEBUFFER_SRGB + an
+   sRGB-capable GBM/EGL surface format) to pair it with. */
 static const char *FRAG_SRC =
     "precision mediump float;\n"
     "varying highp vec2 v_uv;\n"

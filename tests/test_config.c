@@ -29,7 +29,7 @@ main(void)
     CHECK(cfg.font_family[0] == '\0', "default font_family is empty");
     CHECK(cfg.font_variant[0] == '\0', "default font_variant is empty");
     CHECK(strcmp(cfg.antialiasing, "grayscale") == 0, "default antialiasing");
-    CHECK(cfg.gamma_correct == true, "default gamma_correct");
+    CHECK(cfg.gamma_correct == false, "default gamma_correct");
     CHECK(cfg.scrollback_lines == 2000, "default scrollback_lines");
     CHECK(cfg.repeat_delay_ms == 250, "default repeat_delay_ms");
     CHECK(cfg.repeat_rate_ms == 50, "default repeat_rate_ms");
@@ -91,7 +91,7 @@ main(void)
             "font_family = \"JetBrainsMono Nerd Font Mono\"\n"
             "font_variant = \"Bold\"\n"
             "antialiasing = \"subpixel\"\n"
-            "gamma_correct = false\n"
+            "gamma_correct = true\n"
             "scrollback_lines = 5000\n"
             "repeat_delay_ms = 300\n"
             "repeat_rate_ms = 25\n"
@@ -132,7 +132,7 @@ main(void)
         CHECK(strcmp(cfg.font_family, "JetBrainsMono Nerd Font Mono") == 0, "full config font_family");
         CHECK(strcmp(cfg.font_variant, "Bold") == 0, "full config font_variant");
         CHECK(strcmp(cfg.antialiasing, "subpixel") == 0, "full config antialiasing");
-        CHECK(cfg.gamma_correct == false, "full config gamma_correct");
+        CHECK(cfg.gamma_correct == true, "full config gamma_correct");
         CHECK(cfg.scrollback_lines == 5000, "full config scrollback_lines");
         CHECK(cfg.repeat_delay_ms == 300, "full config repeat_delay_ms");
         CHECK(cfg.repeat_rate_ms == 25, "full config repeat_rate_ms");

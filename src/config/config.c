@@ -30,7 +30,15 @@ ghostcon_config_defaults(ghostcon_config_t *cfg)
     cfg->repeat_delay_ms = 250;
     cfg->repeat_rate_ms = 50;
     snprintf(cfg->antialiasing, sizeof(cfg->antialiasing), "%s", "grayscale");
-    cfg->gamma_correct = true;
+    cfg->gamma_correct = false; /* see gles.c FRAG_SRC's doc comment: this
+                                    correction is only valid paired with true
+                                    linear-space blending (an sRGB-format
+                                    framebuffer ghostcon doesn't have), which
+                                    ghostcon-core lacks -- applied alone it
+                                    over-darkens partial-coverage pixels,
+                                    visibly dimming thin strokes relative to
+                                    thick ones. Off until real linear
+                                    blending exists to pair it with. */
     cfg->cursor_base_scale = 1.0f;
     cfg->cursor_scale_with_terminal = true;
     snprintf(cfg->copy_to_clipboard_binding, sizeof(cfg->copy_to_clipboard_binding), "%s", "ctrl+shift+c");
