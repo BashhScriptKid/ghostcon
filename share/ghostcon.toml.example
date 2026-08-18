@@ -67,6 +67,13 @@
 # "grayscale", not an error.
 # antialiasing = "grayscale"
 
+# Luminance-based alpha correction on glyph edges (ported from
+# Ghostty's own text shader), applied on top of whichever antialiasing
+# mode above is selected. Off produces a slightly softer/hazier edge
+# (FreeType's raw linear coverage blended straight into the sRGB
+# framebuffer with no compensation).
+# gamma_correct = true
+
 # Scrollback history capacity, in lines. Startup-only -- a live edit
 # takes effect the next time ghostcon-core naturally restarts, not
 # instantly (same exception as drm_node/run_dir above).

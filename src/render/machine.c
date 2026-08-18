@@ -211,7 +211,8 @@ ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
             }
 
             ghostcon_gles_push_glyph(gles, gx, gy, draw_w, draw_h,
-                                      glyph, fg[0], fg[1], fg[2], 1.0f);
+                                      glyph, fg[0], fg[1], fg[2], 1.0f,
+                                      bg[0], bg[1], bg[2]);
 
             if (constraint_width == 2)
                 x++; /* skip the borrowed cell -- already background-painted above */

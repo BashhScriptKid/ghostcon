@@ -58,6 +58,10 @@ typedef struct {
        comment on ghostcon_atlas_create() for the exact FT_LOAD_TARGET
        mapping. */
     char antialiasing[16];
+    bool gamma_correct; /* luminance-based glyph-edge alpha correction
+                            (ported from Ghostty's cell_text.f.glsl) --
+                            on by default. See render/gles.c's FRAG_SRC
+                            doc comment. Applies live, no restart. */
     bool clear_on_logout;
     int  zoom_step; /* points per Ctrl+=/Ctrl+Minus press -- see
                         core/input.c's handle_zoom_shortcut() doc

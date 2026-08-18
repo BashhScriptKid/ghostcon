@@ -119,6 +119,7 @@ typedef struct {
     char font_family[256];
     char font_variant[64];
     char antialiasing[16];
+    bool gamma_correct;
 
     /* Cursor sprite config -- see PLAN.md's "Cursor sprite: raster
        images, per-state, config-driven" section. Persisted here (not
@@ -542,6 +543,7 @@ acquire_display(app_t *app)
        sync here left the texture "incomplete" and glyphs rendering as
        solid rectangles after a reacquire. */
     ghostcon_gles_sync_atlas(app->gles, app->atlas, true);
+    ghostcon_gles_set_gamma_correct(app->gles, app->gamma_correct);
 
     /* Fresh input context every acquire -- see app_t's own doc comment
        on `input` for why this must not be reused across a release/
@@ -900,6 +902,13 @@ apply_config_reload(app_t *app)
     snprintf(app->antialiasing, sizeof(app->antialiasing), "%s", new_cfg.antialiasing);
     bool need_render = apply_font_size(app, new_cfg.font_size, font_config_changed);
 
+    if (app->gamma_correct != new_cfg.gamma_correct) {
+        app->gamma_correct = new_cfg.gamma_correct;
+        if (app->gles)
+            ghostcon_gles_set_gamma_correct(app->gles, app->gamma_correct);
+        need_render = true;
+    }
+
     /* apply_font_size() above already calls reload_cursor_images() when
        font_size actually changed -- but if ONLY the [cursor] section
        changed (the common case: font_size usually doesn't move on the
@@ -1013,6 +1022,7 @@ main(int argc, char **argv)
             snprintf(app.font_family, sizeof(app.font_family), "%s", initial_cfg.font_family);
             snprintf(app.font_variant, sizeof(app.font_variant), "%s", initial_cfg.font_variant);
             snprintf(app.antialiasing, sizeof(app.antialiasing), "%s", initial_cfg.antialiasing);
+            app.gamma_correct = initial_cfg.gamma_correct;
             snprintf(app.cursor_theme, sizeof(app.cursor_theme), "%s", initial_cfg.cursor_theme);
             snprintf(app.cursor_default_path, sizeof(app.cursor_default_path), "%s", initial_cfg.cursor_default_path);
             snprintf(app.cursor_link_path, sizeof(app.cursor_link_path), "%s", initial_cfg.cursor_link_path);

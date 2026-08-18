@@ -9,11 +9,14 @@ static const char *VERT_SRC =
     "attribute vec2 a_pos;\n"
     "attribute vec2 a_uv;\n"
     "attribute vec4 a_color;\n"
+    "attribute vec3 a_bg;\n"
     "varying highp vec2 v_uv;\n"
     "varying vec4 v_color;\n"
+    "varying vec3 v_bg;\n"
     "void main() {\n"
     "    v_uv = a_uv;\n"
     "    v_color = a_color;\n"
+    "    v_bg = a_bg;\n"
     "    gl_Position = vec4(a_pos, 0.0, 1.0);\n"
     "}\n";
 
@@ -31,13 +34,42 @@ static const char *VERT_SRC =
    qualifier instead. v_color stays mediump -- color isn't the affected
    value, and mediump keeps everything else (varying storage size, GPU
    register pressure) unchanged from before. */
+/* Luminance-based alpha correction, ported from Ghostty's own
+   cell_text.f.glsl (USE_LINEAR_CORRECTION path): FreeType's raw
+   coverage value is the *linear* fraction of the pixel covered by the
+   glyph, but blending that straight into an sRGB-encoded framebuffer
+   (this shader's un-color-managed GL_SRC_ALPHA/GL_ONE_MINUS_SRC_ALPHA
+   blend) makes edges read soft/hazy compared to a renderer that
+   deliberately re-derives alpha from the *gamma-encoded* blend the eye
+   actually expects. Skipped when fg and bg luminance are within
+   0.001 of each other (near-invisible text) to avoid the correction's
+   division blowing up. */
 static const char *FRAG_SRC =
     "precision mediump float;\n"
     "varying highp vec2 v_uv;\n"
     "varying vec4 v_color;\n"
+    "varying vec3 v_bg;\n"
     "uniform sampler2D u_atlas;\n"
+    "uniform bool u_gamma_correct;\n"
+    "float unlin1(float v) {\n"
+    "    return v <= 0.0031308 ? v * 12.92 : pow(v, 1.0 / 2.4) * 1.055 - 0.055;\n"
+    "}\n"
+    "float lin1(float v) {\n"
+    "    return v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4);\n"
+    "}\n"
+    "float luminance(vec3 c) {\n"
+    "    return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;\n"
+    "}\n"
     "void main() {\n"
     "    highp float a = texture2D(u_atlas, v_uv).a;\n"
+    "    if (u_gamma_correct) {\n"
+    "        float fg_l = luminance(v_color.rgb);\n"
+    "        float bg_l = luminance(v_bg);\n"
+    "        if (abs(fg_l - bg_l) > 0.001) {\n"
+    "            float blend_l = lin1(unlin1(fg_l) * a + unlin1(bg_l) * (1.0 - a));\n"
+    "            a = clamp((blend_l - bg_l) / (fg_l - bg_l), 0.0, 1.0);\n"
+    "        }\n"
+    "    }\n"
     "    gl_FragColor = vec4(v_color.rgb, v_color.a * a);\n"
     "}\n";
 
@@ -45,11 +77,13 @@ struct ghostcon_gles {
     uint32_t viewport_w, viewport_h;
 
     GLuint program;
-    GLint attr_pos, attr_uv, attr_color;
-    GLint uniform_atlas;
+    GLint attr_pos, attr_uv, attr_color, attr_bg;
+    GLint uniform_atlas, uniform_gamma_correct;
 
     GLuint atlas_tex;
     uint32_t atlas_dim;
+
+    bool gamma_correct;
 
     ghostcon_vertex_t *verts;
     size_t vert_count, vert_cap;
@@ -107,7 +141,10 @@ ghostcon_gles_create(uint32_t viewport_w, uint32_t viewport_h)
     gles->attr_pos = glGetAttribLocation(gles->program, "a_pos");
     gles->attr_uv = glGetAttribLocation(gles->program, "a_uv");
     gles->attr_color = glGetAttribLocation(gles->program, "a_color");
+    gles->attr_bg = glGetAttribLocation(gles->program, "a_bg");
     gles->uniform_atlas = glGetUniformLocation(gles->program, "u_atlas");
+    gles->uniform_gamma_correct = glGetUniformLocation(gles->program, "u_gamma_correct");
+    gles->gamma_correct = true;
 
     glGenTextures(1, &gles->atlas_tex);
     glBindTexture(GL_TEXTURE_2D, gles->atlas_tex);
@@ -192,12 +229,13 @@ static void
 push_quad(ghostcon_gles_t *gles,
           float x, float y, float w, float h,
           float u0, float v0, float u1, float v1,
-          float r, float g, float b, float a)
+          float r, float g, float b, float a,
+          float bg_r, float bg_g, float bg_b)
 {
-    ghostcon_vertex_t tl = { x,     y,     u0, v0, r, g, b, a };
-    ghostcon_vertex_t tr = { x + w, y,     u1, v0, r, g, b, a };
-    ghostcon_vertex_t bl = { x,     y + h, u0, v1, r, g, b, a };
-    ghostcon_vertex_t br = { x + w, y + h, u1, v1, r, g, b, a };
+    ghostcon_vertex_t tl = { x,     y,     u0, v0, r, g, b, a, bg_r, bg_g, bg_b };
+    ghostcon_vertex_t tr = { x + w, y,     u1, v0, r, g, b, a, bg_r, bg_g, bg_b };
+    ghostcon_vertex_t bl = { x,     y + h, u0, v1, r, g, b, a, bg_r, bg_g, bg_b };
+    ghostcon_vertex_t br = { x + w, y + h, u1, v1, r, g, b, a, bg_r, bg_g, bg_b };
 
     push_vertex(gles, tl);
     push_vertex(gles, bl);
@@ -213,18 +251,26 @@ ghostcon_gles_push_rect(ghostcon_gles_t *gles,
                          float r, float g, float b, float a)
 {
     /* atlas.c reserves an opaque 2x2 block at the atlas origin for
-       exactly this — sampling (0,0) always yields alpha=1.0. */
-    push_quad(gles, x, y, w, h, 0.0f, 0.0f, 0.0f, 0.0f, r, g, b, a);
+       exactly this — sampling (0,0) always yields alpha=1.0. bg == fg
+       here so the gamma correction curve is a guaranteed no-op. */
+    push_quad(gles, x, y, w, h, 0.0f, 0.0f, 0.0f, 0.0f, r, g, b, a, r, g, b);
 }
 
 void
 ghostcon_gles_push_glyph(ghostcon_gles_t *gles,
                           float x, float y, float w, float h,
                           const ghostcon_glyph_t *glyph,
-                          float r, float g, float b, float a)
+                          float r, float g, float b, float a,
+                          float bg_r, float bg_g, float bg_b)
 {
     push_quad(gles, x, y, w, h, glyph->u0, glyph->v0, glyph->u1, glyph->v1,
-              r, g, b, a);
+              r, g, b, a, bg_r, bg_g, bg_b);
+}
+
+void
+ghostcon_gles_set_gamma_correct(ghostcon_gles_t *gles, bool enabled)
+{
+    gles->gamma_correct = enabled;
 }
 
 void
@@ -233,6 +279,7 @@ ghostcon_gles_end(ghostcon_gles_t *gles)
     glUseProgram(gles->program);
     glBindTexture(GL_TEXTURE_2D, gles->atlas_tex);
     glUniform1i(gles->uniform_atlas, 0);
+    glUniform1i(gles->uniform_gamma_correct, gles->gamma_correct ? 1 : 0);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -246,9 +293,13 @@ ghostcon_gles_end(ghostcon_gles_t *gles)
     glVertexAttribPointer(gles->attr_color, 4, GL_FLOAT, GL_FALSE,
                            sizeof(ghostcon_vertex_t),
                            &gles->verts[0].r);
+    glVertexAttribPointer(gles->attr_bg, 3, GL_FLOAT, GL_FALSE,
+                           sizeof(ghostcon_vertex_t),
+                           &gles->verts[0].bg_r);
     glEnableVertexAttribArray(gles->attr_pos);
     glEnableVertexAttribArray(gles->attr_uv);
     glEnableVertexAttribArray(gles->attr_color);
+    glEnableVertexAttribArray(gles->attr_bg);
 
     if (gles->vert_count > 0)
         glDrawArrays(GL_TRIANGLES, 0, (GLsizei)gles->vert_count);
@@ -256,4 +307,5 @@ ghostcon_gles_end(ghostcon_gles_t *gles)
     glDisableVertexAttribArray(gles->attr_pos);
     glDisableVertexAttribArray(gles->attr_uv);
     glDisableVertexAttribArray(gles->attr_color);
+    glDisableVertexAttribArray(gles->attr_bg);
 }

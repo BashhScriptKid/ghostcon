@@ -22,6 +22,8 @@ typedef struct {
     float x, y;         /* screen-space pixel position, top-left origin */
     float u, v;
     float r, g, b, a;
+    float bg_r, bg_g, bg_b; /* cell background, for gamma alpha correction --
+                                equal to r/g/b on non-glyph quads, a no-op */
 } ghostcon_vertex_t;
 
 typedef struct ghostcon_gles ghostcon_gles_t;
@@ -93,11 +95,21 @@ void ghostcon_gles_push_rect(ghostcon_gles_t *gles,
                               float r, float g, float b, float a);
 
 /* Appends a glyph quad at (x, y) sized (w, h), sampling `glyph`'s UV
-   rect, tinted with the foreground color. */
+   rect, tinted with the foreground color. bg_r/g/b is the cell's
+   resolved background color, used only for the gamma alpha
+   correction curve (see ghostcon_gles_set_gamma_correct below). */
 void ghostcon_gles_push_glyph(ghostcon_gles_t *gles,
                                float x, float y, float w, float h,
                                const ghostcon_glyph_t *glyph,
-                               float r, float g, float b, float a);
+                               float r, float g, float b, float a,
+                               float bg_r, float bg_g, float bg_b);
+
+/* Whether glyph edges get the luminance-based alpha correction curve
+   (ported from Ghostty's cell_text.f.glsl) that biases FreeType's raw
+   coverage value to look crisper against the cell's actual background,
+   instead of a naive straight alpha blend. Defaults to on; takes
+   effect on the next ghostcon_gles_end(). */
+void ghostcon_gles_set_gamma_correct(ghostcon_gles_t *gles, bool enabled);
 
 /* Issues the draw calls for everything pushed since ghostcon_gles_begin,
    then eglSwapBuffers via the caller's ghostcon_egl_t. */
