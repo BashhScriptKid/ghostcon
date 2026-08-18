@@ -208,6 +208,24 @@ ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
                    established bound_w/bound_h on either edge. */
                 gx = floorf(px + (bound_w - draw_w) / 2.0f);
                 gy = floorf(py + (bound_h - draw_h) / 2.0f);
+            } else {
+                /* Ordinary (non-symbol) glyphs can still occasionally
+                   overflow their single cell by a pixel or two --
+                   grayscale AA's rasterizer pads bitmap width for the
+                   coverage falloff more than mono's tightly-hinted-to-
+                   grid bitmaps do. Found live: '&'/'%'/'W' in
+                   JetBrainsMono Nerd Font Mono overflow at most tested
+                   sizes under grayscale AA. Unlike symbols, ordinary
+                   glyphs never borrow the next cell's space -- just
+                   squash the overflow back to fit, same "scale down,
+                   never up" principle as the symbol path above, so the
+                   next cell's background quad (pushed after this one)
+                   can't silently paint back over part of this glyph.
+                   gx/gy are untouched, so correctly-sized glyphs (the
+                   overwhelming majority) render exactly as before. */
+                float max_draw_w = (float)cell_w - (float)glyph->bearing_x;
+                if (draw_w > max_draw_w && max_draw_w > 0.0f)
+                    draw_w = max_draw_w;
             }
 
             ghostcon_gles_push_glyph(gles, gx, gy, draw_w, draw_h,
