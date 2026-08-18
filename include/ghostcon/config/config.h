@@ -44,10 +44,40 @@ typedef struct {
        right where the initial config load happens). */
     char font_family[256];
     char font_variant[64];
+    /* "grayscale" (default), "subpixel", or "none" -- maps to
+       FreeType's rasterization target (FT_LOAD_TARGET_NORMAL/LCD/MONO
+       respectively). An unrecognized value falls back to "grayscale",
+       not an error. "subpixel" uses FreeType's LCD-optimized hinting/
+       rasterization, but this atlas is still a single 8-bit alpha
+       channel (not true RGB subpixel blending, which would need an
+       RGB atlas texture and a different shader) -- the 3 LCD
+       subchannels are averaged down to one alpha value, so this is a
+       real, visibly different rasterization (typically crisper than
+       plain grayscale) but not full ClearType-style fringing-
+       corrected subpixel rendering. See render/atlas.c's own doc
+       comment on ghostcon_atlas_create() for the exact FT_LOAD_TARGET
+       mapping. */
+    char antialiasing[16];
     bool clear_on_logout;
     int  zoom_step; /* points per Ctrl+=/Ctrl+Minus press -- see
                         core/input.c's handle_zoom_shortcut() doc
                         comment for why the default (2) isn't 1 */
+    int  scrollback_lines; /* history ring buffer capacity passed to
+                               ghostcon_term_init() -- was hardcoded to
+                               2000 with no way to change it before
+                               this key existed. Startup-only (not
+                               hot-reloadable): resizing scrollback
+                               live isn't something ghostcon_screen_t
+                               supports, unlike the grid resize a font
+                               zoom already does. */
+    /* Key auto-repeat timing, milliseconds -- was hardcoded (250/50,
+       kmscon's own documented defaults) with no way to change it
+       before these existed. Startup-only, same reasoning as
+       scrollback_lines: the repeat timerfd is armed once at
+       ghostcon_input_open() time, not something a live reload
+       re-arms. */
+    int  repeat_delay_ms;
+    int  repeat_rate_ms;
 
     /* Hardware cursor sprite -- see PLAN.md's "Cursor sprite: raster
        images, per-state, config-driven" section. Empty string = unset.

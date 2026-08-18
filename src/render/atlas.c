@@ -60,6 +60,12 @@ struct ghostcon_atlas {
     FT_Face   *fallback_faces;
     int        font_size_px;
 
+    /* "grayscale" (default)/"subpixel"/"none" -- see atlas.h's own
+       doc comment on ghostcon_atlas_create()'s antialiasing
+       parameter for the full explanation, including why "subpixel"
+       here isn't true RGB-blended ClearType-style rendering. */
+    enum { GC_ATLAS_AA_GRAYSCALE, GC_ATLAS_AA_SUBPIXEL, GC_ATLAS_AA_NONE } aa_mode;
+
     atlas_slot_t slots[GHOSTCON_ATLAS_MAX_GLYPHS];
 };
 
@@ -92,11 +98,21 @@ slot_find(ghostcon_atlas_t *atlas, uint32_t codepoint, bool *found)
 
 ghostcon_atlas_t *
 ghostcon_atlas_create(const char *font_family, const char *font_variant,
-                       int font_size_px, uint32_t atlas_dim)
+                       const char *antialiasing, int font_size_px, uint32_t atlas_dim)
 {
     ghostcon_atlas_t *atlas = calloc(1, sizeof(*atlas));
     if (!atlas)
         return NULL;
+
+    atlas->aa_mode = GC_ATLAS_AA_GRAYSCALE;
+    if (antialiasing) {
+        if (strcmp(antialiasing, "subpixel") == 0)
+            atlas->aa_mode = GC_ATLAS_AA_SUBPIXEL;
+        else if (strcmp(antialiasing, "none") == 0)
+            atlas->aa_mode = GC_ATLAS_AA_NONE;
+        /* anything else (including "grayscale" itself, or an unrecognized
+           value) -- already defaulted above, not an error */
+    }
 
     if (!FcInit())
         goto fail;
@@ -354,11 +370,48 @@ ghostcon_atlas_glyph(ghostcon_atlas_t *atlas, uint32_t codepoint)
     FT_Face face = find_face_for_codepoint(atlas, codepoint, &gidx);
     if (!face)
         return NULL;
-    if (FT_Load_Glyph(face, gidx, FT_LOAD_RENDER))
+
+    FT_Int32 load_flags = FT_LOAD_RENDER;
+    switch (atlas->aa_mode) {
+    case GC_ATLAS_AA_NONE:     load_flags |= FT_LOAD_TARGET_MONO; break;
+    case GC_ATLAS_AA_SUBPIXEL: load_flags |= FT_LOAD_TARGET_LCD; break;
+    default:                   load_flags |= FT_LOAD_TARGET_NORMAL; break;
+    }
+    if (FT_Load_Glyph(face, gidx, load_flags))
         return NULL;
 
     FT_GlyphSlot g = face->glyph;
     FT_Bitmap *bmp = &g->bitmap;
+
+    /* pack_bitmap() expects one alpha byte per pixel -- MONO (bit-
+       packed, 1 bit/pixel) and LCD (3-byte RGB triplets/pixel, width
+       reported as 3x the real glyph width) targets need converting to
+       that shape first; NORMAL (grayscale, the default/only mode that
+       existed before antialiasing became configurable) already is
+       that shape, no conversion needed. Bounded scratch buffer
+       matches the box-drawing path's own 128x128 headroom precedent
+       above -- an absurdly large glyph at any sane font size just
+       silently doesn't render, same "give up gracefully" convention
+       as an atlas-full/no-outline miss elsewhere in this function. */
+    if (bmp->pixel_mode == FT_PIXEL_MODE_MONO || bmp->pixel_mode == FT_PIXEL_MODE_LCD) {
+        unsigned real_width = (bmp->pixel_mode == FT_PIXEL_MODE_LCD) ? bmp->width / 3 : bmp->width;
+        if (real_width == 0 || real_width > 128 || bmp->rows > 128)
+            return NULL;
+        uint8_t conv[128 * 128];
+        for (unsigned row = 0; row < bmp->rows; row++) {
+            const uint8_t *src = bmp->buffer + row * (unsigned)bmp->pitch;
+            uint8_t *dst = conv + row * real_width;
+            if (bmp->pixel_mode == FT_PIXEL_MODE_MONO) {
+                for (unsigned col = 0; col < real_width; col++)
+                    dst[col] = (src[col / 8] & (0x80 >> (col % 8))) ? 0xFF : 0x00;
+            } else { /* LCD -- average the 3 RGB subchannels into one alpha byte */
+                for (unsigned col = 0; col < real_width; col++)
+                    dst[col] = (uint8_t)(((unsigned)src[col * 3] + src[col * 3 + 1] + src[col * 3 + 2]) / 3);
+            }
+        }
+        return pack_bitmap(atlas, slot, codepoint, conv, real_width, bmp->rows, real_width,
+                            (int16_t)g->bitmap_left, (int16_t)g->bitmap_top, (float)(g->advance.x >> 6));
+    }
 
     return pack_bitmap(atlas, slot, codepoint, bmp->buffer, bmp->width, bmp->rows,
                         (unsigned)bmp->pitch, (int16_t)g->bitmap_left, (int16_t)g->bitmap_top,

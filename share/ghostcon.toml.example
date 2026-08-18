@@ -60,6 +60,27 @@
 # font_family = "JetBrainsMono Nerd Font Mono"
 # font_variant = "Regular"
 
+# Glyph rasterization mode: "grayscale" (default), "subpixel" (LCD-
+# optimized hinting -- NOT true RGB-blended ClearType rendering, see
+# render/atlas.h's own doc comment for why), or "none" (no
+# antialiasing at all). An unrecognized value falls back to
+# "grayscale", not an error.
+# antialiasing = "grayscale"
+
+# Scrollback history capacity, in lines. Startup-only -- a live edit
+# takes effect the next time ghostcon-core naturally restarts, not
+# instantly (same exception as drm_node/run_dir above).
+# scrollback_lines = 2000
+
+# Key auto-repeat timing, milliseconds. Startup-only in the same
+# sense as scrollback_lines above, but with a shorter effective delay
+# in practice: the input context (and so the repeat timer) is rebuilt
+# from scratch on every VT release/reacquire anyway, so a live edit
+# takes effect next time you switch away from and back to this VT,
+# not next restart.
+# repeat_delay_ms = 250
+# repeat_rate_ms = 50
+
 [mouse]
 
 # Disable this device class entirely -- no movement, clicks, or

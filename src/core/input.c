@@ -251,6 +251,8 @@ struct ghostcon_input {
     uint32_t repeat_evdev_code;
     char     repeat_encoded[128];
     size_t   repeat_len;
+    int      repeat_delay_ms, repeat_rate_ms; /* config-driven -- see
+        ghostcon_input_open()'s own doc comment on these two parameters */
 
     /* Pointer -- absolute pixel position (mice/touchpads both report
        RELATIVE motion via libinput, see handle_pointer_event()'s own
@@ -322,10 +324,12 @@ struct ghostcon_input {
 };
 
 /* kmscon's own documented defaults (xkb-repeat-delay/xkb-repeat-rate) --
-   not made configurable yet, same "don't build config plumbing nobody
-   asked for" scoping as everything else added this session. */
-#define GHOSTCON_REPEAT_DELAY_MS 250
-#define GHOSTCON_REPEAT_RATE_MS 50
+   used as the fallback when ghostcon_input_open() is passed <= 0 for
+   either (a malformed/missing config value), not as fixed constants
+   any more -- see config.h's own repeat_delay_ms/repeat_rate_ms doc
+   comment. */
+#define GHOSTCON_REPEAT_DELAY_MS_DEFAULT 250
+#define GHOSTCON_REPEAT_RATE_MS_DEFAULT 50
 
 /* libinput's own recommended way to tell a touchpad from a mouse --
    NOT guessing from the device name string, which varies wildly
@@ -389,7 +393,8 @@ static const struct libinput_interface LI_INTERFACE = {
 };
 
 ghostcon_input_t *
-ghostcon_input_open(const char *seat_id, int viewport_w, int viewport_h)
+ghostcon_input_open(const char *seat_id, int viewport_w, int viewport_h,
+                     int repeat_delay_ms, int repeat_rate_ms)
 {
     ghostcon_input_t *input = calloc(1, sizeof(*input));
     if (!input)
@@ -399,6 +404,8 @@ ghostcon_input_open(const char *seat_id, int viewport_w, int viewport_h)
     input->viewport_h = viewport_h;
     input->pointer_x = viewport_w / 2;
     input->pointer_y = viewport_h / 2;
+    input->repeat_delay_ms = repeat_delay_ms > 0 ? repeat_delay_ms : GHOSTCON_REPEAT_DELAY_MS_DEFAULT;
+    input->repeat_rate_ms = repeat_rate_ms > 0 ? repeat_rate_ms : GHOSTCON_REPEAT_RATE_MS_DEFAULT;
 
     /* Sane defaults until config.c's [keybindings] table pushes real
        values via ghostcon_input_set_clipboard_bindings() -- these
@@ -962,10 +969,10 @@ handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
         input->repeat_len = written;
 
         struct itimerspec spec = {
-            .it_value    = { .tv_sec = GHOSTCON_REPEAT_DELAY_MS / 1000,
-                              .tv_nsec = (long)(GHOSTCON_REPEAT_DELAY_MS % 1000) * 1000000L },
-            .it_interval = { .tv_sec = GHOSTCON_REPEAT_RATE_MS / 1000,
-                              .tv_nsec = (long)(GHOSTCON_REPEAT_RATE_MS % 1000) * 1000000L },
+            .it_value    = { .tv_sec = input->repeat_delay_ms / 1000,
+                              .tv_nsec = (long)(input->repeat_delay_ms % 1000) * 1000000L },
+            .it_interval = { .tv_sec = input->repeat_rate_ms / 1000,
+                              .tv_nsec = (long)(input->repeat_rate_ms % 1000) * 1000000L },
         };
         timerfd_settime(input->repeat_fd, 0, &spec, NULL);
     }

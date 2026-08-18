@@ -89,7 +89,7 @@ main(int argc, char **argv)
         return 1;
     }
 
-    ghostcon_atlas_t *atlas = ghostcon_atlas_create(NULL, NULL, font_size, ATLAS_DIM);
+    ghostcon_atlas_t *atlas = ghostcon_atlas_create(NULL, NULL, NULL, font_size, ATLAS_DIM);
     if (!atlas) {
         fprintf(stderr, "FAIL: ghostcon_atlas_create\n");
         return 1;

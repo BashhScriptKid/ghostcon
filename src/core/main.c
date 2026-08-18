@@ -118,6 +118,7 @@ typedef struct {
        config just for that. */
     char font_family[256];
     char font_variant[64];
+    char antialiasing[16];
 
     /* Cursor sprite config -- see PLAN.md's "Cursor sprite: raster
        images, per-state, config-driven" section. Persisted here (not
@@ -150,6 +151,12 @@ typedef struct {
     float mouse_scroll_speed, touchpad_scroll_speed;
     float mouse_sensitivity, touchpad_sensitivity;
     bool  touchpad_tap_to_click, touchpad_natural_scroll;
+
+    /* [general] repeat_delay_ms/repeat_rate_ms -- see
+       ghostcon_input_open()'s own doc comment on why these are
+       "per-acquire-cycle, not hot-reloadable in place" rather than
+       persisted+re-pushed like mouse/touchpad above. */
+    int repeat_delay_ms, repeat_rate_ms;
 
     /* Explicit BMP hotspot overrides -- see config.h's own doc comment
        on cursor_default_hot_pos/cursor_link_hot_pos. */
@@ -541,7 +548,8 @@ acquire_display(app_t *app)
        reacquire cycle (kernel-level event backlog, not a polling
        issue). Not fatal if it fails: continue without keyboard input,
        matching main()'s own original startup behavior. */
-    app->input = ghostcon_input_open("seat0", (int)app->kms.width, (int)app->kms.height);
+    app->input = ghostcon_input_open("seat0", (int)app->kms.width, (int)app->kms.height,
+                                      app->repeat_delay_ms, app->repeat_rate_ms);
     if (!app->input)
         fprintf(stderr, "ghostcon-core: input_open failed -- continuing without keyboard input\n");
     apply_keybindings(app); /* fresh input context otherwise reverts to hardcoded defaults */
@@ -818,7 +826,8 @@ apply_font_size(app_t *app, int new_size, bool force)
        app->atlas NULL and every subsequent render crashing on a null
        deref. */
     ghostcon_atlas_t *new_atlas = ghostcon_atlas_create(app->font_family[0] ? app->font_family : NULL,
-                                                          app->font_variant, new_size, ATLAS_DIM);
+                                                          app->font_variant, app->antialiasing,
+                                                          new_size, ATLAS_DIM);
     if (!new_atlas) {
         fprintf(stderr, "ghostcon-core: font_size change to %d failed, keeping %d\n",
                 new_size, app->font_size);
@@ -884,9 +893,11 @@ apply_config_reload(app_t *app)
        calling it, since that's what the rebuild actually reads. */
     bool font_config_changed =
         strcmp(app->font_family, new_cfg.font_family) != 0 ||
-        strcmp(app->font_variant, new_cfg.font_variant) != 0;
+        strcmp(app->font_variant, new_cfg.font_variant) != 0 ||
+        strcmp(app->antialiasing, new_cfg.antialiasing) != 0;
     snprintf(app->font_family, sizeof(app->font_family), "%s", new_cfg.font_family);
     snprintf(app->font_variant, sizeof(app->font_variant), "%s", new_cfg.font_variant);
+    snprintf(app->antialiasing, sizeof(app->antialiasing), "%s", new_cfg.antialiasing);
     bool need_render = apply_font_size(app, new_cfg.font_size, font_config_changed);
 
     /* apply_font_size() above already calls reload_cursor_images() when
@@ -920,6 +931,15 @@ apply_config_reload(app_t *app)
     app->touchpad_tap_to_click = new_cfg.touchpad_tap_to_click;
     app->touchpad_natural_scroll = new_cfg.touchpad_natural_scroll;
     app->touchpad_sensitivity = new_cfg.touchpad_sensitivity;
+    /* Not re-armed immediately -- see ghostcon_input_open()'s own doc
+       comment. Persisted here so the NEXT VT release/reacquire (which
+       rebuilds the input context from scratch regardless) picks up
+       the new value, rather than reverting to whatever was live at
+       process startup. */
+    if (new_cfg.repeat_delay_ms > 0)
+        app->repeat_delay_ms = new_cfg.repeat_delay_ms;
+    if (new_cfg.repeat_rate_ms > 0)
+        app->repeat_rate_ms = new_cfg.repeat_rate_ms;
     apply_mouse_touchpad_config(app);
 
     fprintf(stderr, "ghostcon-core: config changed, applied\n");
@@ -984,11 +1004,15 @@ main(int argc, char **argv)
     app.touchpad_enable = true;
     app.touchpad_scroll_speed = 1.0f;
     app.touchpad_tap_to_click = true;
+    app.repeat_delay_ms = 250;
+    app.repeat_rate_ms = 50;
+    int scrollback_lines = 2000;
     {
         ghostcon_config_t initial_cfg;
         if (ghostcon_config_load(app.config_path, &initial_cfg)) {
             snprintf(app.font_family, sizeof(app.font_family), "%s", initial_cfg.font_family);
             snprintf(app.font_variant, sizeof(app.font_variant), "%s", initial_cfg.font_variant);
+            snprintf(app.antialiasing, sizeof(app.antialiasing), "%s", initial_cfg.antialiasing);
             snprintf(app.cursor_theme, sizeof(app.cursor_theme), "%s", initial_cfg.cursor_theme);
             snprintf(app.cursor_default_path, sizeof(app.cursor_default_path), "%s", initial_cfg.cursor_default_path);
             snprintf(app.cursor_link_path, sizeof(app.cursor_link_path), "%s", initial_cfg.cursor_link_path);
@@ -1010,6 +1034,12 @@ main(int argc, char **argv)
             app.touchpad_tap_to_click = initial_cfg.touchpad_tap_to_click;
             app.touchpad_natural_scroll = initial_cfg.touchpad_natural_scroll;
             app.touchpad_sensitivity = initial_cfg.touchpad_sensitivity;
+            if (initial_cfg.repeat_delay_ms > 0)
+                app.repeat_delay_ms = initial_cfg.repeat_delay_ms;
+            if (initial_cfg.repeat_rate_ms > 0)
+                app.repeat_rate_ms = initial_cfg.repeat_rate_ms;
+            if (initial_cfg.scrollback_lines > 0)
+                scrollback_lines = initial_cfg.scrollback_lines;
         }
     }
 
@@ -1022,7 +1052,8 @@ main(int argc, char **argv)
     }
 
     app.atlas = ghostcon_atlas_create(app.font_family[0] ? app.font_family : NULL,
-                                       app.font_variant, app.font_size, ATLAS_DIM);
+                                       app.font_variant, app.antialiasing,
+                                       app.font_size, ATLAS_DIM);
     if (!app.atlas) {
         fprintf(stderr, "ghostcon-core: atlas_create failed\n");
         ghostcon_vtctl_close(app.vt);
@@ -1049,7 +1080,9 @@ main(int argc, char **argv)
         cols = (uint16_t)(app.kms.width / (uint32_t)app.cell_w);
         rows = (uint16_t)(app.kms.height / (uint32_t)app.cell_h);
     }
-    if (!ghostcon_term_init(&app.term, cols, rows, 2000)) {
+    if (scrollback_lines > 65535)
+        scrollback_lines = 65535; /* ghostcon_term_init()'s scrollback_cap is uint16_t */
+    if (!ghostcon_term_init(&app.term, cols, rows, (uint16_t)scrollback_lines)) {
         fprintf(stderr, "ghostcon-core: term_init failed\n");
         release_display(&app);
         ghostcon_atlas_destroy(app.atlas);

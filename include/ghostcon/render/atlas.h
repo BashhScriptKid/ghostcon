@@ -27,11 +27,21 @@ typedef struct ghostcon_atlas ghostcon_atlas_t;
    font_variant may be NULL/empty to use fontconfig's default style
    for that family -- otherwise matched against FC_STYLE (e.g. "Bold",
    "Light", "Medium Italic"; run `fc-list <family>` to see what a
-   given family actually offers). atlas_dim is the atlas bitmap's
-   width/height in pixels (square, power-of-two recommended, e.g.
-   1024 or 2048). */
+   given family actually offers). antialiasing may be NULL/"grayscale"
+   (FreeType's normal rasterization target, the only mode that existed
+   before this parameter did), "subpixel" (FT_LOAD_TARGET_LCD -- NOT
+   true RGB-subpixel-blended ClearType-style rendering, which would
+   need an RGB atlas texture and a different shader; the 3 LCD
+   subchannels are averaged down to this atlas's existing single alpha
+   channel instead, still a real, visibly different rasterization from
+   plain grayscale since it uses LCD-optimized hinting), or "none"
+   (FT_LOAD_TARGET_MONO, no antialiasing at all); an unrecognized value
+   falls back to "grayscale", not an error. atlas_dim is the atlas
+   bitmap's width/height in pixels (square, power-of-two recommended,
+   e.g. 1024 or 2048). */
 ghostcon_atlas_t *ghostcon_atlas_create(const char *font_family,
                                          const char *font_variant,
+                                         const char *antialiasing,
                                          int font_size_px,
                                          uint32_t atlas_dim);
 void ghostcon_atlas_destroy(ghostcon_atlas_t *atlas);

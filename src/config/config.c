@@ -26,6 +26,10 @@ ghostcon_config_defaults(ghostcon_config_t *cfg)
     cfg->font_size = 16;
     cfg->clear_on_logout = true;
     cfg->zoom_step = 2;
+    cfg->scrollback_lines = 2000;
+    cfg->repeat_delay_ms = 250;
+    cfg->repeat_rate_ms = 50;
+    snprintf(cfg->antialiasing, sizeof(cfg->antialiasing), "%s", "grayscale");
     cfg->cursor_base_scale = 1.0f;
     cfg->cursor_scale_with_terminal = true;
     snprintf(cfg->copy_to_clipboard_binding, sizeof(cfg->copy_to_clipboard_binding), "%s", "ctrl+shift+c");
@@ -103,6 +107,10 @@ ghostcon_config_load(const char *path, ghostcon_config_t *cfg)
         load_string(general, "font_variant", cfg->font_variant, sizeof(cfg->font_variant));
         load_bool(general, "clear_on_logout", &cfg->clear_on_logout);
         load_int(general, "zoom_step", &cfg->zoom_step);
+        load_int(general, "scrollback_lines", &cfg->scrollback_lines);
+        load_int(general, "repeat_delay_ms", &cfg->repeat_delay_ms);
+        load_int(general, "repeat_rate_ms", &cfg->repeat_rate_ms);
+        load_string(general, "antialiasing", cfg->antialiasing, sizeof(cfg->antialiasing));
     }
 
     toml_table_t *cursor = toml_table_in(root, "cursor");

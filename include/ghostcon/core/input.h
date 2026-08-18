@@ -79,8 +79,17 @@ typedef struct ghostcon_input ghostcon_input_t;
    core/main.c's own doc comment on `input`), unlike cell_w/cell_h
    (which CAN change mid-lifetime via a font_size zoom/reload) --
    that's why those are passed fresh to ghostcon_input_dispatch() below
-   instead of being fixed here too. */
-ghostcon_input_t *ghostcon_input_open(const char *seat_id, int viewport_w, int viewport_h);
+   instead of being fixed here too.
+
+   repeat_delay_ms/repeat_rate_ms are config.h's [general]
+   repeat_delay_ms/repeat_rate_ms (<= 0 falls back to kmscon's own
+   documented defaults, 250/50) -- fixed for this context's whole
+   lifetime same as viewport_w/h above, NOT hot-reloadable in place
+   (a live config edit takes effect the next time this VT is released
+   and reacquired, which rebuilds the input context from scratch
+   anyway, same as every other "per-acquire-cycle" value). */
+ghostcon_input_t *ghostcon_input_open(const char *seat_id, int viewport_w, int viewport_h,
+                                       int repeat_delay_ms, int repeat_rate_ms);
 void ghostcon_input_close(ghostcon_input_t *input);
 
 /* fd suitable for poll()'ing in the main event loop. */
