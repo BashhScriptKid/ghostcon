@@ -119,6 +119,8 @@ typedef struct {
     char font_family[256];
     char font_variant[64];
     char antialiasing[16];
+    char subpixel_order[8]; /* "rgb" (default) or "bgr" -- only meaningful
+                                when antialiasing == "cleartype" */
     bool gamma_correct;
 
     /* Cursor sprite config -- see PLAN.md's "Cursor sprite: raster
@@ -841,6 +843,7 @@ apply_font_size(app_t *app, int new_size, bool force)
        deref. */
     ghostcon_atlas_t *new_atlas = ghostcon_atlas_create(app->font_family[0] ? app->font_family : NULL,
                                                           app->font_variant, app->antialiasing,
+                                                          app->subpixel_order,
                                                           new_size, ATLAS_DIM);
     if (!new_atlas) {
         fprintf(stderr, "ghostcon-core: font_size change to %d failed, keeping %d\n",
@@ -908,10 +911,12 @@ apply_config_reload(app_t *app)
     bool font_config_changed =
         strcmp(app->font_family, new_cfg.font_family) != 0 ||
         strcmp(app->font_variant, new_cfg.font_variant) != 0 ||
-        strcmp(app->antialiasing, new_cfg.antialiasing) != 0;
+        strcmp(app->antialiasing, new_cfg.antialiasing) != 0 ||
+        strcmp(app->subpixel_order, new_cfg.subpixel_order) != 0;
     snprintf(app->font_family, sizeof(app->font_family), "%s", new_cfg.font_family);
     snprintf(app->font_variant, sizeof(app->font_variant), "%s", new_cfg.font_variant);
     snprintf(app->antialiasing, sizeof(app->antialiasing), "%s", new_cfg.antialiasing);
+    snprintf(app->subpixel_order, sizeof(app->subpixel_order), "%s", new_cfg.subpixel_order);
     bool need_render = apply_font_size(app, new_cfg.font_size, font_config_changed);
 
     if (app->gamma_correct != new_cfg.gamma_correct) {
@@ -1034,6 +1039,7 @@ main(int argc, char **argv)
             snprintf(app.font_family, sizeof(app.font_family), "%s", initial_cfg.font_family);
             snprintf(app.font_variant, sizeof(app.font_variant), "%s", initial_cfg.font_variant);
             snprintf(app.antialiasing, sizeof(app.antialiasing), "%s", initial_cfg.antialiasing);
+            snprintf(app.subpixel_order, sizeof(app.subpixel_order), "%s", initial_cfg.subpixel_order);
             app.gamma_correct = initial_cfg.gamma_correct;
             snprintf(app.cursor_theme, sizeof(app.cursor_theme), "%s", initial_cfg.cursor_theme);
             snprintf(app.cursor_default_path, sizeof(app.cursor_default_path), "%s", initial_cfg.cursor_default_path);
@@ -1075,6 +1081,7 @@ main(int argc, char **argv)
 
     app.atlas = ghostcon_atlas_create(app.font_family[0] ? app.font_family : NULL,
                                        app.font_variant, app.antialiasing,
+                                       app.subpixel_order,
                                        app.font_size, ATLAS_DIM);
     if (!app.atlas) {
         fprintf(stderr, "ghostcon-core: atlas_create failed\n");

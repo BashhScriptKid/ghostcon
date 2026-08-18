@@ -31,7 +31,7 @@
 int
 main(void)
 {
-    ghostcon_atlas_t *atlas = ghostcon_atlas_create(NULL, NULL, NULL, FONT_SIZE, ATLAS_DIM);
+    ghostcon_atlas_t *atlas = ghostcon_atlas_create(NULL, NULL, NULL, NULL, FONT_SIZE, ATLAS_DIM);
     if (!atlas) {
         fprintf(stderr, "FAIL: ghostcon_atlas_create\n");
         return 1;

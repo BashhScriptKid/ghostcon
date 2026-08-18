@@ -30,6 +30,7 @@ ghostcon_config_defaults(ghostcon_config_t *cfg)
     cfg->repeat_delay_ms = 250;
     cfg->repeat_rate_ms = 50;
     snprintf(cfg->antialiasing, sizeof(cfg->antialiasing), "%s", "grayscale");
+    snprintf(cfg->subpixel_order, sizeof(cfg->subpixel_order), "%s", "rgb");
     cfg->gamma_correct = false; /* see gles.c FRAG_SRC's doc comment: this
                                     correction is only valid paired with true
                                     linear-space blending (an sRGB-format
@@ -120,6 +121,7 @@ ghostcon_config_load(const char *path, ghostcon_config_t *cfg)
         load_int(general, "repeat_delay_ms", &cfg->repeat_delay_ms);
         load_int(general, "repeat_rate_ms", &cfg->repeat_rate_ms);
         load_string(general, "antialiasing", cfg->antialiasing, sizeof(cfg->antialiasing));
+        load_string(general, "subpixel_order", cfg->subpixel_order, sizeof(cfg->subpixel_order));
         load_bool(general, "gamma_correct", &cfg->gamma_correct);
     }
 

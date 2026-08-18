@@ -37,7 +37,7 @@ struct ghostcon_atlas {
     FT_Face    face;
 
     uint32_t dim;
-    uint8_t *bitmap; /* dim * dim, one byte (alpha) per pixel */
+    uint8_t *bitmap; /* dim * dim * 3, RGB (one byte per channel) per pixel */
     bool     dirty;
 
     /* Shelf packer state */
@@ -69,11 +69,12 @@ struct ghostcon_atlas {
     FT_Face   *fallback_faces;
     int        font_size_px;
 
-    /* "grayscale" (default)/"subpixel"/"none" -- see atlas.h's own
-       doc comment on ghostcon_atlas_create()'s antialiasing
-       parameter for the full explanation, including why "subpixel"
-       here isn't true RGB-blended ClearType-style rendering. */
-    enum { GC_ATLAS_AA_GRAYSCALE, GC_ATLAS_AA_SUBPIXEL, GC_ATLAS_AA_NONE } aa_mode;
+    /* "grayscale" (default)/"subpixel"/"cleartype"/"none" -- see
+       atlas.h's own doc comment on ghostcon_atlas_create()'s
+       antialiasing parameter for the full explanation. */
+    enum { GC_ATLAS_AA_GRAYSCALE, GC_ATLAS_AA_SUBPIXEL, GC_ATLAS_AA_NONE,
+           GC_ATLAS_AA_CLEARTYPE } aa_mode;
+    bool bgr_order; /* only meaningful when aa_mode == GC_ATLAS_AA_CLEARTYPE */
 
     atlas_slot_t slots[GHOSTCON_ATLAS_MAX_GLYPHS];
 };
@@ -107,7 +108,8 @@ slot_find(ghostcon_atlas_t *atlas, uint32_t codepoint, bool *found)
 
 ghostcon_atlas_t *
 ghostcon_atlas_create(const char *font_family, const char *font_variant,
-                       const char *antialiasing, int font_size_px, uint32_t atlas_dim)
+                       const char *antialiasing, const char *subpixel_order,
+                       int font_size_px, uint32_t atlas_dim)
 {
     ghostcon_atlas_t *atlas = calloc(1, sizeof(*atlas));
     if (!atlas)
@@ -117,11 +119,14 @@ ghostcon_atlas_create(const char *font_family, const char *font_variant,
     if (antialiasing) {
         if (strcmp(antialiasing, "subpixel") == 0)
             atlas->aa_mode = GC_ATLAS_AA_SUBPIXEL;
+        else if (strcmp(antialiasing, "cleartype") == 0)
+            atlas->aa_mode = GC_ATLAS_AA_CLEARTYPE;
         else if (strcmp(antialiasing, "none") == 0)
             atlas->aa_mode = GC_ATLAS_AA_NONE;
         /* anything else (including "grayscale" itself, or an unrecognized
            value) -- already defaulted above, not an error */
     }
+    atlas->bgr_order = subpixel_order && strcmp(subpixel_order, "bgr") == 0;
 
     if (!FcInit())
         goto fail;
@@ -202,18 +207,16 @@ ghostcon_atlas_create(const char *font_family, const char *font_variant,
         atlas->ascent = atlas->cell_h * 4 / 5; /* rough fallback */
 
     atlas->dim = atlas_dim;
-    atlas->bitmap = calloc(1, (size_t)atlas_dim * atlas_dim);
+    atlas->bitmap = calloc(1, (size_t)atlas_dim * atlas_dim * 3);
     if (!atlas->bitmap)
         goto fail_face;
 
     /* Reserve a 2x2 opaque block at the atlas origin for solid-color
        quads (background cells, cursor) — see ghostcon_atlas_reserved_uv()
        and render/gles.c's push_rect. Advance the shelf packer past it so
-       no real glyph ever lands there. */
-    atlas->bitmap[0] = 0xFF;
-    atlas->bitmap[1] = 0xFF;
-    atlas->bitmap[atlas_dim] = 0xFF;
-    atlas->bitmap[atlas_dim + 1] = 0xFF;
+       no real glyph ever lands there. 3 bytes/pixel now (RGB atlas). */
+    memset(atlas->bitmap, 0xFF, 6);                                   /* row 0: (0,0) (1,0) */
+    memset(atlas->bitmap + (size_t)atlas_dim * 3, 0xFF, 6);           /* row 1: (0,1) (1,1) */
     atlas->pen_x = 2 + GHOSTCON_ATLAS_GLYPH_PADDING;
     atlas->shelf_h = 2;
 
@@ -252,11 +255,14 @@ ghostcon_atlas_destroy(ghostcon_atlas_t *atlas)
     free(atlas);
 }
 
-/* Shelf-packs an already-rasterized bitmap into the atlas and fills in
-   `slot->glyph`, sharing the exact packing logic between the font path
-   and the procedural box-drawing path below. bearing_x/bearing_y are
-   passed through as-is (see box_draw.c call site for why the
-   procedural path passes bearing_y = atlas->ascent: it makes
+/* Shelf-packs an already-rasterized RGB bitmap (3 bytes/pixel -- see
+   this file's helpers below for how each FreeType pixel mode gets
+   converted to that shape) into the atlas and fills in `slot->glyph`,
+   sharing the exact packing logic between the font path and the
+   procedural box-drawing path below. `pitch` is the source's stride
+   in bytes (i.e. width*3 for a tightly-packed source). bearing_x/
+   bearing_y are passed through as-is (see box_draw.c call site for
+   why the procedural path passes bearing_y = atlas->ascent: it makes
    machine.c's existing "gy = py + ascent - bearing_y" placement
    formula land the glyph at exactly the cell's top-left corner, with
    no changes needed to machine.c or gles.c). */
@@ -274,9 +280,10 @@ pack_bitmap(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t codepoint,
         return NULL; /* atlas full */
 
     for (unsigned row = 0; row < rows; row++) {
-        uint8_t *dst = atlas->bitmap + (atlas->pen_y + row) * atlas->dim + atlas->pen_x;
-        const uint8_t *src = bitmap + row * pitch;
-        memcpy(dst, src, width);
+        uint8_t *dst = atlas->bitmap + (size_t)(atlas->pen_y + row) * atlas->dim * 3
+                        + (size_t)atlas->pen_x * 3;
+        const uint8_t *src = bitmap + (size_t)row * pitch;
+        memcpy(dst, src, (size_t)width * 3);
     }
     atlas->dirty = true;
 
@@ -368,9 +375,19 @@ ghostcon_atlas_glyph(ghostcon_atlas_t *atlas, uint32_t codepoint)
         atlas->cell_w <= 128 && atlas->cell_h <= 128) {
         uint8_t box_bitmap[128 * 128];
         if (ghostcon_box_draw_render(codepoint, atlas->cell_w, atlas->cell_h, box_bitmap)) {
-            return pack_bitmap(atlas, slot, codepoint, box_bitmap,
+            /* Procedural glyphs are a plain mask -- replicate into RGB
+               (R=G=B), never real per-subpixel data. */
+            uint8_t conv[128 * 128 * 3];
+            for (int row = 0; row < atlas->cell_h; row++) {
+                const uint8_t *src = box_bitmap + row * atlas->cell_w;
+                uint8_t *dst = conv + (size_t)row * atlas->cell_w * 3;
+                for (int col = 0; col < atlas->cell_w; col++) {
+                    dst[col * 3 + 0] = dst[col * 3 + 1] = dst[col * 3 + 2] = src[col];
+                }
+            }
+            return pack_bitmap(atlas, slot, codepoint, conv,
                                 (unsigned)atlas->cell_w, (unsigned)atlas->cell_h,
-                                (unsigned)atlas->cell_w,
+                                (unsigned)atlas->cell_w * 3,
                                 0, (int16_t)atlas->ascent, (float)atlas->cell_w);
         }
     }
@@ -382,9 +399,9 @@ ghostcon_atlas_glyph(ghostcon_atlas_t *atlas, uint32_t codepoint)
 
     FT_Int32 load_flags = FT_LOAD_RENDER;
     switch (atlas->aa_mode) {
-    case GC_ATLAS_AA_NONE:     load_flags |= FT_LOAD_TARGET_MONO; break;
-    case GC_ATLAS_AA_SUBPIXEL: load_flags |= FT_LOAD_TARGET_LCD; break;
-    default:                   load_flags |= FT_LOAD_TARGET_NORMAL; break;
+    case GC_ATLAS_AA_NONE:                          load_flags |= FT_LOAD_TARGET_MONO; break;
+    case GC_ATLAS_AA_SUBPIXEL: case GC_ATLAS_AA_CLEARTYPE: load_flags |= FT_LOAD_TARGET_LCD; break;
+    default:                                        load_flags |= FT_LOAD_TARGET_NORMAL; break;
     }
     if (FT_Load_Glyph(face, gidx, load_flags))
         return NULL;
@@ -392,39 +409,70 @@ ghostcon_atlas_glyph(ghostcon_atlas_t *atlas, uint32_t codepoint)
     FT_GlyphSlot g = face->glyph;
     FT_Bitmap *bmp = &g->bitmap;
 
-    /* pack_bitmap() expects one alpha byte per pixel -- MONO (bit-
-       packed, 1 bit/pixel) and LCD (3-byte RGB triplets/pixel, width
-       reported as 3x the real glyph width) targets need converting to
-       that shape first; NORMAL (grayscale, the default/only mode that
-       existed before antialiasing became configurable) already is
-       that shape, no conversion needed. Bounded scratch buffer
-       matches the box-drawing path's own 128x128 headroom precedent
-       above -- an absurdly large glyph at any sane font size just
-       silently doesn't render, same "give up gracefully" convention
-       as an atlas-full/no-outline miss elsewhere in this function. */
-    if (bmp->pixel_mode == FT_PIXEL_MODE_MONO || bmp->pixel_mode == FT_PIXEL_MODE_LCD) {
-        unsigned real_width = (bmp->pixel_mode == FT_PIXEL_MODE_LCD) ? bmp->width / 3 : bmp->width;
-        if (real_width == 0 || real_width > 128 || bmp->rows > 128)
-            return NULL;
-        uint8_t conv[128 * 128];
-        for (unsigned row = 0; row < bmp->rows; row++) {
-            const uint8_t *src = bmp->buffer + row * (unsigned)bmp->pitch;
-            uint8_t *dst = conv + row * real_width;
-            if (bmp->pixel_mode == FT_PIXEL_MODE_MONO) {
-                for (unsigned col = 0; col < real_width; col++)
-                    dst[col] = (src[col / 8] & (0x80 >> (col % 8))) ? 0xFF : 0x00;
-            } else { /* LCD -- average the 3 RGB subchannels into one alpha byte */
-                for (unsigned col = 0; col < real_width; col++)
-                    dst[col] = (uint8_t)(((unsigned)src[col * 3] + src[col * 3 + 1] + src[col * 3 + 2]) / 3);
+    /* pack_bitmap() expects 3 bytes (RGB) per pixel -- every FreeType
+       pixel mode needs converting to that shape: MONO is bit-packed
+       (1 bit/pixel), GRAY is already single-byte coverage but needs
+       replicating across channels, and LCD is 3-byte RGB triplets/
+       pixel (width reported as 3x the real glyph width) that either
+       get averaged down to a replicated mask (GC_ATLAS_AA_SUBPIXEL --
+       LCD-optimized hinting only, no real subpixel color) or copied
+       through as genuine per-subpixel coverage, respecting the
+       configured physical subpixel order (GC_ATLAS_AA_CLEARTYPE).
+       Bounded scratch buffer matches the box-drawing path's own
+       128x128 headroom precedent above -- an absurdly large glyph at
+       any sane font size just silently doesn't render, same "give up
+       gracefully" convention as an atlas-full/no-outline miss
+       elsewhere in this function. */
+    unsigned real_width = (bmp->pixel_mode == FT_PIXEL_MODE_LCD) ? bmp->width / 3 : bmp->width;
+    if (real_width == 0 || real_width > 128 || bmp->rows > 128)
+        return NULL;
+    uint8_t conv[128 * 128 * 3];
+    for (unsigned row = 0; row < bmp->rows; row++) {
+        const uint8_t *src = bmp->buffer + (size_t)row * (unsigned)bmp->pitch;
+        uint8_t *dst = conv + (size_t)row * real_width * 3;
+        switch (bmp->pixel_mode) {
+        case FT_PIXEL_MODE_MONO:
+            for (unsigned col = 0; col < real_width; col++) {
+                uint8_t v = (src[col / 8] & (0x80 >> (col % 8))) ? 0xFF : 0x00;
+                dst[col * 3 + 0] = dst[col * 3 + 1] = dst[col * 3 + 2] = v;
             }
+            break;
+        case FT_PIXEL_MODE_LCD:
+            if (atlas->aa_mode == GC_ATLAS_AA_CLEARTYPE) {
+                /* Real per-subpixel coverage. FreeType always writes
+                   bytes in physical left-to-right order; map that to
+                   R/G/B according to the panel's actual subpixel
+                   order -- getting this backwards produces visible
+                   color fringing instead of removing it. */
+                for (unsigned col = 0; col < real_width; col++) {
+                    uint8_t b0 = src[col * 3 + 0], b1 = src[col * 3 + 1], b2 = src[col * 3 + 2];
+                    if (atlas->bgr_order) {
+                        dst[col * 3 + 0] = b2;
+                        dst[col * 3 + 1] = b1;
+                        dst[col * 3 + 2] = b0;
+                    } else {
+                        dst[col * 3 + 0] = b0;
+                        dst[col * 3 + 1] = b1;
+                        dst[col * 3 + 2] = b2;
+                    }
+                }
+            } else { /* GC_ATLAS_AA_SUBPIXEL -- average into a replicated mask */
+                for (unsigned col = 0; col < real_width; col++) {
+                    uint8_t v = (uint8_t)(((unsigned)src[col * 3] + src[col * 3 + 1] + src[col * 3 + 2]) / 3);
+                    dst[col * 3 + 0] = dst[col * 3 + 1] = dst[col * 3 + 2] = v;
+                }
+            }
+            break;
+        default: /* FT_PIXEL_MODE_GRAY */
+            for (unsigned col = 0; col < real_width; col++) {
+                uint8_t v = src[col];
+                dst[col * 3 + 0] = dst[col * 3 + 1] = dst[col * 3 + 2] = v;
+            }
+            break;
         }
-        return pack_bitmap(atlas, slot, codepoint, conv, real_width, bmp->rows, real_width,
-                            (int16_t)g->bitmap_left, (int16_t)g->bitmap_top, (float)(g->advance.x >> 6));
     }
-
-    return pack_bitmap(atlas, slot, codepoint, bmp->buffer, bmp->width, bmp->rows,
-                        (unsigned)bmp->pitch, (int16_t)g->bitmap_left, (int16_t)g->bitmap_top,
-                        (float)(g->advance.x >> 6));
+    return pack_bitmap(atlas, slot, codepoint, conv, real_width, bmp->rows, real_width * 3,
+                        (int16_t)g->bitmap_left, (int16_t)g->bitmap_top, (float)(g->advance.x >> 6));
 }
 
 const uint8_t *

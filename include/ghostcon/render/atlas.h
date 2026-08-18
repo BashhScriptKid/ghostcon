@@ -8,10 +8,14 @@
 /* Font glyph atlas                                                    */
 /*                                                                     */
 /* Fontconfig selects the font, freetype rasterizes each glyph on      */
-/* first use, and glyphs are shelf-packed into a single 8-bit          */
-/* (alpha-only) CPU-side bitmap. The renderer uploads/re-uploads this  */
-/* bitmap to a GL_ALPHA texture whenever ghostcon_atlas_dirty() is     */
-/* true. See PLAN.md "Renderer design" / IMPLEMENTATION.md "Font atlas"*/
+/* first use, and glyphs are shelf-packed into a single RGB (3 bytes/  */
+/* pixel) CPU-side bitmap. The renderer uploads/re-uploads this bitmap */
+/* to a GL_RGB texture whenever ghostcon_atlas_dirty() is true. Every  */
+/* mode except "cleartype" stores R=G=B (a plain coverage mask,        */
+/* replicated across channels) -- only cleartype stores real distinct */
+/* per-subpixel coverage. See PLAN.md "Renderer design" /              */
+/* IMPLEMENTATION.md "Font atlas", and render/gles.c's FRAG_SRC doc    */
+/* comment for how the shader turns that mask into a blended pixel.    */
 /* ------------------------------------------------------------------ */
 
 typedef struct {
@@ -29,19 +33,23 @@ typedef struct ghostcon_atlas ghostcon_atlas_t;
    "Light", "Medium Italic"; run `fc-list <family>` to see what a
    given family actually offers). antialiasing may be NULL/"grayscale"
    (FreeType's normal rasterization target, the only mode that existed
-   before this parameter did), "subpixel" (FT_LOAD_TARGET_LCD -- NOT
-   true RGB-subpixel-blended ClearType-style rendering, which would
-   need an RGB atlas texture and a different shader; the 3 LCD
-   subchannels are averaged down to this atlas's existing single alpha
-   channel instead, still a real, visibly different rasterization from
-   plain grayscale since it uses LCD-optimized hinting), or "none"
-   (FT_LOAD_TARGET_MONO, no antialiasing at all); an unrecognized value
-   falls back to "grayscale", not an error. atlas_dim is the atlas
-   bitmap's width/height in pixels (square, power-of-two recommended,
-   e.g. 1024 or 2048). */
+   before this parameter did), "subpixel" (FT_LOAD_TARGET_LCD, but
+   NOT true RGB-subpixel-blended rendering -- the 3 LCD subchannels
+   are averaged down to a plain replicated mask, same as grayscale
+   just with LCD-optimized hinting), "cleartype" (true per-subpixel
+   coverage stored and blended per-channel -- see gles.c's FRAG_SRC),
+   or "none" (FT_LOAD_TARGET_MONO, no antialiasing at all); an
+   unrecognized value falls back to "grayscale", not an error.
+   subpixel_order matters only for "cleartype": NULL/"rgb" (the
+   common laptop-panel layout) or "bgr", matching the physical
+   left-to-right subpixel order of the actual display -- get this
+   wrong and cleartype produces visible color fringing instead of
+   removing it. atlas_dim is the atlas bitmap's width/height in pixels
+   (square, power-of-two recommended, e.g. 1024 or 2048). */
 ghostcon_atlas_t *ghostcon_atlas_create(const char *font_family,
                                          const char *font_variant,
                                          const char *antialiasing,
+                                         const char *subpixel_order,
                                          int font_size_px,
                                          uint32_t atlas_dim);
 void ghostcon_atlas_destroy(ghostcon_atlas_t *atlas);
@@ -59,8 +67,8 @@ void ghostcon_atlas_destroy(ghostcon_atlas_t *atlas);
 const ghostcon_glyph_t *ghostcon_atlas_glyph(ghostcon_atlas_t *atlas,
                                               uint32_t codepoint);
 
-/* CPU-side atlas bitmap: atlas_dim * atlas_dim bytes, one byte (alpha)
-   per pixel — upload as GL_ALPHA / GL_LUMINANCE. */
+/* CPU-side atlas bitmap: atlas_dim * atlas_dim * 3 bytes, RGB (one
+   byte per channel) per pixel — upload as GL_RGB. */
 const uint8_t *ghostcon_atlas_bitmap(const ghostcon_atlas_t *atlas);
 uint32_t ghostcon_atlas_dim(const ghostcon_atlas_t *atlas);
 

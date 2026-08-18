@@ -61,11 +61,19 @@
 # font_variant = "Regular"
 
 # Glyph rasterization mode: "grayscale" (default), "subpixel" (LCD-
-# optimized hinting -- NOT true RGB-blended ClearType rendering, see
-# render/atlas.h's own doc comment for why), or "none" (no
+# optimized hinting, still a plain coverage mask -- not real
+# per-channel color), "cleartype" (true RGB subpixel rendering: real,
+# distinct per-channel coverage blended per-channel in the shader --
+# see render/gles.c's FRAG_SRC doc comment), or "none" (no
 # antialiasing at all). An unrecognized value falls back to
 # "grayscale", not an error.
 # antialiasing = "grayscale"
+
+# Physical left-to-right subpixel order of the actual display -- only
+# matters when antialiasing = "cleartype". "rgb" (default, the common
+# laptop-panel layout) or "bgr". Get this wrong and cleartype produces
+# visible color fringing instead of removing it.
+# subpixel_order = "rgb"
 
 # Luminance-based alpha correction on glyph edges (ported from
 # Ghostty's own text shader). Defaults off -- Ghostty only pairs this

@@ -10,13 +10,16 @@ static const char *VERT_SRC =
     "attribute vec2 a_uv;\n"
     "attribute vec4 a_color;\n"
     "attribute vec3 a_bg;\n"
+    "attribute float a_is_glyph;\n"
     "varying highp vec2 v_uv;\n"
     "varying highp vec4 v_color;\n"
     "varying highp vec3 v_bg;\n"
+    "varying highp float v_is_glyph;\n"
     "void main() {\n"
     "    v_uv = a_uv;\n"
     "    v_color = a_color;\n"
     "    v_bg = a_bg;\n"
+    "    v_is_glyph = a_is_glyph;\n"
     "    gl_Position = vec4(a_pos, 0.0, 1.0);\n"
     "}\n";
 
@@ -63,11 +66,32 @@ static const char *VERT_SRC =
    the same glyph. Only useful again if ghostcon-core ever gains a
    real linear-blending framebuffer (GL_FRAMEBUFFER_SRGB + an
    sRGB-capable GBM/EGL surface format) to pair it with. */
+/* Glyph quads (v_is_glyph > 0.5) take a different path from every
+   other quad type (background fills, cursor, selection overlay):
+   `gl_FragColor = vec4(mix(v_bg, v_color.rgb, mask), 1.0)`, computed
+   entirely in-shader from the mask sampled out of the (now RGB, 3
+   bytes/pixel) atlas, with NO reliance on GL's fixed-function blend.
+   This is what makes real per-subpixel-channel blending possible at
+   all under GLES2: standard alpha blending only has one alpha for
+   every channel, but true subpixel rendering needs a different mix
+   weight per R/G/B channel (that's the entire point of it -- see
+   atlas.c's cleartype packing path). Every AA mode other than
+   cleartype stores a replicated mask (R=G=B), which degenerates this
+   exact formula to the plain scalar alpha blend every glyph used
+   before this existed -- PROVIDED v_bg genuinely matches whatever's
+   already under this glyph in the framebuffer, which holds here:
+   machine.c always pushes a cell's background quad (with this same
+   resolved color) before that cell's glyph quad, every frame. That
+   equivalence is also why the old gamma-correction curve (still used
+   below, for non-glyph quads only) has nothing left to do for
+   glyphs -- it existed to compensate for coverage-alpha GL blending,
+   and glyphs no longer go through GL blending at all. */
 static const char *FRAG_SRC =
     "precision mediump float;\n"
     "varying highp vec2 v_uv;\n"
     "varying highp vec4 v_color;\n"
     "varying highp vec3 v_bg;\n"
+    "varying highp float v_is_glyph;\n"
     "uniform sampler2D u_atlas;\n"
     "uniform bool u_gamma_correct;\n"
     "highp float unlin1(highp float v) {\n"
@@ -80,7 +104,12 @@ static const char *FRAG_SRC =
     "    return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;\n"
     "}\n"
     "void main() {\n"
-    "    highp float a = texture2D(u_atlas, v_uv).a;\n"
+    "    highp vec3 mask = texture2D(u_atlas, v_uv).rgb;\n"
+    "    if (v_is_glyph > 0.5) {\n"
+    "        gl_FragColor = vec4(mix(v_bg, v_color.rgb, mask), 1.0);\n"
+    "        return;\n"
+    "    }\n"
+    "    highp float a = mask.r;\n"
     "    if (u_gamma_correct) {\n"
     "        highp float fg_l = luminance(v_color.rgb);\n"
     "        highp float bg_l = luminance(v_bg);\n"
@@ -96,7 +125,7 @@ struct ghostcon_gles {
     uint32_t viewport_w, viewport_h;
 
     GLuint program;
-    GLint attr_pos, attr_uv, attr_color, attr_bg;
+    GLint attr_pos, attr_uv, attr_color, attr_bg, attr_is_glyph;
     GLint uniform_atlas, uniform_gamma_correct;
 
     GLuint atlas_tex;
@@ -161,6 +190,7 @@ ghostcon_gles_create(uint32_t viewport_w, uint32_t viewport_h)
     gles->attr_uv = glGetAttribLocation(gles->program, "a_uv");
     gles->attr_color = glGetAttribLocation(gles->program, "a_color");
     gles->attr_bg = glGetAttribLocation(gles->program, "a_bg");
+    gles->attr_is_glyph = glGetAttribLocation(gles->program, "a_is_glyph");
     gles->uniform_atlas = glGetUniformLocation(gles->program, "u_atlas");
     gles->uniform_gamma_correct = glGetUniformLocation(gles->program, "u_gamma_correct");
     gles->gamma_correct = true;
@@ -214,8 +244,8 @@ ghostcon_gles_sync_atlas(ghostcon_gles_t *gles, ghostcon_atlas_t *atlas, bool fo
     uint32_t dim = ghostcon_atlas_dim(atlas);
     glBindTexture(GL_TEXTURE_2D, gles->atlas_tex);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, (GLsizei)dim, (GLsizei)dim, 0,
-                 GL_ALPHA, GL_UNSIGNED_BYTE, ghostcon_atlas_bitmap(atlas));
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, (GLsizei)dim, (GLsizei)dim, 0,
+                 GL_RGB, GL_UNSIGNED_BYTE, ghostcon_atlas_bitmap(atlas));
     gles->atlas_dim = dim;
 
     ghostcon_atlas_clear_dirty(atlas);
@@ -249,12 +279,13 @@ push_quad(ghostcon_gles_t *gles,
           float x, float y, float w, float h,
           float u0, float v0, float u1, float v1,
           float r, float g, float b, float a,
-          float bg_r, float bg_g, float bg_b)
+          float bg_r, float bg_g, float bg_b,
+          float is_glyph)
 {
-    ghostcon_vertex_t tl = { x,     y,     u0, v0, r, g, b, a, bg_r, bg_g, bg_b };
-    ghostcon_vertex_t tr = { x + w, y,     u1, v0, r, g, b, a, bg_r, bg_g, bg_b };
-    ghostcon_vertex_t bl = { x,     y + h, u0, v1, r, g, b, a, bg_r, bg_g, bg_b };
-    ghostcon_vertex_t br = { x + w, y + h, u1, v1, r, g, b, a, bg_r, bg_g, bg_b };
+    ghostcon_vertex_t tl = { x,     y,     u0, v0, r, g, b, a, bg_r, bg_g, bg_b, is_glyph };
+    ghostcon_vertex_t tr = { x + w, y,     u1, v0, r, g, b, a, bg_r, bg_g, bg_b, is_glyph };
+    ghostcon_vertex_t bl = { x,     y + h, u0, v1, r, g, b, a, bg_r, bg_g, bg_b, is_glyph };
+    ghostcon_vertex_t br = { x + w, y + h, u1, v1, r, g, b, a, bg_r, bg_g, bg_b, is_glyph };
 
     push_vertex(gles, tl);
     push_vertex(gles, bl);
@@ -270,9 +301,11 @@ ghostcon_gles_push_rect(ghostcon_gles_t *gles,
                          float r, float g, float b, float a)
 {
     /* atlas.c reserves an opaque 2x2 block at the atlas origin for
-       exactly this — sampling (0,0) always yields alpha=1.0. bg == fg
-       here so the gamma correction curve is a guaranteed no-op. */
-    push_quad(gles, x, y, w, h, 0.0f, 0.0f, 0.0f, 0.0f, r, g, b, a, r, g, b);
+       exactly this — sampling (0,0) always yields mask=(1,1,1). bg == fg
+       here so the gamma correction curve is a guaranteed no-op, and
+       is_glyph=0 keeps this on the plain alpha-blended path (needed
+       for e.g. the selection overlay's partial-alpha tint). */
+    push_quad(gles, x, y, w, h, 0.0f, 0.0f, 0.0f, 0.0f, r, g, b, a, r, g, b, 0.0f);
 }
 
 void
@@ -283,7 +316,7 @@ ghostcon_gles_push_glyph(ghostcon_gles_t *gles,
                           float bg_r, float bg_g, float bg_b)
 {
     push_quad(gles, x, y, w, h, glyph->u0, glyph->v0, glyph->u1, glyph->v1,
-              r, g, b, a, bg_r, bg_g, bg_b);
+              r, g, b, a, bg_r, bg_g, bg_b, 1.0f);
 }
 
 void
@@ -315,10 +348,14 @@ ghostcon_gles_end(ghostcon_gles_t *gles)
     glVertexAttribPointer(gles->attr_bg, 3, GL_FLOAT, GL_FALSE,
                            sizeof(ghostcon_vertex_t),
                            &gles->verts[0].bg_r);
+    glVertexAttribPointer(gles->attr_is_glyph, 1, GL_FLOAT, GL_FALSE,
+                           sizeof(ghostcon_vertex_t),
+                           &gles->verts[0].is_glyph);
     glEnableVertexAttribArray(gles->attr_pos);
     glEnableVertexAttribArray(gles->attr_uv);
     glEnableVertexAttribArray(gles->attr_color);
     glEnableVertexAttribArray(gles->attr_bg);
+    glEnableVertexAttribArray(gles->attr_is_glyph);
 
     if (gles->vert_count > 0)
         glDrawArrays(GL_TRIANGLES, 0, (GLsizei)gles->vert_count);
@@ -327,6 +364,7 @@ ghostcon_gles_end(ghostcon_gles_t *gles)
     glDisableVertexAttribArray(gles->attr_uv);
     glDisableVertexAttribArray(gles->attr_color);
     glDisableVertexAttribArray(gles->attr_bg);
+    glDisableVertexAttribArray(gles->attr_is_glyph);
 }
 
 bool

@@ -24,6 +24,11 @@ typedef struct {
     float r, g, b, a;
     float bg_r, bg_g, bg_b; /* cell background, for gamma alpha correction --
                                 equal to r/g/b on non-glyph quads, a no-op */
+    float is_glyph; /* 1.0 for glyph quads (ghostcon_gles_push_glyph),
+                        0.0 for everything else -- selects the shader's
+                        per-channel subpixel-mix path vs. the plain
+                        alpha-blended path. See FRAG_SRC's doc comment
+                        in gles.c. */
 } ghostcon_vertex_t;
 
 typedef struct ghostcon_gles ghostcon_gles_t;

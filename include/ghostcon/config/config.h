@@ -44,20 +44,25 @@ typedef struct {
        right where the initial config load happens). */
     char font_family[256];
     char font_variant[64];
-    /* "grayscale" (default), "subpixel", or "none" -- maps to
-       FreeType's rasterization target (FT_LOAD_TARGET_NORMAL/LCD/MONO
-       respectively). An unrecognized value falls back to "grayscale",
-       not an error. "subpixel" uses FreeType's LCD-optimized hinting/
-       rasterization, but this atlas is still a single 8-bit alpha
-       channel (not true RGB subpixel blending, which would need an
-       RGB atlas texture and a different shader) -- the 3 LCD
-       subchannels are averaged down to one alpha value, so this is a
-       real, visibly different rasterization (typically crisper than
-       plain grayscale) but not full ClearType-style fringing-
-       corrected subpixel rendering. See render/atlas.c's own doc
-       comment on ghostcon_atlas_create() for the exact FT_LOAD_TARGET
-       mapping. */
+    /* "grayscale" (default), "subpixel", "cleartype", or "none" --
+       maps to FreeType's rasterization target
+       (FT_LOAD_TARGET_NORMAL/LCD/LCD/MONO respectively). An
+       unrecognized value falls back to "grayscale", not an error.
+       "subpixel" uses FreeType's LCD-optimized hinting/rasterization,
+       but averages the 3 LCD subchannels down to one value -- a real,
+       visibly different rasterization from plain grayscale, but not
+       true per-subpixel-channel blending. "cleartype" is the real
+       thing: an RGB atlas texture storing genuine distinct R/G/B
+       coverage, blended per-channel in the shader -- see
+       render/gles.c's FRAG_SRC doc comment. See render/atlas.c's own
+       doc comment on ghostcon_atlas_create() for the exact
+       FT_LOAD_TARGET mapping. */
     char antialiasing[16];
+    /* "rgb" (default) or "bgr" -- only meaningful when antialiasing
+       is "cleartype": the physical left-to-right subpixel order of
+       the actual display. Get this wrong and cleartype produces
+       visible color fringing instead of removing it. */
+    char subpixel_order[8];
     bool gamma_correct; /* luminance-based glyph-edge alpha correction
                             (ported from Ghostty's cell_text.f.glsl) --
                             on by default. See render/gles.c's FRAG_SRC
