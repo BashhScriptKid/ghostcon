@@ -1,0 +1,15 @@
+#gc:cols=80 rows=24
+line one: initial
+line two: initial
+line three: initial
+[3A[Kline one: updated content that is now longer
+[Kline two: updated
+[Kline three: updated shorter
+[3A[Kline one: v3
+[Kline two: v3
+[Kline three: v3
+line four: new in v3
+[4A[Kline one: v4
+[Kline two: v4
+[Kline three: v4
+[K
