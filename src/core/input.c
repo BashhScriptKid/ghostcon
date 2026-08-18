@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <libinput.h>
 #include <libudev.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -283,6 +284,41 @@ struct ghostcon_input {
        default until config says otherwise" convention. */
     GhosttyMods copy_mods, paste_mods;
     uint32_t    copy_evdev, paste_evdev;
+
+    /* [mouse]/[touchpad] tuning (config.h's own doc comment has the
+       full field-by-field mapping to libinput APIs) -- defaulted here
+       so devices already get sane, always-on behavior before the
+       first config load completes, same "default until config says
+       otherwise" convention as copy/paste above. Pushed to real
+       devices via ghostcon_input_set_mouse_config()/
+       set_touchpad_config() below, which re-apply to every currently-
+       tracked device of that class immediately (not just newly
+       hotplugged ones). */
+    bool  mouse_enable, touchpad_enable;
+    float mouse_scroll_speed, touchpad_scroll_speed;
+    float mouse_sensitivity, touchpad_sensitivity;
+    bool  touchpad_tap_to_click, touchpad_natural_scroll;
+
+    /* Devices currently known to be connected -- tracked purely so a
+       config hot-reload can re-apply to devices already plugged in,
+       not just ones added afterward (LIBINPUT_EVENT_DEVICE_ADDED
+       alone only covers the latter). Refed while tracked here, unrefed
+       on LIBINPUT_EVENT_DEVICE_REMOVED or ghostcon_input_close().
+       Fixed-size headroom, not a hard cap on real hardware -- a
+       machine with more pointer devices connected at once than this
+       just stops getting hot-reload re-application for the overflow,
+       still gets correctly configured at add-time. */
+    struct libinput_device *devices[32];
+    int device_count;
+
+    /* Fractional scroll-speed accumulators -- see config.h's own doc
+       comment on scroll_speed for the algorithm. Per device CLASS,
+       not per individual device: only the class's configured speed
+       matters, and sharing one accumulator per class across
+       simultaneous multi-device scrolling is an acceptable
+       simplification (real hardware essentially never has two mice
+       or two touchpads active at once). */
+    double mouse_scroll_accum, touchpad_scroll_accum;
 };
 
 /* kmscon's own documented defaults (xkb-repeat-delay/xkb-repeat-rate) --
@@ -290,6 +326,48 @@ struct ghostcon_input {
    asked for" scoping as everything else added this session. */
 #define GHOSTCON_REPEAT_DELAY_MS 250
 #define GHOSTCON_REPEAT_RATE_MS 50
+
+/* libinput's own recommended way to tell a touchpad from a mouse --
+   NOT guessing from the device name string, which varies wildly
+   across hardware/drivers. Any device that supports tap-to-click at
+   all (finger count > 0) is a touchpad; a plain mouse reports 0. */
+static bool
+device_is_touchpad(struct libinput_device *dev)
+{
+    return libinput_device_config_tap_get_finger_count(dev) > 0;
+}
+
+/* Applies this input context's currently-configured [mouse]/[touchpad]
+   values (config.h's own doc comment has the field-by-field mapping)
+   to one real device -- called both when a device is newly hotplugged
+   and, from the two setters below, when config changes and needs to
+   reach devices already connected. Each libinput_device_config_*_
+   is_available()/has_*() check is real hardware variation, not
+   defensive paranoia -- e.g. plenty of mice have no accel config at
+   all, and natural-scroll only applies to devices with a scroll
+   method in the first place. */
+static void
+apply_device_config(ghostcon_input_t *input, struct libinput_device *dev)
+{
+    bool touchpad = device_is_touchpad(dev);
+    bool enable = touchpad ? input->touchpad_enable : input->mouse_enable;
+    float sensitivity = touchpad ? input->touchpad_sensitivity : input->mouse_sensitivity;
+
+    libinput_device_config_send_events_set_mode(dev,
+        enable ? LIBINPUT_CONFIG_SEND_EVENTS_ENABLED : LIBINPUT_CONFIG_SEND_EVENTS_DISABLED);
+
+    if (libinput_device_config_accel_is_available(dev))
+        libinput_device_config_accel_set_speed(dev, (double)sensitivity);
+
+    if (touchpad) {
+        if (libinput_device_config_tap_get_finger_count(dev) > 0)
+            libinput_device_config_tap_set_enabled(dev,
+                input->touchpad_tap_to_click ? LIBINPUT_CONFIG_TAP_ENABLED : LIBINPUT_CONFIG_TAP_DISABLED);
+        if (libinput_device_config_scroll_has_natural_scroll(dev))
+            libinput_device_config_scroll_set_natural_scroll_enabled(dev,
+                input->touchpad_natural_scroll);
+    }
+}
 
 static int
 open_restricted(const char *path, int flags, void *user_data)
@@ -328,6 +406,14 @@ ghostcon_input_open(const char *seat_id, int viewport_w, int viewport_h)
        defaults, always valid). */
     ghostcon_parse_keybinding("ctrl+shift+c", &input->copy_mods, &input->copy_evdev);
     ghostcon_parse_keybinding("ctrl+shift+v", &input->paste_mods, &input->paste_evdev);
+
+    /* Same "sane default until config says otherwise" convention --
+       matches config.c's own ghostcon_config_defaults(). */
+    input->mouse_enable = true;
+    input->mouse_scroll_speed = 1.0f;
+    input->touchpad_enable = true;
+    input->touchpad_scroll_speed = 1.0f;
+    input->touchpad_tap_to_click = true;
 
     input->udev = udev_new();
     if (!input->udev) {
@@ -425,6 +511,8 @@ ghostcon_input_close(ghostcon_input_t *input)
         xkb_keymap_unref(input->xkb_keymap);
     if (input->xkb_ctx)
         xkb_context_unref(input->xkb_ctx);
+    for (int i = 0; i < input->device_count; i++)
+        libinput_device_unref(input->devices[i]);
     if (input->li)
         libinput_unref(input->li);
     if (input->udev)
@@ -498,6 +586,35 @@ ghostcon_input_set_clipboard_bindings(ghostcon_input_t *input,
     input->copy_evdev = copy_evdev;
     input->paste_mods = paste_mods;
     input->paste_evdev = paste_evdev;
+}
+
+void
+ghostcon_input_set_mouse_config(ghostcon_input_t *input, bool enable,
+                                 float scroll_speed, float sensitivity)
+{
+    input->mouse_enable = enable;
+    input->mouse_scroll_speed = scroll_speed;
+    input->mouse_sensitivity = sensitivity;
+    for (int i = 0; i < input->device_count; i++) {
+        if (!device_is_touchpad(input->devices[i]))
+            apply_device_config(input, input->devices[i]);
+    }
+}
+
+void
+ghostcon_input_set_touchpad_config(ghostcon_input_t *input, bool enable,
+                                    float scroll_speed, bool tap_to_click,
+                                    bool natural_scroll, float sensitivity)
+{
+    input->touchpad_enable = enable;
+    input->touchpad_scroll_speed = scroll_speed;
+    input->touchpad_tap_to_click = tap_to_click;
+    input->touchpad_natural_scroll = natural_scroll;
+    input->touchpad_sensitivity = sensitivity;
+    for (int i = 0; i < input->device_count; i++) {
+        if (device_is_touchpad(input->devices[i]))
+            apply_device_config(input, input->devices[i]);
+    }
 }
 
 /* Named keys beyond plain letters -- deliberately small, only what's
@@ -1031,11 +1148,7 @@ handle_pointer_event(ghostcon_input_t *input, struct libinput_event *ev,
            libinput); plain scroll_value for touchpad two-finger scroll
            (a continuous pixel-ish distance) -- it is an application
            bug to call get_scroll_value_v120() on a non-wheel event
-           (per libinput.h's own doc comment), hence the split here.
-           Not accumulated/thresholded for finger-scroll (a possible
-           follow-up if it fires too eagerly in practice) -- any
-           nonzero value on the vertical axis fires one tick, matching
-           the wheel case exactly for simplicity in this pass. */
+           (per libinput.h's own doc comment), hence the split here. */
         if (!libinput_event_pointer_has_axis(p, LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL))
             return true;
         double value = (type == LIBINPUT_EVENT_POINTER_SCROLL_WHEEL)
@@ -1043,8 +1156,34 @@ handle_pointer_event(ghostcon_input_t *input, struct libinput_event *ev,
                             : libinput_event_pointer_get_scroll_value(p, LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL);
         if (value == 0.0)
             return true;
+
+        /* scroll_speed (config.h's own doc comment has the full
+           algorithm): fractional accumulator over raw ticks, per
+           device class. raw_ticks is the wheel's own detent count
+           (a single flick can report multiple 120s) for a real wheel;
+           touchpad two-finger scroll has no natural "detent" concept,
+           so each event with a nonzero value simply counts as one
+           raw tick, same simplification the pre-scroll_speed code
+           already made. A direction reversal wipes any built-up
+           fractional backlog from the opposite direction -- otherwise
+           a throttled (speed<1) scroll that reverses could fire an
+           unexpected extra tick from leftover accumulation. */
+        bool touchpad = device_is_touchpad(libinput_event_get_device(ev));
+        double *accum = touchpad ? &input->touchpad_scroll_accum : &input->mouse_scroll_accum;
+        float speed = touchpad ? input->touchpad_scroll_speed : input->mouse_scroll_speed;
+        double raw_ticks = (type == LIBINPUT_EVENT_POINTER_SCROLL_WHEEL) ? fabs(value) / 120.0 : 1.0;
+
+        if (*accum != 0.0 && (value > 0) != (*accum > 0))
+            *accum = 0.0;
+        *accum += (value > 0 ? 1.0 : -1.0) * raw_ticks * (double)speed;
+
         ghostcon_mouse_button_t wheel = (value > 0) ? GC_MOUSE_WHEEL_DOWN : GC_MOUSE_WHEEL_UP;
-        return send_mouse_report(input, transport, screen, cell_w, cell_h, wheel, GC_MOUSE_PRESS);
+        bool ok = true;
+        while (ok && fabs(*accum) >= 1.0) {
+            ok = send_mouse_report(input, transport, screen, cell_w, cell_h, wheel, GC_MOUSE_PRESS);
+            *accum += (*accum > 0) ? -1.0 : 1.0;
+        }
+        return ok;
     }
     default:
         return true; /* other pointer/gesture event types: not handled in this pass */
@@ -1099,7 +1238,28 @@ ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport
     while ((ev = libinput_get_event(input->li)) != NULL) {
         enum libinput_event_type type = libinput_event_get_type(ev);
 
-        if (type == LIBINPUT_EVENT_KEYBOARD_KEY) {
+        if (type == LIBINPUT_EVENT_DEVICE_ADDED) {
+            /* Tracked (and configured) regardless of `active` -- a
+               device plugged in while this VT isn't focused should
+               still come up correctly configured for whenever it
+               does become active, same reasoning XKB modifier
+               tracking below stays live regardless of `active`. */
+            struct libinput_device *dev = libinput_event_get_device(ev);
+            if (input->device_count < (int)(sizeof(input->devices) / sizeof(input->devices[0]))) {
+                input->devices[input->device_count++] = libinput_device_ref(dev);
+                apply_device_config(input, dev);
+            }
+        } else if (type == LIBINPUT_EVENT_DEVICE_REMOVED) {
+            struct libinput_device *dev = libinput_event_get_device(ev);
+            for (int i = 0; i < input->device_count; i++) {
+                if (input->devices[i] == dev) {
+                    libinput_device_unref(input->devices[i]);
+                    input->devices[i] = input->devices[input->device_count - 1];
+                    input->device_count--;
+                    break;
+                }
+            }
+        } else if (type == LIBINPUT_EVENT_KEYBOARD_KEY) {
             if (!handle_keyboard_event(input, ev, transport, screen, out_zoom_delta,
                                         out_dump_requested, active)) {
                 libinput_event_destroy(ev);

@@ -28,6 +28,14 @@ main(void)
     CHECK(cfg.zoom_step == 2, "default zoom_step");
     CHECK(cfg.font_family[0] == '\0', "default font_family is empty");
     CHECK(cfg.font_variant[0] == '\0', "default font_variant is empty");
+    CHECK(cfg.mouse_enable == true, "default mouse_enable");
+    CHECK(cfg.mouse_scroll_speed == 1.0f, "default mouse_scroll_speed");
+    CHECK(cfg.mouse_sensitivity == 0.0f, "default mouse_sensitivity");
+    CHECK(cfg.touchpad_enable == true, "default touchpad_enable");
+    CHECK(cfg.touchpad_scroll_speed == 1.0f, "default touchpad_scroll_speed");
+    CHECK(cfg.touchpad_tap_to_click == true, "default touchpad_tap_to_click");
+    CHECK(cfg.touchpad_natural_scroll == false, "default touchpad_natural_scroll");
+    CHECK(cfg.touchpad_sensitivity == 0.0f, "default touchpad_sensitivity");
     CHECK(cfg.cursor_theme[0] == '\0', "default cursor_theme is empty");
     CHECK(cfg.cursor_default_path[0] == '\0', "default cursor_default_path is empty");
     CHECK(cfg.cursor_link_path[0] == '\0', "default cursor_link_path is empty");
@@ -89,7 +97,17 @@ main(void)
             "link_hot_pos = \"3,4\"\n"
             "[keybindings]\n"
             "copy_to_clipboard = \"ctrl+alt+c\"\n"
-            "paste_from_clipboard = \"ctrl+alt+v\"\n";
+            "paste_from_clipboard = \"ctrl+alt+v\"\n"
+            "[mouse]\n"
+            "enable = false\n"
+            "scroll_speed = 2.5\n"
+            "sensitivity = 0.5\n"
+            "[touchpad]\n"
+            "enable = false\n"
+            "scroll_speed = 0.5\n"
+            "tap_to_click = false\n"
+            "natural_scroll = true\n"
+            "sensitivity = -0.5\n";
         write(fd, contents, strlen(contents));
         close(fd);
 
@@ -114,6 +132,14 @@ main(void)
         CHECK(cfg.cursor_scale_with_terminal == false, "full config cursor_scale_with_terminal");
         CHECK(strcmp(cfg.copy_to_clipboard_binding, "ctrl+alt+c") == 0, "full config copy_to_clipboard_binding");
         CHECK(strcmp(cfg.paste_from_clipboard_binding, "ctrl+alt+v") == 0, "full config paste_from_clipboard_binding");
+        CHECK(cfg.mouse_enable == false, "full config mouse_enable");
+        CHECK(cfg.mouse_scroll_speed == 2.5f, "full config mouse_scroll_speed");
+        CHECK(cfg.mouse_sensitivity == 0.5f, "full config mouse_sensitivity");
+        CHECK(cfg.touchpad_enable == false, "full config touchpad_enable");
+        CHECK(cfg.touchpad_scroll_speed == 0.5f, "full config touchpad_scroll_speed");
+        CHECK(cfg.touchpad_tap_to_click == false, "full config touchpad_tap_to_click");
+        CHECK(cfg.touchpad_natural_scroll == true, "full config touchpad_natural_scroll");
+        CHECK(cfg.touchpad_sensitivity == -0.5f, "full config touchpad_sensitivity");
         CHECK(strcmp(cfg.cursor_default_hot_pos, "12,8") == 0, "full config cursor_default_hot_pos");
         CHECK(strcmp(cfg.cursor_link_hot_pos, "3,4") == 0, "full config cursor_link_hot_pos");
         unlink(path);

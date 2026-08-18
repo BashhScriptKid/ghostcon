@@ -30,6 +30,16 @@ ghostcon_config_defaults(ghostcon_config_t *cfg)
     cfg->cursor_scale_with_terminal = true;
     snprintf(cfg->copy_to_clipboard_binding, sizeof(cfg->copy_to_clipboard_binding), "%s", "ctrl+shift+c");
     snprintf(cfg->paste_from_clipboard_binding, sizeof(cfg->paste_from_clipboard_binding), "%s", "ctrl+shift+v");
+
+    cfg->mouse_enable = true;
+    cfg->mouse_scroll_speed = 1.0f;
+    cfg->mouse_sensitivity = 0.0f;
+
+    cfg->touchpad_enable = true;
+    cfg->touchpad_scroll_speed = 1.0f;
+    cfg->touchpad_tap_to_click = true;
+    cfg->touchpad_natural_scroll = false;
+    cfg->touchpad_sensitivity = 0.0f;
 }
 
 static void
@@ -112,6 +122,22 @@ ghostcon_config_load(const char *path, ghostcon_config_t *cfg)
                     sizeof(cfg->copy_to_clipboard_binding));
         load_string(keybindings, "paste_from_clipboard", cfg->paste_from_clipboard_binding,
                     sizeof(cfg->paste_from_clipboard_binding));
+    }
+
+    toml_table_t *mouse = toml_table_in(root, "mouse");
+    if (mouse) {
+        load_bool(mouse, "enable", &cfg->mouse_enable);
+        load_double(mouse, "scroll_speed", &cfg->mouse_scroll_speed);
+        load_double(mouse, "sensitivity", &cfg->mouse_sensitivity);
+    }
+
+    toml_table_t *touchpad = toml_table_in(root, "touchpad");
+    if (touchpad) {
+        load_bool(touchpad, "enable", &cfg->touchpad_enable);
+        load_double(touchpad, "scroll_speed", &cfg->touchpad_scroll_speed);
+        load_bool(touchpad, "tap_to_click", &cfg->touchpad_tap_to_click);
+        load_bool(touchpad, "natural_scroll", &cfg->touchpad_natural_scroll);
+        load_double(touchpad, "sensitivity", &cfg->touchpad_sensitivity);
     }
 
     toml_free(root);

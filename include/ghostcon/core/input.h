@@ -118,6 +118,21 @@ void ghostcon_input_set_clipboard_bindings(ghostcon_input_t *input,
                                             GhosttyMods copy_mods, uint32_t copy_evdev,
                                             GhosttyMods paste_mods, uint32_t paste_evdev);
 
+/* Pushes the [mouse]/[touchpad] config tables (config.h's own doc
+   comment has the field-by-field libinput mapping) into this input
+   context, applying immediately to every currently-tracked device of
+   that class (not just newly hotplugged ones). Same mutable-setter/
+   hot-reload convention as ghostcon_input_set_clipboard_bindings()
+   above -- core/main.c calls each once after ghostcon_input_open()
+   and again on every config reload. Defaults (enabled, 1.0 scroll
+   speed, tap-to-click on, natural-scroll off, libinput's own default
+   sensitivity) are already set at ghostcon_input_open() time. */
+void ghostcon_input_set_mouse_config(ghostcon_input_t *input, bool enable,
+                                      float scroll_speed, float sensitivity);
+void ghostcon_input_set_touchpad_config(ghostcon_input_t *input, bool enable,
+                                         float scroll_speed, bool tap_to_click,
+                                         bool natural_scroll, float sensitivity);
+
 /* Reported by ghostcon_input_dispatch() below -- the absolute pointer
    pixel position (top-left origin, same space as everything else in
    this tree), always valid, plus whether it changed this call. Caller

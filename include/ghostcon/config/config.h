@@ -93,6 +93,36 @@ typedef struct {
        defaults for copy_to_clipboard/paste_from_clipboard. */
     char copy_to_clipboard_binding[64];
     char paste_from_clipboard_binding[64];
+
+    /* [mouse] / [touchpad] -- per-device-class libinput tuning,
+       applied to every currently-connected device of that class (via
+       libinput's own tap-finger-count check, the library's own
+       recommended way to distinguish a touchpad from a mouse) and to
+       each newly-hotplugged one as it's discovered. See
+       core/input.c's apply_device_config() for the libinput API each
+       field maps to.
+       - enable: false fully disables the device (no movement, clicks,
+         or scroll at all) via LIBINPUT_CONFIG_SEND_EVENTS_DISABLED.
+       - sensitivity: libinput's own pointer-acceleration speed knob,
+         -1.0 (slowest) .. 1.0 (fastest), 0.0 = libinput's own default.
+       - scroll_speed: NOT a libinput API -- libinput has no such
+         knob, so this is implemented entirely in core/input.c as a
+         fractional accumulator over the terminal-scroll "ticks" a raw
+         scroll event would otherwise produce 1:1: add scroll_speed to
+         a running accumulator per raw tick, fire one terminal-scroll
+         tick and subtract 1.0 each time it crosses 1.0. 1.0 (default)
+         is unchanged passthrough; > 1.0 amplifies (multiple ticks per
+         raw event); < 1.0 throttles (multiple raw events needed
+         before one tick reaches the app). */
+    bool  mouse_enable;
+    float mouse_scroll_speed;
+    float mouse_sensitivity;
+
+    bool  touchpad_enable;
+    float touchpad_scroll_speed;
+    bool  touchpad_tap_to_click;
+    bool  touchpad_natural_scroll;
+    float touchpad_sensitivity;
 } ghostcon_config_t;
 
 /* Fills `cfg` with the hardcoded defaults (matching what every binary

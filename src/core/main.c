@@ -140,6 +140,17 @@ typedef struct {
     char copy_to_clipboard_binding[64];
     char paste_from_clipboard_binding[64];
 
+    /* [mouse]/[touchpad] config -- see config.h's own doc comment.
+       Persisted here for the same reason the keybinding fields above
+       are: apply_mouse_touchpad_config() needs to re-push these into
+       a fresh app->input after every ghostcon_input_open() (a new
+       input context always starts back at that function's own
+       hardcoded defaults), not just once at initial config load. */
+    bool  mouse_enable, touchpad_enable;
+    float mouse_scroll_speed, touchpad_scroll_speed;
+    float mouse_sensitivity, touchpad_sensitivity;
+    bool  touchpad_tap_to_click, touchpad_natural_scroll;
+
     /* Explicit BMP hotspot overrides -- see config.h's own doc comment
        on cursor_default_hot_pos/cursor_link_hot_pos. */
     char cursor_default_hot_pos[32];
@@ -382,6 +393,21 @@ apply_keybindings(app_t *app)
     }
 }
 
+/* Same "called after every ghostcon_input_open() and again on every
+   config reload" convention as apply_keybindings() right above, for
+   [mouse]/[touchpad] instead. */
+static void
+apply_mouse_touchpad_config(app_t *app)
+{
+    if (!app->input)
+        return;
+    ghostcon_input_set_mouse_config(app->input, app->mouse_enable,
+                                     app->mouse_scroll_speed, app->mouse_sensitivity);
+    ghostcon_input_set_touchpad_config(app->input, app->touchpad_enable,
+                                        app->touchpad_scroll_speed, app->touchpad_tap_to_click,
+                                        app->touchpad_natural_scroll, app->touchpad_sensitivity);
+}
+
 /* Defensive check against the kernel's OWN idea of which VT is
    currently foreground, independent of this process's own tracked
    display_acquired/have_master state -- found live: libinput's udev
@@ -519,6 +545,7 @@ acquire_display(app_t *app)
     if (!app->input)
         fprintf(stderr, "ghostcon-core: input_open failed -- continuing without keyboard input\n");
     apply_keybindings(app); /* fresh input context otherwise reverts to hardcoded defaults */
+    apply_mouse_touchpad_config(app); /* same reasoning -- see its own doc comment */
 
     /* Re-assert the pty's window size on EVERY acquire, not just once
        at initial connect (see the one-shot call right after
@@ -885,6 +912,16 @@ apply_config_reload(app_t *app)
              "%s", new_cfg.paste_from_clipboard_binding);
     apply_keybindings(app);
 
+    app->mouse_enable = new_cfg.mouse_enable;
+    app->mouse_scroll_speed = new_cfg.mouse_scroll_speed;
+    app->mouse_sensitivity = new_cfg.mouse_sensitivity;
+    app->touchpad_enable = new_cfg.touchpad_enable;
+    app->touchpad_scroll_speed = new_cfg.touchpad_scroll_speed;
+    app->touchpad_tap_to_click = new_cfg.touchpad_tap_to_click;
+    app->touchpad_natural_scroll = new_cfg.touchpad_natural_scroll;
+    app->touchpad_sensitivity = new_cfg.touchpad_sensitivity;
+    apply_mouse_touchpad_config(app);
+
     fprintf(stderr, "ghostcon-core: config changed, applied\n");
     return need_render;
 }
@@ -942,6 +979,11 @@ main(int argc, char **argv)
     app.cursor_scale_with_terminal = true;
     snprintf(app.copy_to_clipboard_binding, sizeof(app.copy_to_clipboard_binding), "%s", "ctrl+shift+c");
     snprintf(app.paste_from_clipboard_binding, sizeof(app.paste_from_clipboard_binding), "%s", "ctrl+shift+v");
+    app.mouse_enable = true;
+    app.mouse_scroll_speed = 1.0f;
+    app.touchpad_enable = true;
+    app.touchpad_scroll_speed = 1.0f;
+    app.touchpad_tap_to_click = true;
     {
         ghostcon_config_t initial_cfg;
         if (ghostcon_config_load(app.config_path, &initial_cfg)) {
@@ -960,6 +1002,14 @@ main(int argc, char **argv)
                      "%s", initial_cfg.copy_to_clipboard_binding);
             snprintf(app.paste_from_clipboard_binding, sizeof(app.paste_from_clipboard_binding),
                      "%s", initial_cfg.paste_from_clipboard_binding);
+            app.mouse_enable = initial_cfg.mouse_enable;
+            app.mouse_scroll_speed = initial_cfg.mouse_scroll_speed;
+            app.mouse_sensitivity = initial_cfg.mouse_sensitivity;
+            app.touchpad_enable = initial_cfg.touchpad_enable;
+            app.touchpad_scroll_speed = initial_cfg.touchpad_scroll_speed;
+            app.touchpad_tap_to_click = initial_cfg.touchpad_tap_to_click;
+            app.touchpad_natural_scroll = initial_cfg.touchpad_natural_scroll;
+            app.touchpad_sensitivity = initial_cfg.touchpad_sensitivity;
         }
     }
 

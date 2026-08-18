@@ -60,6 +60,36 @@
 # font_family = "JetBrainsMono Nerd Font Mono"
 # font_variant = "Regular"
 
+[mouse]
+
+# Disable this device class entirely -- no movement, clicks, or
+# scroll at all.
+# enable = true
+
+# Multiplier on how many terminal-scroll lines a raw scroll event
+# produces: 1.0 is unchanged passthrough, > 1.0 amplifies (multiple
+# lines per wheel detent), < 1.0 throttles (multiple detents needed
+# before one line reaches the app).
+# scroll_speed = 1.0
+
+# libinput's own pointer-acceleration speed, -1.0 (slowest) to 1.0
+# (fastest); 0.0 is libinput's own default.
+# sensitivity = 0.0
+
+[touchpad]
+
+# enable = true
+# scroll_speed = 1.0
+# sensitivity = 0.0
+
+# Tap the touchpad to click, instead of requiring a physical press.
+# tap_to_click = true
+
+# Reverse scroll direction to match touch-content-follows-fingers
+# convention (macOS-style), instead of the traditional wheel-style
+# direction.
+# natural_scroll = false
+
 # Wipe the screen and scrollback the moment a login session ends
 # (before the next one's login prompt appears), instead of leaving the
 # old session's last screenful visible underneath it. Set to false to
