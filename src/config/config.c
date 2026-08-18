@@ -89,6 +89,8 @@ ghostcon_config_load(const char *path, ghostcon_config_t *cfg)
         load_bool(general, "disable_wall", &cfg->disable_wall);
         load_bool(general, "disable_kmscon_fallback", &cfg->disable_kmscon_fallback);
         load_int(general, "font_size", &cfg->font_size);
+        load_string(general, "font_family", cfg->font_family, sizeof(cfg->font_family));
+        load_string(general, "font_variant", cfg->font_variant, sizeof(cfg->font_variant));
         load_bool(general, "clear_on_logout", &cfg->clear_on_logout);
         load_int(general, "zoom_step", &cfg->zoom_step);
     }

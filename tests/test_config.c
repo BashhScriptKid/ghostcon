@@ -26,6 +26,8 @@ main(void)
     CHECK(cfg.font_size == 16, "default font_size");
     CHECK(cfg.clear_on_logout == true, "default clear_on_logout");
     CHECK(cfg.zoom_step == 2, "default zoom_step");
+    CHECK(cfg.font_family[0] == '\0', "default font_family is empty");
+    CHECK(cfg.font_variant[0] == '\0', "default font_variant is empty");
     CHECK(cfg.cursor_theme[0] == '\0', "default cursor_theme is empty");
     CHECK(cfg.cursor_default_path[0] == '\0', "default cursor_default_path is empty");
     CHECK(cfg.cursor_link_path[0] == '\0', "default cursor_link_path is empty");
@@ -73,6 +75,8 @@ main(void)
             "disable_wall = true\n"
             "disable_kmscon_fallback = true\n"
             "font_size = 20\n"
+            "font_family = \"JetBrainsMono Nerd Font Mono\"\n"
+            "font_variant = \"Bold\"\n"
             "clear_on_logout = false\n"
             "zoom_step = 3\n"
             "[cursor]\n"
@@ -97,6 +101,8 @@ main(void)
         CHECK(cfg.disable_wall == true, "full config disable_wall");
         CHECK(cfg.disable_kmscon_fallback == true, "full config disable_kmscon_fallback");
         CHECK(cfg.font_size == 20, "full config font_size");
+        CHECK(strcmp(cfg.font_family, "JetBrainsMono Nerd Font Mono") == 0, "full config font_family");
+        CHECK(strcmp(cfg.font_variant, "Bold") == 0, "full config font_variant");
         CHECK(cfg.clear_on_logout == false, "full config clear_on_logout");
         CHECK(cfg.zoom_step == 3, "full config zoom_step");
         CHECK(strcmp(cfg.cursor_theme, "/usr/share/icons/Breeze") == 0, "full config cursor_theme");

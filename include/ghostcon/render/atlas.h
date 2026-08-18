@@ -24,16 +24,28 @@ typedef struct {
 typedef struct ghostcon_atlas ghostcon_atlas_t;
 
 /* font_family may be NULL to use fontconfig's default monospace match.
-   atlas_dim is the atlas bitmap's width/height in pixels (square,
-   power-of-two recommended, e.g. 1024 or 2048). */
+   font_variant may be NULL/empty to use fontconfig's default style
+   for that family -- otherwise matched against FC_STYLE (e.g. "Bold",
+   "Light", "Medium Italic"; run `fc-list <family>` to see what a
+   given family actually offers). atlas_dim is the atlas bitmap's
+   width/height in pixels (square, power-of-two recommended, e.g.
+   1024 or 2048). */
 ghostcon_atlas_t *ghostcon_atlas_create(const char *font_family,
+                                         const char *font_variant,
                                          int font_size_px,
                                          uint32_t atlas_dim);
 void ghostcon_atlas_destroy(ghostcon_atlas_t *atlas);
 
 /* Looks up the glyph for a codepoint, rasterizing and packing it into
-   the atlas on first use. Returns NULL if the glyph has no outline
-   (e.g. codepoint not in the font) or the atlas is full. */
+   the atlas on first use. If the primary font has no outline for this
+   codepoint, falls through fontconfig's own system fallback chain for
+   the same font-matching pattern (lazily opening each candidate font
+   only as needed) before giving up -- found live: without this, a
+   codepoint the primary font simply doesn't cover (common for emoji
+   and Nerd Font icons) rendered as nothing at all, even when another
+   installed font on the system did have it. Returns NULL only if no
+   font in that chain has an outline for it either, or the atlas is
+   full. */
 const ghostcon_glyph_t *ghostcon_atlas_glyph(ghostcon_atlas_t *atlas,
                                               uint32_t codepoint);
 

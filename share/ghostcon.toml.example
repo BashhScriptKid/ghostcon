@@ -48,6 +48,18 @@
 # Font size (points) for the terminal's glyph atlas.
 # font_size = 16
 
+# Font family/style for the terminal's glyph atlas. Empty (the
+# default) uses fontconfig's own default monospace match. font_variant
+# maps to fontconfig's FC_STYLE -- run `fc-list <family>` to see what
+# a given family actually offers (e.g. "Bold", "Light", "Medium
+# Italic"); an unrecognized value just falls through to fontconfig's
+# normal default-style behavior, not an error. Unlike most keys above,
+# these two are read directly from this file by ghostcon-core itself,
+# not re-exported as an env var by undead-head -- still applies live,
+# same as everything else on this page.
+# font_family = "JetBrainsMono Nerd Font Mono"
+# font_variant = "Regular"
+
 # Wipe the screen and scrollback the moment a login session ends
 # (before the next one's login prompt appears), instead of leaving the
 # old session's last screenful visible underneath it. Set to false to

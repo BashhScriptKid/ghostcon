@@ -110,6 +110,15 @@ typedef struct {
     int font_size;
     int zoom_step; /* points per Ctrl+=/Ctrl+Minus press, config-driven */
 
+    /* [general] font_family/font_variant -- see config.h's own doc
+       comment. Persisted here (not just used transiently at load
+       time) for the same reason cursor_theme etc. below are: both
+       apply_font_size() (zoom) and apply_config_reload() need to
+       re-call ghostcon_atlas_create() with these, without re-reading
+       config just for that. */
+    char font_family[256];
+    char font_variant[64];
+
     /* Cursor sprite config -- see PLAN.md's "Cursor sprite: raster
        images, per-state, config-driven" section. Persisted here (not
        just used transiently at load time) so reload_cursor_images()
@@ -755,16 +764,25 @@ vtctl_pre_ack(char event, void *userdata)
 }
 
 /* Shared by config hot-reload and the Ctrl+=/Ctrl+- zoom shortcut
-   below -- rebuilds the glyph atlas at `new_size` and resizes the
-   terminal grid to match, reusing the exact cols/rows-from-kms-
-   dimensions/term_resize/transport_resize sequence acquire_display()'s
-   own reacquire path already uses. Returns true if it actually did
-   something (caller should render); false for a no-op (size unchanged
+   below -- rebuilds the glyph atlas at `new_size` (using app->font_family/
+   font_variant, which the caller must already have updated to whatever
+   it wants baked into the rebuild) and resizes the terminal grid to
+   match, reusing the exact cols/rows-from-kms-dimensions/term_resize/
+   transport_resize sequence acquire_display()'s own reacquire path
+   already uses. `force` rebuilds even if new_size == app->font_size --
+   config hot-reload needs this for a font_family/font_variant-only
+   edit, where the size genuinely didn't change but the atlas still
+   needs to be recreated against the new font; the zoom shortcut
+   always passes false, since a zoom keypress by definition means the
+   size changed. Returns true if it actually did something (caller
+   should render); false for a no-op (size unchanged and not forced,
    or invalid) or a failed rebuild (logged, old atlas left in place). */
 static bool
-apply_font_size(app_t *app, int new_size)
+apply_font_size(app_t *app, int new_size, bool force)
 {
-    if (new_size <= 0 || new_size == app->font_size)
+    if (new_size <= 0)
+        return false;
+    if (!force && new_size == app->font_size)
         return false;
 
     /* Create the new atlas FIRST -- only destroy the old one and swap
@@ -772,7 +790,8 @@ apply_font_size(app_t *app, int new_size)
        (e.g. the requested size doesn't fit ATLAS_DIM) can't leave
        app->atlas NULL and every subsequent render crashing on a null
        deref. */
-    ghostcon_atlas_t *new_atlas = ghostcon_atlas_create(NULL, new_size, ATLAS_DIM);
+    ghostcon_atlas_t *new_atlas = ghostcon_atlas_create(app->font_family[0] ? app->font_family : NULL,
+                                                          app->font_variant, new_size, ATLAS_DIM);
     if (!new_atlas) {
         fprintf(stderr, "ghostcon-core: font_size change to %d failed, keeping %d\n",
                 new_size, app->font_size);
@@ -831,7 +850,17 @@ apply_config_reload(app_t *app)
     app->clear_on_logout = new_cfg.clear_on_logout;
     if (new_cfg.zoom_step > 0)
         app->zoom_step = new_cfg.zoom_step;
-    bool need_render = apply_font_size(app, new_cfg.font_size);
+
+    /* A family/variant-only edit (font_size unchanged) still needs an
+       atlas rebuild -- apply_font_size()'s own early-return would
+       otherwise treat this as a no-op. Update app's copies BEFORE
+       calling it, since that's what the rebuild actually reads. */
+    bool font_config_changed =
+        strcmp(app->font_family, new_cfg.font_family) != 0 ||
+        strcmp(app->font_variant, new_cfg.font_variant) != 0;
+    snprintf(app->font_family, sizeof(app->font_family), "%s", new_cfg.font_family);
+    snprintf(app->font_variant, sizeof(app->font_variant), "%s", new_cfg.font_variant);
+    bool need_render = apply_font_size(app, new_cfg.font_size, font_config_changed);
 
     /* apply_font_size() above already calls reload_cursor_images() when
        font_size actually changed -- but if ONLY the [cursor] section
@@ -916,6 +945,8 @@ main(int argc, char **argv)
     {
         ghostcon_config_t initial_cfg;
         if (ghostcon_config_load(app.config_path, &initial_cfg)) {
+            snprintf(app.font_family, sizeof(app.font_family), "%s", initial_cfg.font_family);
+            snprintf(app.font_variant, sizeof(app.font_variant), "%s", initial_cfg.font_variant);
             snprintf(app.cursor_theme, sizeof(app.cursor_theme), "%s", initial_cfg.cursor_theme);
             snprintf(app.cursor_default_path, sizeof(app.cursor_default_path), "%s", initial_cfg.cursor_default_path);
             snprintf(app.cursor_link_path, sizeof(app.cursor_link_path), "%s", initial_cfg.cursor_link_path);
@@ -940,7 +971,8 @@ main(int argc, char **argv)
         return 1;
     }
 
-    app.atlas = ghostcon_atlas_create(NULL, app.font_size, ATLAS_DIM);
+    app.atlas = ghostcon_atlas_create(app.font_family[0] ? app.font_family : NULL,
+                                       app.font_variant, app.font_size, ATLAS_DIM);
     if (!app.atlas) {
         fprintf(stderr, "ghostcon-core: atlas_create failed\n");
         ghostcon_vtctl_close(app.vt);
@@ -1292,7 +1324,7 @@ main(int argc, char **argv)
                     new_size = ZOOM_MIN_FONT_SIZE;
                 if (new_size > ZOOM_MAX_FONT_SIZE)
                     new_size = ZOOM_MAX_FONT_SIZE;
-                if (apply_font_size(&app, new_size))
+                if (apply_font_size(&app, new_size, false))
                     need_render = true;
             }
 

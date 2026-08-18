@@ -5,6 +5,7 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -36,8 +37,38 @@ struct ghostcon_atlas {
     int cell_w, cell_h;
     int ascent; /* baseline offset from cell top, pixels */
 
+    /* Font fallback chain: when the primary face (above) lacks a
+       glyph, ghostcon_atlas_glyph() walks this system-provided
+       fallback order instead of just giving up. fallback_set is
+       fontconfig's own FcFontSort() result for the SAME pattern the
+       primary face was matched from -- the same ordered candidate
+       list a normal desktop app gets "for free" via its toolkit,
+       not a hardcoded list this project would have to maintain and
+       which would inevitably miss whatever fonts are actually
+       installed on a given system. Faces are opened lazily (most
+       users never need more than the first one or two candidates
+       that actually cover their content) and cached in
+       fallback_faces, parallel-indexed to fallback_set; a NULL entry
+       means "not tried yet", (FT_Face)(intptr_t)-1 means "tried and
+       failed to open" so a broken font file in the list isn't
+       retried on every miss. Found live: the default font had no
+       glyph at all for several emoji/Nerd-Font-icon codepoints, and
+       ghostcon_atlas_glyph() just returned NULL -- the renderer
+       skipped drawing anything rather than trying any other
+       installed font that DID have the glyph. */
+    FcFontSet *fallback_set;
+    FT_Face   *fallback_faces;
+    int        font_size_px;
+
     atlas_slot_t slots[GHOSTCON_ATLAS_MAX_GLYPHS];
 };
+
+/* Sentinel stored in fallback_faces[i] for "already tried to open
+   this candidate face and failed" -- distinct from NULL ("not tried
+   yet") so a broken/unreadable font file in the fallback list only
+   ever gets one failed FT_New_Face() attempt, not one per glyph miss
+   for the rest of the session. */
+#define GHOSTCON_ATLAS_FACE_FAILED ((FT_Face)(intptr_t)-1)
 
 static atlas_slot_t *
 slot_find(ghostcon_atlas_t *atlas, uint32_t codepoint, bool *found)
@@ -60,7 +91,8 @@ slot_find(ghostcon_atlas_t *atlas, uint32_t codepoint, bool *found)
 }
 
 ghostcon_atlas_t *
-ghostcon_atlas_create(const char *font_family, int font_size_px, uint32_t atlas_dim)
+ghostcon_atlas_create(const char *font_family, const char *font_variant,
+                       int font_size_px, uint32_t atlas_dim)
 {
     ghostcon_atlas_t *atlas = calloc(1, sizeof(*atlas));
     if (!atlas)
@@ -72,20 +104,42 @@ ghostcon_atlas_create(const char *font_family, int font_size_px, uint32_t atlas_
     FcPattern *pat = FcPatternCreate();
     if (font_family)
         FcPatternAddString(pat, FC_FAMILY, (const FcChar8 *)font_family);
+    if (font_variant && font_variant[0])
+        FcPatternAddString(pat, FC_STYLE, (const FcChar8 *)font_variant);
     FcPatternAddInteger(pat, FC_SPACING, FC_MONO);
     FcConfigSubstitute(NULL, pat, FcMatchPattern);
     FcDefaultSubstitute(pat);
 
     FcResult result;
     FcPattern *match = FcFontMatch(NULL, pat, &result);
-    FcPatternDestroy(pat);
-    if (!match)
+    if (!match) {
+        FcPatternDestroy(pat);
         goto fail;
+    }
 
     FcChar8 *file_path = NULL;
     if (FcPatternGetString(match, FC_FILE, 0, &file_path) != FcResultMatch) {
         FcPatternDestroy(match);
+        FcPatternDestroy(pat);
         goto fail;
+    }
+
+    /* Same pattern the primary match above came from, but sorted
+       (not just best-matched) -- fontconfig's own system fallback
+       order, respecting whatever fallback config this machine
+       actually has. Best-effort: a NULL result here just means no
+       fallback chain (atlas->fallback_set stays NULL, glyph lookup
+       falls back to "primary lacks it -> give up", same as before
+       this feature existed), not a fatal error for the whole atlas. */
+    FcResult sort_result;
+    atlas->fallback_set = FcFontSort(NULL, pat, FcTrue, NULL, &sort_result);
+    FcPatternDestroy(pat);
+    if (atlas->fallback_set && atlas->fallback_set->nfont > 0) {
+        atlas->fallback_faces = calloc((size_t)atlas->fallback_set->nfont, sizeof(FT_Face));
+        if (!atlas->fallback_faces) {
+            FcFontSetDestroy(atlas->fallback_set);
+            atlas->fallback_set = NULL;
+        }
     }
 
     if (FT_Init_FreeType(&atlas->ft)) {
@@ -99,6 +153,7 @@ ghostcon_atlas_create(const char *font_family, int font_size_px, uint32_t atlas_
     FcPatternDestroy(match);
 
     FT_Set_Pixel_Sizes(atlas->face, 0, (FT_UInt)font_size_px);
+    atlas->font_size_px = font_size_px;
 
     /* Monospace cell size: advance of a representative ASCII glyph, and
        the face's line height. */
@@ -145,6 +200,9 @@ fail_face:
     FT_Done_Face(atlas->face);
     FT_Done_FreeType(atlas->ft);
 fail:
+    if (atlas->fallback_set)
+        FcFontSetDestroy(atlas->fallback_set);
+    free(atlas->fallback_faces);
     free(atlas);
     return NULL;
 }
@@ -155,6 +213,15 @@ ghostcon_atlas_destroy(ghostcon_atlas_t *atlas)
     if (!atlas)
         return;
     free(atlas->bitmap);
+    if (atlas->fallback_set) {
+        for (int i = 0; i < atlas->fallback_set->nfont; i++) {
+            FT_Face f = atlas->fallback_faces[i];
+            if (f && f != GHOSTCON_ATLAS_FACE_FAILED)
+                FT_Done_Face(f);
+        }
+        FcFontSetDestroy(atlas->fallback_set);
+    }
+    free(atlas->fallback_faces);
     FT_Done_Face(atlas->face);
     FT_Done_FreeType(atlas->ft);
     free(atlas);
@@ -209,6 +276,47 @@ pack_bitmap(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t codepoint,
     return &slot->glyph;
 }
 
+/* Returns the first face (the primary face, or a lazily-opened
+   fallback from atlas->fallback_set) that actually has a glyph for
+   `codepoint`, and sets *out_gidx to that face's glyph index for it.
+   Returns NULL if none of them do -- same "give up" outcome as
+   before this fallback chain existed, just checked against more than
+   one font first. */
+static FT_Face
+find_face_for_codepoint(ghostcon_atlas_t *atlas, uint32_t codepoint, FT_UInt *out_gidx)
+{
+    FT_UInt gidx = FT_Get_Char_Index(atlas->face, codepoint);
+    if (gidx != 0) {
+        *out_gidx = gidx;
+        return atlas->face;
+    }
+
+    if (!atlas->fallback_set)
+        return NULL;
+
+    for (int i = 0; i < atlas->fallback_set->nfont; i++) {
+        FT_Face face = atlas->fallback_faces[i];
+        if (face == GHOSTCON_ATLAS_FACE_FAILED)
+            continue;
+        if (!face) {
+            FcChar8 *path = NULL;
+            if (FcPatternGetString(atlas->fallback_set->fonts[i], FC_FILE, 0, &path) != FcResultMatch ||
+                FT_New_Face(atlas->ft, (const char *)path, 0, &face)) {
+                atlas->fallback_faces[i] = GHOSTCON_ATLAS_FACE_FAILED;
+                continue;
+            }
+            FT_Set_Pixel_Sizes(face, 0, (FT_UInt)atlas->font_size_px);
+            atlas->fallback_faces[i] = face;
+        }
+        gidx = FT_Get_Char_Index(face, codepoint);
+        if (gidx != 0) {
+            *out_gidx = gidx;
+            return face;
+        }
+    }
+    return NULL;
+}
+
 const ghostcon_glyph_t *
 ghostcon_atlas_glyph(ghostcon_atlas_t *atlas, uint32_t codepoint)
 {
@@ -242,13 +350,14 @@ ghostcon_atlas_glyph(ghostcon_atlas_t *atlas, uint32_t codepoint)
         }
     }
 
-    FT_UInt gidx = FT_Get_Char_Index(atlas->face, codepoint);
-    if (gidx == 0)
+    FT_UInt gidx;
+    FT_Face face = find_face_for_codepoint(atlas, codepoint, &gidx);
+    if (!face)
         return NULL;
-    if (FT_Load_Glyph(atlas->face, gidx, FT_LOAD_RENDER))
+    if (FT_Load_Glyph(face, gidx, FT_LOAD_RENDER))
         return NULL;
 
-    FT_GlyphSlot g = atlas->face->glyph;
+    FT_GlyphSlot g = face->glyph;
     FT_Bitmap *bmp = &g->bitmap;
 
     return pack_bitmap(atlas, slot, codepoint, bmp->buffer, bmp->width, bmp->rows,

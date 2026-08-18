@@ -31,6 +31,19 @@ typedef struct {
     bool disable_wall;
     bool disable_kmscon_fallback;
     int  font_size;
+    /* Empty = unset -- ghostcon_atlas_create() falls back to
+       fontconfig's own default monospace match, same as before either
+       of these existed. font_family maps to FC_FAMILY; font_variant
+       maps to FC_STYLE (e.g. "Bold", "Light", "Medium Italic" -- run
+       `fc-list <family>` to see what a given family actually offers;
+       an unrecognized value just falls through to fontconfig's normal
+       substitution/default-style behavior, not an error). No
+       dedicated GHOSTCON_* env var -- same as [cursor]'s fields,
+       loaded directly from the config file at startup (see
+       core/main.c's own doc comment on why cursor fields skip that,
+       right where the initial config load happens). */
+    char font_family[256];
+    char font_variant[64];
     bool clear_on_logout;
     int  zoom_step; /* points per Ctrl+=/Ctrl+Minus press -- see
                         core/input.c's handle_zoom_shortcut() doc
