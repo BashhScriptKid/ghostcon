@@ -31,6 +31,11 @@ main(void)
     CHECK(strcmp(cfg.antialiasing, "grayscale") == 0, "default antialiasing");
     CHECK(strcmp(cfg.subpixel_order, "rgb") == 0, "default subpixel_order");
     CHECK(cfg.gamma_correct == false, "default gamma_correct");
+    CHECK(cfg.theme[0] == '\0', "default theme is empty");
+    CHECK(cfg.color_background[0] == '\0', "default color_background is empty");
+    CHECK(cfg.color_foreground[0] == '\0', "default color_foreground is empty");
+    CHECK(cfg.color_cursor[0] == '\0', "default color_cursor is empty");
+    CHECK(cfg.color[0][0] == '\0' && cfg.color[15][0] == '\0', "default color[] entries are empty");
     CHECK(cfg.scrollback_lines == 2000, "default scrollback_lines");
     CHECK(cfg.repeat_delay_ms == 250, "default repeat_delay_ms");
     CHECK(cfg.repeat_rate_ms == 50, "default repeat_rate_ms");
@@ -94,11 +99,18 @@ main(void)
             "antialiasing = \"cleartype\"\n"
             "subpixel_order = \"bgr\"\n"
             "gamma_correct = true\n"
+            "theme = \"base16-dark\"\n"
             "scrollback_lines = 5000\n"
             "repeat_delay_ms = 300\n"
             "repeat_rate_ms = 25\n"
             "clear_on_logout = false\n"
             "zoom_step = 3\n"
+            "[colors]\n"
+            "background = \"#1a1b26\"\n"
+            "foreground = \"#c0caf5\"\n"
+            "cursor = \"#c0caf5\"\n"
+            "color0 = \"#15161e\"\n"
+            "color9 = \"#f7768e\"\n"
             "[cursor]\n"
             "theme = \"/usr/share/icons/Breeze\"\n"
             "default = \"/etc/terminalcursor/default.bmp\"\n"
@@ -136,6 +148,13 @@ main(void)
         CHECK(strcmp(cfg.antialiasing, "cleartype") == 0, "full config antialiasing");
         CHECK(strcmp(cfg.subpixel_order, "bgr") == 0, "full config subpixel_order");
         CHECK(cfg.gamma_correct == true, "full config gamma_correct");
+        CHECK(strcmp(cfg.theme, "base16-dark") == 0, "full config theme");
+        CHECK(strcmp(cfg.color_background, "#1a1b26") == 0, "full config color_background");
+        CHECK(strcmp(cfg.color_foreground, "#c0caf5") == 0, "full config color_foreground");
+        CHECK(strcmp(cfg.color_cursor, "#c0caf5") == 0, "full config color_cursor");
+        CHECK(strcmp(cfg.color[0], "#15161e") == 0, "full config color0");
+        CHECK(strcmp(cfg.color[9], "#f7768e") == 0, "full config color9");
+        CHECK(cfg.color[1][0] == '\0', "full config color1 left unset");
         CHECK(cfg.scrollback_lines == 5000, "full config scrollback_lines");
         CHECK(cfg.repeat_delay_ms == 300, "full config repeat_delay_ms");
         CHECK(cfg.repeat_rate_ms == 25, "full config repeat_rate_ms");

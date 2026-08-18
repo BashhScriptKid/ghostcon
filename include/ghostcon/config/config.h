@@ -67,6 +67,30 @@ typedef struct {
                             (ported from Ghostty's cell_text.f.glsl) --
                             on by default. See render/gles.c's FRAG_SRC
                             doc comment. Applies live, no restart. */
+    /* Named color-theme preset (see term/theme.h) -- e.g. "base16-dark",
+       "solarized-light". Empty (default) = the built-in xterm-ish
+       defaults ghostcon_palette_init() already sets. An unrecognized
+       name falls back to those same built-in defaults, not an error.
+       Applied at startup and live on reload; see the [colors] table
+       below for explicit per-color overrides applied ON TOP of
+       whichever theme (or lack of one) is active. */
+    char theme[32];
+
+    /* Explicit per-color overrides, applied after `theme` above --
+       same preset-then-explicit-override layering [cursor]'s fields
+       already use. Empty string (the default) = "don't override this
+       one, leave whatever the theme/built-in default set." Accepts
+       any format ghostcon_color_parse_spec() understands (#RGB,
+       #RRGGBB, #RRRGGGBBB, #RRRRGGGGBBBB, or X11 "rgb:R/G/B"); an
+       unparseable value is ignored, not an error, same as an
+       unrecognized `theme` name. color[0..15] are the ANSI palette
+       slots in the standard order (0=black, 1=red, ... 7=white,
+       8=bright black, ... 15=bright white). */
+    char color_background[16];
+    char color_foreground[16];
+    char color_cursor[16];
+    char color[16][16];
+
     bool clear_on_logout;
     int  zoom_step; /* points per Ctrl+=/Ctrl+Minus press -- see
                         core/input.c's handle_zoom_shortcut() doc

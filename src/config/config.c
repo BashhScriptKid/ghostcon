@@ -123,6 +123,19 @@ ghostcon_config_load(const char *path, ghostcon_config_t *cfg)
         load_string(general, "antialiasing", cfg->antialiasing, sizeof(cfg->antialiasing));
         load_string(general, "subpixel_order", cfg->subpixel_order, sizeof(cfg->subpixel_order));
         load_bool(general, "gamma_correct", &cfg->gamma_correct);
+        load_string(general, "theme", cfg->theme, sizeof(cfg->theme));
+    }
+
+    toml_table_t *colors = toml_table_in(root, "colors");
+    if (colors) {
+        load_string(colors, "background", cfg->color_background, sizeof(cfg->color_background));
+        load_string(colors, "foreground", cfg->color_foreground, sizeof(cfg->color_foreground));
+        load_string(colors, "cursor", cfg->color_cursor, sizeof(cfg->color_cursor));
+        char key[8];
+        for (int i = 0; i < 16; i++) {
+            snprintf(key, sizeof(key), "color%d", i);
+            load_string(colors, key, cfg->color[i], sizeof(cfg->color[i]));
+        }
     }
 
     toml_table_t *cursor = toml_table_in(root, "cursor");

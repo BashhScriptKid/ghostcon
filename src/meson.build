@@ -25,6 +25,7 @@ term_srcs = files(
     'term/row.c',
     'term/style.c',
     'term/color.c',
+    'term/theme.c',
     'term/kitty.c',
     'term/hyperlink.c',
     'term/base64.c',
@@ -74,6 +75,14 @@ if not meson.is_subproject()
         dependencies: [dep_ghostty_vt],
     )
     test('test_osc', test_osc_exe)
+
+    test_theme_exe = executable('test_theme',
+        '../tests/test_theme.c',
+        include_directories: include_directories('../include'),
+        link_with: term_lib,
+        dependencies: [dep_ghostty_vt],
+    )
+    test('test_theme', test_theme_exe)
 
     test_mouse_exe = executable('test_mouse',
         '../tests/test_mouse.c',

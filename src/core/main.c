@@ -43,6 +43,8 @@
 #include "ghostcon/render/machine.h"
 #include "ghostcon/term/term.h"
 #include "ghostcon/term/dump.h"
+#include "ghostcon/term/theme.h"
+#include "ghostcon/term/color.h"
 #include <time.h>
 
 #include <errno.h>
@@ -143,6 +145,19 @@ typedef struct {
        unrelated config edit happens to re-trigger apply_config_reload()). */
     char copy_to_clipboard_binding[64];
     char paste_from_clipboard_binding[64];
+
+    /* [general] theme / [colors] -- persisted so apply_config_reload()
+       can tell whether any of it actually changed since the last load
+       (same reasoning font_config_changed exists for font_family/
+       font_variant/antialiasing) before touching the live palette --
+       a running program can customize colors at runtime via OSC 4,
+       and an unrelated config edit re-triggering a reload must NOT
+       silently clobber that just because reload happened to run. */
+    char theme[32];
+    char color_background[16];
+    char color_foreground[16];
+    char color_cursor[16];
+    char color[16][16];
 
     /* [mouse]/[touchpad] config -- see config.h's own doc comment.
        Persisted here for the same reason the keybinding fields above
@@ -422,6 +437,42 @@ apply_mouse_touchpad_config(app_t *app)
     ghostcon_input_set_touchpad_config(app->input, app->touchpad_enable,
                                         app->touchpad_scroll_speed, app->touchpad_tap_to_click,
                                         app->touchpad_natural_scroll, app->touchpad_sensitivity);
+}
+
+/* Applies app->theme/color_* to the live screen palette: reset to the
+   built-in ANSI defaults, layer the named theme preset (if any) on
+   top, then layer any explicit per-color overrides on top of THAT --
+   same preset-then-explicit-override precedence [cursor]'s fields
+   already use. Only ever called when apply_config_reload() (or the
+   initial startup load) detects theme/color config actually changed
+   -- see app_t's own doc comment on these fields for why an unrelated
+   reload must not call this unconditionally. Only resets the 16 ANSI
+   + fg/bg/cursor slots (ghostcon_palette_init() also rebuilds the
+   216-color cube/grayscale ramp, but those are deterministic/
+   derived, not part of any theme's identity or something OSC 4 would
+   plausibly have customized, so touching them here is harmless). */
+static void
+apply_theme_config(app_t *app)
+{
+    ghostcon_palette_t *pal = &app->term.screen.palette;
+    ghostcon_palette_init(pal);
+    ghostcon_theme_apply(pal, app->theme);
+
+    GhosttyColorRgb rgb;
+    if (app->color_background[0] && ghostcon_color_parse_spec(app->color_background, &rgb))
+        ghostcon_palette_set_default_bg(pal, rgb);
+    if (app->color_foreground[0] && ghostcon_color_parse_spec(app->color_foreground, &rgb))
+        ghostcon_palette_set_default_fg(pal, rgb);
+    if (app->color_cursor[0] && ghostcon_color_parse_spec(app->color_cursor, &rgb))
+        ghostcon_palette_set_cursor(pal, rgb);
+    for (int i = 0; i < 16; i++) {
+        if (app->color[i][0] && ghostcon_color_parse_spec(app->color[i], &rgb))
+            ghostcon_palette_set(pal, i, rgb);
+    }
+
+    /* Every cell's resolved color potentially changed -- full redraw. */
+    app->term.screen.dirty.y_min = 0;
+    app->term.screen.dirty.y_max = (int16_t)(app->term.screen.rows_visible - 1);
 }
 
 /* Defensive check against the kernel's OWN idea of which VT is
@@ -926,6 +977,24 @@ apply_config_reload(app_t *app)
         need_render = true;
     }
 
+    bool theme_changed =
+        strcmp(app->theme, new_cfg.theme) != 0 ||
+        strcmp(app->color_background, new_cfg.color_background) != 0 ||
+        strcmp(app->color_foreground, new_cfg.color_foreground) != 0 ||
+        strcmp(app->color_cursor, new_cfg.color_cursor) != 0;
+    for (int i = 0; !theme_changed && i < 16; i++)
+        theme_changed = strcmp(app->color[i], new_cfg.color[i]) != 0;
+    snprintf(app->theme, sizeof(app->theme), "%s", new_cfg.theme);
+    snprintf(app->color_background, sizeof(app->color_background), "%s", new_cfg.color_background);
+    snprintf(app->color_foreground, sizeof(app->color_foreground), "%s", new_cfg.color_foreground);
+    snprintf(app->color_cursor, sizeof(app->color_cursor), "%s", new_cfg.color_cursor);
+    for (int i = 0; i < 16; i++)
+        snprintf(app->color[i], sizeof(app->color[i]), "%s", new_cfg.color[i]);
+    if (theme_changed) {
+        apply_theme_config(app);
+        need_render = true;
+    }
+
     /* apply_font_size() above already calls reload_cursor_images() when
        font_size actually changed -- but if ONLY the [cursor] section
        changed (the common case: font_size usually doesn't move on the
@@ -1041,6 +1110,12 @@ main(int argc, char **argv)
             snprintf(app.antialiasing, sizeof(app.antialiasing), "%s", initial_cfg.antialiasing);
             snprintf(app.subpixel_order, sizeof(app.subpixel_order), "%s", initial_cfg.subpixel_order);
             app.gamma_correct = initial_cfg.gamma_correct;
+            snprintf(app.theme, sizeof(app.theme), "%s", initial_cfg.theme);
+            snprintf(app.color_background, sizeof(app.color_background), "%s", initial_cfg.color_background);
+            snprintf(app.color_foreground, sizeof(app.color_foreground), "%s", initial_cfg.color_foreground);
+            snprintf(app.color_cursor, sizeof(app.color_cursor), "%s", initial_cfg.color_cursor);
+            for (int i = 0; i < 16; i++)
+                snprintf(app.color[i], sizeof(app.color[i]), "%s", initial_cfg.color[i]);
             snprintf(app.cursor_theme, sizeof(app.cursor_theme), "%s", initial_cfg.cursor_theme);
             snprintf(app.cursor_default_path, sizeof(app.cursor_default_path), "%s", initial_cfg.cursor_default_path);
             snprintf(app.cursor_link_path, sizeof(app.cursor_link_path), "%s", initial_cfg.cursor_link_path);
@@ -1118,6 +1193,7 @@ main(int argc, char **argv)
         ghostcon_vtctl_close(app.vt);
         return 1;
     }
+    apply_theme_config(&app);
 
     bool transport_connected = false;
     for (int i = 0; i < 50 && !transport_connected; i++) {

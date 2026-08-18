@@ -84,6 +84,45 @@
 # this on.
 # gamma_correct = false
 
+# Named color-theme preset: "base16-dark", "base16-light",
+# "solarized-dark", or "solarized-light" (see term/theme.c for the
+# full curated set -- not an attempt at Ghostty's catalog of
+# hundreds). Empty (default) = ghostcon's built-in xterm-ish defaults.
+# An unrecognized name falls back to those same defaults, not an
+# error. Applies live. See [colors] below for explicit per-color
+# overrides layered on top of whichever theme (or lack of one) is
+# active -- same preset-then-explicit-override precedence [cursor]'s
+# fields already use.
+# theme = "base16-dark"
+
+# Explicit per-color overrides, applied AFTER `theme` above. Leave a
+# key out (or comment it) to inherit whatever the theme/built-in
+# default set for it instead of overriding it. Accepts #RGB,
+# #RRGGBB, #RRRGGGBBB, #RRRRGGGGBBBB, or X11 "rgb:R/G/B" -- an
+# unparseable value is ignored, not an error. color0-color15 are the
+# ANSI palette slots in the standard order (0=black, 1=red, ...
+# 7=white, 8=bright black, ... 15=bright white).
+# [colors]
+# background = "#1a1b26"
+# foreground = "#c0caf5"
+# cursor = "#c0caf5"
+# color0 = "#15161e"
+# color1 = "#f7768e"
+# color2 = "#9ece6a"
+# color3 = "#e0af68"
+# color4 = "#7aa2f7"
+# color5 = "#bb9af7"
+# color6 = "#7dcfff"
+# color7 = "#a9b1d6"
+# color8 = "#414868"
+# color9 = "#f7768e"
+# color10 = "#9ece6a"
+# color11 = "#e0af68"
+# color12 = "#7aa2f7"
+# color13 = "#bb9af7"
+# color14 = "#7dcfff"
+# color15 = "#c0caf5"
+
 # Scrollback history capacity, in lines. Startup-only -- a live edit
 # takes effect the next time ghostcon-core naturally restarts, not
 # instantly (same exception as drm_node/run_dir above).
