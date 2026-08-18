@@ -26,6 +26,7 @@ term_srcs = files(
     'term/style.c',
     'term/color.c',
     'term/theme.c',
+    'term/theme_ghostty_presets.c',
     'term/kitty.c',
     'term/hyperlink.c',
     'term/base64.c',

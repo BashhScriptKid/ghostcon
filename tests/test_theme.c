@@ -52,6 +52,25 @@ main(void)
         CHECK(any_differs, msg);
     }
 
+    /* Real Ghostty theme catalog fallback (generated from Ghostty's
+       own bundled theme files -- see theme_ghostty_presets.c). Case-
+       sensitive exact match, same as Ghostty's own theme names. */
+    {
+        ghostcon_palette_t pal;
+        ghostcon_palette_init(&pal);
+        CHECK(ghostcon_theme_apply(&pal, "Apple System Colors"),
+              "Ghostty catalog: \"Apple System Colors\" recognized");
+        GhosttyColorRgb expect_bg = {0x1e, 0x1e, 0x1e};
+        GhosttyColorRgb expect_fg = {0xff, 0xff, 0xff};
+        GhosttyColorRgb expect_c0 = {0x1a, 0x1a, 0x1a};
+        CHECK(rgb_eq(pal.bg_default, expect_bg), "Ghostty catalog: bg matches Ghostty's theme file");
+        CHECK(rgb_eq(pal.fg_default, expect_fg), "Ghostty catalog: fg matches Ghostty's theme file");
+        CHECK(rgb_eq(pal.table[0], expect_c0), "Ghostty catalog: color0 matches Ghostty's theme file");
+
+        CHECK(ghostcon_theme_apply(&pal, "apple system colors") == false,
+              "Ghostty catalog: lookup is case-sensitive");
+    }
+
     /* Unrecognized/empty name: no-op, not an error. */
     ghostcon_palette_t pal;
     ghostcon_palette_init(&pal);

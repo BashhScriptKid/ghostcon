@@ -84,15 +84,22 @@
 # this on.
 # gamma_correct = false
 
-# Named color-theme preset: "base16-dark", "base16-light",
-# "solarized-dark", or "solarized-light" (see term/theme.c for the
-# full curated set -- not an attempt at Ghostty's catalog of
-# hundreds). Empty (default) = ghostcon's built-in xterm-ish defaults.
-# An unrecognized name falls back to those same defaults, not an
-# error. Applies live. See [colors] below for explicit per-color
-# overrides layered on top of whichever theme (or lack of one) is
-# active -- same preset-then-explicit-override precedence [cursor]'s
-# fields already use.
+# Named color-theme preset. Two sources, checked in order:
+# 1. A small curated set with short, memorable names: "base16-dark",
+#    "base16-light", "solarized-dark", "solarized-light".
+# 2. Ghostty's own full bundled theme catalog (600+ entries, generated
+#    from Ghostty's real theme files -- see term/theme_ghostty_presets.c
+#    and tools/gen_ghostty_themes.py). A `theme = "..."` value copied
+#    verbatim out of a real Ghostty config resolves to the exact same
+#    colors here -- e.g. theme = "Apple System Colors" or
+#    theme = "Dracula" work exactly as they do in Ghostty. Case-
+#    sensitive exact match, same as Ghostty's own theme names.
+# Empty (default) = ghostcon's built-in xterm-ish defaults. An
+# unrecognized name falls back to those same defaults, not an error.
+# Applies live. See [colors] below for explicit per-color overrides
+# layered on top of whichever theme (or lack of one) is active --
+# same preset-then-explicit-override precedence [cursor]'s fields
+# already use.
 # theme = "base16-dark"
 
 # Explicit per-color overrides, applied AFTER `theme` above. Leave a
