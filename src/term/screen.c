@@ -916,19 +916,35 @@ ghostcon_screen_erase_chars(ghostcon_screen_t *s, uint16_t n) {
 void
 ghostcon_screen_insert_chars(ghostcon_screen_t *s, uint16_t n) {
     if (n == 0) return;
-    ghostcon_row_t *r = &s->rows[row_idx(s, s->cursor.y)];
     int16_t right = s->margin_region.right;
 
-    /* Clamp n to available space to the right of the cursor */
-    if (s->cursor.x + (int16_t)n > right + 1)
-        n = (uint16_t)(right - s->cursor.x + 1);
+    /* The cursor can legitimately sit past the margin region entirely
+       -- absolute CUP is NOT constrained to margin_region.right (see
+       ghostcon_screen_cursor_set()'s own clamp, which only bounds
+       against cols-1) -- so ICH issued from out there is a no-op, not
+       "insert some huge count of chars". Explicit signed guard, not
+       clamp-and-hope: an earlier version computed the clamped count
+       through uint16_t arithmetic that silently wrapped to ~65000 on
+       exactly this precondition, and only stayed harmless because a
+       later round-trip cast happened to cancel the wrapped value back
+       out -- correct by algebraic coincidence, not by inspection, and
+       not something a future edit could be trusted to preserve. */
+    if (s->cursor.x > right)
+        return;
 
-    /* Shift cells right from the cursor */
-    memmove(&r->cells[s->cursor.x + n], &r->cells[s->cursor.x],
-            (right - s->cursor.x + 1 - (int16_t)n) * sizeof(ghostcon_cell_t));
+    ghostcon_row_t *r = &s->rows[row_idx(s, s->cursor.y)];
+    /* available > 0 is guaranteed by the guard above; int32_t throughout
+       so nothing here can overflow int16_t/wrap an unsigned type regardless
+       of how cursor.x/right/n relate. */
+    int32_t available = (int32_t)right - (int32_t)s->cursor.x + 1;
+    int32_t shift = n;
+    if (shift > available)
+        shift = available;
 
-    /* Clear the inserted cells */
-    for (int16_t i = s->cursor.x; i < s->cursor.x + (int16_t)n; i++)
+    memmove(&r->cells[s->cursor.x + shift], &r->cells[s->cursor.x],
+            (size_t)(available - shift) * sizeof(ghostcon_cell_t));
+
+    for (int32_t i = s->cursor.x; i < s->cursor.x + shift; i++)
         r->cells[i] = GHOSTCON_CELL_EMPTY;
 
     mark_dirty(s, s->cursor.y);
@@ -936,19 +952,35 @@ ghostcon_screen_insert_chars(ghostcon_screen_t *s, uint16_t n) {
 
 void
 ghostcon_screen_delete_chars(ghostcon_screen_t *s, uint16_t n) {
-    ghostcon_row_t *r = &s->rows[row_idx(s, s->cursor.y)];
+    if (n == 0) return;
     int16_t right = s->margin_region.right;
 
-    /* Shift cells left from cursor+n */
-    uint16_t src = s->cursor.x + n;
-    if (src > (uint16_t)right) src = right;
-    uint16_t count = right - src + 1;
+    /* Same reasoning as ghostcon_screen_insert_chars() right above:
+       the cursor can legitimately sit past the margin region
+       entirely (absolute CUP isn't constrained to it), and DCH issued
+       from out there is a no-op. int32_t throughout, and an explicit
+       guard for that precondition, rather than relying on an
+       implementation-defined narrowing conversion (assigning
+       `right - n + 1` -- possibly far outside int16_t's range when n
+       is large -- into an int16_t loop variable) to wrap around to
+       something that happens to make the loop bound work out, the way
+       an earlier version implicitly did. */
+    if (s->cursor.x > right)
+        return;
 
-    if (count > 0 && src <= (uint16_t)right) {
-        memmove(&r->cells[s->cursor.x], &r->cells[src], count * sizeof(ghostcon_cell_t));
-    }
-    for (int16_t i = right - n + 1; i <= right; i++)
-        if (i >= 0) r->cells[i] = GHOSTCON_CELL_EMPTY;
+    ghostcon_row_t *r = &s->rows[row_idx(s, s->cursor.y)];
+    int32_t available = (int32_t)right - (int32_t)s->cursor.x + 1; /* > 0, guaranteed above */
+    int32_t count_to_delete = n;
+    if (count_to_delete > available)
+        count_to_delete = available;
+
+    int32_t src = s->cursor.x + count_to_delete;
+    int32_t remaining = available - count_to_delete;
+    if (remaining > 0)
+        memmove(&r->cells[s->cursor.x], &r->cells[src], (size_t)remaining * sizeof(ghostcon_cell_t));
+
+    for (int32_t i = s->cursor.x + remaining; i <= right; i++)
+        r->cells[i] = GHOSTCON_CELL_EMPTY;
 
     mark_dirty(s, s->cursor.y);
 }

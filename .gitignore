@@ -1,6 +1,7 @@
 # Meson build directories
 build/
 build-release/
+build-san/
 
 # Editor/tooling caches
 .cache/

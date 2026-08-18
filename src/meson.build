@@ -103,7 +103,7 @@ render_srcs = files(
 render_lib = static_library('ghostcon-render',
     render_srcs,
     include_directories: include_directories('../include'),
-    dependencies: [dep_fontconfig, dep_freetype, dep_glesv2],
+    dependencies: [dep_fontconfig, dep_freetype, dep_glesv2, dep_m],
     link_with: term_lib,
     install: false,
 )
@@ -299,7 +299,10 @@ endif
 core_input_lib = static_library('ghostcon-core-input',
     'core/input.c',
     include_directories: include_directories('../include'),
-    dependencies: [dep_ghostty_vt, dep_libinput, dep_libudev, dep_xkbcommon],
+    # dep_m: the [mouse]/[touchpad] scroll_speed accumulator uses fabs() --
+    # same previously-implicit-link gap as render_lib's dep_m, see its own
+    # comment at the top-level meson.build for why this is now explicit.
+    dependencies: [dep_ghostty_vt, dep_libinput, dep_libudev, dep_xkbcommon, dep_m],
     link_with: [term_lib, core_transport_lib, ptyserv_protocol_lib],
     install: false,
 )

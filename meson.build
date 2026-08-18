@@ -9,6 +9,14 @@ project('ghostcon', 'c',
 )
 
 # Dependencies
+cc = meson.get_compiler('c')
+# libm -- render/machine.c's symbol-glyph fit-to-cell scaling uses
+# floorf(). Was previously an implicit link (glibc's libm ends up
+# pulled in transitively through some other dependency in a plain
+# release build), which happened to work but was never a real,
+# declared dependency -- a sanitizer build's stricter linking
+# (-Wl,--no-undefined) surfaced the missing explicit link.
+dep_m = cc.find_library('m', required: false)
 dep_ghostty_vt = dependency('libghostty-vt', version: '>=0.0')
 dep_libdrm     = dependency('libdrm',     required: false)
 dep_libgbm     = dependency('gbm',        required: false)

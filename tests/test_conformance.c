@@ -872,6 +872,30 @@ TEST(delete_chars) {
     ghostcon_term_deinit(&t);
 }
 
+TEST(insert_delete_chars_cursor_past_margin_is_noop) {
+    /* Hardening regression: absolute CUP is NOT constrained to
+       margin_region.right (only to cols-1 -- see
+       ghostcon_screen_cursor_set()), so an app can legitimately
+       position the cursor past an active DECSLRM margin before
+       issuing ICH/DCH. An earlier version of both handlers computed
+       their clamped count through unsigned/narrowing arithmetic that
+       depended on incidental wraparound cancellation to stay safe in
+       exactly this case, rather than an explicit guard -- this locks
+       in the correct behavior (a no-op) so a future edit that removes
+       that fragile cancellation can't silently reintroduce
+       out-of-bounds cell access. */
+    ghostcon_term_t t;
+    ASSERT(ghostcon_term_init(&t, 192, 49, 500), "init");
+    feed(&t, "\x1b[?69h");     /* DECLRMM on */
+    feed(&t, "\x1b[10;30s");   /* margins cols 10-30 (0-based right=29) */
+    feed(&t, "\x1b[1;150H");   /* absolute CUP, col 150 -- past the margin */
+    ASSERT_CURSOR(t, 149, 0, "cursor legitimately past margin_region.right (29)");
+    feed(&t, "\x1b[5@");       /* ICH from out there -- must be a no-op, not a crash */
+    feed(&t, "\x1b[5P");       /* DCH from out there -- same */
+    ASSERT_CURSOR(t, 149, 0, "cursor unmoved by either (both no-ops)");
+    ghostcon_term_deinit(&t);
+}
+
 TEST(erase_chars) {
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
