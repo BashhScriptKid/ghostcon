@@ -244,6 +244,33 @@ main(void)
     CHECK(g_title_called && strcmp(g_title_buf, "another title") == 0,
           "OSC 2 delivers the title string via the same callback");
 
+    /* Real bug found live: a title containing a UTF-8 character whose
+       encoding happens to contain byte 0x9C (also the C1 code for ST,
+       String Terminator -- e.g. U+2733 "✳", encoded E2 9C B3) got
+       truncated mid-payload, discarding the title AND leaking the
+       remaining bytes into the screen as literal printed text (a
+       real app's animated status title hit this exactly). Both
+       BEL- and ST-terminated forms must deliver the title intact. */
+    ghostcon_term_feed(&term, (const uint8_t *)"\r\n", 2); /* known column 0 */
+    int16_t emoji_row = term.screen.cursor.y;
+    g_title_called = false;
+    g_title_buf[0] = '\0';
+    const char *title_emoji_bel = "\x1b]0;\xe2\x9c\xb3 working\x07";
+    ghostcon_term_feed(&term, (const uint8_t *)title_emoji_bel, strlen(title_emoji_bel));
+    CHECK(g_title_called && strcmp(g_title_buf, "\xe2\x9c\xb3 working") == 0,
+          "OSC 0 title containing UTF-8 byte 0x9C (C1 ST) isn't truncated (BEL-terminated)");
+
+    ghostcon_term_feed(&term, (const uint8_t *)"AFTER", 5);
+    CHECK(ghostcon_cell_get_codepoint(term.screen.rows[emoji_row].cells[0]) == 'A',
+          "no leaked title bytes printed to the screen after the emoji title");
+
+    g_title_called = false;
+    g_title_buf[0] = '\0';
+    const char *title_emoji_st = "\x1b]0;\xe2\x9c\xb3 working\x1b\\";
+    ghostcon_term_feed(&term, (const uint8_t *)title_emoji_st, strlen(title_emoji_st));
+    CHECK(g_title_called && strcmp(g_title_buf, "\xe2\x9c\xb3 working") == 0,
+          "same, ST-terminated (ESC \\\\) form");
+
     /* OSC 8: hyperlink start/end round-trip. Start stamps subsequently
        -printed cells with a nonzero hyperlink_id resolving back to the
        URI via the interned hyperlink set; end (empty URI) resets to 0. */
