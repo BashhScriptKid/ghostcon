@@ -170,7 +170,39 @@ typedef struct {
    error; individual malformed/unmappable events are skipped, not
    fatal. Caller should check screen's dirty region after this call
    (a scrollback shortcut marks it dirty without producing any pty
-   output to trigger the caller's usual render-on-new-data path). */
+   output to trigger the caller's usual render-on-new-data path).
+
+   `active` gates everything EXCEPT draining the queue and keeping XKB
+   modifier tracking correct -- found live: libinput's udev backend
+   reads raw evdev events directly, completely independent of which VT
+   is actually the kernel's current foreground one (same reasoning
+   is_vt_switch_combo()'s own doc comment already covers for Ctrl+Alt+Fn
+   specifically) -- so a ghostcon-core instance whose VT_PROCESS release
+   signal was ever missed (leaving app->display_acquired stuck true)
+   would otherwise keep acting on every keystroke typed ANYWHERE on the
+   physical keyboard, including zoom/scroll shortcuts and raw key
+   forwarding to its own pty, even while a completely different VT is
+   what's actually visible. Callers should pass `active = false`
+   whenever a direct kernel check (e.g. /sys/class/tty/tty0/active)
+   disagrees with this process's own tracked VT-ownership state, as a
+   defensive safety net for exactly that missed-signal case -- NOT as
+   the primary mechanism for "don't process input while inactive"
+   (that's already handled by not having an open ghostcon_input_t at
+   all outside an acquire/release cycle; see core/main.c's app_t doc
+   comment on `input`). When false: keyboard events still update XKB
+   modifier state (so Ctrl/Shift tracking doesn't desync for whenever
+   this DOES become active again) and are still drained from the
+   queue (avoiding the backlog-buildup problem this same mechanism
+   exists to prevent elsewhere), but no key bytes are forwarded to
+   `transport`, no shortcuts fire, and pointer events are skipped
+   entirely (out_pointer stays at its already-tracked position,
+   moved=false). */
+/* out_dump_requested: set to true (never cleared -- caller starts it
+   at false, same convention as *out_zoom_delta) when Ctrl+Alt+D was
+   pressed this call. core/main.c owns the actual dump-to-file since
+   it has app->term; this function only detects the chord. See
+   handle_dump_shortcut()'s own doc comment for why this exists. */
 bool ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport,
                               ghostcon_screen_t *screen, int cell_w, int cell_h,
-                              int *out_zoom_delta, ghostcon_input_pointer_t *out_pointer);
+                              int *out_zoom_delta, ghostcon_input_pointer_t *out_pointer,
+                              bool *out_dump_requested, bool active);

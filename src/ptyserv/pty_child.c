@@ -604,6 +604,22 @@ main(int argc, char **argv)
                     ws.ws_col = (unsigned short)cols;
                     ioctl(master_fd, TIOCSWINSZ, &ws);
                 }
+                if (ghostcon_ptyserv_parse_dump(line)) {
+                    /* Real raw bytes leading up to right now (up to
+                       GHOSTCON_PTY_RINGBUF_DEFAULT_SIZE's worth), not a
+                       synthetic reproduction -- pairs with core/main.c's
+                       Ctrl+Alt+D live screen-state dump so both can be
+                       replayed/diffed against tools/ghostty_dump.c for
+                       the exact same moment. */
+                    char dump_path[64];
+                    snprintf(dump_path, sizeof(dump_path),
+                             "/tmp/ghostcon-vt%d-rawbytes.bin", vtnum);
+                    int dump_fd = open(dump_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                    if (dump_fd >= 0) {
+                        ringbuf_replay(&rb, dump_fd);
+                        close(dump_fd);
+                    }
+                }
             }
         }
     }

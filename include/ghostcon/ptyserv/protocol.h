@@ -86,3 +86,15 @@ size_t ghostcon_ptyserv_format_clear(char *buf, size_t buf_len);
 
 /* Parses a "CLEAR\n" line. Returns true if `line` is a CLEAR message. */
 bool ghostcon_ptyserv_parse_clear(const char *line);
+
+/* Formats "DUMP\n" into buf. Returns written length, or 0 if it
+   wouldn't fit. Sent over the control socket by core/main.c when
+   Ctrl+Alt+D is pressed (see ghostcon_screen_dump's own doc comment
+   in term/dump.h for the companion live screen-state dump this pairs
+   with) -- pty_child.c responds by replaying its ring buffer (the
+   real, raw bytes leading up to the moment of the dump, not a
+   synthetic reproduction) to a fixed diagnostic file. */
+size_t ghostcon_ptyserv_format_dump(char *buf, size_t buf_len);
+
+/* Parses a "DUMP\n" line. Returns true if `line` is a DUMP message. */
+bool ghostcon_ptyserv_parse_dump(const char *line);

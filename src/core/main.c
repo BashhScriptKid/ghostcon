@@ -42,6 +42,8 @@
 #include "ghostcon/render/gles.h"
 #include "ghostcon/render/machine.h"
 #include "ghostcon/term/term.h"
+#include "ghostcon/term/dump.h"
+#include <time.h>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -89,6 +91,7 @@
    handle_zoom_shortcut() doc comment for why 1pt wasn't enough. */
 #define ZOOM_STEP_DEFAULT 2
 #define POLL_INTERVAL_MS 1000 /* canary heartbeat cadence when otherwise idle */
+#define SYNC_OUTPUT_TIMEOUT_MS 200.0 /* safety net -- see render gate's doc comment on mode 2026 */
 #define DRM_MASTER_RETRIES 30
 #define DRM_MASTER_RETRY_DELAY_US 100000
 
@@ -174,6 +177,12 @@ typedef struct {
        on reacquire (same as kms/egl/gles below) discards that backlog
        for free, since a brand-new context has no history. */
     ghostcon_input_t *input;
+
+    /* Set when a render was skipped because the app had a synchronized-
+       output batch (mode 2026) open -- see the render-gate site below.
+       Not per-acquire-cycle state (survives release/reacquire trivially
+       since it's just "is a render owed", not tied to any GPU handle). */
+    bool render_deferred;
 } app_t;
 
 /* Conventional Xcursor names to try, in order, when a state has no
@@ -364,6 +373,42 @@ apply_keybindings(app_t *app)
     }
 }
 
+/* Defensive check against the kernel's OWN idea of which VT is
+   currently foreground, independent of this process's own tracked
+   display_acquired/have_master state -- found live: libinput's udev
+   backend reads raw evdev events directly, completely independent of
+   which VT the kernel console layer currently considers foreground
+   (the same reasoning is_vt_switch_combo()'s own doc comment already
+   covers for Ctrl+Alt+Fn specifically), so if this process's own
+   VT_PROCESS release signal ever gets missed (leaving its internal
+   state stuck "acquired" even though a different VT is what's
+   actually visible -- exactly what a confused/desynced VT-switch
+   state, e.g. from heavy manual chvt/session churn, can cause), it
+   would otherwise keep acting on every keystroke typed ANYWHERE on
+   the physical keyboard. This is a safety net for that specific
+   failure mode, not the primary "don't process input while inactive"
+   mechanism (that's already handled by app->input simply not existing
+   outside an acquire/release cycle). Fails OPEN (returns true) on any
+   read error -- if /sys/class/tty/tty0/active can't be read for some
+   reason, that's not grounds to silently stop responding to input in
+   the normal case. */
+static bool
+is_vt_foreground(int vt_num)
+{
+    FILE *f = fopen("/sys/class/tty/tty0/active", "r");
+    if (!f)
+        return true;
+    char buf[32] = {0};
+    bool read_ok = fgets(buf, sizeof(buf), f) != NULL;
+    fclose(f);
+    if (!read_ok)
+        return true;
+    int active_vt = 0;
+    if (sscanf(buf, "tty%d", &active_vt) != 1)
+        return true;
+    return active_vt == vt_num;
+}
+
 static void
 release_display(app_t *app)
 {
@@ -465,6 +510,28 @@ acquire_display(app_t *app)
     if (!app->input)
         fprintf(stderr, "ghostcon-core: input_open failed -- continuing without keyboard input\n");
     apply_keybindings(app); /* fresh input context otherwise reverts to hardcoded defaults */
+
+    /* Re-assert the pty's window size on EVERY acquire, not just once
+       at initial connect (see the one-shot call right after
+       ghostcon_transport_connect() in main(), which only covers the
+       very first acquire -- before this connection even exists on a
+       later reacquire, so that call can't run again here). This makes
+       resize idempotent/self-healing: ghost-ptyserv/pty-ttyN are a
+       long-lived, persistent pty pair by design (survives ghostcon-
+       core restarts, for VT-switch/ring-buffer session continuity),
+       so the pty's kernel-tracked size is mutable shared state that
+       can drift out of sync with app.term's own correct size if
+       ANYTHING clobbers a resize message in between (found live: a
+       burst of spurious zoom-out events right after a restart left
+       the pty stuck at a much-older, smaller font size's dimensions,
+       with nothing to correct it afterward -- a plain resize-as-
+       notification design has no way to recover from that; resending
+       it here on every reacquire does, at the next VT switch). A
+       harmless no-op before the transport is connected yet (ctl_fd
+       still -1, resize's own "best-effort, not an error" early
+       return) -- the existing one-shot call covers that exact case
+       instead. */
+    ghostcon_transport_resize(&app->transport, app->term.rows, app->term.cols);
 
     app->display_acquired = true;
     app->did_modeset = false;
@@ -1125,8 +1192,11 @@ main(int argc, char **argv)
             ghostcon_input_sync_modes(app.input, &app.term.screen);
             int zoom_delta = 0;
             ghostcon_input_pointer_t pointer = {0};
+            bool dump_requested = false;
+            bool vt_active = is_vt_foreground(app.vt_num);
             if (!ghostcon_input_dispatch(app.input, &app.transport, &app.term.screen,
-                                          app.cell_w, app.cell_h, &zoom_delta, &pointer))
+                                          app.cell_w, app.cell_h, &zoom_delta, &pointer,
+                                          &dump_requested, vt_active))
                 fprintf(stderr, "ghostcon-core: input dispatch error (continuing)\n");
             /* Hardware cursor movement is deliberately NOT folded into
                need_render/render_frame() -- see kms.h's own doc comment
@@ -1225,6 +1295,28 @@ main(int argc, char **argv)
                 if (apply_font_size(&app, new_size))
                     need_render = true;
             }
+
+            /* Ctrl+Alt+D -- dump the live screen state right now, at
+               exactly the cell/cursor/mode state a visible glitch was
+               caught at, rather than trying to reproduce it offline.
+               Fixed path (not per-VT) is deliberate: this is a manual
+               debug action, one dump at a time, no need for the
+               per-vtN namespacing the ctl sockets use. */
+            if (dump_requested) {
+                FILE *df = fopen("/tmp/ghostcon-dump.txt", "w");
+                if (df) {
+                    ghostcon_screen_dump(df, &app.term.screen);
+                    fclose(df);
+                } else {
+                    fprintf(stderr, "ghostcon-core: dump requested but "
+                                    "/tmp/ghostcon-dump.txt couldn't be opened: %s\n",
+                            strerror(errno));
+                }
+                /* Raw bytes leading up to this exact moment, alongside
+                   the screen-state dump above -- see transport_request_dump's
+                   own doc comment. */
+                ghostcon_transport_request_dump(&app.transport);
+            }
         }
 
         if (repeat_idx >= 0 && (fds[repeat_idx].revents & POLLIN)) {
@@ -1232,10 +1324,41 @@ main(int argc, char **argv)
                 fprintf(stderr, "ghostcon-core: repeat-fire transport write error (continuing)\n");
         }
 
-        if (need_render && app.display_acquired) {
-            if (!render_frame(&app)) {
-                fprintf(stderr, "ghostcon-core: render_frame failed, releasing display\n");
-                release_display(&app);
+        if (need_render)
+            app.render_deferred = true;
+
+        if (app.render_deferred && app.display_acquired) {
+            /* Mode 2026 (Synchronized Output): an app mid-batch (cursor
+               moved, some cells rewritten, more still pending) wants us
+               to hold off presenting until it sends ?2026l -- otherwise
+               a redraw bigger than one 4KB pty read (main loop reads
+               above) spans multiple poll iterations and each one would
+               present a torn, half-applied frame. Withholding here is
+               bounded by SYNC_OUTPUT_TIMEOUT_MS below, not held open
+               indefinitely: a crashed/buggy app that sets ?2026h and
+               never clears it would otherwise freeze rendering forever
+               instead of just missing this one deadline. render_deferred
+               (not the loop-local need_render) is what's checked, so a
+               batch that spans multiple poll iterations with no other
+               fd activity in between still gets flushed once the
+               POLL_INTERVAL_MS canary wakeup notices the timeout has
+               elapsed. */
+            bool still_withholding = app.term.screen.synchronized_output;
+            if (still_withholding) {
+                struct timespec now;
+                clock_gettime(CLOCK_MONOTONIC, &now);
+                double elapsed_ms =
+                    (now.tv_sec - app.term.screen.synchronized_output_since.tv_sec) * 1000.0 +
+                    (now.tv_nsec - app.term.screen.synchronized_output_since.tv_nsec) / 1e6;
+                still_withholding = elapsed_ms < SYNC_OUTPUT_TIMEOUT_MS;
+            }
+
+            if (!still_withholding) {
+                app.render_deferred = false;
+                if (!render_frame(&app)) {
+                    fprintf(stderr, "ghostcon-core: render_frame failed, releasing display\n");
+                    release_display(&app);
+                }
             }
         }
     }

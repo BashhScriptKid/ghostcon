@@ -57,6 +57,12 @@ ssize_t ghostcon_transport_write(ghostcon_transport_t *t, const uint8_t *buf, si
    see ctl_fd's own doc comment on why that's not fatal. */
 bool ghostcon_transport_resize(ghostcon_transport_t *t, int rows, int cols);
 
+/* Sends "DUMP" over the control socket -- see pty_child.c's own DUMP
+   handler and term/dump.h's doc comment. Same "no control connection
+   -- best-effort, not an error" semantics as ghostcon_transport_resize()
+   above. */
+bool ghostcon_transport_request_dump(ghostcon_transport_t *t);
+
 /* Reads and parses one message off the control socket (see ctl_fd's own
    doc comment) — call this when ctl_fd is POLLIN/POLLHUP/POLLERR-ready
    in the caller's event loop. Sets *out_clear = true if a CLEAR message

@@ -80,3 +80,18 @@ ghostcon_ptyserv_parse_clear(const char *line)
 {
     return strncmp(line, "CLEAR", 5) == 0;
 }
+
+size_t
+ghostcon_ptyserv_format_dump(char *buf, size_t buf_len)
+{
+    int n = snprintf(buf, buf_len, "DUMP\n");
+    if (n < 0 || (size_t)n >= buf_len)
+        return 0;
+    return (size_t)n;
+}
+
+bool
+ghostcon_ptyserv_parse_dump(const char *line)
+{
+    return strncmp(line, "DUMP", 4) == 0;
+}

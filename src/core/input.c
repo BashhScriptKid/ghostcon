@@ -683,6 +683,26 @@ handle_zoom_shortcut(int *zoom_delta, uint32_t evdev_code, GhosttyMods mods,
     }
 }
 
+/* Ctrl+Alt+D -- dump the live screen state to a fixed diagnostic file
+   (core/main.c does the actual write, since it owns app->term; this
+   just detects the chord and reports it via *out_dump_requested, same
+   handoff pattern as handle_zoom_shortcut()'s *zoom_delta). Added to
+   debug a rendering bug that only reproduces in a real, long-running
+   session -- lets you capture the exact live cell state at the moment
+   a glitch is visible, for a direct diff against tools/ghostty_dump.c's
+   reference output, instead of guessing at a reproduction offline. */
+static bool
+handle_dump_shortcut(bool *dump_requested, uint32_t evdev_code, GhosttyMods mods,
+                      GhosttyKeyAction action)
+{
+    if (!(mods & GHOSTTY_MODS_CTRL) || !(mods & GHOSTTY_MODS_ALT))
+        return false;
+    if (evdev_code != KEY_D || action != GHOSTTY_KEY_ACTION_PRESS)
+        return false;
+    *dump_requested = true;
+    return true;
+}
+
 /* Forward declarations -- defined later in this file (near
    send_mouse_report()), but needed here since handle_keyboard_event()
    comes first. */
@@ -692,7 +712,7 @@ static void paste_clipboard_to_pty(ghostcon_screen_t *screen, ghostcon_transport
 static bool
 handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
                        ghostcon_transport_t *transport, ghostcon_screen_t *screen,
-                       int *zoom_delta)
+                       int *zoom_delta, bool *dump_requested, bool active)
 {
     struct libinput_event_keyboard *kbev = libinput_event_get_keyboard_event(ev);
     uint32_t evdev_code = libinput_event_keyboard_get_key(kbev);
@@ -718,6 +738,15 @@ handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
         if (input->repeat_fd >= 0)
             timerfd_settime(input->repeat_fd, 0, &(struct itimerspec){0}, NULL);
     }
+
+    /* Inactive (see ghostcon_input_dispatch()'s own doc comment on
+       `active`): XKB modifier tracking above and the repeat-cancel
+       just above are both cheap and worth keeping correct regardless,
+       but nothing past this point -- forwarding, shortcuts, paste --
+       should happen while a stray keystroke typed on a different VT
+       is being defensively discarded here. */
+    if (!active)
+        return true;
 
     char utf8[32] = {0};
     int utf8_len = 0;
@@ -759,6 +788,9 @@ handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
         return true; /* consumed locally, never forwarded to the pty */
 
     if (handle_zoom_shortcut(zoom_delta, evdev_code, mods, action))
+        return true; /* consumed locally, never forwarded to the pty */
+
+    if (handle_dump_shortcut(dump_requested, evdev_code, mods, action))
         return true; /* consumed locally, never forwarded to the pty */
 
     /* Configurable copy/paste shortcuts ([keybindings] in ghostcon.toml,
@@ -1049,7 +1081,8 @@ handle_pointer_event(ghostcon_input_t *input, struct libinput_event *ev,
 bool
 ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport,
                          ghostcon_screen_t *screen, int cell_w, int cell_h,
-                         int *out_zoom_delta, ghostcon_input_pointer_t *out_pointer)
+                         int *out_zoom_delta, ghostcon_input_pointer_t *out_pointer,
+                         bool *out_dump_requested, bool active)
 {
     out_pointer->x = input->pointer_x;
     out_pointer->y = input->pointer_y;
@@ -1067,15 +1100,24 @@ ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport
         enum libinput_event_type type = libinput_event_get_type(ev);
 
         if (type == LIBINPUT_EVENT_KEYBOARD_KEY) {
-            if (!handle_keyboard_event(input, ev, transport, screen, out_zoom_delta)) {
+            if (!handle_keyboard_event(input, ev, transport, screen, out_zoom_delta,
+                                        out_dump_requested, active)) {
                 libinput_event_destroy(ev);
                 return false;
             }
-        } else if (type == LIBINPUT_EVENT_POINTER_MOTION ||
-                   type == LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE ||
-                   type == LIBINPUT_EVENT_POINTER_BUTTON ||
-                   type == LIBINPUT_EVENT_POINTER_SCROLL_WHEEL ||
-                   type == LIBINPUT_EVENT_POINTER_SCROLL_FINGER) {
+        } else if (active &&
+                   (type == LIBINPUT_EVENT_POINTER_MOTION ||
+                    type == LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE ||
+                    type == LIBINPUT_EVENT_POINTER_BUTTON ||
+                    type == LIBINPUT_EVENT_POINTER_SCROLL_WHEEL ||
+                    type == LIBINPUT_EVENT_POINTER_SCROLL_FINGER)) {
+            /* Pointer events are skipped entirely (not just their
+               consequences suppressed) when inactive -- unlike
+               keyboard modifier state, there's no equivalent "still
+               worth tracking so it doesn't desync" reason to process
+               them; out_pointer simply stays at its last known
+               position, which is what it already returns from
+               dispatch()'s own top-of-function default. */
             if (!handle_pointer_event(input, ev, type, transport, screen, cell_w, cell_h, out_pointer)) {
                 libinput_event_destroy(ev);
                 return false;

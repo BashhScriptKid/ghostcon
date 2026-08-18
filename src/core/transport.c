@@ -1,3 +1,5 @@
+#define _DEFAULT_SOURCE /* usleep() under -std=c11 without this */
+
 #include "ghostcon/core/transport.h"
 #include "ghostcon/ptyserv/protocol.h"
 
@@ -101,13 +103,41 @@ ghostcon_transport_connect(ghostcon_transport_t *t,
        the whole connect -- see ctl_fd's own doc comment. Derived from
        pty_socket's own directory (not registry_socket_path's) since
        that's the value ghost-ptyserv itself actually reported, the
-       more authoritative source if the two ever diverged. */
+       more authoritative source if the two ever diverged.
+
+       Retried, NOT a single attempt -- found live: a single-shot
+       connect_unix() here raced pty_child.c's own ctl-socket bind at
+       early-boot startup (both sockets bind around the same moment,
+       but the data socket above already gets 50 retries via its own
+       caller loop, while this one previously had none). Losing that
+       race left ctl_fd permanently -1 for the rest of this process's
+       lifetime -- every ghostcon_transport_resize() call for the
+       entire session (including from a later Ctrl+=/Ctrl+Minus zoom)
+       then silently no-ops forever (see that function's own "best-
+       effort, not an error" early return), with no error logged
+       anywhere to explain why a resize that clearly ran produced no
+       visible effect. Same retry budget as the data socket connect
+       above, so both sockets get an equally fair chance to catch up
+       with pty_child.c's startup. */
     char ctl_dir[GHOSTCON_PTYSERV_LINE_MAX];
     snprintf(ctl_dir, sizeof(ctl_dir), "%s", pty_socket);
     dirname_inplace(ctl_dir);
     char ctl_path[GHOSTCON_PTYSERV_LINE_MAX];
     snprintf(ctl_path, sizeof(ctl_path), GHOSTCON_PTY_CTL_SOCKET_FMT, ctl_dir, vtnum);
-    t->ctl_fd = connect_unix(ctl_path);
+    for (int i = 0; i < 50 && t->ctl_fd < 0; i++) {
+        t->ctl_fd = connect_unix(ctl_path);
+        if (t->ctl_fd < 0)
+            usleep(20000);
+    }
+    if (t->ctl_fd < 0) {
+        /* Still best-effort -- don't fail the whole connect over this,
+           the data path is what actually matters most -- but no longer
+           SILENT: this is exactly the failure mode that made resize
+           permanently (and mysteriously) stop working before. */
+        fprintf(stderr, "transport: connect %s failed after retries -- "
+                        "resize requests will silently no-op for this session\n",
+                ctl_path);
+    }
 
     return true;
 }
@@ -151,6 +181,20 @@ ghostcon_transport_resize(ghostcon_transport_t *t, int rows, int cols)
 
     char msg[GHOSTCON_PTYSERV_LINE_MAX];
     size_t msg_len = ghostcon_ptyserv_format_resize(msg, sizeof(msg), rows, cols);
+    if (msg_len == 0)
+        return false;
+    bool ok = write_all(t->ctl_fd, msg, msg_len);
+    return ok;
+}
+
+bool
+ghostcon_transport_request_dump(ghostcon_transport_t *t)
+{
+    if (t->ctl_fd < 0)
+        return true; /* no control connection -- best-effort, not an error */
+
+    char msg[GHOSTCON_PTYSERV_LINE_MAX];
+    size_t msg_len = ghostcon_ptyserv_format_dump(msg, sizeof(msg));
     if (msg_len == 0)
         return false;
     return write_all(t->ctl_fd, msg, msg_len);

@@ -33,6 +33,7 @@ term_srcs = files(
     'term/screen.c',
     'term/stream.c',
     'term/term.c',
+    'term/dump.c',
 )
 
 term_lib = static_library('ghostcon-term',
@@ -158,6 +159,17 @@ core_vtctl_lib = static_library('ghostcon-core-vtctl',
 )
 
 if not meson.is_subproject()
+    # Not a test -- standalone benchmark needing REAL DRM master (it
+    # actually modesets/scans out), run manually with ghostcon.service
+    # (or any other DRM master on the same card) stopped first:
+    # bench_kms [drm_node] [frames].
+    bench_kms_exe = executable('bench_kms',
+        '../tools/bench_kms.c',
+        include_directories: include_directories('../include'),
+        link_with: [render_lib, core_egl_lib, core_kms_lib],
+        dependencies: [dep_glesv2, dep_egl, dep_libgbm, dep_libdrm],
+    )
+
     test_render_exe = executable('test_render',
         '../tests/test_render.c',
         include_directories: include_directories('../include'),
@@ -166,6 +178,32 @@ if not meson.is_subproject()
                        dep_glesv2, dep_egl, dep_libgbm, dep_libdrm],
     )
     test('test_render', test_render_exe)
+
+    # Not a test (not registered with test()) -- a standalone benchmark
+    # tool, run manually: bench_render [cols] [rows] [font_size] [frames].
+    bench_render_exe = executable('bench_render',
+        '../tools/bench_render.c',
+        include_directories: include_directories('../include'),
+        link_with: [render_lib, core_egl_lib, term_lib],
+        dependencies: [dep_ghostty_vt, dep_fontconfig, dep_freetype,
+                       dep_glesv2, dep_egl, dep_libgbm, dep_libdrm],
+    )
+
+    # Not a test -- standalone benchmark, run manually:
+    # bench_parse [cols] [rows] [screens]. No GPU/EGL dependency at all.
+    bench_parse_exe = executable('bench_parse',
+        '../tools/bench_parse.c',
+        include_directories: include_directories('../include'),
+        link_with: term_lib,
+        dependencies: [dep_ghostty_vt],
+    )
+
+    # Not a test -- standalone interactive TUI-behavior torture test,
+    # run manually from inside ghostcon itself: tui_torture [page|--all|--list].
+    # No libghostcon dependency at all -- it's a plain terminal client.
+    tui_torture_exe = executable('tui_torture',
+        '../tools/tui_torture.c',
+    )
 
     test_box_draw_exe = executable('test_box_draw',
         '../tests/test_box_draw.c',
@@ -350,6 +388,17 @@ if not meson.is_subproject()
         },
         depends: [undead_head_exe, ghost_ptyserv_exe, supervisor_exe, fake_renderer_exe, pty_child_exe],
         timeout: 30,
+    )
+
+    # Not a test -- standalone benchmark, run manually:
+    # GHOSTCON_PTYSERV_BIN=<path> bench_ptyserv [megabytes]
+    # (GHOSTCON_PTYSERV_BIN's own resolve_sibling_path() convention
+    # finds pty-ttyN itself, same as it does in production -- see
+    # ptyserv/main.c -- so only that one env var is needed).
+    bench_ptyserv_exe = executable('bench_ptyserv',
+        '../tools/bench_ptyserv.c',
+        include_directories: include_directories('../include'),
+        link_with: ptyserv_protocol_lib,
     )
 endif
 
