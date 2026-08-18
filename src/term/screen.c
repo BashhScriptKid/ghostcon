@@ -344,34 +344,50 @@ ghostcon_screen_reset(ghostcon_screen_t *s)
    status line below a chat log's scroll region), while CUP/VPA-based
    positioning to that same row worked correctly, producing the exact
    same text rendered on two different rows. */
+/* Fuzzer-found (hardening plan #5): all four of these cast the raw
+   uint16_t n (up to UINT16_MAX from a CSI param) straight to int16_t
+   before the add/subtract. For n >= 32768 that cast wraps negative,
+   silently REVERSING the intended direction -- and each function only
+   ever clamped the bound it expected to hit from the correct
+   direction, leaving the other bound (now reachable because the sign
+   flipped) completely unchecked. Minimized repro: CSI 64614 a (HPR,
+   same handler as CUF) walked cursor.x to -922 with no lower-bound
+   check, and the next printable character wrote clean off the front
+   of the row's cells array. int32_t arithmetic sidesteps the wrap;
+   clamping both bounds unconditionally (not just the "expected" one)
+   closes the reachable-from-the-other-side gap regardless. */
 void
 ghostcon_screen_cursor_up(ghostcon_screen_t *s, uint16_t n) {
-    int16_t min = s->origin_mode ? s->scroll_region.top : 0;
-    s->cursor.y -= (int16_t)n;
-    if (s->cursor.y < min)
-        s->cursor.y = min;
+    int32_t min = s->origin_mode ? s->scroll_region.top : 0;
+    int32_t y = (int32_t)s->cursor.y - (int32_t)n;
+    if (y < min) y = min;
+    if (y > (int32_t)s->rows_visible - 1) y = (int32_t)s->rows_visible - 1;
+    s->cursor.y = (int16_t)y;
 }
 
 void
 ghostcon_screen_cursor_down(ghostcon_screen_t *s, uint16_t n) {
-    int16_t max = s->origin_mode ? s->scroll_region.bottom : (int16_t)(s->rows_visible - 1);
-    s->cursor.y += (int16_t)n;
-    if (s->cursor.y > max)
-        s->cursor.y = max;
+    int32_t max = s->origin_mode ? s->scroll_region.bottom : (int32_t)s->rows_visible - 1;
+    int32_t y = (int32_t)s->cursor.y + (int32_t)n;
+    if (y > max) y = max;
+    if (y < 0) y = 0;
+    s->cursor.y = (int16_t)y;
 }
 
 void
 ghostcon_screen_cursor_left(ghostcon_screen_t *s, uint16_t n) {
-    s->cursor.x -= (int16_t)n;
-    if (s->cursor.x < 0)
-        s->cursor.x = 0;
+    int32_t x = (int32_t)s->cursor.x - (int32_t)n;
+    if (x < 0) x = 0;
+    if (x > (int32_t)s->cols - 1) x = (int32_t)s->cols - 1;
+    s->cursor.x = (int16_t)x;
 }
 
 void
 ghostcon_screen_cursor_right(ghostcon_screen_t *s, uint16_t n) {
-    s->cursor.x += (int16_t)n;
-    if (s->cursor.x >= (int16_t)s->cols)
-        s->cursor.x = (int16_t)(s->cols - 1);
+    int32_t x = (int32_t)s->cursor.x + (int32_t)n;
+    if (x >= (int32_t)s->cols) x = (int32_t)s->cols - 1;
+    if (x < 0) x = 0;
+    s->cursor.x = (int16_t)x;
 }
 
 void
@@ -673,7 +689,19 @@ ghostcon_screen_reverse_index(ghostcon_screen_t *s) {
     if (s->cursor.y == s->scroll_region.top) {
         ghostcon_screen_scroll_down(s, 1);
     } else {
-        s->cursor.y--;
+        /* Fuzzer-found SEGV: a cursor legitimately above the scroll
+           region's top (e.g. DECSTBM homes the cursor to screen row 0
+           when origin mode is off, which can sit above a scroll
+           region that doesn't start at 0) took this branch and
+           decremented with no lower bound -- repeatable RI calls walk
+           cursor.y arbitrarily negative, and row_idx()'s modulo on a
+           negative index produces a huge out-of-bounds s->rows[]
+           access. Same clamp floor ghostcon_screen_cursor_up() already
+           uses for the identical "cursor above the effective top"
+           case. */
+        int16_t min = s->origin_mode ? s->scroll_region.top : 0;
+        if (s->cursor.y > min)
+            s->cursor.y--;
     }
 }
 
@@ -744,13 +772,25 @@ ghostcon_screen_erase_display(ghostcon_screen_t *s, int mode) {
         }
         return;
     case GC_ERASE_DISPLAY_SCROLL_COMPLETE:
-        /* Scroll entire display into scrollback */
+        /* Scroll entire display into scrollback. push_history() steals
+           r->cells by struct-copying it into the history slot -- it
+           does NOT null out r->cells on the source, so the caller
+           must give r a fresh cells buffer of its own afterward.
+           Fuzzer-found double-free: the previous version allocated
+           that fresh row via ghostcon_row_init() only to check
+           `.cells` was non-NULL, then discarded it -- r kept pointing
+           at the exact buffer that had just been stolen into history,
+           so s->rows[] and s->history[] both freed the same
+           allocation on cleanup. */
         for (int16_t i = 0; i < (int16_t)s->rows_visible; i++) {
             ghostcon_row_t *r = &s->rows[row_idx(s, i)];
-            if (ghostcon_row_init(s->cols).cells) {
+            ghostcon_row_t fresh = ghostcon_row_init(s->cols);
+            if (fresh.cells) {
                 push_history(s, r);
+                *r = fresh;
+            } else {
+                ghostcon_row_clear(r);
             }
-            ghostcon_row_clear(r);
             mark_dirty(s, i);
         }
         return;

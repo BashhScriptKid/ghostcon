@@ -896,6 +896,80 @@ TEST(insert_delete_chars_cursor_past_margin_is_noop) {
     ghostcon_term_deinit(&t);
 }
 
+TEST(erase_display_scroll_complete_no_double_free) {
+    /* Fuzzer-found (hardening plan #5, libFuzzer over ghostcon_term_feed):
+       minimized to 4 bytes, ESC[4J (GC_ERASE_DISPLAY_SCROLL_COMPLETE).
+       push_history() steals a row's cells by struct-copying the
+       pointer into a history slot without nulling the source -- the
+       handler discarded the freshly-allocated replacement row instead
+       of assigning it back, so s->rows[] and s->history[] both ended
+       up owning the same buffer. Crashed under ASAN as a double-free
+       on deinit; ran clean (undetected corruption) without a
+       sanitizer. Locks in that erasing+scrolling the whole display
+       doesn't corrupt row ownership. */
+    ghostcon_term_t t;
+    ASSERT(ghostcon_term_init(&t, 20, 10, 500), "init");
+    feed(&t, "hello");
+    static const uint8_t crash_bytes[] = {0x1b, 0x5b, 0x34, 0x4a};
+    ghostcon_term_feed(&t, crash_bytes, sizeof(crash_bytes));
+    ghostcon_term_deinit(&t); /* would double-free under ASAN if regressed */
+}
+
+TEST(reverse_index_above_scroll_region_does_not_go_negative) {
+    /* Fuzzer-found (hardening plan #5): minimized to 9 bytes --
+       ESC[3r (DECSTBM, homes cursor to screen row 0 since origin mode
+       is off, which sits ABOVE the new scroll region's top of row 2),
+       then C1 RI (0x8D) mid-escape. ghostcon_screen_reverse_index()
+       only scrolled when cursor.y == scroll_region.top; anywhere else
+       it decremented cursor.y with no lower bound. A cursor above the
+       region's top (this exact case) walked cursor.y negative, and
+       row_idx()'s modulo on a negative index turned the next put_char
+       into a wild out-of-bounds s->rows[] access -- a real SEGV, not
+       just an ASAN-flagged one. Locks in that RI above the scroll
+       region clamps at the same floor ghostcon_screen_cursor_up()
+       already uses, instead of walking past it. */
+    ghostcon_term_t t;
+    ASSERT(ghostcon_term_init(&t, 20, 10, 500), "init");
+    static const uint8_t crash_bytes[] = {
+        0x1b, 0x5b, 0x33, 0x72, 0x00, 0x1b, 0x8d, 0x80, 's'};
+    ghostcon_term_feed(&t, crash_bytes, sizeof(crash_bytes));
+    ASSERT(t.screen.cursor.y >= 0, "cursor.y stayed non-negative");
+    ghostcon_term_deinit(&t);
+}
+
+TEST(cursor_relative_move_huge_param_does_not_reverse_direction) {
+    /* Fuzzer-found (hardening plan #5): minimized to 9 bytes --
+       ESC[64614aS (HPR with a huge count, same handler as CUF, then a
+       literal 'S'). ghostcon_screen_cursor_right()/_left()/_up()/
+       _down() all cast the raw uint16_t n straight to int16_t before
+       the add -- for n >= 32768 that wraps negative, silently
+       reversing the direction, and each function only ever clamped
+       the bound it expected to hit from the correct direction. HPR
+       with n=64614 walked cursor.x to -922 with no lower-bound check;
+       the next printable character then wrote clean off the front of
+       the row's cells array (a real heap-buffer-underflow, not just
+       an ASAN-flagged one). Locks in that a huge count in either
+       direction clamps to the screen instead. */
+    ghostcon_term_t t;
+    ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
+    static const uint8_t crash_bytes[] = {
+        0x1b, 0x5b, '6', '4', '6', '1', '4', 'a', 'S'};
+    ghostcon_term_feed(&t, crash_bytes, sizeof(crash_bytes));
+    ASSERT(t.screen.cursor.x >= 0 && t.screen.cursor.x < 80,
+           "cursor.x stayed in bounds despite reversed-direction wrap");
+
+    /* Same class, other three directions/params. */
+    ghostcon_term_deinit(&t);
+    ASSERT(ghostcon_term_init(&t, 80, 24, 500), "reinit");
+    feed(&t, "\x1b[64614D"); /* CUB */
+    ASSERT(t.screen.cursor.x >= 0 && t.screen.cursor.x < 80, "CUB in bounds");
+    feed(&t, "\x1b[64614B"); /* CUD */
+    ASSERT(t.screen.cursor.y >= 0 && t.screen.cursor.y < 24, "CUD in bounds");
+    feed(&t, "\x1b[64614A"); /* CUU */
+    ASSERT(t.screen.cursor.y >= 0 && t.screen.cursor.y < 24, "CUU in bounds");
+    ghostcon_term_deinit(&t);
+}
+
 TEST(scroll_region_huge_param_is_clamped_to_screen) {
     /* Hardening regression: DECSTBM/DECSLRM only guarded against a
        *negative* top/bottom/left/right (which only ever happens via
