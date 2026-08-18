@@ -13,14 +13,6 @@ row_idx(ghostcon_screen_t *s, int16_t y) {
     return (uint16_t)((s->scrollback_top + y) % s->rows_visible);
 }
 
-/* Ensure y is within scroll region, clamped */
-static inline int16_t
-clamp_y(ghostcon_screen_t *s, int16_t y) {
-    if (y < s->scroll_region.top) y = s->scroll_region.top;
-    if (y > s->scroll_region.bottom) y = s->scroll_region.bottom;
-    return y;
-}
-
 /* Get cell at (x, y) in logical coordinates */
 static inline ghostcon_cell_t *
 cell_at(ghostcon_screen_t *s, int16_t x, int16_t y) {
@@ -258,22 +250,114 @@ ghostcon_screen_resize(ghostcon_screen_t *s,
     return true;
 }
 
+void
+ghostcon_screen_reset(ghostcon_screen_t *s)
+{
+    /* Drop out of the alternate screen if active -- RIS is a hard
+       reset, not a graceful exit, so the saved main-screen content is
+       simply discarded rather than restored (see this function's own
+       doc comment in screen.h). */
+    if (s->alt_screen_active) {
+        for (uint16_t i = 0; i < s->alt_rows_visible; i++)
+            ghostcon_row_deinit(&s->alt_rows[i]);
+        free(s->alt_rows);
+        s->alt_rows = NULL;
+        s->alt_rows_visible = 0;
+        s->alt_screen_active = false;
+    }
+
+    /* Clear the visible screen -- scrollback history is left intact,
+       matching xterm's own RIS convention. */
+    for (uint16_t i = 0; i < s->rows_visible; i++)
+        ghostcon_row_clear(&s->rows[i]);
+    s->view_offset = 0;
+
+    /* Cursor */
+    s->cursor.x = 0;
+    s->cursor.y = 0;
+    s->cursor.pending_wrap = false;
+    s->cursor.protected = false;
+    s->cursor.style_id = GC_STYLE_DEFAULT_ID;
+    s->cursor.hyperlink_id = 0;
+    s->cursor.cursor_style = GC_CURSOR_DEFAULT;
+    memset(&s->saved_cursor, 0, sizeof(s->saved_cursor));
+    s->cursor_saved = false;
+    s->last_codepoint = 0;
+
+    /* Regions & tabs back to full width/height -- this is what fixes
+       the DECRST-69-doesn't-reset-margins bug (see the separate fix
+       in stream.c's DECRST handler), and gives RIS a way to recover
+       even if some other bug leaves a region stuck. */
+    s->scroll_region.top = 0;
+    s->scroll_region.bottom = (int16_t)(s->rows_visible - 1);
+    s->margin_region.left = 0;
+    s->margin_region.right = (int16_t)(s->cols - 1);
+    memset(s->tabstops.stops, 0, s->tabstops.cols * sizeof(bool));
+    for (uint16_t i = 8; i < s->tabstops.cols; i += 8)
+        s->tabstops.stops[i] = true;
+
+    /* Mode flags back to power-on defaults (mirrors ghostcon_screen_init) */
+    s->origin_mode = false;
+    s->auto_wrap = true;
+    s->cursor_visible = true;
+    s->reverse_video = false;
+    s->insert_mode = false;
+    s->application_cursor = false;
+    s->synchronized_output = false;
+    s->bracketed_paste = false;
+    s->left_right_margin = false;
+    s->mouse_tracking = false;
+    s->mouse_protocol = 0;
+    s->mouse_sgr = false;
+    s->mouse_shift_capture = false;
+    s->protected_mode = GC_PROTECTED_OFF;
+    memset(&s->saved_modes, 0, sizeof(s->saved_modes));
+
+    ghostcon_modes_clear(&s->modes);
+    if (s->auto_wrap) ghostcon_modes_set(&s->modes, GC_MODE_AUTO_WRAP);
+
+    /* Shell integration (OSC 133/633) */
+    s->semantic_current = (ghostcon_cell_semantic_t)0;
+    s->semantic_last_exit_code = -1;
+
+    /* Selection and Kitty keyboard protocol state */
+    ghostcon_selection_clear(&s->selection);
+    ghostcon_kitty_init(&s->kitty);
+
+    /* The whole screen was just cleared -- mark it all dirty so the
+       next frame actually paints over whatever was there before. */
+    s->dirty.y_min = 0;
+    s->dirty.y_max = (int16_t)(s->rows_visible - 1);
+}
+
 /* ------------------------------------------------------------------ */
 /* Cursor movement                                                     */
 /* ------------------------------------------------------------------ */
 
+/* CUU/CUD (cursor up/down) clamp to the scroll region ONLY under
+   origin mode (DECOM) -- otherwise (the common case, DECOM off) they
+   clamp to the full screen, same distinction ghostcon_screen_cursor_
+   vertical_abs() (VPA) already gets right. Found live: a real, well-
+   known idiom -- CSI H then a large CSI B to jump to the absolute
+   screen bottom regardless of exact height -- landed short by however
+   many rows a scroll region reserved at the bottom (e.g. a fixed
+   status line below a chat log's scroll region), while CUP/VPA-based
+   positioning to that same row worked correctly, producing the exact
+   same text rendered on two different rows. */
 void
 ghostcon_screen_cursor_up(ghostcon_screen_t *s, uint16_t n) {
+    int16_t min = s->origin_mode ? s->scroll_region.top : 0;
     s->cursor.y -= (int16_t)n;
-    if (s->cursor.y < s->scroll_region.top)
-        s->cursor.y = s->scroll_region.top;
+    if (s->cursor.y < min)
+        s->cursor.y = min;
 }
 
 void
 ghostcon_screen_cursor_down(ghostcon_screen_t *s, uint16_t n) {
+    int16_t max = s->origin_mode ? s->scroll_region.bottom : (int16_t)(s->rows_visible - 1);
     s->cursor.y += (int16_t)n;
-    if (s->cursor.y > s->scroll_region.bottom)
-        s->cursor.y = s->scroll_region.bottom;
+    if (s->cursor.y > max)
+        s->cursor.y = max;
 }
 
 void
@@ -332,10 +416,27 @@ ghostcon_screen_cursor_vertical_abs(ghostcon_screen_t *s, int16_t y) {
 
 void
 ghostcon_screen_cursor_next_line(ghostcon_screen_t *s) {
+    /* Only scroll the region if the cursor was actually AT its bottom
+       edge before moving (mirrors soft_wrap()'s `==` check) -- a
+       cursor sitting below/outside the scroll region entirely (e.g. a
+       fixed status/input area a TUI deliberately excludes from the
+       scroll region) must just clamp to the full screen, never scroll
+       the region above it. The old `y++` then `> bottom` check fired
+       for that out-of-region case too, spuriously scrolling the main
+       content on every cursor-next-line issued from below the region
+       -- found live: exactly this, corrupting content above a fixed
+       bottom input box on every animation tick that redrew it via
+       CNL. */
+    bool was_at_region_bottom = (s->cursor.y == s->scroll_region.bottom);
     s->cursor.x = s->margin_region.left;
-    s->cursor.y++;
-    if (s->cursor.y > s->scroll_region.bottom)
+    if (was_at_region_bottom) {
         ghostcon_screen_cursor_scroll_up(s);
+    } else {
+        int16_t max = s->origin_mode ? s->scroll_region.bottom : (int16_t)(s->rows_visible - 1);
+        s->cursor.y++;
+        if (s->cursor.y > max)
+            s->cursor.y = max;
+    }
     s->cursor.pending_wrap = false;
 }
 

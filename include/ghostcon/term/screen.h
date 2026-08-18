@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <time.h>
 #include "cell.h"
 #include "row.h"
 #include "style.h"
@@ -163,6 +164,12 @@ struct ghostcon_screen {
     bool             insert_mode;          /* IRM */
     bool             application_cursor;  /* DECKPEM/Cursor keys app mode */
     bool             synchronized_output; /* Mode 2026 */
+    /* CLOCK_MONOTONIC timestamp of when synchronized_output last
+       transitioned false->true -- lets core/main.c's render gate cap
+       how long it'll withhold a frame if an app sets mode 2026 and
+       never clears it (crash, bug), instead of freezing rendering
+       forever. Meaningless while synchronized_output is false. */
+    struct timespec  synchronized_output_since;
     bool             bracketed_paste;     /* Mode 2004 */
     bool             left_right_margin;   /* DECSLRM — mode 69 */
     bool             mouse_tracking;      /* Mode 1000/1002/1003/etc. */
@@ -237,6 +244,26 @@ void ghostcon_screen_deinit(ghostcon_screen_t *screen);
 /* Resize screen to new dimensions. Preserves contents as much as possible. */
 bool ghostcon_screen_resize(ghostcon_screen_t *screen,
                             uint16_t new_cols, uint16_t new_rows);
+
+/* RIS (ESC c) -- full terminal reset, the standard escape hatch every
+   real terminal offers for recovering from ANY stuck/confused mode or
+   attribute state (what `reset`/`tput reset` send). Was previously a
+   complete no-op (stream.c's RIS handler literally did nothing, and
+   this function didn't exist despite a stray comment referencing it
+   as if it did) -- found live: a DECRST 69 bug left a stale DECSLRM
+   margin permanently wrapping every subsequent line, and `reset`
+   couldn't clear it because RIS itself was unimplemented; nothing
+   short of restarting the whole service could recover.
+   Resets: cursor position/attributes/saved-cursor, scroll and margin
+   regions to full screen, all DEC private modes to their power-on
+   defaults, tab stops, character-protection state, Kitty keyboard
+   state, selection, and clears the visible screen (scrollback
+   history is left intact, matching xterm's own RIS convention). Does
+   NOT reallocate the grid or reset the color palette -- this is a
+   state reset, not screen_deinit()+screen_init(). Drops out of the
+   alternate screen if active (discarding it, not restoring the saved
+   main-screen content -- RIS is a hard reset, not a graceful exit). */
+void ghostcon_screen_reset(ghostcon_screen_t *screen);
 
 /* ------------------------------------------------------------------ */
 /* Cursor movement                                                     */

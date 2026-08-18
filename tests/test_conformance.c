@@ -92,6 +92,100 @@ TEST(cursor_down) {
     ghostcon_term_deinit(&t);
 }
 
+TEST(cursor_up_down_scroll_region_no_origin_mode) {
+    /* CUU/CUD clamp to the scroll region only under origin mode
+       (DECOM) -- with it off (the default, and the common case: most
+       apps never set DECOM), they must clamp to the FULL screen, not
+       the scroll region. Real bug found live: a status line reserved
+       via a scroll region that excludes the last 2 rows, combined
+       with the well-known "CSI H then a large CSI B" idiom for
+       jumping to the absolute screen bottom, landed 2 rows short of
+       where CUP/VPA-based positioning to that same row correctly
+       landed -- the same text rendered on two different rows. */
+    ghostcon_term_t t;
+    ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
+    feed(&t, "\x1b[1;22r");   /* DECSTBM: scroll region rows 1-22 (0-based 0-21), reserving the last 2 rows */
+    ASSERT(!t.screen.origin_mode, "origin mode off by default");
+    feed(&t, "\x1b[H");       /* home */
+    ASSERT_CURSOR(t, 0, 0, "cursor home");
+    feed(&t, "\x1b[999B");    /* huge cursor-down -- must clamp to the FULL screen (row 23), not the scroll region (row 21) */
+    ASSERT_CURSOR(t, 0, 23, "CUD without origin mode clamps to the full screen, past the scroll region");
+    feed(&t, "\x1b[999A");    /* huge cursor-up -- must clamp to row 0 (full screen top), same reasoning */
+    ASSERT_CURSOR(t, 0, 0, "CUU without origin mode clamps to the full screen top");
+    ghostcon_term_deinit(&t);
+}
+
+TEST(cursor_up_down_scroll_region_with_origin_mode) {
+    /* Same setup, but WITH origin mode on: now CUU/CUD correctly DO
+       clamp to the scroll region -- this is the one case the
+       pre-fix code accidentally got right, so it must stay correct. */
+    ghostcon_term_t t;
+    ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
+    feed(&t, "\x1b[1;22r");   /* scroll region rows 1-22 (0-based 0-21) */
+    feed(&t, "\x1b[?6h");     /* DECOM on */
+    ASSERT(t.screen.origin_mode, "origin mode on");
+    feed(&t, "\x1b[999B");    /* clamp to the scroll region's bottom (row 21), not the full screen */
+    ASSERT_CURSOR(t, 0, 21, "CUD with origin mode clamps to the scroll region bottom");
+    feed(&t, "\x1b[999A");
+    ASSERT_CURSOR(t, 0, 0, "CUU with origin mode clamps to the scroll region top");
+    ghostcon_term_deinit(&t);
+}
+
+TEST(cursor_next_line_below_scroll_region_does_not_scroll) {
+    /* CNL (CSI E) real bug: incrementing cursor.y then checking
+       `> scroll_region.bottom` fired even when the cursor started
+       BELOW the scroll region entirely (e.g. a fixed status/input
+       area a TUI deliberately excludes from the region) -- spuriously
+       scrolling the main content on every redraw of that fixed area.
+       Fix mirrors soft_wrap()'s correct `==` check: only scroll if the
+       cursor was actually AT the region's bottom edge before moving. */
+    ghostcon_term_t t;
+    ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
+    feed(&t, "\x1b[1;22r");   /* scroll region rows 1-22 (0-based 0-21), reserving the last 2 rows */
+    feed(&t, "\x1b[H");
+    feed(&t, "A");            /* content on row 0, inside the region */
+    feed(&t, "\x1b[23;1H");   /* row 22 (0-based) -- below the region */
+    feed(&t, "\x1b[E");       /* CNL from below the region -- must NOT scroll */
+    ASSERT_CURSOR(t, 0, 23, "CNL below the scroll region clamps to the full screen, doesn't scroll");
+    ASSERT_CELL(t, 0, 0, 'A', "row 0 content untouched by a spurious scroll");
+    ghostcon_term_deinit(&t);
+}
+
+TEST(cursor_next_line_at_scroll_region_bottom_still_scrolls) {
+    /* Regression guard: the one case that must still scroll (cursor
+       genuinely at the region's bottom edge) keeps working after the
+       fix above. */
+    ghostcon_term_t t;
+    ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
+    feed(&t, "\x1b[1;22r");
+    feed(&t, "\x1b[H");
+    feed(&t, "A");
+    feed(&t, "\x1b[22;1H");   /* row 21 (0-based) -- the scroll region's bottom */
+    feed(&t, "\x1b[E");       /* CNL AT the region bottom -- must scroll */
+    ASSERT_CURSOR(t, 0, 21, "CNL at the scroll region bottom stays put (region scrolled under it)");
+    ASSERT_CELL(t, 0, 0, 0, "row 0 content scrolled away as expected");
+    ghostcon_term_deinit(&t);
+}
+
+TEST(tabs_debug_scratch) {
+    ghostcon_term_t t;
+    ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
+    feed(&t, "\x1b[H" "a\tb\tc\td\r\n");
+    feed(&t, "\x1b[2;1H" "\x1b[3G" "\x1b" "H");
+    feed(&t, "\x1b[2;1H" "X\tY (custom stop at col 3 should apply after clearing defaults)\r\n");
+    feed(&t, "\x1b[3g");
+    for (int y = 0; y < 4; y++) {
+        ghostcon_row_t *r = ghostcon_screen_row(&t.screen, (uint16_t)y);
+        fprintf(stderr, "row %d: [", y);
+        for (int x = 0; x < 40; x++) {
+            uint32_t cp = ghostcon_cell_get_codepoint(r->cells[x]);
+            fprintf(stderr, "%c", cp ? (char)cp : '.');
+        }
+        fprintf(stderr, "]\n");
+    }
+    ghostcon_term_deinit(&t);
+}
+
 TEST(cursor_left_right) {
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
