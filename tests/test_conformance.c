@@ -7,6 +7,33 @@ static void feed(ghostcon_term_t *t, const char *s) {
 }
 
 /* ================================================================== */
+/* Symbol / graphics-element classification                            */
+/*                                                                     */
+/* Feeds the codepoints found live to genuinely overflow cell_w at the */
+/* configured font size (U+2299, U+25C9, U+25CE, and the actual Nerd   */
+/* Font git-pull-request octicon U+F407) plus boundary/negative cases. */
+/* ================================================================== */
+
+TEST(cell_is_symbol_classification) {
+    ASSERT(ghostcon_cell_is_symbol(0x2299), "U+2299 CIRCLED DOT OPERATOR (Math Operators)");
+    ASSERT(ghostcon_cell_is_symbol(0x25C9), "U+25C9 FISHEYE (Geometric Shapes)");
+    ASSERT(ghostcon_cell_is_symbol(0x25CE), "U+25CE BULLSEYE (Geometric Shapes)");
+    ASSERT(ghostcon_cell_is_symbol(0xF407), "U+F407 Nerd Font git-pull-request octicon (PUA)");
+    ASSERT(ghostcon_cell_is_symbol(0xE0B2), "U+E0B2 Powerline glyph (inside PUA)");
+    ASSERT(ghostcon_cell_is_symbol(0x1FB00), "U+1FB00 Symbols for Legacy Computing");
+    ASSERT(ghostcon_cell_is_symbol(0x2705), "U+2705 CHECK MARK (Dingbats)");
+
+    ASSERT(!ghostcon_cell_is_symbol(0x2500), "box-drawing (U+2500) excluded -- rendered procedurally, never reaches this");
+    ASSERT(!ghostcon_cell_is_symbol(0x2588), "block element (U+2588) excluded, same reason");
+    ASSERT(!ghostcon_cell_is_symbol('A'), "plain ASCII letter is not a symbol");
+    ASSERT(!ghostcon_cell_is_symbol(0x1F600), "an already-wide emoji (grinning face) is not classified as 'symbol'");
+
+    ASSERT(ghostcon_cell_is_graphics_element(0xE0B2), "Powerline glyph is a tiling graphics element");
+    ASSERT(ghostcon_cell_is_graphics_element(0x1FB10), "Legacy Computing glyph is a tiling graphics element");
+    ASSERT(!ghostcon_cell_is_graphics_element(0x25C9), "an ordinary symbol (not designed to tile) is not a graphics element");
+}
+
+/* ================================================================== */
 /* Basic text                                                          */
 /* ================================================================== */
 

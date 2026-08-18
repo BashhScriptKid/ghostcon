@@ -1,8 +1,39 @@
 #include "ghostcon/render/machine.h"
 
+#include <math.h>
+
 #include "ghostcon/term/cell.h"
 #include "ghostcon/term/style.h"
 #include "ghostcon/term/color.h"
+
+/* Port of Ghostty's renderer/cell.zig constraintWidth() -- how many
+   cells (1 or 2) a "symbol"-classified glyph (see cell.h's own doc
+   comment on ghostcon_cell_is_symbol()) is allowed to occupy this
+   frame. Context-aware, not a fixed per-glyph property: a symbol at
+   the screen edge, or immediately following another symbol (unless
+   that one tiles across cells, e.g. Powerline), is squeezed to 1 cell;
+   otherwise, if the NEXT cell is blank, it's allowed to borrow that
+   space and render at its natural size across 2 cells. Only when
+   neither applies does the caller need to actually scale the glyph
+   down. */
+static uint8_t
+symbol_constraint_width(const ghostcon_row_t *row, uint16_t x)
+{
+    if (x == (uint16_t)(row->cols - 1))
+        return 1; /* screen edge -- no room to borrow */
+
+    if (x > 0) {
+        uint32_t prev_cp = ghostcon_cell_get_codepoint(row->cells[x - 1]);
+        if (ghostcon_cell_is_symbol(prev_cp) && !ghostcon_cell_is_graphics_element(prev_cp))
+            return 1; /* keep adjacent symbol glyphs aligned, not overlapping */
+    }
+
+    uint32_t next_cp = ghostcon_cell_get_codepoint(row->cells[x + 1]);
+    if (next_cp == 0 || next_cp == ' ')
+        return 2; /* next cell is blank -- borrow its space */
+
+    return 1;
+}
 
 static void
 resolve_colors(const ghostcon_screen_t *screen, const ghostcon_style_t *style,
@@ -67,29 +98,59 @@ ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
             float px = (float)(x * cell_w);
             float py = (float)(y * cell_h);
 
+            /* Figure out up front whether this cell's glyph (if any) is
+               a symbol borrowing the next cell's space, so the
+               background-quad push below can be adjusted accordingly.
+               Real bug found live: the width-borrowing decision itself
+               (symbol_constraint_width()) was correct, but the NEXT
+               cell still got its own full background quad pushed when
+               the loop reached it moments later -- submitted AFTER
+               this glyph's draw call, so it painted right back over
+               the portion that extended into it, undoing the fix
+               entirely. Fixed by pushing BOTH cells' backgrounds here
+               (each with its own resolved color, not assumed to
+               match) and skipping the borrowed cell's own iteration
+               entirely, rather than letting it redundantly repaint. */
+            ghostcon_cell_content_tag_t tag = ghostcon_cell_get_tag(cell);
+            uint32_t cp = (tag == GHOSTCON_CELL_CODEPOINT ||
+                           tag == GHOSTCON_CELL_CODEPOINT_GRAPHEME)
+                ? ghostcon_cell_get_codepoint(cell) : 0;
+            bool is_symbol = cp != 0 && cp != ' ' && ghostcon_cell_is_symbol(cp);
+            uint8_t constraint_width = is_symbol ? symbol_constraint_width(row, x) : 1;
+
             ghostcon_gles_push_rect(gles, px, py, (float)cell_w, (float)cell_h,
                                      bg[0], bg[1], bg[2], 1.0f);
 
-            if (style->flags & GC_STYLE_HIDDEN)
+            if (constraint_width == 2) {
+                ghostcon_cell_t next_cell = row->cells[x + 1];
+                const ghostcon_style_t *next_style =
+                    ghostcon_style_set_get(screen->styles, ghostcon_cell_get_style(next_cell));
+                float next_fg[3], next_bg[3];
+                resolve_colors(screen, next_style, next_fg, next_bg);
+                ghostcon_gles_push_rect(gles, px + (float)cell_w, py, (float)cell_w, (float)cell_h,
+                                         next_bg[0], next_bg[1], next_bg[2], 1.0f);
+            }
+
+            if (style->flags & GC_STYLE_HIDDEN) {
+                if (constraint_width == 2)
+                    x++;
                 continue;
+            }
 
             ghostcon_cell_wide_t wide = ghostcon_cell_get_wide(cell);
             if (wide == GHOSTCON_CELL_WIDE_SPACER_TAIL ||
                 wide == GHOSTCON_CELL_WIDE_SPACER_HEAD)
                 continue;
 
-            ghostcon_cell_content_tag_t tag = ghostcon_cell_get_tag(cell);
-            if (tag != GHOSTCON_CELL_CODEPOINT &&
-                tag != GHOSTCON_CELL_CODEPOINT_GRAPHEME)
-                continue;
-
-            uint32_t cp = ghostcon_cell_get_codepoint(cell);
-            if (cp == 0 || cp == ' ')
+            if (cp == 0)
                 continue;
 
             const ghostcon_glyph_t *glyph = ghostcon_atlas_glyph(atlas, cp);
-            if (!glyph)
+            if (!glyph) {
+                if (constraint_width == 2)
+                    x++;
                 continue;
+            }
 
             /* Baseline-align: bearing_y is this glyph's offset from the
                baseline up to its bitmap top. The baseline itself must
@@ -100,10 +161,60 @@ ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
                and get overdrawn by its background quad. */
             float gx = px + (float)glyph->bearing_x;
             float gy = py + (float)ascent - (float)glyph->bearing_y;
+            float draw_w = (float)glyph->width;
+            float draw_h = (float)glyph->height;
 
-            ghostcon_gles_push_glyph(gles, gx, gy,
-                                      (float)glyph->width, (float)glyph->height,
+            /* Symbol/icon glyphs (Nerd Font icons, Geometric Shapes,
+               Dingbats, ...) are correctly single-width per
+               ghostcon_unicode_width() -- confirmed matching the
+               reference terminal exactly -- but the installed font's
+               actual rasterized glyph can be physically wider than
+               one cell regardless (found live: a Nerd Font
+               git-pull-request icon and several circle/dot glyphs all
+               measured wider than cell_w at the configured font size).
+               Drawing those at native size left the right portion
+               erased the instant the next cell's own background quad
+               got pushed -- "half the glyph renders, half is cut off".
+               Fix, ported from Ghostty's own symbol-constraint system:
+               let it borrow the next cell's space if that cell is
+               blank (symbol_constraint_width() above), and only if it
+               STILL doesn't fit, scale it down (never up) to fit,
+               centered in the resulting bounds. Ordinary text glyphs
+               are completely untouched by any of this -- draw_w/draw_h
+               stay at native size and gx/gy stay baseline-anchored,
+               exactly as before. */
+            if (is_symbol) {
+                float bound_w = (float)(constraint_width * cell_w);
+                float bound_h = (float)cell_h;
+                float scale = 1.0f;
+                if (draw_w > bound_w)
+                    scale = bound_w / draw_w;
+                if (draw_h * scale > bound_h)
+                    scale = bound_h / draw_h;
+                if (scale < 1.0f) {
+                    draw_w *= scale;
+                    draw_h *= scale;
+                }
+                /* Snap to a whole pixel -- a fractional destination Y
+                   (e.g. padding of an odd pixel count centers at a
+                   half-pixel offset) causes asymmetric texel sampling
+                   between the quad's top and bottom edges: the source
+                   bitmap ends up losing a row on one edge but not the
+                   other, even though it's genuinely symmetric (found
+                   live -- confirmed by dumping the raw FreeType bitmap
+                   directly: perfectly symmetric top-to-bottom, so this
+                   was never a font/rasterization issue). Floor, not
+                   round, so the glyph never grows past its already-
+                   established bound_w/bound_h on either edge. */
+                gx = floorf(px + (bound_w - draw_w) / 2.0f);
+                gy = floorf(py + (bound_h - draw_h) / 2.0f);
+            }
+
+            ghostcon_gles_push_glyph(gles, gx, gy, draw_w, draw_h,
                                       glyph, fg[0], fg[1], fg[2], 1.0f);
+
+            if (constraint_width == 2)
+                x++; /* skip the borrowed cell -- already background-painted above */
         }
     }
 }

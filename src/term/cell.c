@@ -129,3 +129,53 @@ ghostcon_unicode_width(uint32_t cp) {
 
     return 1;
 }
+
+/* See cell.h's doc comment: a curated range-list approximation of
+   Ghostty's UCD-derived isSymbol(), covering Unicode General Category
+   Symbol blocks relevant to terminal use plus the full PUA (Nerd Font
+   icons). Kept as a flat sorted table + binary search, matching the
+   width-table convention just above. */
+static const gc_width_range_t gc_symbol[] = {
+    {0x2100,0x214F}, /* Letterlike Symbols */
+    {0x2190,0x21FF}, /* Arrows */
+    {0x2200,0x22FF}, /* Mathematical Operators (e.g. U+2299 CIRCLED DOT OPERATOR) */
+    {0x2300,0x23FF}, /* Miscellaneous Technical */
+    {0x2400,0x243F}, /* Control Pictures */
+    {0x2440,0x245F}, /* Optical Character Recognition */
+    {0x2460,0x24FF}, /* Enclosed Alphanumerics */
+    /* U+2500-259F (Box Drawing, Block Elements) deliberately excluded --
+       rendered procedurally by render/box_draw.c, never reach the
+       font-glyph path this classification is for. */
+    {0x25A0,0x25FF}, /* Geometric Shapes (e.g. U+25C9 FISHEYE, U+25CE BULLSEYE) */
+    {0x2600,0x26FF}, /* Miscellaneous Symbols */
+    {0x2700,0x27BF}, /* Dingbats */
+    {0x2900,0x297F}, /* Supplemental Arrows-B */
+    {0x2B00,0x2BFF}, /* Miscellaneous Symbols and Arrows */
+    {0xE000,0xF8FF}, /* Private Use Area -- Nerd Font icons (incl.
+                         Powerline, U+E0B0-E0D7) live here */
+    {0x1CC00,0x1CEBF}, /* Legacy Computing Supplement */
+    {0x1FB00,0x1FBFF}, /* Symbols for Legacy Computing */
+};
+
+bool
+ghostcon_cell_is_symbol(uint32_t cp) {
+    size_t lo = 0, hi = sizeof(gc_symbol) / sizeof(gc_symbol[0]);
+    while (lo < hi) {
+        size_t mid = (lo + hi) / 2;
+        if (cp < gc_symbol[mid].lo) {
+            hi = mid;
+        } else if (cp > gc_symbol[mid].hi) {
+            lo = mid + 1;
+        } else {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool
+ghostcon_cell_is_graphics_element(uint32_t cp) {
+    return (cp >= 0x1FB00 && cp <= 0x1FBFF) ||
+           (cp >= 0x1CC00 && cp <= 0x1CEBF) ||
+           (cp >= 0xE0B0 && cp <= 0xE0D7);
+}
