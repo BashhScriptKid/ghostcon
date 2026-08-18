@@ -17,6 +17,15 @@
    the same failure mode as the atlas bitmap itself filling up). */
 #define GHOSTCON_ATLAS_MAX_GLYPHS 4096
 
+/* Gap (pixels) left after every packed glyph, both right and below.
+   gles.c samples the atlas with GL_LINEAR; with zero gap, a glyph's
+   own edge texel gets bilinearly blended with whatever unrelated
+   glyph happens to be packed immediately next to it in the atlas --
+   a bleed artifact that reads as faint fringing/ghosting on glyph
+   edges (found live: visible once the gamma-correction fix made
+   edges crisp enough for the bleed to stand out from the noise). */
+#define GHOSTCON_ATLAS_GLYPH_PADDING 1
+
 typedef struct {
     uint32_t codepoint; /* 0 = empty slot (codepoint 0 / NUL is never rendered) */
     bool     occupied;
@@ -205,7 +214,7 @@ ghostcon_atlas_create(const char *font_family, const char *font_variant,
     atlas->bitmap[1] = 0xFF;
     atlas->bitmap[atlas_dim] = 0xFF;
     atlas->bitmap[atlas_dim + 1] = 0xFF;
-    atlas->pen_x = 2;
+    atlas->pen_x = 2 + GHOSTCON_ATLAS_GLYPH_PADDING;
     atlas->shelf_h = 2;
 
     atlas->dirty = true;
@@ -256,12 +265,12 @@ pack_bitmap(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t codepoint,
             const uint8_t *bitmap, unsigned width, unsigned rows,
             unsigned pitch, int16_t bearing_x, int16_t bearing_y, float advance)
 {
-    if (atlas->pen_x + width > atlas->dim) {
+    if (atlas->pen_x + width + GHOSTCON_ATLAS_GLYPH_PADDING > atlas->dim) {
         atlas->pen_x = 0;
-        atlas->pen_y += atlas->shelf_h;
+        atlas->pen_y += atlas->shelf_h + GHOSTCON_ATLAS_GLYPH_PADDING;
         atlas->shelf_h = 0;
     }
-    if (atlas->pen_y + rows > atlas->dim)
+    if (atlas->pen_y + rows + GHOSTCON_ATLAS_GLYPH_PADDING > atlas->dim)
         return NULL; /* atlas full */
 
     for (unsigned row = 0; row < rows; row++) {
@@ -285,7 +294,7 @@ pack_bitmap(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t codepoint,
         .advance = advance,
     };
 
-    atlas->pen_x += width;
+    atlas->pen_x += width + GHOSTCON_ATLAS_GLYPH_PADDING;
     if (rows > atlas->shelf_h)
         atlas->shelf_h = rows;
 
