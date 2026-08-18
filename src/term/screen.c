@@ -1157,8 +1157,21 @@ ghostcon_screen_set_scroll_region(ghostcon_screen_t *s,
         s->scroll_region.top = 0;
         s->scroll_region.bottom = (int16_t)(s->rows_visible - 1);
     } else {
-        s->scroll_region.top = top;
-        s->scroll_region.bottom = bottom;
+        /* top/bottom come straight from a raw CSI param (only negative
+           via an int16_t wrap from a huge value, caught above) -- a
+           mid-range value like 30000 on a ~50-row screen stays
+           positive and would otherwise land here unclamped. Every
+           consumer of scroll_region.top/bottom assumes it's a real
+           row range: row_idx()'s modulo keeps individual accesses in
+           bounds regardless, but region_height = bottom - top + 1
+           feeds straight into scroll_up/down's per-line history-push
+           loop (a real malloc per iteration) and IL/DL's row-copy
+           loops -- an unclamped region_height turns one escape
+           sequence into an unbounded allocation storm. Clamp to the
+           actual screen before storing. */
+        int16_t max_row = (int16_t)(s->rows_visible - 1);
+        s->scroll_region.top = top > max_row ? max_row : top;
+        s->scroll_region.bottom = bottom > max_row ? max_row : bottom;
     }
 
     /* Cursor goes to home position: region home if origin mode,
@@ -1181,8 +1194,11 @@ ghostcon_screen_set_margin_region(ghostcon_screen_t *s,
         s->margin_region.left = 0;
         s->margin_region.right = (int16_t)(s->cols - 1);
     } else {
-        s->margin_region.left = left;
-        s->margin_region.right = right;
+        /* Same class of gap as set_scroll_region above -- clamp
+           against the actual column count. */
+        int16_t max_col = (int16_t)(s->cols - 1);
+        s->margin_region.left = left > max_col ? max_col : left;
+        s->margin_region.right = right > max_col ? max_col : right;
     }
 }
 

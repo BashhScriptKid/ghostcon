@@ -896,6 +896,29 @@ TEST(insert_delete_chars_cursor_past_margin_is_noop) {
     ghostcon_term_deinit(&t);
 }
 
+TEST(scroll_region_huge_param_is_clamped_to_screen) {
+    /* Hardening regression: DECSTBM/DECSLRM only guarded against a
+       *negative* top/bottom/left/right (which only ever happens via
+       an int16_t wrap from a huge param) -- a mid-range param like
+       30000 on a small screen stayed positive and got stored into
+       scroll_region/margin_region completely unclamped against the
+       actual row/col count. region_height computed from that feeds
+       a per-line malloc loop in scroll_up/down (ghostcon_row_init per
+       iteration) -- one escape sequence could turn into an unbounded
+       allocation storm. Locks in that a huge region param clamps to
+       the actual screen instead. */
+    ghostcon_term_t t;
+    ASSERT(ghostcon_term_init(&t, 20, 10, 500), "init");
+    feed(&t, "\x1b[1;30000r"); /* DECSTBM: bottom way past rows_visible (10) */
+    ASSERT(t.screen.scroll_region.bottom == 9, "scroll_region.bottom clamped to rows_visible-1");
+    feed(&t, "\x1b[?69h");     /* DECLRMM on */
+    feed(&t, "\x1b[1;30000s"); /* DECSLRM: right way past cols (20) */
+    ASSERT(t.screen.margin_region.right == 19, "margin_region.right clamped to cols-1");
+    /* Must not hang/allocate a huge amount: scroll a clamped region. */
+    feed(&t, "\x1b[5S"); /* SU: scroll up 5 -- must complete instantly */
+    ghostcon_term_deinit(&t);
+}
+
 TEST(insert_delete_lines_huge_param_is_clamped_not_corrupted) {
     /* Hardening regression: an earlier version of both handlers cast an
        unclamped n (up to UINT16_MAX) straight into int16_t loop-bound
