@@ -39,3 +39,13 @@ void ghostcon_row_clear_range(ghostcon_row_t *row, uint16_t left, uint16_t end);
 void ghostcon_row_clear_range_unprotected(ghostcon_row_t *row, uint16_t left, uint16_t end);
 /* Clear all cells in the row */
 void ghostcon_row_clear(ghostcon_row_t *row);
+
+/* Fill cells in range [left, end) with `fill` (the ECMA-48 "erase color"
+   cell — normally an empty cell carrying only the currently selected
+   background, built by the caller). Same bounds/dirty/metadata semantics
+   as ghostcon_row_clear_range. */
+void ghostcon_row_fill_range(ghostcon_row_t *row, uint16_t left, uint16_t end, ghostcon_cell_t fill);
+/* Fill only unprotected cells in range [left, end) with `fill` (DECSED/DECSEL) */
+void ghostcon_row_fill_range_unprotected(ghostcon_row_t *row, uint16_t left, uint16_t end, ghostcon_cell_t fill);
+/* Fill all cells in the row with `fill` */
+void ghostcon_row_fill(ghostcon_row_t *row, ghostcon_cell_t fill);

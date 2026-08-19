@@ -19,6 +19,26 @@ cell_at(ghostcon_screen_t *s, int16_t x, int16_t y) {
     return &s->rows[row_idx(s, y)].cells[x];
 }
 
+/* Build the blank "erase color" cell used to fill cells vacated by ED/EL/ECH
+   and by scrolling: per ECMA-48, erased cells take on the *currently
+   selected* background color (the SGR pen's bg), not the terminal default.
+   Everything else about the cell (foreground, bold/underline/etc, content)
+   is blank/default -- only the background carries over. */
+static ghostcon_cell_t
+erase_fill_cell(ghostcon_screen_t *s) {
+    const ghostcon_style_t *pen = ghostcon_style_set_get(s->styles, s->cursor.style_id);
+
+    ghostcon_style_t erase_style = GHOSTCON_STYLE_DEFAULT;
+    erase_style.flags |= (uint16_t)(pen->flags &
+        (GC_STYLE_BG_TRUECOLOR | GC_STYLE_BG_DEFAULT));
+    erase_style.bg_palette = pen->bg_palette;
+    erase_style.bg_rgb = pen->bg_rgb;
+
+    ghostcon_cell_t fill = {0};
+    ghostcon_cell_set_style(&fill, ghostcon_style_set_add(s->styles, &erase_style));
+    return fill;
+}
+
 /* Mark a cell's row as dirty */
 static inline void
 mark_dirty(ghostcon_screen_t *s, int16_t y) {
@@ -798,13 +818,14 @@ ghostcon_screen_erase_display(ghostcon_screen_t *s, int mode) {
         return;
     }
 
+    ghostcon_cell_t fill = erase_fill_cell(s);
     for (int16_t y = top; y <= bottom; y++) {
         ghostcon_row_t *r = &s->rows[row_idx(s, y)];
         if (y == s->cursor.y && mode != GC_ERASE_DISPLAY_ALL) {
             /* Erase from cursor x to end of line */
             uint16_t left = (mode == GC_ERASE_DISPLAY_ABOVE) ? 0 : s->cursor.x;
             uint16_t end  = (mode == GC_ERASE_DISPLAY_ABOVE) ? (uint16_t)(s->cursor.x + 1) : s->cols;
-            ghostcon_row_clear_range(r, left, end);
+            ghostcon_row_fill_range(r, left, end, fill);
             /* Ghostty's ED.below calls eraseLine(.right) which resets the
                cursor row's soft-wrap; ED.above calls eraseLine(.left)
                which preserves it. */
@@ -813,7 +834,7 @@ ghostcon_screen_erase_display(ghostcon_screen_t *s, int mode) {
                 r->wrap_continuation = false;
             }
         } else {
-            ghostcon_row_clear(r);
+            ghostcon_row_fill(r, fill);
         }
         mark_dirty(s, y);
     }
@@ -846,14 +867,15 @@ ghostcon_screen_erase_display_protected(ghostcon_screen_t *s, int mode) {
     }
 
     /* DECSED: like ED but skips cells with the protected bit set. */
+    ghostcon_cell_t fill = erase_fill_cell(s);
     for (int16_t y = top; y <= bottom; y++) {
         ghostcon_row_t *r = &s->rows[row_idx(s, y)];
         if (y == s->cursor.y && mode != GC_ERASE_DISPLAY_ALL) {
             uint16_t left = (mode == GC_ERASE_DISPLAY_ABOVE) ? 0 : s->cursor.x;
             uint16_t end  = (mode == GC_ERASE_DISPLAY_ABOVE) ? (uint16_t)(s->cursor.x + 1) : s->cols;
-            ghostcon_row_clear_range_unprotected(r, left, end);
+            ghostcon_row_fill_range_unprotected(r, left, end, fill);
         } else {
-            ghostcon_row_clear_range_unprotected(r, 0, s->cols);
+            ghostcon_row_fill_range_unprotected(r, 0, s->cols, fill);
         }
         mark_dirty(s, y);
     }
@@ -881,7 +903,7 @@ ghostcon_screen_erase_line(ghostcon_screen_t *s, int mode) {
         return;
     }
 
-    ghostcon_row_clear_range(r, left, end);
+    ghostcon_row_fill_range(r, left, end, erase_fill_cell(s));
     /* Ghostty's eraseLine(.right) resets the row's soft-wrap state
        (cursorResetWrap); .left and .complete preserve it. */
     if (mode == GC_ERASE_LINE_RIGHT) {
@@ -914,7 +936,7 @@ ghostcon_screen_erase_line_protected(ghostcon_screen_t *s, int mode) {
     }
 
     /* DECSEL: like EL but skips cells with the protected bit set. */
-    ghostcon_row_clear_range_unprotected(r, left, end);
+    ghostcon_row_fill_range_unprotected(r, left, end, erase_fill_cell(s));
     mark_dirty(s, s->cursor.y);
 }
 
@@ -949,7 +971,7 @@ ghostcon_screen_erase_chars(ghostcon_screen_t *s, uint16_t n) {
     ghostcon_row_t *r = &s->rows[row_idx(s, s->cursor.y)];
     uint16_t end = s->cursor.x + n;
     if (end > s->cols) end = s->cols;
-    ghostcon_row_clear_range(r, s->cursor.x, end);
+    ghostcon_row_fill_range(r, s->cursor.x, end, erase_fill_cell(s));
     mark_dirty(s, s->cursor.y);
 }
 
@@ -1062,8 +1084,9 @@ ghostcon_screen_insert_lines(ghostcon_screen_t *s, uint16_t n) {
     }
 
     /* Clear the top shift lines */
+    ghostcon_cell_t fill = erase_fill_cell(s);
     for (int32_t y = top; y < top + shift && y <= bottom; y++) {
-        ghostcon_row_clear(&s->rows[row_idx(s, (int16_t)y)]);
+        ghostcon_row_fill(&s->rows[row_idx(s, (int16_t)y)], fill);
         mark_dirty(s, (int16_t)y);
     }
 }
@@ -1149,8 +1172,9 @@ ghostcon_screen_scroll_up(ghostcon_screen_t *s, uint16_t n) {
     }
 
     /* Clear the bottom n lines of the scroll region */
+    ghostcon_cell_t fill = erase_fill_cell(s);
     for (int16_t y = bottom - (int16_t)n + 1; y <= bottom; y++) {
-        ghostcon_row_clear(&s->rows[row_idx(s, y)]);
+        ghostcon_row_fill(&s->rows[row_idx(s, y)], fill);
         mark_dirty(s, y);
     }
 }
@@ -1182,8 +1206,9 @@ ghostcon_screen_scroll_down(ghostcon_screen_t *s, uint16_t n) {
     }
 
     /* Clear the top n lines of the scroll region */
+    ghostcon_cell_t fill = erase_fill_cell(s);
     for (int16_t y = top; y < top + (int16_t)n && y <= bottom; y++) {
-        ghostcon_row_clear(&s->rows[row_idx(s, y)]);
+        ghostcon_row_fill(&s->rows[row_idx(s, y)], fill);
         mark_dirty(s, y);
     }
 }
