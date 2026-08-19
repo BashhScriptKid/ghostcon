@@ -352,3 +352,62 @@ ghostcon_machine_render_selection(ghostcon_screen_t *screen,
         ghostcon_gles_push_rect(gles, px, py, w, (float)cell_h, r, g, b, GC_SELECTION_ALPHA);
     }
 }
+
+static void
+render_one_placement(ghostcon_gles_t *gles, const ghostcon_kitty_graphics_t *kg,
+                     const ghostcon_kitty_placement_t *p, int cell_w, int cell_h)
+{
+    const ghostcon_kitty_image_t *img = ghostcon_kitty_graphics_find_image(kg, p->image_id);
+    if (!img)
+        return; /* placement outlived its image (shouldn't happen -- a=d
+                    removes both together -- but don't draw garbage if it does) */
+
+    ghostcon_gles_image_t *tex = ghostcon_gles_kitty_tex_get(
+        gles, kg, img->id, img->generation, img->pixels, img->width, img->height, img->bpp);
+    if (!tex)
+        return;
+
+    float src_x = 0.0f, src_y = 0.0f, src_w = 0.0f, src_h = 0.0f;
+    if (p->crop_w > 0 && p->crop_h > 0) {
+        src_x = (float)p->crop_x;
+        src_y = (float)p->crop_y;
+        src_w = (float)p->crop_w;
+        src_h = (float)p->crop_h;
+    }
+
+    float natural_w = src_w > 0.0f ? src_w : (float)img->width;
+    float natural_h = src_h > 0.0f ? src_h : (float)img->height;
+    float draw_w = natural_w, draw_h = natural_h;
+    if (p->cell_cols > 0 && p->cell_rows > 0) {
+        draw_w = (float)(p->cell_cols * cell_w);
+        draw_h = (float)(p->cell_rows * cell_h);
+    }
+
+    float px = (float)(p->anchor_col * cell_w);
+    float py = (float)(p->anchor_row * cell_h);
+
+    if (p->z < 0) {
+        ghostcon_gles_draw_image_now(gles, tex, px, py, draw_w, draw_h,
+                                     src_x, src_y, src_w, src_h, 1.0f);
+    } else {
+        ghostcon_gles_queue_image(gles, tex, px, py, draw_w, draw_h,
+                                  src_x, src_y, src_w, src_h, 1.0f);
+    }
+}
+
+void
+ghostcon_machine_render_images(ghostcon_screen_t *screen,
+                               ghostcon_gles_t *gles,
+                               int cell_w, int cell_h)
+{
+    if (screen->view_offset > 0)
+        return;
+
+    const ghostcon_kitty_graphics_t *kg = &screen->kitty_graphics;
+    for (int i = 0; i < GHOSTCON_KITTY_MAX_PLACEMENTS; i++) {
+        const ghostcon_kitty_placement_t *p = &kg->placements[i];
+        if (!p->in_use)
+            continue;
+        render_one_placement(gles, kg, p, cell_w, cell_h);
+    }
+}

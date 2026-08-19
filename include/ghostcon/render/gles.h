@@ -5,6 +5,12 @@
 
 #include "atlas.h"
 
+/* Forward-declared rather than including term/kitty_graphics.h -- this
+   header only ever needs a pointer to it (see
+   ghostcon_gles_kitty_tex_get below), same reasoning as screen.h's own
+   forward-declare of struct ghostcon_screen for selection.h. */
+struct ghostcon_kitty_graphics;
+
 /* ------------------------------------------------------------------ */
 /* GLES 2.0 renderer                                                   */
 /*                                                                     */
@@ -137,6 +143,67 @@ bool ghostcon_gles_linear_blending_active(const ghostcon_gles_t *gles);
 /* Issues the draw calls for everything pushed since ghostcon_gles_begin,
    then eglSwapBuffers via the caller's ghostcon_egl_t. */
 void ghostcon_gles_end(ghostcon_gles_t *gles);
+
+/* ------------------------------------------------------------------ */
+/* Arbitrary-texture images (Kitty graphics protocol placements)       */
+/*                                                                     */
+/* Deliberately a separate pipeline from the atlas-based batch above:  */
+/* each Kitty image is its own arbitrary-sized GPU texture, not        */
+/* something the shared glyph atlas allocator manages, and GLES2 can't */
+/* sample a different texture per vertex within one draw call. Each    */
+/* image placement is its own immediate glDrawArrays call instead of   */
+/* being folded into the push_rect/push_glyph batch. See render/       */
+/* machine.c for how z<0 vs z>=0 placements get ordered relative to    */
+/* that batch (call timing IS paint order here, not vertex order).     */
+/* ------------------------------------------------------------------ */
+
+typedef struct ghostcon_gles_image ghostcon_gles_image_t;
+
+/* Uploads `rgba` (width*height*bpp bytes, bpp 3=RGB or 4=RGBA, no row
+   padding) as a new GPU texture. Returns NULL on failure. */
+ghostcon_gles_image_t *ghostcon_gles_image_create(const uint8_t *pixels,
+                                                   int width, int height, int bpp);
+void ghostcon_gles_image_destroy(ghostcon_gles_image_t *img);
+
+/* Draws one placement immediately (its own draw call, executes right
+   now, not deferred) -- use for z<0 placements, called before the
+   frame's render_dirty/push_glyph batch so text ends up on top.
+   src_w/src_h == 0 means "full image" (src_x/src_y ignored). alpha
+   scales the whole placement's opacity (1.0 = fully opaque). Must be
+   called between ghostcon_gles_begin and ghostcon_gles_end. */
+void ghostcon_gles_draw_image_now(ghostcon_gles_t *gles, ghostcon_gles_image_t *img,
+                                  float x, float y, float w, float h,
+                                  float src_x, float src_y, float src_w, float src_h,
+                                  float alpha);
+
+/* Defers a placement draw until after ghostcon_gles_end()'s main batch
+   draw call (but still before the frame's swap/blit) -- use for z>=0
+   placements, so they paint on top of text. Same parameters as
+   ghostcon_gles_draw_image_now. The queue is drained and cleared by
+   the next ghostcon_gles_end() call; nothing needs to be called to
+   reset it between frames. */
+void ghostcon_gles_queue_image(ghostcon_gles_t *gles, ghostcon_gles_image_t *img,
+                               float x, float y, float w, float h,
+                               float src_x, float src_y, float src_w, float src_h,
+                               float alpha);
+
+/* Returns a GPU texture for Kitty image `image_id`, uploading from
+   `pixels` on first use and re-uploading whenever `generation` differs
+   from what's currently cached (the term-layer image store bumps its
+   generation counter each time an id is re-transmitted -- see
+   term/kitty_graphics.h). The returned handle is owned by `gles`:
+   never call ghostcon_gles_image_destroy on it, and don't hold onto
+   it past the current frame (a later re-transmission can invalidate
+   and replace it). Bounded to the same max-image count as the
+   term-layer store; under pressure, evicts whichever cached entry's
+   id doesn't currently resolve via ghostcon_kitty_graphics_find_image
+   first (this needs the same screen's kitty_graphics to check that),
+   falling back to simple oldest-first if every cached entry is still
+   live. Returns NULL on allocation failure. */
+ghostcon_gles_image_t *ghostcon_gles_kitty_tex_get(ghostcon_gles_t *gles,
+                                                   const struct ghostcon_kitty_graphics *kg,
+                                                   uint32_t image_id, uint32_t generation,
+                                                   const uint8_t *pixels, int width, int height, int bpp);
 
 /* Reads back the just-rendered frame and writes it out as a binary PPM
    (P6). MUST be called after ghostcon_gles_end() but before the

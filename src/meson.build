@@ -28,6 +28,7 @@ term_srcs = files(
     'term/theme.c',
     'term/theme_ghostty_presets.c',
     'term/kitty.c',
+    'term/kitty_graphics.c',
     'term/hyperlink.c',
     'term/base64.c',
     'term/selection.c',
@@ -224,6 +225,14 @@ if not meson.is_subproject()
     # No libghostcon dependency at all -- it's a plain terminal client.
     tui_torture_exe = executable('tui_torture',
         '../tools/tui_torture.c',
+    )
+
+    # Not a test -- standalone image-protocol torture test, run manually
+    # from inside ghostcon itself: image_protocol_bench [page|--all|--list].
+    # No libghostcon dependency at all -- it's a plain terminal client
+    # (includes its own minimal base64/PNG/sixel encoders).
+    image_protocol_bench_exe = executable('image_protocol_bench',
+        '../tools/image_protocol_bench.c',
     )
 
     test_box_draw_exe = executable('test_box_draw',

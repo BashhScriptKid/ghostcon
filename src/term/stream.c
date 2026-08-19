@@ -1383,6 +1383,16 @@ osc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s) {
     ghostty_osc_free(parser);
 }
 
+static void
+apc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
+    if (st->apc_introducer != '_')
+        return; /* SOS/PM: no known use, discard as before */
+    ghostcon_kitty_graphics_handle(&s->kitty_graphics, st->buf, st->apc_len,
+                                   s->cursor.x, s->cursor.y,
+                                   st->output_fn, st->output_userdata);
+}
+
 /* ------------------------------------------------------------------ */
 /* Main state machine — per-byte processing                           */
 /* ------------------------------------------------------------------ */
@@ -1427,9 +1437,9 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
         case 0x9C: /* ST */ st->state = GC_STREAM_GROUND; return;
         case 0x9D: /* OSC */ st->state = GC_STREAM_OSC_STRING; return;
         case 0x90: /* DCS */ st->state = GC_STREAM_DCS_ENTRY; return;
-        case 0x98: /* SOS */ st->state = GC_STREAM_SOS_PM_APC_STRING; return;
-        case 0x9E: /* PM */ st->state = GC_STREAM_SOS_PM_APC_STRING; return;
-        case 0x9F: /* APC */ st->state = GC_STREAM_SOS_PM_APC_STRING; return;
+        case 0x98: /* SOS */ st->state = GC_STREAM_SOS_PM_APC_STRING; st->apc_introducer = 'X'; st->apc_len = 0; st->apc_overflow = false; return;
+        case 0x9E: /* PM */ st->state = GC_STREAM_SOS_PM_APC_STRING; st->apc_introducer = '^'; st->apc_len = 0; st->apc_overflow = false; return;
+        case 0x9F: /* APC */ st->state = GC_STREAM_SOS_PM_APC_STRING; st->apc_introducer = '_'; st->apc_len = 0; st->apc_overflow = false; return;
         }
     }
 
@@ -1446,6 +1456,14 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
                 st->osc_len = 0;
             }
             st->osc_pending = false;
+            if (c == '\\') break;
+        }
+        if (st->apc_pending) {
+            if (c == '\\' && !st->apc_overflow)
+                apc_dispatch(st, s);
+            st->apc_pending = false;
+            st->apc_len = 0;
+            st->apc_overflow = false;
             if (c == '\\') break;
         }
 
@@ -1480,6 +1498,9 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
             st->dcs_len = 0;
         } else if (c == 'X' || c == '^' || c == '_') {
             st->state = GC_STREAM_SOS_PM_APC_STRING;
+            st->apc_introducer = (char)c;
+            st->apc_len = 0;
+            st->apc_overflow = false;
         } else if (c >= 0x20 && c <= 0x2F) {
             /* Intermediate byte */
             st->intermediates[0] = c;
@@ -1522,6 +1543,9 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
         } else if (c == 'X' || c == '^' || c == '_') {
             /* SOS, PM, APC */
             st->state = GC_STREAM_SOS_PM_APC_STRING;
+            st->apc_introducer = (char)c;
+            st->apc_len = 0;
+            st->apc_overflow = false;
         }
         break;
 
@@ -1763,13 +1787,25 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
     /* ============================================================== */
         /* Only the 7-bit ESC-backslash form of ST terminates -- same
            reasoning as DCS_PASSTHROUGH above: a raw 0x9C is also a
-           valid UTF-8 continuation byte, and these payloads can
-           contain UTF-8 text too. This doesn't wait for the full
-           2-byte form (unlike DCS_PASSTHROUGH_ESC's dedicated
-           sub-state) since this content is discarded either way --
-           ESC alone is enough to end the (ignored) payload. */
+           valid UTF-8 continuation byte, and APC payloads (Kitty
+           graphics base64 data) can contain byte values that overlap
+           it. Sets apc_pending and returns to GROUND on ESC, mirroring
+           OSC_STRING's own handling below it -- GROUND's pending-check
+           block (above) is what actually confirms the '\' and
+           dispatches; without that flag, a real APC payload's
+           terminator would leak its trailing '\' onto the screen as
+           literal text (SOS/PM, which nothing here acts on, still just
+           accumulate-then-drop like before). */
         if (c == 0x1B) {
+            st->apc_pending = true;
             st->state = GC_STREAM_GROUND;
+        } else if (st->apc_introducer == '_') {
+            if (st->apc_len < st->buf_cap - 1) {
+                st->buf[st->apc_len++] = (char)c;
+                st->buf[st->apc_len] = '\0';
+            } else {
+                st->apc_overflow = true;
+            }
         }
         break;
     }

@@ -688,6 +688,13 @@ render_frame(app_t *app)
        PLAN.md's own renderer design note: "redrawing all dirty cells
        each frame is sufficient" for a terminal at this scale. */
     ghostcon_gles_begin(app->gles, true, bg[0], bg[1], bg[2]);
+    /* Must run before render_dirty: z<0 (behind-text) Kitty image
+       placements draw immediately here, so render_dirty's text/
+       background batch (drawn later, inside gles_end) correctly paints
+       on top of them. z>=0 placements just get queued here and
+       actually draw after that batch -- see machine.h's doc comment. */
+    ghostcon_machine_render_images(&app->term.screen, app->gles,
+                                    app->cell_w, app->cell_h);
     ghostcon_machine_render_dirty(&app->term.screen, app->atlas, app->gles,
                                    app->cell_w, app->cell_h);
     ghostcon_machine_render_cursor(&app->term.screen, app->gles,

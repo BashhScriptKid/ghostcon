@@ -85,11 +85,18 @@ struct ghostcon_stream {
     uint8_t                 utf8_state;    /* UTF-8 DFA state (0 = accept) */
     uint16_t                osc_len;
     uint16_t                dcs_len;
+    uint16_t                apc_len;
+    char                    apc_introducer; /* 'X'/'^'/'_' -- which of SOS/PM/APC we're in */
+    bool                    apc_pending;    /* saw ESC mid-APC, awaiting '\' to confirm ST */
+    bool                    apc_overflow;   /* payload exceeded buf_cap -- reject, don't truncate-and-accept */
 
-    /* Internal buffer for collecting OSC/DCS data */
+    /* Internal buffer for collecting OSC/DCS/APC data. Sized to fit one
+       Kitty graphics chunk (4096 base64 payload bytes, the protocol's
+       own per-chunk cap, plus control-data slack) as well as OSC/DCS
+       payloads. */
     char    *buf;            /* allocated buffer (or local buffer for small) */
     uint16_t buf_cap;
-    char     local_buf[2048]; /* small-buffer optimization (large enough for OSC) */
+    char     local_buf[6144];
     bool     osc_pending;    /* OSC data collected, awaiting dispatch */
     bool     osc_terminated_by_bel; /* OSC was terminated by BEL (vs ST) */
 

@@ -1,0 +1,111 @@
+#ifndef GHOSTCON_TERM_KITTY_GRAPHICS_H
+#define GHOSTCON_TERM_KITTY_GRAPHICS_H
+
+/* Kitty graphics protocol (APC _G...ST) -- transmission, placement, and
+   deletion of images. v1 scope, deliberately: only the direct
+   transmission medium (t=d, image bytes embedded in the escape
+   sequence itself) and raw pixel formats (f=24 RGB, f=32 RGBA) are
+   supported. PNG payloads (f=100) and the file/temp-file/shared-memory
+   transmission mediums (t=f, t=t, t=s) are rejected with a clean error
+   ack rather than silently ignored -- both are deferred follow-up work
+   (a PNG decoder is a much larger parser to harden, and t=f/t=t let a
+   client ask the terminal to read an arbitrary file path off disk,
+   which needs its own path-safety policy before it's safe to wire up).
+
+   This module is intentionally decoupled from ghostcon_screen_t: it
+   receives the cursor position as plain ints from the caller rather
+   than reaching into screen state itself, and reports placements back
+   through an accessor rather than writing into the cell grid -- image
+   compositing is a renderer-side concern, not a screen-model one (see
+   CLAUDE.md's note on why erase-only backgrounds are a content tag,
+   not a cell rewrite; the same "renderer reads a side table" shape
+   applies here). */
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+/* Same signature as ghostcon_output_fn (term/stream.h) -- duplicated
+   rather than included to avoid a stream.h <-> kitty_graphics.h
+   circular include; the two are structurally compatible function
+   pointer types so no cast is needed at the call site. */
+typedef void (*ghostcon_kitty_output_fn)(void *userdata,
+                                         const uint8_t *data, size_t len);
+
+#define GHOSTCON_KITTY_MAX_IMAGES      64
+#define GHOSTCON_KITTY_MAX_PLACEMENTS  256
+#define GHOSTCON_KITTY_MAX_DIM         4096u
+#define GHOSTCON_KITTY_MAX_IMAGE_BYTES (16u * 1024u * 1024u)  /* per-image decoded cap */
+#define GHOSTCON_KITTY_MAX_TOTAL_BYTES (128u * 1024u * 1024u) /* across all stored images */
+
+typedef struct {
+    bool     in_use;
+    uint32_t id;
+    int32_t  width, height;
+    int32_t  bpp; /* 3 (RGB) or 4 (RGBA) */
+    uint8_t *pixels; /* owned, width*height*bpp bytes */
+    size_t   pixel_len;
+    /* Bumped every time this slot's pixels are (re)populated by a
+       transmission. Lets the renderer, which caches one GPU texture
+       per image id, tell "same id, same data, texture still valid"
+       apart from "same id, re-transmitted, texture is stale" without
+       the term/ layer knowing anything about textures itself. */
+    uint32_t generation;
+
+    /* Cross-chunk (m=1) transmission in progress for this id. */
+    bool     receiving;
+    uint8_t *recv_buf; /* owned, capacity == expected pixel_len */
+    size_t   recv_len;
+} ghostcon_kitty_image_t;
+
+typedef struct {
+    bool     in_use;
+    uint32_t image_id;
+    uint32_t placement_id; /* 0 = anonymous */
+    int32_t  anchor_col, anchor_row; /* cursor cell position at placement time */
+    int32_t  z;
+    /* Crop rect in source pixels; all zero means "full image". */
+    int32_t  crop_x, crop_y, crop_w, crop_h;
+    /* Placement size in cells; both zero means "natural pixel size". */
+    int32_t  cell_cols, cell_rows;
+} ghostcon_kitty_placement_t;
+
+/* Tagged (not anonymous) so headers that only need a pointer (e.g.
+   render/gles.h's ghostcon_gles_kitty_tex_get) can forward-declare
+   `struct ghostcon_kitty_graphics;` without including this header. */
+typedef struct ghostcon_kitty_graphics {
+    ghostcon_kitty_image_t     images[GHOSTCON_KITTY_MAX_IMAGES];
+    ghostcon_kitty_placement_t placements[GHOSTCON_KITTY_MAX_PLACEMENTS];
+    size_t                     total_bytes;
+
+    /* A multi-chunk (m=1) transmission's continuation chunks legally
+       omit i= and a= (only the first chunk carries them, per spec) --
+       tracked here so a continuation chunk can resolve back to which
+       image/display-intent it belongs to. -1 = no transfer in
+       progress. */
+    int64_t active_transfer_id;
+    bool    active_transfer_display;
+} ghostcon_kitty_graphics_t;
+
+void ghostcon_kitty_graphics_init(ghostcon_kitty_graphics_t *kg);
+void ghostcon_kitty_graphics_deinit(ghostcon_kitty_graphics_t *kg);
+
+/* Handle one complete, already ST-terminated APC "G..." body (the bytes
+   after the 'G', up to but not including the terminator). cursor_col/
+   cursor_row anchor any placement this command creates. Acks (OK/error)
+   are written via output_fn per the command's q= quiet level. */
+/* Looks up an image by id (NULL if not present or not yet fully
+   transmitted). Read-only accessor for the renderer -- see
+   render/machine.c, which walks kg->placements[] itself (a plain
+   fixed array, no accessor needed for that part) but needs this to
+   resolve each placement's image_id back to pixel data. */
+const ghostcon_kitty_image_t *ghostcon_kitty_graphics_find_image(
+    const ghostcon_kitty_graphics_t *kg, uint32_t id);
+
+void ghostcon_kitty_graphics_handle(ghostcon_kitty_graphics_t *kg,
+                                    const char *body, size_t body_len,
+                                    int32_t cursor_col, int32_t cursor_row,
+                                    ghostcon_kitty_output_fn output_fn,
+                                    void *output_userdata);
+
+#endif

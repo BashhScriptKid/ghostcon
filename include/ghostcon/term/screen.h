@@ -11,6 +11,7 @@
 #include "modes.h"
 #include "selection.h"
 #include "kitty.h"
+#include "kitty_graphics.h"
 #include "hyperlink.h"
 
 /* ------------------------------------------------------------------ */
@@ -221,6 +222,12 @@ struct ghostcon_screen {
 
     /* Kitty keyboard protocol state */
     ghostcon_kitty_state_t kitty;
+
+    /* Kitty graphics protocol state (images + placements). Lives here
+       rather than on ghostcon_stream_t so the renderer (which only
+       ever takes a ghostcon_screen_t*, see render/machine.h) can reach
+       placements without needing stream.h at all. */
+    ghostcon_kitty_graphics_t kitty_graphics;
 
     /* Damage tracking */
     ghostcon_dirty_region_t dirty;

@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "ghostcon/term/kitty_graphics.h"
+
 static const char *VERT_SRC =
     "attribute vec2 a_pos;\n"
     "attribute vec2 a_uv;\n"
@@ -208,7 +210,80 @@ struct ghostcon_gles {
 
     ghostcon_vertex_t *verts;
     size_t vert_count, vert_cap;
+
+    /* Kitty graphics image quads -- separate pipeline, see gles.h's
+       doc comment on this section. */
+    GLuint img_program;
+    GLint  img_attr_pos, img_attr_uv, img_uniform_tex, img_uniform_alpha, img_uniform_linear_blending;
+
+    struct ghostcon_gles_queued_image *queued_images;
+    size_t queued_count, queued_cap;
+
+    struct ghostcon_gles_kitty_tex_entry *kitty_tex;
+    size_t kitty_tex_count, kitty_tex_cap;
 };
+
+struct ghostcon_gles_kitty_tex_entry {
+    uint32_t image_id;
+    uint32_t generation;
+    ghostcon_gles_image_t *tex;
+};
+
+struct ghostcon_gles_image {
+    GLuint tex;
+    int    width, height;
+};
+
+struct ghostcon_gles_queued_image {
+    ghostcon_gles_image_t *img;
+    float x, y, w, h;
+    float src_x, src_y, src_w, src_h;
+    float alpha;
+};
+
+/* Kitty graphics image quads -- deliberately its own tiny shader
+   rather than reusing VERT_SRC/FRAG_SRC above: those sample the
+   shared glyph atlas and carry gamma-correction/is_glyph machinery
+   this doesn't need. Plain textured quad, uniform alpha multiplies
+   whatever the texture's own alpha is (1.0 for RGB-format textures,
+   giving a uniform placement opacity either way). */
+static const char *IMG_VERT_SRC =
+    "attribute vec2 a_pos;\n"
+    "attribute vec2 a_uv;\n"
+    "varying highp vec2 v_uv;\n"
+    "void main() {\n"
+    "    v_uv = a_uv;\n"
+    "    gl_Position = vec4(a_pos, 0.0, 1.0);\n"
+    "}\n";
+
+static const char *IMG_FRAG_SRC =
+    "precision mediump float;\n"
+    "varying highp vec2 v_uv;\n"
+    "uniform sampler2D u_tex;\n"
+    "uniform float u_alpha;\n"
+    "uniform bool u_linear_blending;\n"
+    /* Same fix, same reason as FRAG_SRC's own lin1()/u_linear_blending
+       doc comment above: when linear_blending is active, the target is
+       an sRGB-format FBO that auto-encodes every fragment write. The
+       uploaded texture holds ordinary sRGB-encoded 0-255 bytes (e.g. a
+       Kitty image's raw RGB payload) sampled back as-is; writing those
+       straight through under that auto-encode gets them gamma-encoded
+       a SECOND time, washing the image out (found live: a checkerboard
+       transmitted as (220,60,60)/(30,30,140) rendered as
+       (239,133,133)/(96,96,196) -- exactly the shape of a double sRGB
+       encode, which compresses hard near black and barely moves near
+       white). Pre-linearizing here cancels the hardware's forced
+       re-encode, same as FRAG_SRC already does for text/background. */
+    "highp float lin1(highp float v) {\n"
+    "    return v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4);\n"
+    "}\n"
+    "void main() {\n"
+    "    vec4 c = texture2D(u_tex, v_uv);\n"
+    "    vec3 rgb = c.rgb;\n"
+    "    if (u_linear_blending)\n"
+    "        rgb = vec3(lin1(rgb.r), lin1(rgb.g), lin1(rgb.b));\n"
+    "    gl_FragColor = vec4(rgb, c.a * u_alpha);\n"
+    "}\n";
 
 static GLuint
 compile_shader(GLenum type, const char *src)
@@ -268,6 +343,32 @@ ghostcon_gles_create(uint32_t viewport_w, uint32_t viewport_h, bool want_linear_
     gles->uniform_gamma_correct = glGetUniformLocation(gles->program, "u_gamma_correct");
     gles->uniform_linear_blending = glGetUniformLocation(gles->program, "u_linear_blending");
     gles->gamma_correct = true;
+
+    GLuint ivs = compile_shader(GL_VERTEX_SHADER, IMG_VERT_SRC);
+    GLuint ifs = compile_shader(GL_FRAGMENT_SHADER, IMG_FRAG_SRC);
+    if (ivs && ifs) {
+        gles->img_program = glCreateProgram();
+        glAttachShader(gles->img_program, ivs);
+        glAttachShader(gles->img_program, ifs);
+        glLinkProgram(gles->img_program);
+        GLint img_linked = 0;
+        glGetProgramiv(gles->img_program, GL_LINK_STATUS, &img_linked);
+        if (img_linked) {
+            gles->img_attr_pos = glGetAttribLocation(gles->img_program, "a_pos");
+            gles->img_attr_uv = glGetAttribLocation(gles->img_program, "a_uv");
+            gles->img_uniform_tex = glGetUniformLocation(gles->img_program, "u_tex");
+            gles->img_uniform_alpha = glGetUniformLocation(gles->img_program, "u_alpha");
+            gles->img_uniform_linear_blending =
+                glGetUniformLocation(gles->img_program, "u_linear_blending");
+        } else {
+            char log[512];
+            glGetProgramInfoLog(gles->img_program, sizeof(log), NULL, log);
+            fprintf(stderr, "gles: image program link failed: %s\n", log);
+            gles->img_program = 0;
+        }
+    }
+    if (ivs) glDeleteShader(ivs);
+    if (ifs) glDeleteShader(ifs);
 
     /* Real linear-space rendering via an offscreen sRGB FBO -- see
        this struct's own doc comment on why (an sRGB EGL window
@@ -367,6 +468,11 @@ ghostcon_gles_destroy(ghostcon_gles_t *gles)
         glDeleteProgram(gles->blit_program);
     }
     free(gles->verts);
+    free(gles->queued_images);
+    for (size_t i = 0; i < gles->kitty_tex_count; i++)
+        ghostcon_gles_image_destroy(gles->kitty_tex[i].tex);
+    free(gles->kitty_tex);
+    if (gles->img_program) glDeleteProgram(gles->img_program);
     free(gles);
 }
 
@@ -493,6 +599,171 @@ ghostcon_gles_linear_blending_active(const ghostcon_gles_t *gles)
     return gles->linear_blending;
 }
 
+ghostcon_gles_image_t *
+ghostcon_gles_image_create(const uint8_t *pixels, int width, int height, int bpp)
+{
+    if (width <= 0 || height <= 0 || (bpp != 3 && bpp != 4))
+        return NULL;
+    ghostcon_gles_image_t *img = calloc(1, sizeof(*img));
+    if (!img)
+        return NULL;
+    img->width = width;
+    img->height = height;
+
+    GLenum fmt = (bpp == 4) ? GL_RGBA : GL_RGB;
+    glGenTextures(1, &img->tex);
+    glBindTexture(GL_TEXTURE_2D, img->tex);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexImage2D(GL_TEXTURE_2D, 0, (GLint)fmt, width, height, 0,
+                 fmt, GL_UNSIGNED_BYTE, pixels);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    return img;
+}
+
+void
+ghostcon_gles_image_destroy(ghostcon_gles_image_t *img)
+{
+    if (!img)
+        return;
+    glDeleteTextures(1, &img->tex);
+    free(img);
+}
+
+static void
+draw_image_internal(ghostcon_gles_t *gles, ghostcon_gles_image_t *img,
+                    float x, float y, float w, float h,
+                    float src_x, float src_y, float src_w, float src_h,
+                    float alpha)
+{
+    if (!gles->img_program || !img)
+        return;
+
+    float u0 = 0.0f, v0 = 0.0f, u1 = 1.0f, v1 = 1.0f;
+    if (src_w > 0.0f && src_h > 0.0f) {
+        u0 = src_x / (float)img->width;
+        v0 = src_y / (float)img->height;
+        u1 = (src_x + src_w) / (float)img->width;
+        v1 = (src_y + src_h) / (float)img->height;
+    }
+
+    /* Pixel space (top-left origin, y-down) -> NDC -- same formula as
+       push_vertex() above, duplicated rather than shared since this
+       writes into a small stack array, not the batch's verts[]. */
+    float x0 = (x / (float)gles->viewport_w) * 2.0f - 1.0f;
+    float x1 = ((x + w) / (float)gles->viewport_w) * 2.0f - 1.0f;
+    float y0 = 1.0f - (y / (float)gles->viewport_h) * 2.0f;
+    float y1 = 1.0f - ((y + h) / (float)gles->viewport_h) * 2.0f;
+
+    float quad[24] = {
+        x0, y0, u0, v0,
+        x0, y1, u0, v1,
+        x1, y0, u1, v0,
+        x1, y0, u1, v0,
+        x0, y1, u0, v1,
+        x1, y1, u1, v1,
+    };
+
+    glUseProgram(gles->img_program);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, img->tex);
+    glUniform1i(gles->img_uniform_tex, 0);
+    glUniform1f(gles->img_uniform_alpha, alpha);
+    glUniform1i(gles->img_uniform_linear_blending, gles->linear_blending ? 1 : 0);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glVertexAttribPointer(gles->img_attr_pos, 2, GL_FLOAT, GL_FALSE,
+                          4 * sizeof(float), &quad[0]);
+    glVertexAttribPointer(gles->img_attr_uv, 2, GL_FLOAT, GL_FALSE,
+                          4 * sizeof(float), &quad[2]);
+    glEnableVertexAttribArray(gles->img_attr_pos);
+    glEnableVertexAttribArray(gles->img_attr_uv);
+
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    glDisableVertexAttribArray(gles->img_attr_pos);
+    glDisableVertexAttribArray(gles->img_attr_uv);
+}
+
+void
+ghostcon_gles_draw_image_now(ghostcon_gles_t *gles, ghostcon_gles_image_t *img,
+                             float x, float y, float w, float h,
+                             float src_x, float src_y, float src_w, float src_h,
+                             float alpha)
+{
+    draw_image_internal(gles, img, x, y, w, h, src_x, src_y, src_w, src_h, alpha);
+}
+
+ghostcon_gles_image_t *
+ghostcon_gles_kitty_tex_get(ghostcon_gles_t *gles,
+                           const struct ghostcon_kitty_graphics *kg,
+                           uint32_t image_id, uint32_t generation,
+                           const uint8_t *pixels, int width, int height, int bpp)
+{
+    for (size_t i = 0; i < gles->kitty_tex_count; i++) {
+        struct ghostcon_gles_kitty_tex_entry *e = &gles->kitty_tex[i];
+        if (e->image_id == image_id) {
+            if (e->generation == generation)
+                return e->tex;
+            /* Re-transmitted under the same id -- swap the texture. */
+            ghostcon_gles_image_destroy(e->tex);
+            e->tex = ghostcon_gles_image_create(pixels, width, height, bpp);
+            e->generation = generation;
+            return e->tex;
+        }
+    }
+
+    if (gles->kitty_tex_count >= GHOSTCON_KITTY_MAX_IMAGES) {
+        /* Under pressure: evict whichever cached id no longer resolves
+           in the current image store (genuinely deleted), else the
+           oldest entry. */
+        size_t victim = 0;
+        for (size_t i = 0; i < gles->kitty_tex_count; i++) {
+            if (!kg || !ghostcon_kitty_graphics_find_image(kg, gles->kitty_tex[i].image_id)) {
+                victim = i;
+                break;
+            }
+        }
+        ghostcon_gles_image_destroy(gles->kitty_tex[victim].tex);
+        memmove(&gles->kitty_tex[victim], &gles->kitty_tex[victim + 1],
+               (gles->kitty_tex_count - victim - 1) * sizeof(*gles->kitty_tex));
+        gles->kitty_tex_count--;
+    }
+
+    if (gles->kitty_tex_count >= gles->kitty_tex_cap) {
+        gles->kitty_tex_cap = gles->kitty_tex_cap ? gles->kitty_tex_cap * 2 : 8;
+        gles->kitty_tex = realloc(gles->kitty_tex, gles->kitty_tex_cap * sizeof(*gles->kitty_tex));
+    }
+
+    ghostcon_gles_image_t *tex = ghostcon_gles_image_create(pixels, width, height, bpp);
+    if (!tex)
+        return NULL;
+    gles->kitty_tex[gles->kitty_tex_count++] = (struct ghostcon_gles_kitty_tex_entry){
+        image_id, generation, tex,
+    };
+    return tex;
+}
+
+void
+ghostcon_gles_queue_image(ghostcon_gles_t *gles, ghostcon_gles_image_t *img,
+                          float x, float y, float w, float h,
+                          float src_x, float src_y, float src_w, float src_h,
+                          float alpha)
+{
+    if (gles->queued_count >= gles->queued_cap) {
+        gles->queued_cap = gles->queued_cap ? gles->queued_cap * 2 : 8;
+        gles->queued_images = realloc(gles->queued_images,
+                                      gles->queued_cap * sizeof(*gles->queued_images));
+    }
+    gles->queued_images[gles->queued_count++] = (struct ghostcon_gles_queued_image){
+        img, x, y, w, h, src_x, src_y, src_w, src_h, alpha,
+    };
+}
+
 void
 ghostcon_gles_end(ghostcon_gles_t *gles)
 {
@@ -534,6 +805,17 @@ ghostcon_gles_end(ghostcon_gles_t *gles)
     glDisableVertexAttribArray(gles->attr_color);
     glDisableVertexAttribArray(gles->attr_bg);
     glDisableVertexAttribArray(gles->attr_is_glyph);
+
+    /* z>=0 image placements: drawn now, after the text/background
+       batch above but before the sRGB blit/swap below -- see gles.h's
+       doc comment on why draw call TIMING is what controls paint
+       order for these, not vertex order. */
+    for (size_t i = 0; i < gles->queued_count; i++) {
+        struct ghostcon_gles_queued_image *q = &gles->queued_images[i];
+        draw_image_internal(gles, q->img, q->x, q->y, q->w, q->h,
+                            q->src_x, q->src_y, q->src_w, q->src_h, q->alpha);
+    }
+    gles->queued_count = 0;
 
     if (gles->linear_blending) {
         /* Everything above was drawn into the offscreen sRGB FBO --

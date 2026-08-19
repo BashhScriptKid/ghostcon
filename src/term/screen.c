@@ -176,6 +176,9 @@ ghostcon_screen_init(ghostcon_screen_t *s,
     /* Kitty keyboard protocol */
     ghostcon_kitty_init(&s->kitty);
 
+    /* Kitty graphics protocol (images + placements) */
+    ghostcon_kitty_graphics_init(&s->kitty_graphics);
+
     /* Mode bitfield */
     ghostcon_modes_clear(&s->modes);
     if (s->auto_wrap) ghostcon_modes_set(&s->modes, GC_MODE_AUTO_WRAP);
@@ -207,6 +210,7 @@ ghostcon_screen_deinit(ghostcon_screen_t *s) {
     ghostcon_style_set_destroy(s->styles);
     ghostcon_hyperlink_set_destroy(s->hyperlinks);
     free(s->tabstops.stops);
+    ghostcon_kitty_graphics_deinit(&s->kitty_graphics);
     memset(s, 0, sizeof(*s));
 }
 
@@ -297,6 +301,12 @@ ghostcon_screen_reset(ghostcon_screen_t *s)
     for (uint16_t i = 0; i < s->rows_visible; i++)
         ghostcon_row_clear(&s->rows[i]);
     s->view_offset = 0;
+
+    /* RIS is a hard reset -- drop all Kitty graphics images/placements
+       too, same "discard rather than gracefully restore" reasoning as
+       the alt-screen drop above. */
+    ghostcon_kitty_graphics_deinit(&s->kitty_graphics);
+    ghostcon_kitty_graphics_init(&s->kitty_graphics);
 
     /* Cursor */
     s->cursor.x = 0;

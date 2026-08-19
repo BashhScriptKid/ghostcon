@@ -179,6 +179,7 @@ main(int argc, char **argv)
                          (float)bg_rgb.r / 255.0f,
                          (float)bg_rgb.g / 255.0f,
                          (float)bg_rgb.b / 255.0f);
+    ghostcon_machine_render_images(&term.screen, gles, cell_w, cell_h);
     ghostcon_machine_render_dirty(&term.screen, atlas, gles, cell_w, cell_h);
     ghostcon_machine_render_cursor(&term.screen, gles, cell_w, cell_h);
     ghostcon_gles_sync_atlas(gles, atlas, false);

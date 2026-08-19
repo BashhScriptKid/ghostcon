@@ -44,3 +44,20 @@ void ghostcon_machine_render_cursor(ghostcon_screen_t *screen,
 void ghostcon_machine_render_selection(ghostcon_screen_t *screen,
                                         ghostcon_gles_t *gles,
                                         int cell_w, int cell_h);
+
+/* Walks screen->kitty_graphics.placements[] and draws each one.
+   z<0 placements are drawn immediately (their own draw call, right
+   now) so they end up behind the text/background batch this frame's
+   render_dirty will push; z>=0 placements are queued (see
+   ghostcon_gles_queue_image's doc comment) so they draw after that
+   batch, on top of text. Call this ONCE per frame, right after
+   ghostcon_gles_begin and BEFORE render_dirty -- the z<0 half relies
+   on executing before render_dirty's content is drawn (call order is
+   paint order for the immediate half), while the z>=0 half just needs
+   to be queued sometime before ghostcon_gles_end. No-op while
+   scrolled back into history (screen->view_offset > 0), same
+   reasoning as render_cursor/render_selection: placements are anchored
+   to live cursor coordinates, not history-relative ones. */
+void ghostcon_machine_render_images(ghostcon_screen_t *screen,
+                                     ghostcon_gles_t *gles,
+                                     int cell_w, int cell_h);
