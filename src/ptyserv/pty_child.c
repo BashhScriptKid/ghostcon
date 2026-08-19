@@ -197,8 +197,20 @@ spawn_session(const char *shell, int *out_master_fd)
             }
             /* "-" = use the already-attached line (our pty slave, via
                forkpty) instead of agetty opening a tty device itself --
-               same convention kmscon's own unit file uses. */
-            execlp("agetty", "agetty", "-8", "--noclear", "-", term, (char *)NULL);
+               same convention kmscon's own unit file uses.
+
+               --login-options "-p" passes login(1) its own
+               -p/--preserve-environment flag -- without it, login's PAM
+               handling silently drops the TERM_PROGRAM/TERM_PROGRAM_VERSION
+               vars set above (confirmed live: only bare TERM survived to
+               the shell without this), the same env-var convention
+               fastfetch/neofetch use to attach a version string once
+               they've found the terminal name. Not a security concern
+               here the way --login-options's own man page warns about for
+               --autologin (embedded "-" options in a hostile username) --
+               this passes a fixed, hardcoded option string, no username
+               interpolation via \u involved. */
+            execlp("agetty", "agetty", "-8", "--noclear", "--login-options", "-p", "-", term, (char *)NULL);
         }
         perror("execlp session");
         _exit(127);
