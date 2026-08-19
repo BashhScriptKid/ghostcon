@@ -61,7 +61,8 @@ ghostcon_row_fill_range(ghostcon_row_t *row, uint16_t left, uint16_t end, ghostc
     /* If we cleared the entire row, reset the metadata flags */
     if (left == 0 && end == row->cols) {
         row->grapheme = false;
-        row->styled = ghostcon_cell_get_style(fill) != GC_STYLE_ID_DEFAULT;
+        row->styled = ghostcon_cell_get_style(fill) != GC_STYLE_ID_DEFAULT ||
+                      ghostcon_cell_get_tag(fill) != GHOSTCON_CELL_CODEPOINT;
         row->hyperlink = false;
     }
 }

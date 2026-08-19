@@ -22,20 +22,26 @@ cell_at(ghostcon_screen_t *s, int16_t x, int16_t y) {
 /* Build the blank "erase color" cell used to fill cells vacated by ED/EL/ECH
    and by scrolling: per ECMA-48, erased cells take on the *currently
    selected* background color (the SGR pen's bg), not the terminal default.
-   Everything else about the cell (foreground, bold/underline/etc, content)
-   is blank/default -- only the background carries over. */
+   Matches Ghostty's own representation: a blank cell carrying only a
+   background gets tagged BG_COLOR_PALETTE/BG_COLOR_RGB in its content
+   field, style_id left at 0 (default) -- not a style-table entry. This
+   avoids interning a near-duplicate default-ish style per distinct
+   erase color, and keeps large erased regions cheap. */
 static ghostcon_cell_t
 erase_fill_cell(ghostcon_screen_t *s) {
     const ghostcon_style_t *pen = ghostcon_style_set_get(s->styles, s->cursor.style_id);
 
-    ghostcon_style_t erase_style = GHOSTCON_STYLE_DEFAULT;
-    erase_style.flags |= (uint16_t)(pen->flags &
-        (GC_STYLE_BG_TRUECOLOR | GC_STYLE_BG_DEFAULT));
-    erase_style.bg_palette = pen->bg_palette;
-    erase_style.bg_rgb = pen->bg_rgb;
-
     ghostcon_cell_t fill = {0};
-    ghostcon_cell_set_style(&fill, ghostcon_style_set_add(s->styles, &erase_style));
+    if (pen->flags & GC_STYLE_BG_DEFAULT)
+        return fill; /* no explicit bg -- plain empty/default cell */
+
+    if (pen->flags & GC_STYLE_BG_TRUECOLOR) {
+        ghostcon_cell_set_tag(&fill, GHOSTCON_CELL_BG_COLOR_RGB);
+        ghostcon_cell_set_rgb(&fill, pen->bg_rgb);
+    } else {
+        ghostcon_cell_set_tag(&fill, GHOSTCON_CELL_BG_COLOR_PALETTE);
+        ghostcon_cell_set_palette_idx(&fill, pen->bg_palette);
+    }
     return fill;
 }
 

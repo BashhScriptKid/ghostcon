@@ -199,6 +199,17 @@ if not meson.is_subproject()
                        dep_glesv2, dep_egl, dep_libgbm, dep_libdrm],
     )
 
+    # Not a test -- one-off diagnostic tool, run manually:
+    # headless_probe <out.ppm> [cols] [rows] [font_size] [settle_ms] -- <cmd> [args...]
+    headless_probe_exe = executable('headless_probe',
+        '../tools/headless_probe.c',
+        include_directories: include_directories('../include'),
+        link_with: [render_lib, core_egl_lib, term_lib],
+        dependencies: [dep_ghostty_vt, dep_fontconfig, dep_freetype,
+                       dep_glesv2, dep_egl, dep_libgbm, dep_libdrm],
+        link_args: ['-lutil'],
+    )
+
     # Not a test -- standalone benchmark, run manually:
     # bench_parse [cols] [rows] [screens]. No GPU/EGL dependency at all.
     bench_parse_exe = executable('bench_parse',

@@ -35,6 +35,31 @@ symbol_constraint_width(const ghostcon_row_t *row, uint16_t x)
     return 1;
 }
 
+/* A cell tagged BG_COLOR_PALETTE/BG_COLOR_RGB carries its background
+   directly in its content field (Ghostty's own representation for a
+   blank, erase-colored cell -- see erase_fill_cell()'s doc comment in
+   term/screen.c), bypassing the style system entirely (style_id stays
+   0/default on these cells). When present, this overrides whatever
+   resolve_colors() computed from the cell's (default) style. */
+static void
+override_bg_from_content(const ghostcon_screen_t *screen, ghostcon_cell_t cell, float *bg)
+{
+    ghostcon_cell_content_tag_t tag = ghostcon_cell_get_tag(cell);
+    GhosttyColorRgb rgb;
+    if (tag == GHOSTCON_CELL_BG_COLOR_PALETTE) {
+        rgb = ghostcon_palette_resolve(&screen->palette, ghostcon_cell_get_palette_idx(cell));
+    } else if (tag == GHOSTCON_CELL_BG_COLOR_RGB) {
+        ghostcon_rgb_t raw = ghostcon_cell_get_rgb(cell);
+        rgb = (GhosttyColorRgb){ raw.r, raw.g, raw.b };
+    } else {
+        return;
+    }
+
+    bg[0] = (float)rgb.r / 255.0f;
+    bg[1] = (float)rgb.g / 255.0f;
+    bg[2] = (float)rgb.b / 255.0f;
+}
+
 static void
 resolve_colors(const ghostcon_screen_t *screen, const ghostcon_style_t *style,
                 float *fg, float *bg)
@@ -94,6 +119,7 @@ ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
 
             float fg[3], bg[3];
             resolve_colors(screen, style, fg, bg);
+            override_bg_from_content(screen, cell, bg);
 
             float px = (float)(x * cell_w);
             float py = (float)(y * cell_h);
@@ -127,6 +153,7 @@ ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
                     ghostcon_style_set_get(screen->styles, ghostcon_cell_get_style(next_cell));
                 float next_fg[3], next_bg[3];
                 resolve_colors(screen, next_style, next_fg, next_bg);
+                override_bg_from_content(screen, next_cell, next_bg);
                 ghostcon_gles_push_rect(gles, px + (float)cell_w, py, (float)cell_w, (float)cell_h,
                                          next_bg[0], next_bg[1], next_bg[2], 1.0f);
             }
