@@ -47,6 +47,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/prctl.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/wait.h>
@@ -147,6 +148,24 @@ spawn_session(const char *shell, int *out_master_fd)
         return -1;
     }
     if (child == 0) {
+        /* Best-effort self-identification for tools that check
+           TERM_PROGRAM/TERM_PROGRAM_VERSION (the convention several
+           terminals -- iTerm2, VS Code, Ghostty -- use, which fastfetch
+           and similar already know to read). Not guaranteed to survive:
+           the non-skip-login path below execs into agetty -> login(1),
+           and login's PAM environment handling can reset arbitrary
+           inherited variables depending on system config (TERM
+           specifically survives because agetty passes it as its own
+           argv, a separate mechanism from plain env inheritance -- see
+           below). Harmless either way if it doesn't survive: the
+           process-tree-walk detection (this process's renamed `comm`,
+           see main()'s prctl(PR_SET_NAME) call) still gets the name
+           right on its own. */
+        setenv("TERM_PROGRAM", "ghostcon", 1);
+#ifdef GHOSTCON_VERSION
+        setenv("TERM_PROGRAM_VERSION", GHOSTCON_VERSION, 1);
+#endif
+
         const char *skip_login = getenv("GHOSTCON_PTY_SKIP_LOGIN");
         if (skip_login && *skip_login) {
             execlp(shell, shell, (char *)NULL);
@@ -267,6 +286,21 @@ main(int argc, char **argv)
        runtime dependency on ghost-ptyserv once spawned (its socket is
        used directly by the renderer from then on). */
     setpgid(0, 0);
+
+    /* This process (not the forkpty()'d child that execs through
+       agetty/login/shell -- exec doesn't change PPID, so THIS is the
+       process whose comm the shell's actual parent-PID lookup lands
+       on) never execs again after this point, so its `comm` stays
+       whatever the binary was compiled as ("pty-ttyN") unless renamed
+       here. Tools that detect the terminal emulator by walking the
+       process tree up from the shell (fastfetch, neofetch, and
+       similar) stop at the first process name they don't recognize as
+       a shell/login wrapper -- that's this one, so it's what shows up
+       as "Terminal:" if left alone. Renaming it doesn't affect
+       anything that tracks this process by PID or by its real /proc/
+       <pid>/exe target (the pidfile-liveness check in ptyserv/main.c
+       and undead-head's cleanup both use those, never the name). */
+    prctl(PR_SET_NAME, "ghostcon", 0, 0, 0);
 
     signal(SIGPIPE, SIG_IGN);
 

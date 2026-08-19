@@ -246,6 +246,7 @@ pty_child_exe = executable('pty-ttyN',
     'ptyserv/pty_child.c',
     include_directories: include_directories('../include'),
     link_with: ptyserv_protocol_lib,
+    c_args: ['-DGHOSTCON_VERSION="' + meson.project_version() + '"'],
     install: true,
     install_dir: get_option('libexecdir') / 'ghostcon',
 )
