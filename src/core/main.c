@@ -591,7 +591,7 @@ acquire_display(app_t *app)
         goto fail;
     }
 
-    app->gles = ghostcon_gles_create(app->kms.width, app->kms.height);
+    app->gles = ghostcon_gles_create(app->kms.width, app->kms.height, app->gamma_correct);
     if (!app->gles) {
         fprintf(stderr, "ghostcon-core: gles init failed\n");
         goto fail;

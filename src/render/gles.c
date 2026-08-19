@@ -1,6 +1,8 @@
 #include "ghostcon/render/gles.h"
 
 #include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -64,28 +66,46 @@ static const char *VERT_SRC =
    mostly from partial-coverage AA pixels) rendering visibly dimmer
    than thick ones (built mostly from full-coverage pixels) within
    the same glyph. Only useful again if ghostcon-core ever gains a
-   real linear-blending framebuffer (GL_FRAMEBUFFER_SRGB + an
-   sRGB-capable GBM/EGL surface format) to pair it with. */
+   real linear-blending framebuffer -- which now exists (see
+   u_linear_blending below), though it turned out to matter far less
+   than expected: see this file's next doc comment for why. */
 /* Glyph quads (v_is_glyph > 0.5) take a different path from every
    other quad type (background fills, cursor, selection overlay):
-   `gl_FragColor = vec4(mix(v_bg, v_color.rgb, mask), 1.0)`, computed
-   entirely in-shader from the mask sampled out of the (now RGB, 3
-   bytes/pixel) atlas, with NO reliance on GL's fixed-function blend.
-   This is what makes real per-subpixel-channel blending possible at
-   all under GLES2: standard alpha blending only has one alpha for
-   every channel, but true subpixel rendering needs a different mix
-   weight per R/G/B channel (that's the entire point of it -- see
-   atlas.c's cleartype packing path). Every AA mode other than
-   cleartype stores a replicated mask (R=G=B), which degenerates this
-   exact formula to the plain scalar alpha blend every glyph used
-   before this existed -- PROVIDED v_bg genuinely matches whatever's
-   already under this glyph in the framebuffer, which holds here:
-   machine.c always pushes a cell's background quad (with this same
-   resolved color) before that cell's glyph quad, every frame. That
-   equivalence is also why the old gamma-correction curve (still used
-   below, for non-glyph quads only) has nothing left to do for
-   glyphs -- it existed to compensate for coverage-alpha GL blending,
-   and glyphs no longer go through GL blending at all. */
+   `mix(v_bg, v_color.rgb, mask)`, computed entirely in-shader from
+   the mask sampled out of the (now RGB, 3 bytes/pixel) atlas, with NO
+   reliance on GL's fixed-function blend. This is what makes real
+   per-subpixel-channel blending possible at all under GLES2: standard
+   alpha blending only has one alpha for every channel, but true
+   subpixel rendering needs a different mix weight per R/G/B channel
+   (that's the entire point of it -- see atlas.c's cleartype packing
+   path). Every AA mode other than cleartype stores a replicated mask
+   (R=G=B), which degenerates this exact formula to the plain scalar
+   alpha blend every glyph used before this existed -- PROVIDED v_bg
+   genuinely matches whatever's already under this glyph in the
+   framebuffer, which holds here: machine.c always pushes a cell's
+   background quad (with this same resolved color) before that cell's
+   glyph quad, every frame. That equivalence is also why the old
+   gamma-correction curve (still used below, for non-glyph quads only)
+   has nothing left to do for glyphs -- it existed to compensate for
+   coverage-alpha GL blending, and glyphs no longer go through GL
+   blending at all.
+
+   u_linear_blending (set when egl.c got an sRGB-colorspace surface
+   AND the driver has GL_EXT_sRGB_write_control, both checked live --
+   see core/main.c) matters for BOTH branches even though only
+   non-glyph quads still use GL_BLEND: GL_FRAMEBUFFER_SRGB affects
+   every fragment WRITE to an sRGB-encoded framebuffer, blended or
+   not, auto-converting linear shader output to sRGB on write. This
+   shader's colors (v_color/v_bg, and everything computed from them)
+   are already in sRGB-encoded form -- writing them straight through
+   with that hardware auto-conversion active would gamma-encode an
+   already-gamma-encoded value a second time, visibly darkening/
+   distorting EVERYTHING, glyphs included, not just the GL_BLEND
+   quads. So both branches compute their result exactly as before,
+   then linearize() the final RGB once, right before output, only
+   when u_linear_blending is active -- undoing that pre-encoding so
+   the hardware's forced re-encode on write lands back on the
+   intended sRGB bytes. */
 static const char *FRAG_SRC =
     "precision mediump float;\n"
     "varying highp vec2 v_uv;\n"
@@ -94,6 +114,7 @@ static const char *FRAG_SRC =
     "varying highp float v_is_glyph;\n"
     "uniform sampler2D u_atlas;\n"
     "uniform bool u_gamma_correct;\n"
+    "uniform bool u_linear_blending;\n"
     "highp float unlin1(highp float v) {\n"
     "    return v <= 0.0031308 ? v * 12.92 : pow(v, 1.0 / 2.4) * 1.055 - 0.055;\n"
     "}\n"
@@ -103,22 +124,60 @@ static const char *FRAG_SRC =
     "highp float luminance(highp vec3 c) {\n"
     "    return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;\n"
     "}\n"
+    "highp vec3 linearize3(highp vec3 c) {\n"
+    "    return vec3(lin1(c.r), lin1(c.g), lin1(c.b));\n"
+    "}\n"
     "void main() {\n"
     "    highp vec3 mask = texture2D(u_atlas, v_uv).rgb;\n"
+    "    highp vec3 out_rgb;\n"
+    "    highp float out_a;\n"
     "    if (v_is_glyph > 0.5) {\n"
-    "        gl_FragColor = vec4(mix(v_bg, v_color.rgb, mask), 1.0);\n"
-    "        return;\n"
-    "    }\n"
-    "    highp float a = mask.r;\n"
-    "    if (u_gamma_correct) {\n"
-    "        highp float fg_l = luminance(v_color.rgb);\n"
-    "        highp float bg_l = luminance(v_bg);\n"
-    "        if (abs(fg_l - bg_l) > 0.001) {\n"
-    "            highp float blend_l = lin1(unlin1(fg_l) * a + unlin1(bg_l) * (1.0 - a));\n"
-    "            a = clamp((blend_l - bg_l) / (fg_l - bg_l), 0.0, 1.0);\n"
+    "        out_rgb = mix(v_bg, v_color.rgb, mask);\n"
+    "        out_a = 1.0;\n"
+    "    } else {\n"
+    "        highp float a = mask.r;\n"
+    "        if (u_gamma_correct) {\n"
+    "            highp float fg_l = luminance(v_color.rgb);\n"
+    "            highp float bg_l = luminance(v_bg);\n"
+    "            if (abs(fg_l - bg_l) > 0.001) {\n"
+    "                highp float blend_l = lin1(unlin1(fg_l) * a + unlin1(bg_l) * (1.0 - a));\n"
+    "                a = clamp((blend_l - bg_l) / (fg_l - bg_l), 0.0, 1.0);\n"
+    "            }\n"
     "        }\n"
+    "        out_rgb = v_color.rgb;\n"
+    "        out_a = v_color.a * a;\n"
     "    }\n"
-    "    gl_FragColor = vec4(v_color.rgb, v_color.a * a);\n"
+    "    if (u_linear_blending)\n"
+    "        out_rgb = linearize3(out_rgb);\n"
+    "    gl_FragColor = vec4(out_rgb, out_a);\n"
+    "}\n";
+
+/* Blit pass: copies the offscreen sRGB FBO's color texture to the
+   real default framebuffer, one full-viewport triangle. GLES2 has no
+   glBlitFramebuffer (GLES3+/desktop only), so this is the portable
+   equivalent. GL_TEXTURE_SRGB_DECODE_EXT/GL_SKIP_DECODE_EXT on the
+   source texture (set once at creation, see ghostcon_gles_create())
+   makes texture2D() here return the RAW stored bytes instead of
+   auto-decoding them to linear -- since those bytes are already
+   correctly sRGB-encoded (the main FRAG_SRC's own linearize3() +
+   the hardware's auto-reencode-on-write into the sRGB attachment
+   already produced them), this blit is then a genuine byte-for-byte
+   passthrough into the plain (non-sRGB) default framebuffer, no
+   further conversion needed or wanted. */
+static const char *BLIT_VERT_SRC =
+    "attribute vec2 a_pos;\n"
+    "attribute vec2 a_uv;\n"
+    "varying highp vec2 v_uv;\n"
+    "void main() {\n"
+    "    v_uv = a_uv;\n"
+    "    gl_Position = vec4(a_pos, 0.0, 1.0);\n"
+    "}\n";
+static const char *BLIT_FRAG_SRC =
+    "precision mediump float;\n"
+    "varying highp vec2 v_uv;\n"
+    "uniform sampler2D u_tex;\n"
+    "void main() {\n"
+    "    gl_FragColor = texture2D(u_tex, v_uv);\n"
     "}\n";
 
 struct ghostcon_gles {
@@ -126,12 +185,26 @@ struct ghostcon_gles {
 
     GLuint program;
     GLint attr_pos, attr_uv, attr_color, attr_bg, attr_is_glyph;
-    GLint uniform_atlas, uniform_gamma_correct;
+    GLint uniform_atlas, uniform_gamma_correct, uniform_linear_blending;
 
     GLuint atlas_tex;
     uint32_t atlas_dim;
 
     bool gamma_correct;
+
+    /* Real linear-space rendering: an offscreen sRGB-format FBO
+       everything gets drawn into instead of the default framebuffer,
+       blitted (via a tiny passthrough shader -- GLES2 has no
+       glBlitFramebuffer) to the real one at the end of every frame.
+       See ghostcon_gles_create()'s doc comment for why this exists
+       instead of just requesting an sRGB EGL window surface. Only
+       ever decided at creation time -- not something a live config
+       reload rebuilds, same "startup-only" precedent already used
+       for e.g. scrollback_lines/repeat_delay_ms. */
+    bool linear_blending;
+    GLuint srgb_fbo, srgb_color_tex;
+    GLuint blit_program;
+    GLint blit_attr_pos, blit_attr_uv, blit_uniform_tex;
 
     ghostcon_vertex_t *verts;
     size_t vert_count, vert_cap;
@@ -157,7 +230,7 @@ compile_shader(GLenum type, const char *src)
 }
 
 ghostcon_gles_t *
-ghostcon_gles_create(uint32_t viewport_w, uint32_t viewport_h)
+ghostcon_gles_create(uint32_t viewport_w, uint32_t viewport_h, bool want_linear_blending)
 {
     ghostcon_gles_t *gles = calloc(1, sizeof(*gles));
     if (!gles)
@@ -193,7 +266,72 @@ ghostcon_gles_create(uint32_t viewport_w, uint32_t viewport_h)
     gles->attr_is_glyph = glGetAttribLocation(gles->program, "a_is_glyph");
     gles->uniform_atlas = glGetUniformLocation(gles->program, "u_atlas");
     gles->uniform_gamma_correct = glGetUniformLocation(gles->program, "u_gamma_correct");
+    gles->uniform_linear_blending = glGetUniformLocation(gles->program, "u_linear_blending");
     gles->gamma_correct = true;
+
+    /* Real linear-space rendering via an offscreen sRGB FBO -- see
+       this struct's own doc comment on why (an sRGB EGL window
+       surface was tried and confirmed non-functional on this
+       project's actual dev hardware/driver). Needs GL_EXT_sRGB
+       (sRGB-format renderable textures) and
+       GL_EXT_texture_sRGB_decode (GL_SKIP_DECODE_EXT for the blit
+       pass) -- checked live, not assumed; falls back to plain
+       rendering (this project's behavior before any of this existed)
+       if either is missing or the FBO doesn't complete, not an
+       error. */
+    gles->linear_blending = false;
+    if (want_linear_blending) {
+        const char *gl_exts = (const char *)glGetString(GL_EXTENSIONS);
+        bool has_srgb = gl_exts && strstr(gl_exts, "GL_EXT_sRGB");
+        bool has_decode_ctrl = gl_exts && strstr(gl_exts, "GL_EXT_texture_sRGB_decode");
+        if (has_srgb && has_decode_ctrl) {
+            glGenTextures(1, &gles->srgb_color_tex);
+            glBindTexture(GL_TEXTURE_2D, gles->srgb_color_tex);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB_ALPHA_EXT, (GLsizei)viewport_w, (GLsizei)viewport_h,
+                         0, GL_SRGB_ALPHA_EXT, GL_UNSIGNED_BYTE, NULL);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SRGB_DECODE_EXT, GL_SKIP_DECODE_EXT);
+
+            glGenFramebuffers(1, &gles->srgb_fbo);
+            glBindFramebuffer(GL_FRAMEBUFFER, gles->srgb_fbo);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                    GL_TEXTURE_2D, gles->srgb_color_tex, 0);
+
+            if (glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE) {
+                GLuint bvs = compile_shader(GL_VERTEX_SHADER, BLIT_VERT_SRC);
+                GLuint bfs = compile_shader(GL_FRAGMENT_SHADER, BLIT_FRAG_SRC);
+                if (bvs && bfs) {
+                    gles->blit_program = glCreateProgram();
+                    glAttachShader(gles->blit_program, bvs);
+                    glAttachShader(gles->blit_program, bfs);
+                    glLinkProgram(gles->blit_program);
+                    GLint blit_linked = 0;
+                    glGetProgramiv(gles->blit_program, GL_LINK_STATUS, &blit_linked);
+                    if (blit_linked) {
+                        gles->blit_attr_pos = glGetAttribLocation(gles->blit_program, "a_pos");
+                        gles->blit_attr_uv = glGetAttribLocation(gles->blit_program, "a_uv");
+                        gles->blit_uniform_tex = glGetUniformLocation(gles->blit_program, "u_tex");
+                        gles->linear_blending = true;
+                    }
+                }
+                if (bvs) glDeleteShader(bvs);
+                if (bfs) glDeleteShader(bfs);
+            }
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+            if (!gles->linear_blending) {
+                glDeleteTextures(1, &gles->srgb_color_tex);
+                glDeleteFramebuffers(1, &gles->srgb_fbo);
+                if (gles->blit_program) glDeleteProgram(gles->blit_program);
+                gles->srgb_color_tex = 0;
+                gles->srgb_fbo = 0;
+                gles->blit_program = 0;
+            }
+        }
+    }
 
     glGenTextures(1, &gles->atlas_tex);
     glBindTexture(GL_TEXTURE_2D, gles->atlas_tex);
@@ -223,6 +361,11 @@ ghostcon_gles_destroy(ghostcon_gles_t *gles)
         return;
     glDeleteTextures(1, &gles->atlas_tex);
     glDeleteProgram(gles->program);
+    if (gles->linear_blending) {
+        glDeleteTextures(1, &gles->srgb_color_tex);
+        glDeleteFramebuffers(1, &gles->srgb_fbo);
+        glDeleteProgram(gles->blit_program);
+    }
     free(gles->verts);
     free(gles);
 }
@@ -251,12 +394,31 @@ ghostcon_gles_sync_atlas(ghostcon_gles_t *gles, ghostcon_atlas_t *atlas, bool fo
     ghostcon_atlas_clear_dirty(atlas);
 }
 
+/* Matches FRAG_SRC's lin1() exactly -- clearing an sRGB-attached FBO
+   goes through the same hardware auto-reencode-on-write as any other
+   fragment write to it, so the clear color needs the same
+   pre-linearization or the cleared background would come out
+   double-gamma-encoded, same class of bug as an un-linearized shader
+   output. */
+static float
+linearize_channel(float v)
+{
+    return v <= 0.04045f ? v / 12.92f : powf((v + 0.055f) / 1.055f, 2.4f);
+}
+
 void
 ghostcon_gles_begin(ghostcon_gles_t *gles, bool clear, float bg_r, float bg_g, float bg_b)
 {
     gles->vert_count = 0;
+    if (gles->linear_blending)
+        glBindFramebuffer(GL_FRAMEBUFFER, gles->srgb_fbo);
     if (clear) {
-        glClearColor(bg_r, bg_g, bg_b, 1.0f);
+        if (gles->linear_blending) {
+            glClearColor(linearize_channel(bg_r), linearize_channel(bg_g),
+                         linearize_channel(bg_b), 1.0f);
+        } else {
+            glClearColor(bg_r, bg_g, bg_b, 1.0f);
+        }
         glClear(GL_COLOR_BUFFER_BIT);
     }
 }
@@ -325,6 +487,12 @@ ghostcon_gles_set_gamma_correct(ghostcon_gles_t *gles, bool enabled)
     gles->gamma_correct = enabled;
 }
 
+bool
+ghostcon_gles_linear_blending_active(const ghostcon_gles_t *gles)
+{
+    return gles->linear_blending;
+}
+
 void
 ghostcon_gles_end(ghostcon_gles_t *gles)
 {
@@ -332,6 +500,7 @@ ghostcon_gles_end(ghostcon_gles_t *gles)
     glBindTexture(GL_TEXTURE_2D, gles->atlas_tex);
     glUniform1i(gles->uniform_atlas, 0);
     glUniform1i(gles->uniform_gamma_correct, gles->gamma_correct ? 1 : 0);
+    glUniform1i(gles->uniform_linear_blending, gles->linear_blending ? 1 : 0);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -365,6 +534,42 @@ ghostcon_gles_end(ghostcon_gles_t *gles)
     glDisableVertexAttribArray(gles->attr_color);
     glDisableVertexAttribArray(gles->attr_bg);
     glDisableVertexAttribArray(gles->attr_is_glyph);
+
+    if (gles->linear_blending) {
+        /* Everything above was drawn into the offscreen sRGB FBO --
+           blit it (a full-viewport textured quad; GLES2 has no
+           glBlitFramebuffer) to the real default framebuffer, which
+           is what the caller's eglSwapBuffers() actually presents. */
+        static const float quad[] = {
+            /*  x,     y,    u,   v */
+            -1.0f, -1.0f, 0.0f, 0.0f,
+             1.0f, -1.0f, 1.0f, 0.0f,
+            -1.0f,  1.0f, 0.0f, 1.0f,
+            -1.0f,  1.0f, 0.0f, 1.0f,
+             1.0f, -1.0f, 1.0f, 0.0f,
+             1.0f,  1.0f, 1.0f, 1.0f,
+        };
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glDisable(GL_BLEND);
+
+        glUseProgram(gles->blit_program);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, gles->srgb_color_tex);
+        glUniform1i(gles->blit_uniform_tex, 0);
+
+        glVertexAttribPointer(gles->blit_attr_pos, 2, GL_FLOAT, GL_FALSE,
+                               4 * sizeof(float), &quad[0]);
+        glVertexAttribPointer(gles->blit_attr_uv, 2, GL_FLOAT, GL_FALSE,
+                               4 * sizeof(float), &quad[2]);
+        glEnableVertexAttribArray(gles->blit_attr_pos);
+        glEnableVertexAttribArray(gles->blit_attr_uv);
+
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        glDisableVertexAttribArray(gles->blit_attr_pos);
+        glDisableVertexAttribArray(gles->blit_attr_uv);
+    }
 }
 
 bool

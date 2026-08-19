@@ -33,8 +33,16 @@ typedef struct {
 
 typedef struct ghostcon_gles ghostcon_gles_t;
 
-/* Must be called with an EGL context current (see core/egl.h). */
-ghostcon_gles_t *ghostcon_gles_create(uint32_t viewport_w, uint32_t viewport_h);
+/* Must be called with an EGL context current (see core/egl.h).
+   want_linear_blending: pass the current ghostcon_egl_t's own
+   srgb_colorspace field -- this function independently checks for
+   GL_EXT_sRGB_write_control (a current-context GL check egl.c can't
+   do itself) before actually enabling GL_FRAMEBUFFER_SRGB_EXT, so
+   both conditions are required, not just this one. See FRAG_SRC's
+   doc comment in gles.c for what this actually changes (not what
+   you'd guess). */
+ghostcon_gles_t *ghostcon_gles_create(uint32_t viewport_w, uint32_t viewport_h,
+                                       bool want_linear_blending);
 void ghostcon_gles_destroy(ghostcon_gles_t *gles);
 
 void ghostcon_gles_resize(ghostcon_gles_t *gles, uint32_t w, uint32_t h);
@@ -115,6 +123,16 @@ void ghostcon_gles_push_glyph(ghostcon_gles_t *gles,
    instead of a naive straight alpha blend. Defaults to on; takes
    effect on the next ghostcon_gles_end(). */
 void ghostcon_gles_set_gamma_correct(ghostcon_gles_t *gles, bool enabled);
+
+/* True if ghostcon_gles_create()'s want_linear_blending actually
+   resulted in a working offscreen sRGB FBO + blit pipeline (both the
+   needed extensions present AND the FBO completed) -- decided once at
+   creation time, not something that changes later. False doesn't mean
+   anything is broken; it just means rendering fell back to the plain
+   path, silently, same as an unrecognized antialiasing value falling
+   back to grayscale. Purely informational (e.g. startup logging) --
+   nothing else needs to branch on this, the shader already does. */
+bool ghostcon_gles_linear_blending_active(const ghostcon_gles_t *gles);
 
 /* Issues the draw calls for everything pushed since ghostcon_gles_begin,
    then eglSwapBuffers via the caller's ghostcon_egl_t. */

@@ -108,7 +108,7 @@ main(int argc, char **argv)
         return 1;
     }
 
-    ghostcon_gles_t *gles = ghostcon_gles_create(kms.width, kms.height);
+    ghostcon_gles_t *gles = ghostcon_gles_create(kms.width, kms.height, false); /* benchmark the common-case path */
     if (!gles) {
         fprintf(stderr, "FAIL: gles create\n");
         drmDropMaster(drm_fd);

@@ -58,12 +58,16 @@ main(void)
     }
     printf("PASS: EGL/GBM context on %s, viewport %ux%u\n", DRM_RENDER_NODE, vw, vh);
 
-    ghostcon_gles_t *gles = ghostcon_gles_create(vw, vh);
+    ghostcon_gles_t *gles = ghostcon_gles_create(vw, vh, true);
     if (!gles) {
         fprintf(stderr, "FAIL: ghostcon_gles_create\n");
         return 1;
     }
     printf("PASS: GLES program + atlas texture created\n");
+    printf("%s: linear_blending active = %d (informational -- this project's own dev hardware "
+           "confirmed it works, but isn't guaranteed everywhere)\n",
+           ghostcon_gles_linear_blending_active(gles) ? "PASS" : "NOTE",
+           ghostcon_gles_linear_blending_active(gles));
 
     ghostcon_term_t term;
     if (!ghostcon_term_init(&term, COLS, ROWS, 0)) {

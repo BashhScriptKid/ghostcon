@@ -109,7 +109,7 @@ main(int argc, char **argv)
         return 1;
     }
 
-    ghostcon_gles_t *gles = ghostcon_gles_create(vw, vh);
+    ghostcon_gles_t *gles = ghostcon_gles_create(vw, vh, false); /* benchmark the common-case path */
     if (!gles) {
         fprintf(stderr, "FAIL: ghostcon_gles_create\n");
         return 1;
