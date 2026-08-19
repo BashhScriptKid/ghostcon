@@ -84,14 +84,24 @@ banner(const char *title, const char *desc)
    to -- found live: a fixed two-line gap left kitty_basic_rgb's own
    label text overlapping the bottom of its 64px-tall image on an
    18px-cell real terminal. */
+static int g_cell_w = 10; /* fallback if the pty doesn't report pixel size */
 static int g_cell_h = 20; /* fallback if the pty doesn't report pixel size */
 
 static void
 query_cell_size(void)
 {
     struct winsize ws;
-    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_row > 0 && ws.ws_ypixel > 0)
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_row > 0 && ws.ws_ypixel > 0) {
         g_cell_h = ws.ws_ypixel / ws.ws_row;
+        if (ws.ws_col > 0 && ws.ws_xpixel > 0)
+            g_cell_w = ws.ws_xpixel / ws.ws_col;
+    }
+    /* Neither ghostcon's pty_child.c nor headless_probe currently
+       populate ws_xpixel/ws_ypixel on the pty (a separate, real gap --
+       flagged, not fixed here), so this falls back to the constants
+       above in practice on both. Close enough for ceil-division row/
+       column counts to come out right for this tool's own test image
+       sizes, which is all this needs. */
 }
 
 /* Prints enough newlines to move the cursor past an image height_px
@@ -104,6 +114,27 @@ advance_past_image(int height_px)
         rows = 1;
     for (int i = 0; i < rows; i++)
         printf("\r\n");
+}
+
+/* Prints enough spaces to move the cursor past an image width_px
+   pixels wide -- the horizontal counterpart to advance_past_image(),
+   needed anywhere images are placed side by side on the same row
+   (e.g. page_kitty_delete). C=1 (cursor-movement-suppress, sent on
+   every placement in this file) means ghostcon never advances the
+   cursor on its own, so a fixed "  " between placements was only ever
+   wide enough to clear an image by coincidence of cell size -- found
+   live: a 32px-wide image needs 4 columns to clear at this terminal's
+   real 8px cells, not the 2 a literal "  " provides, so each image
+   partially overlapped the next until the covering one made it look
+   fine by accident. */
+static void
+advance_past_image_horizontal(int width_px)
+{
+    int cols = (width_px + g_cell_w - 1) / g_cell_w;
+    if (cols < 1)
+        cols = 1;
+    for (int i = 0; i < cols; i++)
+        putchar(' ');
 }
 
 static void
@@ -550,7 +581,7 @@ page_kitty_delete(void)
         snprintf(keys, sizeof keys, "a=T,f=24,s=%d,v=%d,i=%d,C=1", w, h, 10 + n);
         kitty_send(keys, px, (size_t)w * (size_t)h * (size_t)bpp);
         free(px);
-        printf("  ");
+        advance_past_image_horizontal(w);
     }
     advance_past_image(h);
     printf("\r\n  three images shown above (id=10,11,12) -- deleting id=11 in 2s\r\n");
