@@ -89,6 +89,7 @@ typedef struct {
     int32_t z;        /* 'z', -1 if absent (defaults to 0) */
     int32_t crop_x, crop_y, crop_w, crop_h; /* x,y,w,h -- -1 if absent */
     int32_t cell_cols, cell_rows;           /* c,r -- -1 if absent */
+    int32_t no_cursor_move; /* 'C', -1 if absent (defaults to 0 -- i.e. DO move) */
     char   delete_mode; /* 'd' key value, 0 if absent */
     bool   valid;
 } kitty_control_t;
@@ -132,6 +133,7 @@ kitty_parse_control(char *control)
     c.image_id = -1; c.placement_id = -1; c.more = -1; c.quiet = -1; c.z = -1;
     c.crop_x = -1; c.crop_y = -1; c.crop_w = -1; c.crop_h = -1;
     c.cell_cols = -1; c.cell_rows = -1;
+    c.no_cursor_move = -1;
     c.valid = true;
 
     char *save = NULL;
@@ -182,6 +184,8 @@ kitty_parse_control(char *control)
             c.cell_cols = (int32_t)iv;
         } else if (strcmp(key, "r") == 0 && parse_i64(val, val_len, &iv)) {
             c.cell_rows = (int32_t)iv;
+        } else if (strcmp(key, "C") == 0 && parse_i64(val, val_len, &iv)) {
+            c.no_cursor_move = (int32_t)iv;
         }
         /* Unrecognized keys (I=, o=, etc.) are accepted and ignored --
            forward-compatible with clients that send extra hints this
@@ -325,11 +329,37 @@ ghostcon_kitty_graphics_deinit(ghostcon_kitty_graphics_t *kg)
 /* Command handling                                                     */
 /* ------------------------------------------------------------------ */
 
+/* Matches Ghostty's kitty/graphics_exec.zig cursor_movement==.after
+   (the default -- only C=1 suppresses it): advance past the
+   placement's cell footprint, computed from its actual drawn pixel
+   size (draw_w_px/draw_h_px, already resolved by the caller from
+   crop/c=/r= the same way render/machine.c's render_one_placement
+   resolves them for drawing) divided by the renderer's current cell
+   size. */
+static void
+compute_cursor_move(int32_t no_cursor_move, int32_t draw_w_px, int32_t draw_h_px,
+                    int32_t anchor_col, int32_t cell_w, int32_t cell_h,
+                    ghostcon_kitty_cursor_move_t *out_move)
+{
+    if (!out_move)
+        return;
+    if (no_cursor_move == 1 || cell_w <= 0 || cell_h <= 0 ||
+        draw_w_px <= 0 || draw_h_px <= 0)
+        return;
+    int32_t cols = (draw_w_px + cell_w - 1) / cell_w;
+    int32_t rows = (draw_h_px + cell_h - 1) / cell_h;
+    out_move->moved = true;
+    out_move->rows = rows;
+    out_move->col = anchor_col + cols + 1;
+}
+
 static void
 handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
                 const char *payload, size_t payload_len,
                 bool also_display, int32_t cursor_col, int32_t cursor_row,
-                ghostcon_kitty_output_fn output_fn, void *userdata)
+                int32_t cell_w, int32_t cell_h,
+                ghostcon_kitty_output_fn output_fn, void *userdata,
+                ghostcon_kitty_cursor_move_t *out_move)
 {
     int32_t quiet = ctl->quiet >= 0 ? ctl->quiet : 0;
 
@@ -530,6 +560,15 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
         p->crop_h = ctl->crop_h >= 0 ? ctl->crop_h : 0;
         p->cell_cols = ctl->cell_cols >= 0 ? ctl->cell_cols : 0;
         p->cell_rows = ctl->cell_rows >= 0 ? ctl->cell_rows : 0;
+
+        int32_t draw_w_px = p->crop_w > 0 ? p->crop_w : img->width;
+        int32_t draw_h_px = p->crop_h > 0 ? p->crop_h : img->height;
+        if (p->cell_cols > 0 && p->cell_rows > 0) {
+            draw_w_px = p->cell_cols * cell_w;
+            draw_h_px = p->cell_rows * cell_h;
+        }
+        compute_cursor_move(ctl->no_cursor_move, draw_w_px, draw_h_px,
+                            p->anchor_col, cell_w, cell_h, out_move);
     }
 
     kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id, "OK");
@@ -538,7 +577,9 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
 static void
 handle_placement(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
                  int32_t cursor_col, int32_t cursor_row,
-                 ghostcon_kitty_output_fn output_fn, void *userdata)
+                 int32_t cell_w, int32_t cell_h,
+                 ghostcon_kitty_output_fn output_fn, void *userdata,
+                 ghostcon_kitty_cursor_move_t *out_move)
 {
     int32_t quiet = ctl->quiet >= 0 ? ctl->quiet : 0;
 
@@ -581,6 +622,15 @@ handle_placement(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
     p->crop_x = cx; p->crop_y = cy; p->crop_w = cw; p->crop_h = ch;
     p->cell_cols = ctl->cell_cols >= 0 ? ctl->cell_cols : 0;
     p->cell_rows = ctl->cell_rows >= 0 ? ctl->cell_rows : 0;
+
+    int32_t draw_w_px = cw > 0 ? cw : img->width;
+    int32_t draw_h_px = ch > 0 ? ch : img->height;
+    if (p->cell_cols > 0 && p->cell_rows > 0) {
+        draw_w_px = p->cell_cols * cell_w;
+        draw_h_px = p->cell_rows * cell_h;
+    }
+    compute_cursor_move(ctl->no_cursor_move, draw_w_px, draw_h_px,
+                        p->anchor_col, cell_w, cell_h, out_move);
 
     kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id, "OK");
 }
@@ -632,9 +682,14 @@ void
 ghostcon_kitty_graphics_handle(ghostcon_kitty_graphics_t *kg,
                                const char *body, size_t body_len,
                                int32_t cursor_col, int32_t cursor_row,
+                               int32_t cell_w, int32_t cell_h,
                                ghostcon_kitty_output_fn output_fn,
-                               void *output_userdata)
+                               void *output_userdata,
+                               ghostcon_kitty_cursor_move_t *out_move)
 {
+    if (out_move)
+        *out_move = (ghostcon_kitty_cursor_move_t){0};
+
     if (body_len == 0 || body[0] != 'G')
         return; /* not a Kitty graphics command */
     body++;
@@ -667,14 +722,17 @@ ghostcon_kitty_graphics_handle(ghostcon_kitty_graphics_t *kg,
     switch (action) {
     case 't':
         handle_transmit(kg, &ctl, payload, payload_len, false,
-                        cursor_col, cursor_row, output_fn, output_userdata);
+                        cursor_col, cursor_row, cell_w, cell_h,
+                        output_fn, output_userdata, out_move);
         break;
     case 'T':
         handle_transmit(kg, &ctl, payload, payload_len, true,
-                        cursor_col, cursor_row, output_fn, output_userdata);
+                        cursor_col, cursor_row, cell_w, cell_h,
+                        output_fn, output_userdata, out_move);
         break;
     case 'p':
-        handle_placement(kg, &ctl, cursor_col, cursor_row, output_fn, output_userdata);
+        handle_placement(kg, &ctl, cursor_col, cursor_row, cell_w, cell_h,
+                         output_fn, output_userdata, out_move);
         break;
     case 'd':
         handle_delete(kg, &ctl, output_fn, output_userdata);

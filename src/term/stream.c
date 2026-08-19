@@ -49,6 +49,12 @@ ghostcon_stream_set_notify(ghostcon_stream_t *st,
     st->notify_userdata = userdata;
 }
 
+void
+ghostcon_stream_set_cell_size(ghostcon_stream_t *st, int32_t cell_w, int32_t cell_h) {
+    st->cell_w = cell_w;
+    st->cell_h = cell_h;
+}
+
 /* ------------------------------------------------------------------ */
 /* UTF-8 decoder                                                       */
 /*                                                                     */
@@ -1388,9 +1394,26 @@ apc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s)
 {
     if (st->apc_introducer != '_')
         return; /* SOS/PM: no known use, discard as before */
+
+    ghostcon_kitty_cursor_move_t move;
     ghostcon_kitty_graphics_handle(&s->kitty_graphics, st->buf, st->apc_len,
                                    s->cursor.x, s->cursor.y,
-                                   st->output_fn, st->output_userdata);
+                                   st->cell_w, st->cell_h,
+                                   st->output_fn, st->output_userdata, &move);
+
+    /* Default Kitty cursor movement after a placement (Ghostty's
+       cursor_movement == .after, suppressed only by an explicit C=1):
+       advance via real linefeed (so it scrolls correctly at a scroll
+       region boundary, unlike just bumping cursor.y) then land the
+       cursor just past the placement's right edge. */
+    if (move.moved) {
+        for (int32_t i = 0; i < move.rows; i++)
+            ghostcon_screen_linefeed(s);
+        int32_t col = move.col;
+        if (col < 0) col = 0;
+        if (col >= (int32_t)s->cols) col = (int32_t)s->cols - 1;
+        s->cursor.x = (int16_t)col;
+    }
 }
 
 /* ------------------------------------------------------------------ */

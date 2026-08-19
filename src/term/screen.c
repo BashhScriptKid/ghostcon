@@ -787,6 +787,22 @@ ghostcon_screen_erase_display(ghostcon_screen_t *s, int mode) {
     case GC_ERASE_DISPLAY_ALL:
         top = 0;
         bottom = (int16_t)(s->rows_visible - 1);
+        /* Matches Ghostty's own eraseDisplay(): .complete clears all
+           Kitty graphics state, not just cells. Images/placements live
+           in a side table decoupled from the cell grid by design (see
+           kitty_graphics.h), so without this an ED (e.g. `clear`, or
+           any TUI's own "wipe the screen" ESC[2J) leaves every
+           previously displayed image rendering forever underneath
+           whatever gets drawn next -- confirmed live: a page's own
+           image was still visible under an unrelated later page's
+           content, while the same sequence on real Ghostty correctly
+           cleared it. Only .complete/.scroll_complete do this in
+           Ghostty, not the partial .above/.below modes -- and Ghostty
+           does it unconditionally regardless of DECSED protection, so
+           ghostcon_screen_erase_display_protected's GC_ERASE_DISPLAY_ALL
+           case below gets the identical treatment. */
+        ghostcon_kitty_graphics_deinit(&s->kitty_graphics);
+        ghostcon_kitty_graphics_init(&s->kitty_graphics);
         break;
     case GC_ERASE_DISPLAY_SCROLLBACK:
         /* Clear scrollback history */
@@ -829,6 +845,8 @@ ghostcon_screen_erase_display(ghostcon_screen_t *s, int mode) {
             }
             mark_dirty(s, i);
         }
+        ghostcon_kitty_graphics_deinit(&s->kitty_graphics);
+        ghostcon_kitty_graphics_init(&s->kitty_graphics);
         return;
     default:
         return;
@@ -872,6 +890,12 @@ ghostcon_screen_erase_display_protected(ghostcon_screen_t *s, int mode) {
     case GC_ERASE_DISPLAY_ALL:
         top = 0;
         bottom = (int16_t)(s->rows_visible - 1);
+        /* Same as the unprotected ghostcon_screen_erase_display's
+           GC_ERASE_DISPLAY_ALL case above -- Ghostty clears all Kitty
+           graphics state for a full-screen erase unconditionally,
+           regardless of DECSED protection. */
+        ghostcon_kitty_graphics_deinit(&s->kitty_graphics);
+        ghostcon_kitty_graphics_init(&s->kitty_graphics);
         break;
     case GC_ERASE_DISPLAY_SCROLLBACK:
     case GC_ERASE_DISPLAY_SCROLL_COMPLETE:

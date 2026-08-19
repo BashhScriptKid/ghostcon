@@ -111,6 +111,15 @@ struct ghostcon_stream {
     /* Notify channel for OSC 9/777 (desktop notifications, stub tier) */
     ghostcon_notify_fn       notify_fn;
     void                    *notify_userdata;
+
+    /* Renderer's current cell pixel size, needed to compute the
+       post-placement cursor move Kitty graphics does by default (see
+       ghostcon_kitty_graphics_handle's doc comment) -- 0 means
+       unknown, which suppresses that move rather than guessing wrong.
+       Set via ghostcon_stream_set_cell_size(); term/ has no other way
+       to learn this since cell size is purely a rendering/font
+       concept. */
+    int32_t cell_w, cell_h;
 };
 
 /* ------------------------------------------------------------------ */
@@ -137,6 +146,14 @@ void ghostcon_stream_set_title(ghostcon_stream_t *st,
 /* Set the notify callback for OSC 9/777. Pass NULL to disable. */
 void ghostcon_stream_set_notify(ghostcon_stream_t *st,
                                 ghostcon_notify_fn fn, void *userdata);
+
+/* Tell the stream the renderer's current cell pixel size, so Kitty
+   graphics placements can compute their default post-placement cursor
+   move (see ghostcon_kitty_graphics_handle's doc comment). Call again
+   whenever it changes (font size change, DPI change, etc). Never
+   called at all (both stay 0) just means that cursor move is skipped,
+   not a crash. */
+void ghostcon_stream_set_cell_size(ghostcon_stream_t *st, int32_t cell_w, int32_t cell_h);
 
 /* ------------------------------------------------------------------ */
 /* Processing                                                          */

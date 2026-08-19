@@ -913,6 +913,7 @@ apply_font_size(app_t *app, int new_size, bool force)
     app->atlas = new_atlas;
     app->font_size = new_size;
     ghostcon_atlas_cell_size(app->atlas, &app->cell_w, &app->cell_h);
+    ghostcon_stream_set_cell_size(&app->term.stream, app->cell_w, app->cell_h);
 
     if (app->display_acquired) {
         uint16_t new_cols = (uint16_t)(app->kms.width / (uint32_t)app->cell_w);
@@ -1201,6 +1202,7 @@ main(int argc, char **argv)
         return 1;
     }
     apply_theme_config(&app);
+    ghostcon_stream_set_cell_size(&app.term.stream, app.cell_w, app.cell_h);
 
     bool transport_connected = false;
     for (int i = 0; i < 50 && !transport_connected; i++) {

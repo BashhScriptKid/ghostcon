@@ -103,6 +103,7 @@ main(int argc, char **argv)
         fprintf(stderr, "FAIL: ghostcon_term_init\n");
         return 1;
     }
+    ghostcon_stream_set_cell_size(&term.stream, cell_w, cell_h);
 
     int flags = fcntl(master_fd, F_GETFL, 0);
     fcntl(master_fd, F_SETFL, flags | O_NONBLOCK);

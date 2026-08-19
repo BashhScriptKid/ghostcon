@@ -90,10 +90,6 @@ typedef struct ghostcon_kitty_graphics {
 void ghostcon_kitty_graphics_init(ghostcon_kitty_graphics_t *kg);
 void ghostcon_kitty_graphics_deinit(ghostcon_kitty_graphics_t *kg);
 
-/* Handle one complete, already ST-terminated APC "G..." body (the bytes
-   after the 'G', up to but not including the terminator). cursor_col/
-   cursor_row anchor any placement this command creates. Acks (OK/error)
-   are written via output_fn per the command's q= quiet level. */
 /* Looks up an image by id (NULL if not present or not yet fully
    transmitted). Read-only accessor for the renderer -- see
    render/machine.c, which walks kg->placements[] itself (a plain
@@ -102,10 +98,40 @@ void ghostcon_kitty_graphics_deinit(ghostcon_kitty_graphics_t *kg);
 const ghostcon_kitty_image_t *ghostcon_kitty_graphics_find_image(
     const ghostcon_kitty_graphics_t *kg, uint32_t id);
 
+/* Describes a cursor move the CALLER (term/stream.c, which owns the
+   screen and its scroll-region-aware linefeed) should perform after a
+   placement, matching Ghostty's own default (cursor_movement=.after,
+   suppressed only by an explicit C=1 key): advance `rows` lines via
+   normal linefeed semantics (so it scrolls correctly at the bottom of
+   a scroll region, unlike just incrementing cursor.y), then set the
+   column to `col`. This module never touches screen state directly --
+   see this header's own top comment -- so it hands back what to do
+   rather than doing it, keeping stream.c as the one place that
+   actually knows how to move a cursor. moved=false means don't move
+   it at all (C=1 was set, or the placement wasn't a screen-anchored
+   one). */
+typedef struct {
+    bool    moved;
+    int32_t rows;
+    int32_t col;
+} ghostcon_kitty_cursor_move_t;
+
+/* Handle one complete, already ST-terminated APC "G..." body (the bytes
+   after the 'G', up to but not including the terminator). cursor_col/
+   cursor_row anchor any placement this command creates. cell_w/cell_h
+   are the renderer's current cell pixel size, needed to compute how
+   many rows/columns a placement occupies for the post-placement cursor
+   move below -- pass 0 for either if unknown, which suppresses that
+   move entirely (better than guessing wrong). Acks (OK/error) are
+   written via output_fn per the command's q= quiet level. On return,
+   *out_move (if non-NULL) describes any cursor move the caller should
+   apply. */
 void ghostcon_kitty_graphics_handle(ghostcon_kitty_graphics_t *kg,
                                     const char *body, size_t body_len,
                                     int32_t cursor_col, int32_t cursor_row,
+                                    int32_t cell_w, int32_t cell_h,
                                     ghostcon_kitty_output_fn output_fn,
-                                    void *output_userdata);
+                                    void *output_userdata,
+                                    ghostcon_kitty_cursor_move_t *out_move);
 
 #endif

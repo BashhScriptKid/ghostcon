@@ -455,7 +455,7 @@ page_kitty_basic_rgb(void)
     uint8_t *px = malloc((size_t)w * (size_t)h * (size_t)bpp);
     gen_checkerboard(px, w, h, bpp, 8, 220, 60, 60, 30, 30, 140);
     char keys[128];
-    snprintf(keys, sizeof keys, "a=T,f=24,s=%d,v=%d,i=1", w, h);
+    snprintf(keys, sizeof keys, "a=T,f=24,s=%d,v=%d,i=1,C=1", w, h);
     kitty_send(keys, px, (size_t)w * (size_t)h * (size_t)bpp);
     free(px);
     advance_past_image(h);
@@ -472,7 +472,7 @@ page_kitty_rgba_alpha(void)
     uint8_t *px = malloc((size_t)w * (size_t)h * (size_t)bpp);
     gen_alpha_ramp(px, w, h);
     char keys[128];
-    snprintf(keys, sizeof keys, "a=T,f=32,s=%d,v=%d,i=2", w, h);
+    snprintf(keys, sizeof keys, "a=T,f=32,s=%d,v=%d,i=2,C=1", w, h);
     kitty_send(keys, px, (size_t)w * (size_t)h * (size_t)bpp);
     free(px);
     advance_past_image(h);
@@ -487,7 +487,7 @@ page_kitty_chunked_large(void)
     uint8_t *px = malloc((size_t)w * (size_t)h * (size_t)bpp);
     gen_gradient(px, w, h, bpp);
     char keys[128];
-    snprintf(keys, sizeof keys, "a=T,f=24,s=%d,v=%d,i=3", w, h);
+    snprintf(keys, sizeof keys, "a=T,f=24,s=%d,v=%d,i=3,C=1", w, h);
     kitty_send(keys, px, (size_t)w * (size_t)h * (size_t)bpp);
     free(px);
     advance_past_image(h);
@@ -502,15 +502,15 @@ page_kitty_placement_crop(void)
     uint8_t *px = malloc((size_t)w * (size_t)h * (size_t)bpp);
     gen_checkerboard(px, w, h, bpp, 4, 240, 200, 40, 40, 40, 40);
     char keys[128];
-    snprintf(keys, sizeof keys, "a=t,f=24,s=%d,v=%d,i=4,q=2", w, h);
+    snprintf(keys, sizeof keys, "a=t,f=24,s=%d,v=%d,i=4,q=2,C=1", w, h);
     kitty_send(keys, px, (size_t)w * (size_t)h * (size_t)bpp);
     free(px);
 
-    printf(ESC "_Ga=p,i=4,p=1" ESC "\\");
+    printf(ESC "_Ga=p,i=4,p=1,C=1" ESC "\\");
     advance_past_image(h); /* full size: 128x128 */
-    printf(ESC "_Ga=p,i=4,p=2,x=0,y=0,w=64,h=64" ESC "\\");
+    printf(ESC "_Ga=p,i=4,p=2,x=0,y=0,w=64,h=64,C=1" ESC "\\");
     advance_past_image(64); /* cropped to 64x64 */
-    printf(ESC "_Ga=p,i=4,p=3,c=10,r=5" ESC "\\");
+    printf(ESC "_Ga=p,i=4,p=3,c=10,r=5,C=1" ESC "\\");
     advance_past_image(5 * g_cell_h); /* scaled to exactly 5 cell-rows */
     printf("\r\n  placements of id=4: full (p=1), top-left 64x64 crop (p=2), 10x5-cell scaled (p=3)\r\n");
 }
@@ -526,11 +526,11 @@ page_kitty_zindex(void)
     gen_checkerboard(front, w, h, bpp, 2, 200, 40, 40, 80, 10, 10);
 
     char keys[128];
-    snprintf(keys, sizeof keys, "a=T,f=24,s=%d,v=%d,i=5,z=-1", w, h);
+    snprintf(keys, sizeof keys, "a=T,f=24,s=%d,v=%d,i=5,z=-1,C=1", w, h);
     kitty_send(keys, behind, (size_t)w * (size_t)h * (size_t)bpp);
     printf("\r\n");
     printf("THIS TEXT SHOULD BE ON TOP OF THE BLUE TILE AND BEHIND THE RED ONE\r\n");
-    snprintf(keys, sizeof keys, "a=T,f=24,s=%d,v=%d,i=6,z=1", w, h);
+    snprintf(keys, sizeof keys, "a=T,f=24,s=%d,v=%d,i=6,z=1,C=1", w, h);
     kitty_send(keys, front, (size_t)w * (size_t)h * (size_t)bpp);
     free(behind);
     free(front);
@@ -547,7 +547,7 @@ page_kitty_delete(void)
         uint8_t *px = malloc((size_t)w * (size_t)h * (size_t)bpp);
         gen_checkerboard(px, w, h, bpp, 4, (uint8_t)(60 + n * 60), 40, 200, 20, 20, 40);
         char keys[128];
-        snprintf(keys, sizeof keys, "a=T,f=24,s=%d,v=%d,i=%d", w, h, 10 + n);
+        snprintf(keys, sizeof keys, "a=T,f=24,s=%d,v=%d,i=%d,C=1", w, h, 10 + n);
         kitty_send(keys, px, (size_t)w * (size_t)h * (size_t)bpp);
         free(px);
         printf("  ");
@@ -649,7 +649,7 @@ page_combined_stress(void)
     uint8_t *px = malloc((size_t)w * (size_t)h * (size_t)bpp);
     gen_checkerboard(px, w, h, bpp, 4, 200, 60, 60, 30, 30, 30);
     char keys[128];
-    snprintf(keys, sizeof keys, "a=T,f=24,s=%d,v=%d,i=90", w, h);
+    snprintf(keys, sizeof keys, "a=T,f=24,s=%d,v=%d,i=90,C=1", w, h);
     kitty_send(keys, px, (size_t)w * (size_t)h * (size_t)bpp);
     free(px);
     advance_past_image(h);
