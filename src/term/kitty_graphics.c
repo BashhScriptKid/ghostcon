@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <errno.h>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -197,6 +198,164 @@ read_shm_segment(const char *name, size_t max_len, size_t *out_len)
         return NULL;
     *out_len = len;
     return buf;
+}
+
+static bool
+path_in_dir(const char *dir, const char *path)
+{
+    size_t dir_len = strlen(dir);
+    if (dir_len == 0 || strncmp(path, dir, dir_len) != 0)
+        return false;
+    if (path[dir_len] == '\0' || dir[dir_len - 1] == '/')
+        return true;
+    return path[dir_len] == '/';
+}
+
+static bool
+read_full(int fd, uint8_t *buf, size_t len)
+{
+    size_t got = 0;
+    while (got < len) {
+        ssize_t n = read(fd, buf + got, len - got);
+        if (n < 0) {
+            if (errno == EINTR)
+                continue;
+            return false;
+        }
+        if (n == 0)
+            return false; /* file shrank out from under us */
+        got += (size_t)n;
+    }
+    return true;
+}
+
+/* Reads a file transmitted via the Kitty t=t (temporary file) or t=f
+   (plain file) medium. Shared implementation -- the two mediums only
+   differ in whether the filename must match Kitty's own temp-file
+   naming convention and whether the file gets deleted afterward (see
+   the two thin wrappers below), not in how the path itself gets
+   validated:
+
+   - Opens the client-supplied path FIRST, and only resolves/validates
+     its real path (via /proc/self/fd, which reflects the actual open
+     inode) AFTER that -- validating the path string before opening it
+     would leave a gap where a cooperating process could swap a
+     symlink or directory entry between check and open (TOCTOU); this
+     order matches Ghostty's own readFile()/validatedFilePath()
+     (graphics_image.zig), itself a port of Kitty's reference
+     terminal's approach.
+   - Rejects /proc/ and /sys/ outright (kernel/process internals that
+     were never meant to be reachable through an "image file"
+     primitive) and /dev/ except /dev/shm/ (POSIX shared memory --
+     read_shm_segment above already handles that medium safely on its
+     own, dedicated path; there's no reason to let this reach it too,
+     but Kitty's own reference implementation allows it, so this
+     matches that rather than being stricter for no interoperability
+     benefit).
+   - Requires the real path to actually be under /tmp or /dev/shm,
+     regardless of medium -- ghostcon (unlike Ghostty/Kitty, which let
+     t=f point at any readable path, gated behind an explicit opt-in
+     config flag off by default) treats t=f as scoped to the same
+     bounded locations as t=t rather than genuinely arbitrary, so
+     there's no unrestricted-filesystem-read mode to gate behind a
+     flag in the first place. */
+static uint8_t *
+read_local_file(const char *client_path, size_t max_len, size_t *out_len,
+               bool require_temp_naming, bool delete_after)
+{
+    int fd = open(client_path, O_RDONLY);
+    if (fd < 0)
+        return NULL;
+
+    char fd_path[64];
+    snprintf(fd_path, sizeof fd_path, "/proc/self/fd/%d", fd);
+    char real_path[4096];
+    ssize_t real_len = readlink(fd_path, real_path, sizeof(real_path) - 1);
+    if (real_len <= 0) {
+        close(fd);
+        return NULL;
+    }
+    real_path[real_len] = '\0';
+
+    if (!strncmp(real_path, "/proc/", 6) ||
+        !strncmp(real_path, "/sys/", 5) ||
+        (!strncmp(real_path, "/dev/", 5) && strncmp(real_path, "/dev/shm/", 9) != 0)) {
+        close(fd);
+        return NULL;
+    }
+
+    bool in_temp_dir = path_in_dir("/tmp", real_path) || path_in_dir("/dev/shm", real_path);
+    if (!in_temp_dir) {
+        close(fd);
+        return NULL;
+    }
+    if (require_temp_naming) {
+        /* t=t only: Kitty's own naming convention for files it creates
+           for this exact purpose. Without this, "must be under /tmp"
+           alone would let a hostile client ask the terminal to
+           read+DELETE any other unrelated file that happens to
+           already live in /tmp (another process's lockfile, a cache
+           entry, ...); requiring the convention name means a
+           deleting read can only ever act on a file created FOR this
+           handoff. t=f never deletes (see delete_after below), so it
+           skips this -- worst case there is reading, not destroying,
+           an unrelated file in that directory. */
+        const char *base = strrchr(real_path, '/');
+        base = base ? base + 1 : real_path;
+        if (!strstr(base, "tty-graphics-protocol")) {
+            close(fd);
+            return NULL;
+        }
+    }
+
+    struct stat st;
+    if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode) || st.st_size <= 0 ||
+        (size_t)st.st_size > max_len) {
+        close(fd);
+        if (delete_after)
+            unlink(real_path);
+        return NULL;
+    }
+
+    size_t len = (size_t)st.st_size;
+    uint8_t *buf = malloc(len);
+    bool ok = buf && read_full(fd, buf, len);
+    close(fd);
+    if (delete_after)
+        unlink(real_path);
+
+    if (!ok) {
+        free(buf);
+        return NULL;
+    }
+    *out_len = len;
+    return buf;
+}
+
+/* t=t (temporary file): requires Kitty's "tty-graphics-protocol"
+   filename convention, and always unlink()s the file afterward --
+   success or failure -- exactly like read_shm_segment()'s
+   shm_unlink(): the client creates the file and hands ownership of
+   deleting it to the terminal, so leaving cleanup to the client would
+   accumulate temp files across repeated transmissions the same way
+   not unlinking shm segments would. */
+static uint8_t *
+read_temp_file(const char *client_path, size_t max_len, size_t *out_len)
+{
+    return read_local_file(client_path, max_len, out_len, true, true);
+}
+
+/* t=f (plain file): no filename convention required, and never
+   deleted -- treated as a read-only cache the client expects to
+   still exist afterward (e.g. re-displaying the same pre-rendered
+   image again later) rather than a one-shot handoff like t=t. Still
+   bounded to /tmp or /dev/shm (see read_local_file()'s own doc
+   comment on why that's not the genuinely-arbitrary-path t=f the
+   Kitty spec itself defines). */
+static uint8_t *
+read_cache_file(const char *client_path, size_t max_len, size_t *out_len)
+{
+    return read_local_file(client_path, max_len, out_len, false, false);
 }
 
 /* ------------------------------------------------------------------ */
@@ -563,23 +722,26 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
     uint32_t id = (uint32_t)resolved_id;
     also_display = resolved_display;
 
-    if (ctl->medium && ctl->medium != 'd' && ctl->medium != 's') {
+    if (ctl->medium && ctl->medium != 'd' && ctl->medium != 's' &&
+        ctl->medium != 't' && ctl->medium != 'f') {
         kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                  "error=EBADF:only direct (t=d) or shared-memory (t=s) transmission is supported");
+                  "error=EBADF:unsupported transmission medium");
         return;
     }
     bool from_shm = ctl->medium == 's';
-    if (from_shm && ctl->more == 1) {
-        /* Chunked shm-name assembly is legal per spec (names are just
+    bool from_temp_file = ctl->medium == 't';
+    bool from_cache_file = ctl->medium == 'f';
+    if ((from_shm || from_temp_file || from_cache_file) && ctl->more == 1) {
+        /* Chunked path/name assembly is legal per spec (a path is just
            another base64 payload, mechanically chunkable like
            anything else) but never useful in practice -- shm segment
-           names are always short enough for one chunk -- and adding
-           it would mean threading a second "this accumulation is a
-           name, not pixels" mode through the entire chunk/continuation
-           machinery above. Reject cleanly rather than silently
-           mishandling it. */
+           names and file paths are always short enough for one
+           chunk -- and adding it would mean threading a
+           second "this accumulation is a path, not pixels" mode
+           through the entire chunk/continuation machinery above.
+           Reject cleanly rather than silently mishandling it. */
         kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                  "error=EBADF:chunked shared-memory transmission is not supported");
+                  "error=EBADF:chunked shared-memory/temp-file transmission is not supported");
         return;
     }
 
@@ -653,10 +815,11 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
 
     uint8_t *decoded;
     size_t decoded_len;
-    if (from_shm) {
+    if (from_shm || from_temp_file || from_cache_file) {
         /* payload/payload_len here is the base64-encoded shm segment
-           NAME (per spec, the payload is always base64 regardless of
-           medium -- only what it MEANS differs), not image bytes. */
+           name or file PATH (per spec, the payload is always base64
+           regardless of medium -- only what it MEANS differs), not
+           image bytes. */
         size_t name_cap = b64_decoded_max(payload_len);
         uint8_t *name_buf = malloc(name_cap + 1);
         if (!name_buf) {
@@ -672,21 +835,28 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
             return;
         }
         name_buf[name_len] = '\0';
-        /* POSIX shm names cannot contain internal NULs -- same check
-           Ghostty applies to the decoded path/name before calling
-           shm_open(), and for the same reason (a NUL would silently
-           truncate the name shm_open() actually sees). */
+        /* POSIX shm names/paths cannot contain internal NULs -- same
+           check Ghostty applies to the decoded path/name before
+           calling shm_open()/openFile(), and for the same reason (a
+           NUL would silently truncate the string the syscall
+           actually sees). */
         if (strlen((char *)name_buf) != name_len) {
             free(name_buf);
             kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                      "error=EINVAL:invalid shared-memory segment name");
+                      "error=EINVAL:invalid shared-memory/file path");
             return;
         }
-        decoded = read_shm_segment((char *)name_buf, GHOSTCON_KITTY_MAX_IMAGE_BYTES, &decoded_len);
+        if (from_shm)
+            decoded = read_shm_segment((char *)name_buf, GHOSTCON_KITTY_MAX_IMAGE_BYTES, &decoded_len);
+        else if (from_temp_file)
+            decoded = read_temp_file((char *)name_buf, GHOSTCON_KITTY_MAX_IMAGE_BYTES, &decoded_len);
+        else
+            decoded = read_cache_file((char *)name_buf, GHOSTCON_KITTY_MAX_IMAGE_BYTES, &decoded_len);
         free(name_buf);
         if (!decoded) {
             kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                      "error=EBADF:unable to read shared memory segment");
+                      from_shm ? "error=EBADF:unable to read shared memory segment"
+                               : "error=EBADF:unable to read file");
             return;
         }
     } else {

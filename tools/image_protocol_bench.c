@@ -570,6 +570,103 @@ page_kitty_shm(void)
 }
 
 static void
+page_kitty_temp_file(void)
+{
+    banner("kitty_temp_file", "Kitty graphics: temporary-file (t=t) transmission -- payload is a /tmp path, deleted by ghostcon after reading.");
+    int w = 48, h = 48, bpp = 3;
+    size_t len = (size_t)w * (size_t)h * (size_t)bpp;
+    uint8_t *px = malloc(len);
+    gen_checkerboard(px, w, h, bpp, 6, 220, 160, 40, 40, 90, 220);
+
+    char path[128];
+    /* Must contain "tty-graphics-protocol" -- ghostcon's read_temp_file()
+       (kitty_graphics.c) requires this naming convention for t=t,
+       matching Kitty's own reference client. */
+    snprintf(path, sizeof path, "/tmp/tty-graphics-protocol-bench-%d.data", (int)getpid());
+
+    FILE *f = fopen(path, "wb");
+    if (!f) {
+        printf("\r\n  fopen failed: %s\r\n", strerror(errno));
+        free(px);
+        return;
+    }
+    size_t written = fwrite(px, 1, len, f);
+    fclose(f);
+    free(px);
+    if (written != len) {
+        printf("\r\n  short write to %s\r\n", path);
+        unlink(path);
+        return;
+    }
+
+    /* Ownership of deleting the file passes to the terminal on a
+       successful t=t transmission -- don't unlink() here. If ghostcon
+       is buggy and never reads it, this leaks a temp file; that's the
+       scenario this page exists to catch. */
+    size_t path_b64_len = 0;
+    char *path_b64 = b64_encode((const uint8_t *)path, strlen(path), &path_b64_len);
+
+    char keys[128];
+    snprintf(keys, sizeof keys, "a=T,t=t,f=%d,s=%d,v=%d,i=9,C=1", bpp == 4 ? 32 : 24, w, h);
+    printf(ESC "_G%s;", keys);
+    fwrite(path_b64, 1, path_b64_len, stdout);
+    printf(ESC "\\");
+    fflush(stdout);
+    free(path_b64);
+
+    advance_past_image(h);
+    printf("\r\n  temp-file-transmitted RGB checkerboard, 48x48, id=9, path %s\r\n", path);
+}
+
+static void
+page_kitty_cache_file(void)
+{
+    banner("kitty_cache_file", "Kitty graphics: plain file (t=f) transmission -- treated as a read-only cache, not deleted by ghostcon after reading.");
+    int w = 48, h = 48, bpp = 3;
+    size_t len = (size_t)w * (size_t)h * (size_t)bpp;
+    uint8_t *px = malloc(len);
+    gen_checkerboard(px, w, h, bpp, 6, 240, 210, 60, 70, 40, 160);
+
+    char path[128];
+    /* No naming convention required for t=f -- see read_cache_file()'s
+       own doc comment. Still must live under /tmp or /dev/shm. */
+    snprintf(path, sizeof path, "/tmp/ghostcon-bench-cache-%d.data", (int)getpid());
+
+    FILE *f = fopen(path, "wb");
+    if (!f) {
+        printf("\r\n  fopen failed: %s\r\n", strerror(errno));
+        free(px);
+        return;
+    }
+    size_t written = fwrite(px, 1, len, f);
+    fclose(f);
+    free(px);
+    if (written != len) {
+        printf("\r\n  short write to %s\r\n", path);
+        unlink(path);
+        return;
+    }
+
+    size_t path_b64_len = 0;
+    char *path_b64 = b64_encode((const uint8_t *)path, strlen(path), &path_b64_len);
+
+    char keys[128];
+    snprintf(keys, sizeof keys, "a=T,t=f,f=%d,s=%d,v=%d,i=12,C=1", bpp == 4 ? 32 : 24, w, h);
+    printf(ESC "_G%s;", keys);
+    fwrite(path_b64, 1, path_b64_len, stdout);
+    printf(ESC "\\");
+    fflush(stdout);
+    free(path_b64);
+
+    advance_past_image(h);
+    printf("\r\n  cache-file-transmitted RGB checkerboard, 48x48, id=12, path %s (client-owned -- cleaning up now)\r\n", path);
+    /* Unlike t=t, ghostcon never deletes this -- the client (this
+       page) still owns it, so it cleans up after itself once the
+       transmission is done, same as any other file it wrote. */
+    unlink(path);
+}
+
+static void
 page_kitty_rgba_alpha(void)
 {
     banner("kitty_rgba_alpha", "Kitty graphics: RGBA (f=32) with a left-to-right alpha ramp over text.");
@@ -818,6 +915,8 @@ typedef struct {
 static const page_t pages[] = {
     { "kitty_basic_rgb",       "Kitty: raw RGB transmit+display",              page_kitty_basic_rgb },
     { "kitty_shm",             "Kitty: shared-memory (t=s) transmission",      page_kitty_shm },
+    { "kitty_temp_file",       "Kitty: temporary-file (t=t) transmission",     page_kitty_temp_file },
+    { "kitty_cache_file",      "Kitty: plain-file (t=f) transmission",         page_kitty_cache_file },
     { "kitty_rgba_alpha",      "Kitty: RGBA alpha ramp over text",             page_kitty_rgba_alpha },
     { "kitty_chunked_large",   "Kitty: >4KB base64 chunked transmit",          page_kitty_chunked_large },
     { "kitty_png",             "Kitty: f=100 PNG payload, libpng decode",      page_kitty_png },

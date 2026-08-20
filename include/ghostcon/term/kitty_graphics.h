@@ -2,19 +2,37 @@
 #define GHOSTCON_TERM_KITTY_GRAPHICS_H
 
 /* Kitty graphics protocol (APC _G...ST) -- transmission, placement, and
-   deletion of images. Supported: the direct transmission medium (t=d,
-   image bytes embedded in the escape sequence itself), the
-   shared-memory medium (t=s, via POSIX shm_open -- see
-   read_shm_segment() in kitty_graphics.c), and raw pixel formats
-   (f=24 RGB, f=32 RGBA) as well as PNG (f=100, decoded via libpng).
-   The file/temp-file transmission mediums (t=f, t=t) are rejected
-   with a clean error ack rather than silently ignored -- deferred
-   follow-up work, since unlike t=s (confined to the kernel's separate
-   named-shared-memory namespace, and only ever opened read-only with
-   no O_CREAT -- see read_shm_segment()'s own doc comment), t=f/t=t
-   let a client ask the terminal to read an arbitrary path off the
-   general filesystem, which needs its own path-safety policy before
-   it's safe to wire up.
+   deletion of images. All four transmission mediums are supported:
+
+   - t=d (direct): image bytes embedded in the escape sequence itself.
+   - t=s (shared-memory): via POSIX shm_open -- see read_shm_segment()
+     in kitty_graphics.c. Read-only, never O_CREAT (can only read a
+     segment the client already created), and always shm_unlink()s it
+     afterward, success or failure.
+   - t=t (temporary-file) and t=f (plain file): both go through
+     read_local_file() in kitty_graphics.c, which opens the client-
+     supplied path FIRST and only resolves/validates its real path
+     (via /proc/self/fd, reflecting the actual open inode) AFTER --
+     closing the TOCTOU/symlink-swap gap a naive validate-then-open
+     would leave, matching Ghostty's own readFile()/
+     validatedFilePath() (itself a port of Kitty's reference
+     terminal). Both are restricted to /tmp or /dev/shm; NOT the
+     genuinely-arbitrary-path t=f the Kitty spec itself defines (real
+     Kitty/Ghostty instead gate unrestricted t=f behind an explicit
+     opt-in config flag, off by default -- ghostcon has no such flag,
+     so t=f stays bounded the same way t=t is rather than being wide
+     open with nothing gating it). They differ in two ways: t=t
+     additionally requires the filename to contain Kitty's own
+     "tty-graphics-protocol" naming convention and always deletes the
+     file afterward (ownership of a *temporary* file's cleanup passes
+     to the terminal, same posture as t=s's shm_unlink()); t=f skips
+     the filename check and never deletes anything, since it's treated
+     as a read-only cache the client expects to still exist afterward
+     (e.g. re-displaying the same pre-rendered image again later)
+     rather than a one-shot handoff.
+
+   Raw pixel formats (f=24 RGB, f=32 RGBA) and PNG (f=100, decoded via
+   libpng) are both supported regardless of medium.
 
    This module is intentionally decoupled from ghostcon_screen_t: it
    receives the cursor position as plain ints from the caller rather
