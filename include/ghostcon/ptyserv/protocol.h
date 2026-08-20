@@ -67,14 +67,24 @@ size_t ghostcon_ptyserv_format_ok(char *buf, size_t buf_len,
    success. */
 bool ghostcon_ptyserv_parse_ok(const char *line, int *pid, char *socket_path);
 
-/* Formats "RESIZE <rows> <cols>\n" into buf. Returns written length,
-   or 0 if it wouldn't fit. Sent over the control socket
+/* Formats "RESIZE <rows> <cols> <xpixel> <ypixel>\n" into buf. xpixel/
+   ypixel are the terminal's TOTAL pixel width/height (cell_w*cols,
+   cell_h*rows), matching struct winsize's own ws_xpixel/ws_ypixel
+   convention -- pass 0/0 if unknown, which pty_child.c treats as "no
+   pixel geometry to report" rather than guessing. Returns written
+   length, or 0 if it wouldn't fit. Sent over the control socket
    (GHOSTCON_PTY_CTL_SOCKET_FMT), never the data socket. */
-size_t ghostcon_ptyserv_format_resize(char *buf, size_t buf_len, int rows, int cols);
+size_t ghostcon_ptyserv_format_resize(char *buf, size_t buf_len, int rows, int cols,
+                                      int xpixel, int ypixel);
 
-/* Parses a "RESIZE <rows> <cols>\n" line. Returns true and sets
-   `*rows` and `*cols` on success. */
-bool ghostcon_ptyserv_parse_resize(const char *line, int *rows, int *cols);
+/* Parses a "RESIZE <rows> <cols> <xpixel> <ypixel>\n" line. Returns
+   true and sets `*rows`/`*cols`/`*xpixel`/`*ypixel` on success --
+   xpixel/ypixel come back as 0 if the line only has the older
+   2-field rows/cols form (kept parseable rather than rejected, since
+   nothing else on this internal control socket needs strict
+   versioning). */
+bool ghostcon_ptyserv_parse_resize(const char *line, int *rows, int *cols,
+                                   int *xpixel, int *ypixel);
 
 /* Formats "CLEAR\n" into buf. Returns written length, or 0 if it
    wouldn't fit. Sent over the control socket (GHOSTCON_PTY_CTL_SOCKET_FMT)

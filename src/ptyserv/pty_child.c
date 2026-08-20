@@ -633,8 +633,8 @@ main(int argc, char **argv)
                 ctl_fd = -1;
             } else {
                 line[r] = '\0';
-                int rows, cols;
-                if (ghostcon_ptyserv_parse_resize(line, &rows, &cols) &&
+                int rows, cols, xpixel, ypixel;
+                if (ghostcon_ptyserv_parse_resize(line, &rows, &cols, &xpixel, &ypixel) &&
                     rows > 0 && cols > 0) {
                     /* The kernel automatically sends SIGWINCH to this
                        pty's foreground process group when TIOCSWINSZ
@@ -648,6 +648,19 @@ main(int argc, char **argv)
                     memset(&ws, 0, sizeof(ws));
                     ws.ws_row = (unsigned short)rows;
                     ws.ws_col = (unsigned short)cols;
+                    /* ws_xpixel/ws_ypixel: total terminal pixel size, so
+                       any client that queries TIOCGWINSZ (e.g. a Kitty-
+                       graphics-aware program computing exact rows/cols
+                       an image will occupy) gets ghostcon's real cell
+                       size instead of guessing -- previously always 0,
+                       a real coverage gap found via image_protocol_bench
+                       needing to fall back to a hardcoded guess that
+                       only coincidentally matched ghostcon's actual
+                       cell size some of the time. */
+                    if (xpixel > 0 && ypixel > 0) {
+                        ws.ws_xpixel = (unsigned short)xpixel;
+                        ws.ws_ypixel = (unsigned short)ypixel;
+                    }
                     ioctl(master_fd, TIOCSWINSZ, &ws);
                 }
                 if (ghostcon_ptyserv_parse_dump(line)) {

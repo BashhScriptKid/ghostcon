@@ -174,13 +174,14 @@ ghostcon_transport_write(ghostcon_transport_t *t, const uint8_t *buf, size_t len
 }
 
 bool
-ghostcon_transport_resize(ghostcon_transport_t *t, int rows, int cols)
+ghostcon_transport_resize(ghostcon_transport_t *t, int rows, int cols,
+                          int xpixel, int ypixel)
 {
     if (t->ctl_fd < 0)
         return true; /* no control connection -- best-effort, not an error */
 
     char msg[GHOSTCON_PTYSERV_LINE_MAX];
-    size_t msg_len = ghostcon_ptyserv_format_resize(msg, sizeof(msg), rows, cols);
+    size_t msg_len = ghostcon_ptyserv_format_resize(msg, sizeof(msg), rows, cols, xpixel, ypixel);
     if (msg_len == 0)
         return false;
     bool ok = write_all(t->ctl_fd, msg, msg_len);

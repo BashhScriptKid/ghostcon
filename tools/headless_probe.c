@@ -81,7 +81,8 @@ main(int argc, char **argv)
     bool start_small = getenv("HEADLESS_PROBE_RESIZE_AFTER") != NULL;
     struct winsize ws = start_small
         ? (struct winsize){ .ws_row = 24, .ws_col = 80 }
-        : (struct winsize){ .ws_row = rows, .ws_col = cols };
+        : (struct winsize){ .ws_row = rows, .ws_col = cols,
+                            .ws_xpixel = (unsigned short)vw, .ws_ypixel = (unsigned short)vh };
     int master_fd;
     pid_t child = forkpty(&master_fd, NULL, NULL, &ws);
     if (child < 0) {
@@ -116,7 +117,8 @@ main(int argc, char **argv)
            the actual window geometry is known), and is what
            HEADLESS_PROBE_WINCH's no-op SIGWINCH test didn't cover. */
         usleep(150000);
-        struct winsize real_ws = { .ws_row = rows, .ws_col = cols };
+        struct winsize real_ws = { .ws_row = rows, .ws_col = cols,
+                                   .ws_xpixel = (unsigned short)vw, .ws_ypixel = (unsigned short)vh };
         ioctl(master_fd, TIOCSWINSZ, &real_ws);
     }
 

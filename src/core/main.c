@@ -636,7 +636,8 @@ acquire_display(app_t *app)
        still -1, resize's own "best-effort, not an error" early
        return) -- the existing one-shot call covers that exact case
        instead. */
-    ghostcon_transport_resize(&app->transport, app->term.rows, app->term.cols);
+    ghostcon_transport_resize(&app->transport, app->term.rows, app->term.cols,
+                              app->term.cols * app->cell_w, app->term.rows * app->cell_h);
 
     app->display_acquired = true;
     app->did_modeset = false;
@@ -921,7 +922,8 @@ apply_font_size(app_t *app, int new_size, bool force)
         if (!ghostcon_term_resize(&app->term, new_cols, new_rows))
             fprintf(stderr, "ghostcon-core: term_resize after font_size change failed\n");
         else
-            ghostcon_transport_resize(&app->transport, new_rows, new_cols);
+            ghostcon_transport_resize(&app->transport, new_rows, new_cols,
+                                      new_cols * app->cell_w, new_rows * app->cell_h);
 
         /* A selection recorded against the OLD grid width can point
            past the new one's bounds (ghostcon_selection_t.cols exists
@@ -1230,7 +1232,8 @@ main(int argc, char **argv)
        actual resize event -- which might never come, if the VT is
        never released and reacquired during this run -- would never see
        the right size at all. */
-    ghostcon_transport_resize(&app.transport, app.term.rows, app.term.cols);
+    ghostcon_transport_resize(&app.transport, app.term.rows, app.term.cols,
+                              app.term.cols * app.cell_w, app.term.rows * app.cell_h);
 
     /* No separate input_open() here -- acquire_display() now owns the
        whole input lifecycle (opened there, closed in release_display()),
@@ -1355,7 +1358,8 @@ main(int argc, char **argv)
                            once). See transport.h's ghostcon_transport_resize()
                            and ptyserv/pty_child.c's control-socket
                            handler for the other end of this. */
-                        ghostcon_transport_resize(&app.transport, new_rows, new_cols);
+                        ghostcon_transport_resize(&app.transport, new_rows, new_cols,
+                                                  new_cols * app.cell_w, new_rows * app.cell_h);
                     }
 
                     /* Two things need forcing here, not just one:

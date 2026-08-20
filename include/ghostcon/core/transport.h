@@ -52,10 +52,13 @@ ssize_t ghostcon_transport_read(ghostcon_transport_t *t, uint8_t *buf, size_t le
 ssize_t ghostcon_transport_write(ghostcon_transport_t *t, const uint8_t *buf, size_t len);
 
 /* Sends a resize notification over the control socket connected
-   alongside the main data socket in ghostcon_transport_connect(). A
-   no-op (returns true) if the control connection isn't available --
-   see ctl_fd's own doc comment on why that's not fatal. */
-bool ghostcon_transport_resize(ghostcon_transport_t *t, int rows, int cols);
+   alongside the main data socket in ghostcon_transport_connect().
+   xpixel/ypixel are the terminal's total pixel size (cell_w*cols,
+   cell_h*rows) -- pass 0/0 if unknown. A no-op (returns true) if the
+   control connection isn't available -- see ctl_fd's own doc comment
+   on why that's not fatal. */
+bool ghostcon_transport_resize(ghostcon_transport_t *t, int rows, int cols,
+                               int xpixel, int ypixel);
 
 /* Sends "DUMP" over the control socket -- see pty_child.c's own DUMP
    handler and term/dump.h's doc comment. Same "no control connection
