@@ -4,6 +4,7 @@
 #include "ghostcon/ptyserv/protocol.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -98,6 +99,22 @@ ghostcon_transport_connect(ghostcon_transport_t *t,
         fprintf(stderr, "transport: connect %s: %s\n", pty_socket, strerror(errno));
         return false;
     }
+
+    /* Nonblocking so the main loop can drain everything currently
+       queued in one poll wakeup (see main.c's transport-read loop)
+       instead of one small blocking read per wakeup -- found live: a
+       large Kitty image transfer split across many escape-sequence
+       chunks took visibly longer to appear than in Ghostty, because
+       each 4096-byte read triggered its own render_frame(), and
+       render_frame() ends in a vsync-gated blocking page flip
+       (kms.c's ghostcon_kms_page_flip()). Ghostty avoids this by
+       reading into a 64KB ring on a dedicated thread decoupled from
+       rendering; draining this fd fully per wakeup is the equivalent
+       fix for a single-threaded loop -- one page flip per wakeup
+       instead of one per 4096 bytes. */
+    int flags = fcntl(t->fd, F_GETFL, 0);
+    if (flags >= 0)
+        fcntl(t->fd, F_SETFL, flags | O_NONBLOCK);
 
     /* Best-effort: the control socket connection failing doesn't fail
        the whole connect -- see ctl_fd's own doc comment. Derived from

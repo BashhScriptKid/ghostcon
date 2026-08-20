@@ -1395,18 +1395,43 @@ main(int argc, char **argv)
         }
 
         if (fds[transport_idx].revents & (POLLIN | POLLHUP | POLLERR)) {
-            uint8_t buf[4096];
-            ssize_t n = ghostcon_transport_read(&app.transport, buf, sizeof(buf));
-            if (n <= 0) {
+            /* Drain everything currently queued, not just one 4096-byte
+               read -- t->fd is nonblocking (see transport.c's connect),
+               so this loop costs nothing extra once the socket runs
+               dry. Without this, a large transfer split across many
+               escape-sequence chunks (e.g. a chunked Kitty image) paid
+               a full render_frame() -- including its blocking,
+               vsync-gated page flip -- per 4096 bytes instead of once
+               per actual wakeup, which is what made such transfers
+               visibly slower than Ghostty despite no more total work
+               being done. Capped so a pathological sustained writer
+               can't starve the other polled fds forever. */
+            bool got_data = false;
+            size_t total_drained = 0;
+            for (;;) {
+                uint8_t buf[65536];
+                ssize_t n = ghostcon_transport_read(&app.transport, buf, sizeof(buf));
+                if (n > 0) {
+                    ghostcon_term_feed(&app.term, buf, (size_t)n);
+                    got_data = true;
+                    total_drained += (size_t)n;
+                    if (total_drained >= (1u << 20))
+                        break;
+                    continue;
+                }
+                if (n < 0 && errno == EINTR)
+                    continue;
+                if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
+                    break;
                 /* pty child gone (shell exited, or ghost-ptyserv itself
                    died) — this VT's session is over. Exiting is the
                    correct reaction; a future supervisor decides what
                    runs here next, not this process. */
                 running = false;
-            } else {
-                ghostcon_term_feed(&app.term, buf, (size_t)n);
-                need_render = true;
+                break;
             }
+            if (got_data)
+                need_render = true;
         }
 
         if (ctl_idx >= 0 && (fds[ctl_idx].revents & (POLLIN | POLLHUP | POLLERR))) {
