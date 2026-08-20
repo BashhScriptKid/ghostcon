@@ -83,19 +83,29 @@ struct ghostcon_stream {
     uint8_t                 param_acc_idx;
     uint32_t                utf8_acc;      /* UTF-8 DFA codepoint accumulator */
     uint8_t                 utf8_state;    /* UTF-8 DFA state (0 = accept) */
-    uint16_t                osc_len;
-    uint16_t                dcs_len;
-    uint16_t                apc_len;
+    uint32_t                osc_len;
+    uint32_t                dcs_len;
+    char                    dcs_final; /* the 0x40-0x7E byte that entered DCS_PASSTHROUGH (e.g. 'q' for sixel) */
+    uint32_t                apc_len;
     char                    apc_introducer; /* 'X'/'^'/'_' -- which of SOS/PM/APC we're in */
     bool                    apc_pending;    /* saw ESC mid-APC, awaiting '\' to confirm ST */
     bool                    apc_overflow;   /* payload exceeded buf_cap -- reject, don't truncate-and-accept */
 
-    /* Internal buffer for collecting OSC/DCS/APC data. Sized to fit one
-       Kitty graphics chunk (4096 base64 payload bytes, the protocol's
-       own per-chunk cap, plus control-data slack) as well as OSC/DCS
-       payloads. */
+    /* Internal buffer for collecting OSC/DCS/APC data. local_buf's
+       6144 bytes covers one Kitty graphics chunk (4096 base64 payload
+       bytes, the protocol's own per-chunk cap, plus control-data
+       slack) and any OSC/DCS payload that fits without growing.
+       Un-chunked DCS payloads (sixel, which has no chunking mechanism
+       in the protocol at all, unlike Kitty) routinely exceed that --
+       see the DCS_PASSTHROUGH case in stream.c, which reallocates
+       *buf up to GHOSTCON_STREAM_DCS_MAX_BUF as needed rather than
+       silently truncating. buf_cap/osc_len/dcs_len/apc_len are
+       uint32_t (not uint16_t, the original size before sixel) for the
+       same reason -- a 16-bit length field would itself have capped
+       any single payload at 65535 bytes regardless of how big *buf
+       was allowed to grow. */
     char    *buf;            /* allocated buffer (or local buffer for small) */
-    uint16_t buf_cap;
+    uint32_t buf_cap;
     char     local_buf[6144];
     bool     osc_pending;    /* OSC data collected, awaiting dispatch */
     bool     osc_terminated_by_bel; /* OSC was terminated by BEL (vs ST) */

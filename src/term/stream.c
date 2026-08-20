@@ -1313,7 +1313,7 @@ osc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s) {
     if (ghostty_osc_new(NULL, &parser) != GHOSTTY_SUCCESS)
         return;
 
-    for (uint16_t i = 0; i < st->osc_len; i++)
+    for (uint32_t i = 0; i < st->osc_len; i++)
         ghostty_osc_next(parser, (uint8_t)st->buf[i]);
 
     /* Terminator byte: BEL (0x07) or ST (0x5C for ESC \) */
@@ -1407,6 +1407,72 @@ apc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s)
        advance via real linefeed (so it scrolls correctly at a scroll
        region boundary, unlike just bumping cursor.y) then land the
        cursor just past the placement's right edge. */
+    if (move.moved) {
+        for (int32_t i = 0; i < move.rows; i++)
+            ghostcon_screen_linefeed(s);
+        int32_t col = move.col;
+        if (col < 0) col = 0;
+        if (col >= (int32_t)s->cols) col = (int32_t)s->cols - 1;
+        s->cursor.x = (int16_t)col;
+    }
+}
+
+/* Hard cap on how large *buf is allowed to grow to hold an unchunked
+   DCS payload (sixel) -- see stream.h's own doc comment on buf_cap
+   for why growth exists at all. Generous enough for a large,
+   photographic sixel image (which can easily run into the hundreds
+   of KB of run-length-encoded text) while still bounding the worst
+   case a hostile/broken client sending an unterminated DCS q could
+   force ghostcon to allocate. */
+#define GHOSTCON_STREAM_DCS_MAX_BUF (32u * 1024u * 1024u)
+
+/* Grows st->buf (transitioning off local_buf on the first call) to
+   fit at least one more byte, up to GHOSTCON_STREAM_DCS_MAX_BUF.
+   Returns false (leaving st->buf/buf_cap unchanged) if already at cap
+   or allocation fails -- the caller's only recourse at that point is
+   to stop accepting more bytes, same as any other overflow case in
+   this file. */
+static bool
+dcs_buf_grow(ghostcon_stream_t *st)
+{
+    if (st->buf_cap >= GHOSTCON_STREAM_DCS_MAX_BUF)
+        return false;
+    uint32_t new_cap = st->buf_cap * 2;
+    if (new_cap > GHOSTCON_STREAM_DCS_MAX_BUF)
+        new_cap = GHOSTCON_STREAM_DCS_MAX_BUF;
+    char *new_buf = st->buf == st->local_buf ? malloc(new_cap) : realloc(st->buf, new_cap);
+    if (!new_buf)
+        return false;
+    if (st->buf == st->local_buf)
+        memcpy(new_buf, st->local_buf, st->dcs_len);
+    st->buf = new_buf;
+    st->buf_cap = new_cap;
+    return true;
+}
+
+static void
+dcs_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
+    if (st->dcs_final != 'q')
+        return; /* only sixel is implemented; every other DCS command
+                    (DECRQSS, etc.) is silently discarded, same as before
+                    this function existed */
+
+    int32_t params[GC_STREAM_MAX_PARAMS];
+    for (uint8_t i = 0; i < st->params_idx; i++)
+        params[i] = st->params[i];
+
+    ghostcon_sixel_cursor_move_t move;
+    ghostcon_sixel_decode(ghostcon_screen_active_sixel_state(s),
+                          params, st->params_idx,
+                          st->buf, st->dcs_len,
+                          s->cursor.x, s->cursor.y,
+                          st->cell_w, st->cell_h, &move);
+
+    /* Same "advance past the image via real linefeed, then land at its
+       right edge" behavior as Kitty's apc_dispatch() above -- sixel has
+       no C=1-equivalent suppression key, so this always applies when a
+       placement was actually made. */
     if (move.moved) {
         for (int32_t i = 0; i < move.rows; i++)
             ghostcon_screen_linefeed(s);
@@ -1726,6 +1792,7 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
         } else if (c >= 0x40 && c <= 0x7E) {
             st->state = GC_STREAM_DCS_PASSTHROUGH;
             st->dcs_len = 0;
+            st->dcs_final = (char)c;
         } else {
             st->state = GC_STREAM_GROUND;
         }
@@ -1741,12 +1808,22 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
                 st->params[st->params_idx++] = st->param_acc;
             st->param_acc = 0;
         } else if (c >= 0x20 && c <= 0x2F) {
+            /* Flush the pending param -- matches CSI_PARAM's own final-
+               byte handling (see that state's own comment); without
+               this, a DCS param string with no trailing ';' before the
+               final byte (e.g. sixel's "P1;P2 q" with no ';' after P2)
+               silently loses that last value. */
+            if (st->params_idx < GC_STREAM_MAX_PARAMS)
+                st->params[st->params_idx++] = st->param_acc;
             st->state = GC_STREAM_DCS_INTERMEDIATE;
             if (st->intermediates_idx < GC_STREAM_MAX_INTERMEDIATES)
                 st->intermediates[st->intermediates_idx++] = c;
         } else if (c >= 0x40 && c <= 0x7E) {
+            if (st->params_idx < GC_STREAM_MAX_PARAMS)
+                st->params[st->params_idx++] = st->param_acc;
             st->state = GC_STREAM_DCS_PASSTHROUGH;
             st->dcs_len = 0;
+            st->dcs_final = (char)c;
         } else {
             st->state = GC_STREAM_GROUND;
         }
@@ -1761,6 +1838,7 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
         } else if (c >= 0x40 && c <= 0x7E) {
             st->state = GC_STREAM_DCS_PASSTHROUGH;
             st->dcs_len = 0;
+            st->dcs_final = (char)c;
         } else {
             st->state = GC_STREAM_GROUND;
         }
@@ -1778,10 +1856,16 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
         if (c == 0x1B) {
             st->state = GC_STREAM_DCS_PASSTHROUGH_ESC;
         } else {
-            if (st->dcs_len < st->buf_cap - 1) {
-                st->buf[st->dcs_len++] = (char)c;
-                st->buf[st->dcs_len] = '\0';
+            if (st->dcs_len + 1 >= st->buf_cap && !dcs_buf_grow(st)) {
+                /* At GHOSTCON_STREAM_DCS_MAX_BUF or allocation failed --
+                   reject rather than silently truncate-and-accept a
+                   corrupt/incomplete image (same posture as
+                   apc_overflow elsewhere in this file). */
+                st->state = GC_STREAM_DCS_IGNORE;
+                break;
             }
+            st->buf[st->dcs_len++] = (char)c;
+            st->buf[st->dcs_len] = '\0';
         }
         break;
 
@@ -1791,6 +1875,7 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
         if (c == '\\') {
             /* ST (ESC \) terminates */
             st->state = GC_STREAM_GROUND;
+            dcs_dispatch(st, s);
         } else if (c == 0x1B) {
             /* Double ESC — stay in this state */
         } else {

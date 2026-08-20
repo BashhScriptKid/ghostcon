@@ -59,7 +59,12 @@ void ghostcon_machine_render_selection(ghostcon_screen_t *screen,
    to be queued sometime before ghostcon_gles_end. No-op while
    scrolled back into history (screen->view_offset > 0), same
    reasoning as render_cursor/render_selection: placements are anchored
-   to live cursor coordinates, not history-relative ones. */
+   to live cursor coordinates, not history-relative ones.
+
+   Also walks ghostcon_screen_active_sixel_state(screen)->placements[]
+   and queues each -- sixel has no z-order concept, so every sixel
+   placement always draws above text (the same bucket Kitty's default
+   z>=0 placements use). */
 void ghostcon_machine_render_images(ghostcon_screen_t *screen,
                                      ghostcon_gles_t *gles,
                                      int cell_w, int cell_h);

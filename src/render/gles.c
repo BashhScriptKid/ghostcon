@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "ghostcon/term/kitty_graphics.h"
+#include "ghostcon/term/sixel.h"
 
 static const char *VERT_SRC =
     "attribute vec2 a_pos;\n"
@@ -231,10 +232,19 @@ struct ghostcon_gles {
 
     struct ghostcon_gles_kitty_tex_entry *kitty_tex;
     size_t kitty_tex_count, kitty_tex_cap;
+
+    struct ghostcon_gles_sixel_tex_entry *sixel_tex;
+    size_t sixel_tex_count, sixel_tex_cap;
 };
 
 struct ghostcon_gles_kitty_tex_entry {
     uint32_t image_id;
+    uint32_t generation;
+    ghostcon_gles_image_t *tex;
+};
+
+struct ghostcon_gles_sixel_tex_entry {
+    int      slot;
     uint32_t generation;
     ghostcon_gles_image_t *tex;
 };
@@ -486,6 +496,9 @@ ghostcon_gles_destroy(ghostcon_gles_t *gles)
     for (size_t i = 0; i < gles->kitty_tex_count; i++)
         ghostcon_gles_image_destroy(gles->kitty_tex[i].tex);
     free(gles->kitty_tex);
+    for (size_t i = 0; i < gles->sixel_tex_count; i++)
+        ghostcon_gles_image_destroy(gles->sixel_tex[i].tex);
+    free(gles->sixel_tex);
     if (gles->img_program) glDeleteProgram(gles->img_program);
     free(gles);
 }
@@ -763,6 +776,58 @@ ghostcon_gles_kitty_tex_get(ghostcon_gles_t *gles,
         return NULL;
     gles->kitty_tex[gles->kitty_tex_count++] = (struct ghostcon_gles_kitty_tex_entry){
         image_id, generation, tex,
+    };
+    return tex;
+}
+
+ghostcon_gles_image_t *
+ghostcon_gles_sixel_tex_get(ghostcon_gles_t *gles,
+                            const struct ghostcon_sixel_state *sx,
+                            int slot, uint32_t generation,
+                            const uint8_t *pixels, int width, int height)
+{
+    for (size_t i = 0; i < gles->sixel_tex_count; i++) {
+        struct ghostcon_gles_sixel_tex_entry *e = &gles->sixel_tex[i];
+        if (e->slot == slot) {
+            if (e->generation == generation)
+                return e->tex;
+            /* Slot reused for a different placement (or the same one
+               re-decoded) -- swap the texture. */
+            ghostcon_gles_image_destroy(e->tex);
+            e->tex = ghostcon_gles_image_create(pixels, width, height, 4);
+            e->generation = generation;
+            return e->tex;
+        }
+    }
+
+    if (gles->sixel_tex_count >= GHOSTCON_SIXEL_MAX_PLACEMENTS) {
+        /* Same eviction posture as ghostcon_gles_kitty_tex_get above:
+           prefer a cached slot that's no longer actually in use, else
+           oldest-first. */
+        size_t victim = 0;
+        for (size_t i = 0; i < gles->sixel_tex_count; i++) {
+            int s = gles->sixel_tex[i].slot;
+            if (!sx || s < 0 || s >= GHOSTCON_SIXEL_MAX_PLACEMENTS || !sx->placements[s].in_use) {
+                victim = i;
+                break;
+            }
+        }
+        ghostcon_gles_image_destroy(gles->sixel_tex[victim].tex);
+        memmove(&gles->sixel_tex[victim], &gles->sixel_tex[victim + 1],
+               (gles->sixel_tex_count - victim - 1) * sizeof(*gles->sixel_tex));
+        gles->sixel_tex_count--;
+    }
+
+    if (gles->sixel_tex_count >= gles->sixel_tex_cap) {
+        gles->sixel_tex_cap = gles->sixel_tex_cap ? gles->sixel_tex_cap * 2 : 8;
+        gles->sixel_tex = realloc(gles->sixel_tex, gles->sixel_tex_cap * sizeof(*gles->sixel_tex));
+    }
+
+    ghostcon_gles_image_t *tex = ghostcon_gles_image_create(pixels, width, height, 4);
+    if (!tex)
+        return NULL;
+    gles->sixel_tex[gles->sixel_tex_count++] = (struct ghostcon_gles_sixel_tex_entry){
+        slot, generation, tex,
     };
     return tex;
 }

@@ -181,6 +181,11 @@ ghostcon_screen_init(ghostcon_screen_t *s,
     ghostcon_kitty_graphics_init(&s->kitty_graphics);
     ghostcon_kitty_graphics_init(&s->kitty_graphics_alt);
 
+    /* Sixel graphics state -- one instance per screen, same reasoning
+       as kitty_graphics/kitty_graphics_alt above. */
+    ghostcon_sixel_state_init(&s->sixel);
+    ghostcon_sixel_state_init(&s->sixel_alt);
+
     /* Mode bitfield */
     ghostcon_modes_clear(&s->modes);
     if (s->auto_wrap) ghostcon_modes_set(&s->modes, GC_MODE_AUTO_WRAP);
@@ -214,12 +219,19 @@ ghostcon_screen_deinit(ghostcon_screen_t *s) {
     free(s->tabstops.stops);
     ghostcon_kitty_graphics_deinit(&s->kitty_graphics);
     ghostcon_kitty_graphics_deinit(&s->kitty_graphics_alt);
+    ghostcon_sixel_state_deinit(&s->sixel);
+    ghostcon_sixel_state_deinit(&s->sixel_alt);
     memset(s, 0, sizeof(*s));
 }
 
 ghostcon_kitty_graphics_t *
 ghostcon_screen_active_kitty_graphics(ghostcon_screen_t *s) {
     return s->alt_screen_active ? &s->kitty_graphics_alt : &s->kitty_graphics;
+}
+
+ghostcon_sixel_state_t *
+ghostcon_screen_active_sixel_state(ghostcon_screen_t *s) {
+    return s->alt_screen_active ? &s->sixel_alt : &s->sixel;
 }
 
 bool
@@ -320,6 +332,12 @@ ghostcon_screen_reset(ghostcon_screen_t *s)
     ghostcon_kitty_graphics_init(&s->kitty_graphics);
     ghostcon_kitty_graphics_deinit(&s->kitty_graphics_alt);
     ghostcon_kitty_graphics_init(&s->kitty_graphics_alt);
+
+    /* Same for sixel placements on both screens. */
+    ghostcon_sixel_state_deinit(&s->sixel);
+    ghostcon_sixel_state_init(&s->sixel);
+    ghostcon_sixel_state_deinit(&s->sixel_alt);
+    ghostcon_sixel_state_init(&s->sixel_alt);
 
     /* Cursor */
     s->cursor.x = 0;
@@ -823,6 +841,9 @@ ghostcon_screen_erase_display(ghostcon_screen_t *s, int mode) {
             ghostcon_kitty_graphics_t *akg = ghostcon_screen_active_kitty_graphics(s);
             ghostcon_kitty_graphics_deinit(akg);
             ghostcon_kitty_graphics_init(akg);
+            ghostcon_sixel_state_t *asx = ghostcon_screen_active_sixel_state(s);
+            ghostcon_sixel_state_deinit(asx);
+            ghostcon_sixel_state_init(asx);
         }
         break;
     case GC_ERASE_DISPLAY_SCROLLBACK:
@@ -870,6 +891,9 @@ ghostcon_screen_erase_display(ghostcon_screen_t *s, int mode) {
             ghostcon_kitty_graphics_t *akg = ghostcon_screen_active_kitty_graphics(s);
             ghostcon_kitty_graphics_deinit(akg);
             ghostcon_kitty_graphics_init(akg);
+            ghostcon_sixel_state_t *asx = ghostcon_screen_active_sixel_state(s);
+            ghostcon_sixel_state_deinit(asx);
+            ghostcon_sixel_state_init(asx);
         }
         return;
     default:
@@ -923,6 +947,9 @@ ghostcon_screen_erase_display_protected(ghostcon_screen_t *s, int mode) {
             ghostcon_kitty_graphics_t *akg = ghostcon_screen_active_kitty_graphics(s);
             ghostcon_kitty_graphics_deinit(akg);
             ghostcon_kitty_graphics_init(akg);
+            ghostcon_sixel_state_t *asx = ghostcon_screen_active_sixel_state(s);
+            ghostcon_sixel_state_deinit(asx);
+            ghostcon_sixel_state_init(asx);
         }
         break;
     case GC_ERASE_DISPLAY_SCROLLBACK:

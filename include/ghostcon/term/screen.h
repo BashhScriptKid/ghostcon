@@ -12,6 +12,7 @@
 #include "selection.h"
 #include "kitty.h"
 #include "kitty_graphics.h"
+#include "sixel.h"
 #include "hyperlink.h"
 
 /* ------------------------------------------------------------------ */
@@ -243,6 +244,12 @@ struct ghostcon_screen {
     ghostcon_kitty_graphics_t kitty_graphics;
     ghostcon_kitty_graphics_t kitty_graphics_alt;
 
+    /* Sixel graphics state (DCS q ... ST placements). Same per-screen
+       split and same reasoning as kitty_graphics/kitty_graphics_alt
+       above -- see ghostcon_screen_active_sixel_state(). */
+    ghostcon_sixel_state_t sixel;
+    ghostcon_sixel_state_t sixel_alt;
+
     /* Damage tracking */
     ghostcon_dirty_region_t dirty;
 };
@@ -404,6 +411,11 @@ void ghostcon_screen_alt_screen_exit(ghostcon_screen_t *screen);
    to the screen they were placed on (see kitty_graphics/
    kitty_graphics_alt's own doc comment above). */
 ghostcon_kitty_graphics_t *ghostcon_screen_active_kitty_graphics(ghostcon_screen_t *screen);
+
+/* Sixel state for whichever screen -- primary or alternate -- is
+   currently active. Same reasoning as
+   ghostcon_screen_active_kitty_graphics() above. */
+ghostcon_sixel_state_t *ghostcon_screen_active_sixel_state(ghostcon_screen_t *screen);
 
 /* ------------------------------------------------------------------ */
 /* Tab stops                                                           */

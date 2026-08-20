@@ -11,6 +11,9 @@
    forward-declare of struct ghostcon_screen for selection.h. */
 struct ghostcon_kitty_graphics;
 
+/* Same reasoning, for ghostcon_gles_sixel_tex_get below. */
+struct ghostcon_sixel_state;
+
 /* ------------------------------------------------------------------ */
 /* GLES 2.0 renderer                                                   */
 /*                                                                     */
@@ -225,6 +228,17 @@ ghostcon_gles_image_t *ghostcon_gles_kitty_tex_get(ghostcon_gles_t *gles,
                                                    const struct ghostcon_kitty_graphics *kg,
                                                    uint32_t image_id, uint32_t generation,
                                                    const uint8_t *pixels, int width, int height, int bpp);
+
+/* Same caching contract as ghostcon_gles_kitty_tex_get above, but
+   keyed by sixel placement SLOT (array index into
+   ghostcon_sixel_state_t::placements[], not a client-chosen id --
+   sixel has no ids at all, see term/sixel.h) rather than image id.
+   Pixels are always RGBA (sixel decode always produces RGBA -- see
+   term/sixel.c), so there's no bpp parameter. */
+ghostcon_gles_image_t *ghostcon_gles_sixel_tex_get(ghostcon_gles_t *gles,
+                                                   const struct ghostcon_sixel_state *sx,
+                                                   int slot, uint32_t generation,
+                                                   const uint8_t *pixels, int width, int height);
 
 /* Reads back the just-rendered frame and writes it out as a binary PPM
    (P6). MUST be called after ghostcon_gles_end() but before the

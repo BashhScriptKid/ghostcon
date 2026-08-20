@@ -436,4 +436,24 @@ ghostcon_machine_render_images(ghostcon_screen_t *screen,
 
     for (int i = 0; i < count; i++)
         render_one_placement(gles, kg, sorted[i], cell_w, cell_h);
+
+    /* Sixel placements have no z-order concept at all (see
+       term/sixel.h's own doc comment on why the model is simpler than
+       Kitty's) -- always drawn above text, same as Kitty's default
+       z>=0 bucket, since there's normally no text simultaneously
+       occupying the same cells a sixel image was just stamped into. */
+    const ghostcon_sixel_state_t *sx = ghostcon_screen_active_sixel_state(screen);
+    for (int i = 0; i < GHOSTCON_SIXEL_MAX_PLACEMENTS; i++) {
+        const ghostcon_sixel_placement_t *p = &sx->placements[i];
+        if (!p->in_use)
+            continue;
+        ghostcon_gles_image_t *tex = ghostcon_gles_sixel_tex_get(
+            gles, sx, i, p->generation, p->pixels, p->width, p->height);
+        if (!tex)
+            continue;
+        float px = (float)(p->anchor_col * cell_w);
+        float py = (float)(p->anchor_row * cell_h);
+        ghostcon_gles_queue_image(gles, tex, px, py, (float)p->width, (float)p->height,
+                                  0.0f, 0.0f, 0.0f, 0.0f, 1.0f, true);
+    }
 }
