@@ -27,6 +27,7 @@ dep_libudev    = dependency('libudev',    required: false)
 dep_xkbcommon  = dependency('xkbcommon',  required: false)
 dep_fontconfig = dependency('fontconfig', required: false)
 dep_freetype   = dependency('freetype2',  required: false)
+dep_libpng     = dependency('libpng')
 dep_systemd    = dependency('libsystemd', required: false)
 
 tomlc99_proj = subproject('tomlc99')

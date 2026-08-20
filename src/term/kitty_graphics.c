@@ -2,9 +2,75 @@
 
 #include "ghostcon/term/kitty_graphics.h"
 
+#include <png.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* ------------------------------------------------------------------ */
+/* PNG decode (f=100) -- delegates to libpng rather than hand-rolling  */
+/* inflate/chunk parsing: PNG is a compressed, chunked format, and     */
+/* writing a safe decoder for untrusted PNG data is a much bigger and  */
+/* more dangerous undertaking than this v1's bounds-checked raw-pixel  */
+/* path. Real precedent for not hand-rolling this: Ghostty itself      */
+/* delegates PNG decode to Wuffs (a memory-safety-audited decoder)     */
+/* rather than parsing it in Terminal.zig, and can be built without    */
+/* PNG support at all (sys.decode_png == null is a first-class,        */
+/* gracefully-handled state there, not a hack) -- same posture this    */
+/* takes with libpng.                                                  */
+/* ------------------------------------------------------------------ */
+
+/* Decodes PNG bytes into freshly allocated RGBA pixels, or NULL on any
+   failure (corrupt data, unsupported PNG features, dimensions past
+   this module's limits). Uses libpng's "simplified API"
+   (png_image_begin_read_from_memory), which parses just the header
+   and reports image.width/height BEFORE finish_read() allocates or
+   decodes any pixel data -- so a malicious PNG that declares an
+   enormous width/height gets rejected here, before any
+   attacker-influenced-size allocation happens, not just after
+   decoding completes (the same "reject before allocating" property
+   Ghostty's own decoder gets from a bounded allocator). */
+static uint8_t *
+decode_png_rgba(const uint8_t *data, size_t len, int32_t *out_w, int32_t *out_h)
+{
+    png_image image;
+    memset(&image, 0, sizeof image);
+    image.version = PNG_IMAGE_VERSION;
+
+    if (!png_image_begin_read_from_memory(&image, data, len))
+        return NULL;
+
+    if (image.width == 0 || image.height == 0 ||
+        image.width > GHOSTCON_KITTY_MAX_DIM || image.height > GHOSTCON_KITTY_MAX_DIM) {
+        png_image_free(&image);
+        return NULL;
+    }
+
+    image.format = PNG_FORMAT_RGBA;
+    size_t stride = PNG_IMAGE_ROW_STRIDE(image);
+    size_t total = PNG_IMAGE_BUFFER_SIZE(image, stride);
+    if (total == 0 || total > GHOSTCON_KITTY_MAX_IMAGE_BYTES) {
+        png_image_free(&image);
+        return NULL;
+    }
+
+    uint8_t *buf = malloc(total);
+    if (!buf) {
+        png_image_free(&image);
+        return NULL;
+    }
+
+    if (!png_image_finish_read(&image, NULL, buf, (png_int_32)stride, NULL)) {
+        free(buf);
+        png_image_free(&image);
+        return NULL;
+    }
+
+    *out_w = (int32_t)image.width;
+    *out_h = (int32_t)image.height;
+    png_image_free(&image);
+    return buf;
+}
 
 /* ------------------------------------------------------------------ */
 /* base64 decode -- bounded, rejects invalid input rather than         */
@@ -421,45 +487,65 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
        a multi-chunk transfer -- continuation chunks legally omit it,
        so re-deriving bpp from ctl->format on every chunk would silently
        default to 32 (RGBA) instead of the format actually agreed on in
-       chunk 1, corrupting the declared size for every later chunk. */
+       chunk 1, corrupting the declared size for every later chunk.
+       PNG (f=100) is tracked the same way, via img->bpp == 0 (raw
+       formats are always 3 or 4, so 0 is unambiguous) rather than a
+       separate flag on the image struct. */
     int32_t bpp;
+    bool is_png;
     if (continuing) {
         bpp = img->bpp;
+        is_png = (bpp == 0);
     } else {
         int32_t fmt = ctl->format >= 0 ? ctl->format : 32;
-        if (fmt == 100) {
-            kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                      "error=EBADF:PNG (f=100) not supported");
-            return;
-        }
-        bpp = (fmt == 24) ? 3 : (fmt == 32) ? 4 : -1;
-        if (bpp < 0) {
-            kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                      "error=EBADF:unsupported format");
-            return;
+        is_png = (fmt == 100);
+        if (is_png) {
+            bpp = 0; /* unknown until decode -- PNG carries its own dimensions */
+        } else {
+            bpp = (fmt == 24) ? 3 : (fmt == 32) ? 4 : -1;
+            if (bpp < 0) {
+                kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
+                          "error=EBADF:unsupported format");
+                return;
+            }
         }
     }
 
-    int32_t width, height;
-    if (continuing) {
-        width = img->width;
-        height = img->height;
+    /* Raw formats: width/height come from s=/v= and expected_len is the
+       exact decoded pixel size. PNG: dimensions come from the decoded
+       PNG itself (Ghostty ignores s=/v= for f=100 the same way --
+       graphics_command.zig's width/height table maps .png to null), so
+       there's nothing to validate here yet; expected_len instead bounds
+       how many raw (still-compressed) bytes this transfer may
+       accumulate before decode, same cap as everything else in this
+       module, matching Ghostty's own pre-decode size cap on the
+       still-compressed data (graphics_image.zig's "image data too
+       large" check, `data.items.len + data.len > max_size`). */
+    int32_t width = 0, height = 0;
+    size_t expected_len;
+    if (is_png) {
+        expected_len = GHOSTCON_KITTY_MAX_IMAGE_BYTES;
     } else {
-        width = ctl->width;
-        height = ctl->height;
-        if (width <= 0 || height <= 0 ||
-            (uint32_t)width > GHOSTCON_KITTY_MAX_DIM ||
-            (uint32_t)height > GHOSTCON_KITTY_MAX_DIM) {
+        if (continuing) {
+            width = img->width;
+            height = img->height;
+        } else {
+            width = ctl->width;
+            height = ctl->height;
+            if (width <= 0 || height <= 0 ||
+                (uint32_t)width > GHOSTCON_KITTY_MAX_DIM ||
+                (uint32_t)height > GHOSTCON_KITTY_MAX_DIM) {
+                kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
+                          "error=EINVAL:missing or out-of-range s=/v=");
+                return;
+            }
+        }
+        expected_len = (size_t)width * (size_t)height * (size_t)bpp;
+        if (expected_len > GHOSTCON_KITTY_MAX_IMAGE_BYTES) {
             kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                      "error=EINVAL:missing or out-of-range s=/v=");
+                      "error=EINVAL:image too large");
             return;
         }
-    }
-    size_t expected_len = (size_t)width * (size_t)height * (size_t)bpp;
-    if (expected_len > GHOSTCON_KITTY_MAX_IMAGE_BYTES) {
-        kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                  "error=EINVAL:image too large");
-        return;
     }
 
     size_t decoded_cap = b64_decoded_max(payload_len);
@@ -521,11 +607,15 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
         return; /* no ack for intermediate chunks */
     }
 
-    /* Final (or only) chunk. */
+    /* Final (or only) chunk. Raw formats require the accumulated size
+       to match the declared width*height*bpp exactly; PNG's compressed
+       size is whatever it happens to be, so there's nothing to match
+       against here -- decode_png_rgba below is what actually validates
+       it (a truncated or corrupt PNG simply fails to decode). */
     uint8_t *final_pixels;
     size_t final_len;
     if (img->receiving) {
-        if (img->recv_len + decoded_len != expected_len) {
+        if (!is_png && img->recv_len + decoded_len != expected_len) {
             free(decoded);
             free_image(kg, img);
             kg->active_transfer_id = -1;
@@ -534,14 +624,15 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
             return;
         }
         memcpy(img->recv_buf + img->recv_len, decoded, decoded_len);
+        img->recv_len += decoded_len;
         free(decoded);
         final_pixels = img->recv_buf;
-        final_len = expected_len;
+        final_len = is_png ? img->recv_len : expected_len;
         img->recv_buf = NULL;
         img->receiving = false;
         kg->active_transfer_id = -1;
     } else {
-        if (decoded_len != expected_len) {
+        if (!is_png && decoded_len != expected_len) {
             free(decoded);
             free_image(kg, img);
             kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
@@ -552,6 +643,23 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
         final_len = decoded_len;
     }
 
+    if (is_png) {
+        int32_t png_w = 0, png_h = 0;
+        uint8_t *rgba = decode_png_rgba(final_pixels, final_len, &png_w, &png_h);
+        free(final_pixels);
+        if (!rgba) {
+            free_image(kg, img);
+            kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
+                      "error=EINVAL:invalid or unsupported PNG data");
+            return;
+        }
+        final_pixels = rgba;
+        final_len = (size_t)png_w * (size_t)png_h * 4;
+        width = png_w;
+        height = png_h;
+        bpp = 4;
+    }
+
     if (kg->total_bytes + final_len > GHOSTCON_KITTY_MAX_TOTAL_BYTES) {
         free(final_pixels);
         free_image(kg, img);
@@ -560,6 +668,9 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
         return;
     }
 
+    img->width = width;
+    img->height = height;
+    img->bpp = bpp;
     img->pixels = final_pixels;
     img->pixel_len = final_len;
     img->generation++;

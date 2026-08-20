@@ -542,6 +542,24 @@ page_kitty_chunked_large(void)
 }
 
 static void
+page_kitty_png(void)
+{
+    banner("kitty_png", "Kitty graphics: f=100 (PNG payload), decoded server-side via libpng.");
+    int w = 48, h = 48, bpp = 4;
+    uint8_t *px = malloc((size_t)w * (size_t)h * (size_t)bpp);
+    gen_checkerboard(px, w, h, bpp, 6, 240, 200, 40, 40, 40, 200);
+    size_t png_len = 0;
+    uint8_t *png = build_png(w, h, true, px, &png_len);
+    free(px);
+    char keys[64];
+    snprintf(keys, sizeof keys, "a=T,f=100,i=7,C=1");
+    kitty_send(keys, png, png_len);
+    free(png);
+    advance_past_image(h);
+    printf("\r\n  48x48 checkerboard, sent as a real PNG (f=100), %zu bytes, id=7\r\n", png_len);
+}
+
+static void
 page_kitty_placement_crop(void)
 {
     banner("kitty_placement_crop", "Kitty graphics: transmit once (a=t), then multiple placements (a=p): full, cropped, cell-scaled.");
@@ -741,6 +759,7 @@ static const page_t pages[] = {
     { "kitty_basic_rgb",       "Kitty: raw RGB transmit+display",              page_kitty_basic_rgb },
     { "kitty_rgba_alpha",      "Kitty: RGBA alpha ramp over text",             page_kitty_rgba_alpha },
     { "kitty_chunked_large",   "Kitty: >4KB base64 chunked transmit",          page_kitty_chunked_large },
+    { "kitty_png",             "Kitty: f=100 PNG payload, libpng decode",      page_kitty_png },
     { "kitty_placement_crop",  "Kitty: transmit-once + multi placement/crop",  page_kitty_placement_crop },
     { "kitty_zindex",          "Kitty: z-order vs text (behind/in front)",     page_kitty_zindex },
     { "kitty_delete",          "Kitty: multiple images then delete by id",     page_kitty_delete },

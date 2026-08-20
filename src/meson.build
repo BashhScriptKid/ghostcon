@@ -42,7 +42,7 @@ term_srcs = files(
 term_lib = static_library('ghostcon-term',
     term_srcs,
     include_directories: include_directories('../include'),
-    dependencies: [dep_ghostty_vt],
+    dependencies: [dep_ghostty_vt, dep_libpng],
     install: false,
 )
 
