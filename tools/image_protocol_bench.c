@@ -117,22 +117,38 @@ advance_past_image(int height_px)
 }
 
 /* Prints enough spaces to move the cursor past an image width_px
-   pixels wide -- the horizontal counterpart to advance_past_image(),
-   needed anywhere images are placed side by side on the same row
-   (e.g. page_kitty_delete). C=1 (cursor-movement-suppress, sent on
-   every placement in this file) means ghostcon never advances the
-   cursor on its own, so a fixed "  " between placements was only ever
-   wide enough to clear an image by coincidence of cell size -- found
-   live: a 32px-wide image needs 4 columns to clear at this terminal's
-   real 8px cells, not the 2 a literal "  " provides, so each image
-   partially overlapped the next until the covering one made it look
-   fine by accident. */
+   pixels wide, PLUS one deliberate extra column -- the horizontal
+   counterpart to advance_past_image(), needed anywhere images are
+   placed side by side on the same row (e.g. page_kitty_delete). C=1
+   (cursor-movement-suppress, sent on every placement in this file)
+   means ghostcon never advances the cursor on its own, so a fixed
+   "  " between placements was only ever wide enough to clear an image
+   by coincidence of cell size -- found live: a 32px-wide image needs
+   4 columns to clear at this terminal's real 8px cells, not the 2 a
+   literal "  " provides, so each image partially overlapped the next
+   until the covering one made it look fine by accident.
+
+   The exact ceil(width_px/cell_w) clearance (no +1) is what real
+   Ghostty uses too (confirmed against renderer/image.zig's own
+   gridSize() -- no padding term there either), but that means the gap
+   is only as wide as the division's remainder happens to be: at a
+   cell width that divides the image size evenly (this console's own
+   1920/240 = exactly 8px, and 32px/8px = 4.0 with zero remainder),
+   the real, correct gap is legitimately zero pixels -- images end up
+   touching, not overlapping, but with nothing visually confirming a
+   placement was actually deleted from between them. This tool's job
+   is to make deletions visually obvious on any terminal, not to
+   reproduce that remainder exactly, so it adds one guaranteed extra
+   column on top of the real clearance -- deliberately more generous
+   than protocol-correct spacing, unlike everywhere else in this file
+   that computes exact clearance. */
 static void
 advance_past_image_horizontal(int width_px)
 {
     int cols = (width_px + g_cell_w - 1) / g_cell_w;
     if (cols < 1)
         cols = 1;
+    cols += 1; /* guaranteed visible gap, not just exact clearance */
     for (int i = 0; i < cols; i++)
         putchar(' ');
 }
