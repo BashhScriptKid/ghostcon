@@ -629,8 +629,15 @@ page_kitty_cache_file(void)
 
     char path[128];
     /* No naming convention required for t=f -- see read_cache_file()'s
-       own doc comment. Still must live under /tmp or /dev/shm. */
-    snprintf(path, sizeof path, "/tmp/ghostcon-bench-cache-%d.data", (int)getpid());
+       own doc comment. Still must live under /tmp or /dev/shm.
+
+       Fixed (not per-PID) path -- unlike t=t/t=s, ghostcon never
+       deletes this file, and a real t=f cache use case is exactly
+       "write it once, the terminal may re-read it many times later"
+       -- so this page deliberately doesn't clean up after itself
+       either (same reasoning), and reuses one path across runs rather
+       than accumulating a new file in /tmp every time it's run. */
+    snprintf(path, sizeof path, "/tmp/ghostcon-bench-cache.data");
 
     FILE *f = fopen(path, "wb");
     if (!f) {
@@ -659,11 +666,19 @@ page_kitty_cache_file(void)
     free(path_b64);
 
     advance_past_image(h);
-    printf("\r\n  cache-file-transmitted RGB checkerboard, 48x48, id=12, path %s (client-owned -- cleaning up now)\r\n", path);
-    /* Unlike t=t, ghostcon never deletes this -- the client (this
-       page) still owns it, so it cleans up after itself once the
-       transmission is done, same as any other file it wrote. */
-    unlink(path);
+    printf("\r\n  cache-file-transmitted RGB checkerboard, 48x48, id=12, path %s\r\n", path);
+    /* Deliberately NOT unlink()ing here -- see the doc comment above
+       path[]'s snprintf(). Found live: an earlier version of this
+       page DID unlink() immediately after sending the escape
+       sequence, and since the pty write is fire-and-forget (no
+       ack-wait), that unlink() raced ahead of ghostcon's asynchronous
+       read of the file -- ghostcon's own open() would see ENOENT most
+       of the time because the client had already deleted the file out
+       from under it before ghostcon's poll loop even got to
+       processing the bytes. t=f's actual contract (unlike t=t) is
+       that the FILE persists and the client owns cleanup on ITS OWN
+       schedule, not "immediately after firing the escape sequence" --
+       there's no synchronization point that makes "immediately" safe. */
 }
 
 static void
