@@ -1396,7 +1396,8 @@ apc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s)
         return; /* SOS/PM: no known use, discard as before */
 
     ghostcon_kitty_cursor_move_t move;
-    ghostcon_kitty_graphics_handle(&s->kitty_graphics, st->buf, st->apc_len,
+    ghostcon_kitty_graphics_handle(ghostcon_screen_active_kitty_graphics(s),
+                                   st->buf, st->apc_len,
                                    s->cursor.x, s->cursor.y,
                                    st->cell_w, st->cell_h,
                                    st->output_fn, st->output_userdata, &move);

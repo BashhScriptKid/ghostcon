@@ -176,8 +176,10 @@ ghostcon_screen_init(ghostcon_screen_t *s,
     /* Kitty keyboard protocol */
     ghostcon_kitty_init(&s->kitty);
 
-    /* Kitty graphics protocol (images + placements) */
+    /* Kitty graphics protocol (images + placements) -- one instance
+       per screen, see screen.h's doc comment on kitty_graphics_alt. */
     ghostcon_kitty_graphics_init(&s->kitty_graphics);
+    ghostcon_kitty_graphics_init(&s->kitty_graphics_alt);
 
     /* Mode bitfield */
     ghostcon_modes_clear(&s->modes);
@@ -211,7 +213,13 @@ ghostcon_screen_deinit(ghostcon_screen_t *s) {
     ghostcon_hyperlink_set_destroy(s->hyperlinks);
     free(s->tabstops.stops);
     ghostcon_kitty_graphics_deinit(&s->kitty_graphics);
+    ghostcon_kitty_graphics_deinit(&s->kitty_graphics_alt);
     memset(s, 0, sizeof(*s));
+}
+
+ghostcon_kitty_graphics_t *
+ghostcon_screen_active_kitty_graphics(ghostcon_screen_t *s) {
+    return s->alt_screen_active ? &s->kitty_graphics_alt : &s->kitty_graphics;
 }
 
 bool
@@ -303,10 +311,15 @@ ghostcon_screen_reset(ghostcon_screen_t *s)
     s->view_offset = 0;
 
     /* RIS is a hard reset -- drop all Kitty graphics images/placements
-       too, same "discard rather than gracefully restore" reasoning as
-       the alt-screen drop above. */
+       on BOTH screens, same "discard rather than gracefully restore"
+       reasoning as the alt-screen drop above. Both, not just whichever
+       was active, since alt_screen_active was just forced false above
+       -- resetting only "the active one" here would leave the other
+       screen's images never freed. */
     ghostcon_kitty_graphics_deinit(&s->kitty_graphics);
     ghostcon_kitty_graphics_init(&s->kitty_graphics);
+    ghostcon_kitty_graphics_deinit(&s->kitty_graphics_alt);
+    ghostcon_kitty_graphics_init(&s->kitty_graphics_alt);
 
     /* Cursor */
     s->cursor.x = 0;
@@ -800,9 +813,17 @@ ghostcon_screen_erase_display(ghostcon_screen_t *s, int mode) {
            Ghostty, not the partial .above/.below modes -- and Ghostty
            does it unconditionally regardless of DECSED protection, so
            ghostcon_screen_erase_display_protected's GC_ERASE_DISPLAY_ALL
-           case below gets the identical treatment. */
-        ghostcon_kitty_graphics_deinit(&s->kitty_graphics);
-        ghostcon_kitty_graphics_init(&s->kitty_graphics);
+           case below gets the identical treatment. Only the ACTIVE
+           screen's images -- matching Ghostty, which erases
+           screens.active, not both -- so an ED on the primary screen
+           doesn't reach through and wipe images placed on the alt
+           screen (or vice versa; see kitty_graphics_alt's own doc
+           comment on why these are separate instances at all). */
+        {
+            ghostcon_kitty_graphics_t *akg = ghostcon_screen_active_kitty_graphics(s);
+            ghostcon_kitty_graphics_deinit(akg);
+            ghostcon_kitty_graphics_init(akg);
+        }
         break;
     case GC_ERASE_DISPLAY_SCROLLBACK:
         /* Clear scrollback history */
@@ -845,8 +866,11 @@ ghostcon_screen_erase_display(ghostcon_screen_t *s, int mode) {
             }
             mark_dirty(s, i);
         }
-        ghostcon_kitty_graphics_deinit(&s->kitty_graphics);
-        ghostcon_kitty_graphics_init(&s->kitty_graphics);
+        {
+            ghostcon_kitty_graphics_t *akg = ghostcon_screen_active_kitty_graphics(s);
+            ghostcon_kitty_graphics_deinit(akg);
+            ghostcon_kitty_graphics_init(akg);
+        }
         return;
     default:
         return;
@@ -893,9 +917,13 @@ ghostcon_screen_erase_display_protected(ghostcon_screen_t *s, int mode) {
         /* Same as the unprotected ghostcon_screen_erase_display's
            GC_ERASE_DISPLAY_ALL case above -- Ghostty clears all Kitty
            graphics state for a full-screen erase unconditionally,
-           regardless of DECSED protection. */
-        ghostcon_kitty_graphics_deinit(&s->kitty_graphics);
-        ghostcon_kitty_graphics_init(&s->kitty_graphics);
+           regardless of DECSED protection. Active screen only, same
+           reasoning as that case too. */
+        {
+            ghostcon_kitty_graphics_t *akg = ghostcon_screen_active_kitty_graphics(s);
+            ghostcon_kitty_graphics_deinit(akg);
+            ghostcon_kitty_graphics_init(akg);
+        }
         break;
     case GC_ERASE_DISPLAY_SCROLLBACK:
     case GC_ERASE_DISPLAY_SCROLL_COMPLETE:

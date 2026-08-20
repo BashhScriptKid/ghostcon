@@ -425,7 +425,7 @@ ghostcon_machine_render_images(ghostcon_screen_t *screen,
     if (screen->view_offset > 0)
         return;
 
-    const ghostcon_kitty_graphics_t *kg = &screen->kitty_graphics;
+    const ghostcon_kitty_graphics_t *kg = ghostcon_screen_active_kitty_graphics(screen);
     const ghostcon_kitty_placement_t *sorted[GHOSTCON_KITTY_MAX_PLACEMENTS];
     int count = 0;
     for (int i = 0; i < GHOSTCON_KITTY_MAX_PLACEMENTS; i++) {

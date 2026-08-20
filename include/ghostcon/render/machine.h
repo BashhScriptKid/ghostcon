@@ -45,7 +45,9 @@ void ghostcon_machine_render_selection(ghostcon_screen_t *screen,
                                         ghostcon_gles_t *gles,
                                         int cell_w, int cell_h);
 
-/* Walks screen->kitty_graphics.placements[] and draws each one.
+/* Walks ghostcon_screen_active_kitty_graphics(screen)->placements[]
+   (whichever screen -- primary or alt -- is currently active) and
+   draws each one.
    z<0 placements are drawn immediately (their own draw call, right
    now) so they end up behind the text/background batch this frame's
    render_dirty will push; z>=0 placements are queued (see

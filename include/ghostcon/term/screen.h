@@ -226,8 +226,22 @@ struct ghostcon_screen {
     /* Kitty graphics protocol state (images + placements). Lives here
        rather than on ghostcon_stream_t so the renderer (which only
        ever takes a ghostcon_screen_t*, see render/machine.h) can reach
-       placements without needing stream.h at all. */
+       placements without needing stream.h at all.
+
+       Two separate, always-live instances -- primary and alt -- not
+       one shared field, matching Ghostty's own screens.primary/
+       screens.alternate.kitty_images split. Found live: switching to
+       alt screen (e.g. entering a TUI that uses 1049h) left a Kitty
+       image placed on the primary screen still rendering on top of
+       the TUI, because alt_screen_enter/_exit save and restore the
+       cell grid (alt_rows below) but a single shared kitty_graphics
+       field has no notion of "which screen this placement belongs
+       to" -- switching screens didn't hide it, and clearing it would
+       have permanently lost it when switching back. Use
+       ghostcon_screen_active_kitty_graphics() rather than reaching
+       into kitty_graphics/kitty_graphics_alt directly. */
     ghostcon_kitty_graphics_t kitty_graphics;
+    ghostcon_kitty_graphics_t kitty_graphics_alt;
 
     /* Damage tracking */
     ghostcon_dirty_region_t dirty;
@@ -382,6 +396,14 @@ void ghostcon_screen_alt_screen_enter(ghostcon_screen_t *screen);
 
 /* Switch back to main screen (restores saved grid) */
 void ghostcon_screen_alt_screen_exit(ghostcon_screen_t *screen);
+
+/* Kitty graphics state (images + placements) for whichever screen --
+   primary or alternate -- is currently active. All Kitty graphics
+   command handling and rendering should go through this rather than
+   screen->kitty_graphics directly, so images stay correctly scoped
+   to the screen they were placed on (see kitty_graphics/
+   kitty_graphics_alt's own doc comment above). */
+ghostcon_kitty_graphics_t *ghostcon_screen_active_kitty_graphics(ghostcon_screen_t *screen);
 
 /* ------------------------------------------------------------------ */
 /* Tab stops                                                           */
