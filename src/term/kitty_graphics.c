@@ -403,6 +403,15 @@ ghostcon_kitty_graphics_init(ghostcon_kitty_graphics_t *kg)
 {
     memset(kg, 0, sizeof *kg);
     kg->active_transfer_id = -1;
+    kg->active_transfer_z = INT32_MIN;
+    kg->active_transfer_crop_x = -1;
+    kg->active_transfer_crop_y = -1;
+    kg->active_transfer_crop_w = -1;
+    kg->active_transfer_crop_h = -1;
+    kg->active_transfer_cell_cols = -1;
+    kg->active_transfer_cell_rows = -1;
+    kg->active_transfer_no_cursor_move = -1;
+    kg->active_transfer_placement_id = -1;
 }
 
 void
@@ -459,6 +468,16 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
        just require i= on every chunk. */
     int64_t resolved_id = ctl->image_id;
     bool resolved_display = also_display;
+    /* Placement-affecting keys that are only meaningful/sent on the
+       first chunk -- default to this chunk's own (usually absent)
+       values, overridden below from the saved snapshot only when
+       resolving back to an in-progress transfer. */
+    int32_t resolved_z = ctl->z;
+    int32_t resolved_crop_x = ctl->crop_x, resolved_crop_y = ctl->crop_y;
+    int32_t resolved_crop_w = ctl->crop_w, resolved_crop_h = ctl->crop_h;
+    int32_t resolved_cell_cols = ctl->cell_cols, resolved_cell_rows = ctl->cell_rows;
+    int32_t resolved_no_cursor_move = ctl->no_cursor_move;
+    int64_t resolved_placement_id = ctl->placement_id;
     if (resolved_id < 0) {
         if (kg->active_transfer_id < 0) {
             kitty_ack(output_fn, userdata, quiet, 0, -1, "error=EINVAL:missing or invalid i=");
@@ -466,6 +485,15 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
         }
         resolved_id = kg->active_transfer_id;
         resolved_display = kg->active_transfer_display;
+        resolved_z = kg->active_transfer_z;
+        resolved_crop_x = kg->active_transfer_crop_x;
+        resolved_crop_y = kg->active_transfer_crop_y;
+        resolved_crop_w = kg->active_transfer_crop_w;
+        resolved_crop_h = kg->active_transfer_crop_h;
+        resolved_cell_cols = kg->active_transfer_cell_cols;
+        resolved_cell_rows = kg->active_transfer_cell_rows;
+        resolved_no_cursor_move = kg->active_transfer_no_cursor_move;
+        resolved_placement_id = kg->active_transfer_placement_id;
     }
     if (resolved_id > UINT32_MAX) {
         kitty_ack(output_fn, userdata, quiet, 0, -1, "error=EINVAL:missing or invalid i=");
@@ -589,6 +617,15 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
             img->receiving = true;
             kg->active_transfer_id = (int64_t)id;
             kg->active_transfer_display = also_display;
+            kg->active_transfer_z = resolved_z;
+            kg->active_transfer_crop_x = resolved_crop_x;
+            kg->active_transfer_crop_y = resolved_crop_y;
+            kg->active_transfer_crop_w = resolved_crop_w;
+            kg->active_transfer_crop_h = resolved_crop_h;
+            kg->active_transfer_cell_cols = resolved_cell_cols;
+            kg->active_transfer_cell_rows = resolved_cell_rows;
+            kg->active_transfer_no_cursor_move = resolved_no_cursor_move;
+            kg->active_transfer_placement_id = resolved_placement_id;
         }
     }
 
@@ -678,23 +715,23 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
 
     if (also_display) {
         ghostcon_kitty_placement_t *p = alloc_placement_slot(
-            kg, id, ctl->placement_id > 0 ? (uint32_t)ctl->placement_id : 0);
+            kg, id, resolved_placement_id > 0 ? (uint32_t)resolved_placement_id : 0);
         if (!p) {
-            kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
+            kitty_ack(output_fn, userdata, quiet, id, resolved_placement_id,
                       "error=ENOSPC:too many placements");
             return;
         }
         p->image_id = id;
-        p->placement_id = ctl->placement_id > 0 ? (uint32_t)ctl->placement_id : 0;
+        p->placement_id = resolved_placement_id > 0 ? (uint32_t)resolved_placement_id : 0;
         p->anchor_col = cursor_col;
         p->anchor_row = cursor_row;
-        p->z = ctl->z != INT32_MIN ? ctl->z : 0;
-        p->crop_x = ctl->crop_x >= 0 ? ctl->crop_x : 0;
-        p->crop_y = ctl->crop_y >= 0 ? ctl->crop_y : 0;
-        p->crop_w = ctl->crop_w >= 0 ? ctl->crop_w : 0;
-        p->crop_h = ctl->crop_h >= 0 ? ctl->crop_h : 0;
-        p->cell_cols = ctl->cell_cols >= 0 ? ctl->cell_cols : 0;
-        p->cell_rows = ctl->cell_rows >= 0 ? ctl->cell_rows : 0;
+        p->z = resolved_z != INT32_MIN ? resolved_z : 0;
+        p->crop_x = resolved_crop_x >= 0 ? resolved_crop_x : 0;
+        p->crop_y = resolved_crop_y >= 0 ? resolved_crop_y : 0;
+        p->crop_w = resolved_crop_w >= 0 ? resolved_crop_w : 0;
+        p->crop_h = resolved_crop_h >= 0 ? resolved_crop_h : 0;
+        p->cell_cols = resolved_cell_cols >= 0 ? resolved_cell_cols : 0;
+        p->cell_rows = resolved_cell_rows >= 0 ? resolved_cell_rows : 0;
 
         int32_t draw_w_px = p->crop_w > 0 ? p->crop_w : img->width;
         int32_t draw_h_px = p->crop_h > 0 ? p->crop_h : img->height;
@@ -702,7 +739,7 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
             draw_w_px = p->cell_cols * cell_w;
             draw_h_px = p->cell_rows * cell_h;
         }
-        compute_cursor_move(ctl->no_cursor_move, draw_w_px, draw_h_px,
+        compute_cursor_move(resolved_no_cursor_move, draw_w_px, draw_h_px,
                             p->anchor_col, cell_w, cell_h, out_move);
     }
 

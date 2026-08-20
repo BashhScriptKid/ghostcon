@@ -79,12 +79,34 @@ typedef struct ghostcon_kitty_graphics {
     size_t                     total_bytes;
 
     /* A multi-chunk (m=1) transmission's continuation chunks legally
-       omit i= and a= (only the first chunk carries them, per spec) --
-       tracked here so a continuation chunk can resolve back to which
-       image/display-intent it belongs to. -1 = no transfer in
-       progress. */
+       omit every key but m= (only the first chunk carries i=/a=/z=/
+       crop/cell-scale/C=/p=, per spec) -- tracked here so the FINAL
+       chunk, where the placement actually gets created, can resolve
+       back to what the first chunk actually asked for instead of
+       silently seeing "absent" (defaults) for all of it. -1 for the
+       int64/int32 fields means no transfer in progress / value not
+       yet captured.
+
+       Found live via a real chunked transfer (a 48x48 PNG's base64
+       exceeds the 4096-byte per-chunk cap): only image_id and the
+       display flag were carried across chunks before this, so a
+       chunked a=T,C=1 placement lost C=1 on the final chunk and
+       ghostcon's own cursor auto-advance fired in ADDITION to
+       whatever manual clearance the client was already doing itself
+       (since C=1 exists specifically to prevent that) -- silently
+       doubling the vertical gap after any image large enough to need
+       chunking. z/crop/cell-scale have the exact same "only chunk 1
+       carries it" exposure; fixed for all of them together rather
+       than patching just the one symptom that happened to be
+       reproduced first. */
     int64_t active_transfer_id;
     bool    active_transfer_display;
+    int32_t active_transfer_z;
+    int32_t active_transfer_crop_x, active_transfer_crop_y;
+    int32_t active_transfer_crop_w, active_transfer_crop_h;
+    int32_t active_transfer_cell_cols, active_transfer_cell_rows;
+    int32_t active_transfer_no_cursor_move;
+    int64_t active_transfer_placement_id;
 } ghostcon_kitty_graphics_t;
 
 void ghostcon_kitty_graphics_init(ghostcon_kitty_graphics_t *kg);
