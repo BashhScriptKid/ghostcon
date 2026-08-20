@@ -23,12 +23,15 @@
 
 #define _DEFAULT_SOURCE /* usleep() under -std=c11 without this */
 
+#include <errno.h>
+#include <fcntl.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/mman.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -510,6 +513,63 @@ page_kitty_basic_rgb(void)
 }
 
 static void
+page_kitty_shm(void)
+{
+    banner("kitty_shm", "Kitty graphics: shared-memory (t=s) transmission -- payload is a POSIX shm segment name, not pixel bytes.");
+    int w = 48, h = 48, bpp = 3;
+    size_t len = (size_t)w * (size_t)h * (size_t)bpp;
+    uint8_t *px = malloc(len);
+    gen_checkerboard(px, w, h, bpp, 6, 60, 200, 90, 200, 90, 60);
+
+    char shm_name[64];
+    snprintf(shm_name, sizeof shm_name, "/ghostcon-bench-shm-%d", (int)getpid());
+
+    int fd = shm_open(shm_name, O_CREAT | O_RDWR | O_EXCL, 0600);
+    if (fd < 0) {
+        printf("\r\n  shm_open failed: %s\r\n", strerror(errno));
+        free(px);
+        return;
+    }
+    if (ftruncate(fd, (off_t)len) != 0) {
+        printf("\r\n  ftruncate failed: %s\r\n", strerror(errno));
+        close(fd);
+        shm_unlink(shm_name);
+        free(px);
+        return;
+    }
+    void *map = mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    close(fd);
+    if (map == MAP_FAILED) {
+        printf("\r\n  mmap failed: %s\r\n", strerror(errno));
+        shm_unlink(shm_name);
+        free(px);
+        return;
+    }
+    memcpy(map, px, len);
+    munmap(map, len);
+    free(px);
+
+    /* Ownership of unlinking the segment passes to the terminal on a
+       successful t=s transmission (see ghostcon's read_shm_segment())
+       -- don't shm_unlink() here. If ghostcon is buggy and never reads
+       it, this leaks a shm segment; that's the scenario this page
+       exists to catch, not something to paper over client-side. */
+    size_t name_b64_len = 0;
+    char *name_b64 = b64_encode((const uint8_t *)shm_name, strlen(shm_name), &name_b64_len);
+
+    char keys[128];
+    snprintf(keys, sizeof keys, "a=T,t=s,f=%d,s=%d,v=%d,i=8,C=1", bpp == 4 ? 32 : 24, w, h);
+    printf(ESC "_G%s;", keys);
+    fwrite(name_b64, 1, name_b64_len, stdout);
+    printf(ESC "\\");
+    fflush(stdout);
+    free(name_b64);
+
+    advance_past_image(h);
+    printf("\r\n  shm-transmitted RGB checkerboard, 48x48, id=8, segment %s\r\n", shm_name);
+}
+
+static void
 page_kitty_rgba_alpha(void)
 {
     banner("kitty_rgba_alpha", "Kitty graphics: RGBA (f=32) with a left-to-right alpha ramp over text.");
@@ -757,6 +817,7 @@ typedef struct {
 
 static const page_t pages[] = {
     { "kitty_basic_rgb",       "Kitty: raw RGB transmit+display",              page_kitty_basic_rgb },
+    { "kitty_shm",             "Kitty: shared-memory (t=s) transmission",      page_kitty_shm },
     { "kitty_rgba_alpha",      "Kitty: RGBA alpha ramp over text",             page_kitty_rgba_alpha },
     { "kitty_chunked_large",   "Kitty: >4KB base64 chunked transmit",          page_kitty_chunked_large },
     { "kitty_png",             "Kitty: f=100 PNG payload, libpng decode",      page_kitty_png },

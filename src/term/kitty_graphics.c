@@ -7,6 +7,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 /* ------------------------------------------------------------------ */
 /* PNG decode (f=100) -- delegates to libpng rather than hand-rolling  */
 /* inflate/chunk parsing: PNG is a compressed, chunked format, and     */
@@ -136,6 +141,62 @@ static size_t
 b64_decoded_max(size_t len)
 {
     return ((len + 3) / 4) * 3;
+}
+
+/* ------------------------------------------------------------------ */
+/* Shared-memory transmission (t=s)                                    */
+/* ------------------------------------------------------------------ */
+
+/* Reads a POSIX shared-memory segment by name -- the Kitty t=s medium.
+   Deliberately narrower than t=f/t=t (arbitrary filesystem paths,
+   still deferred -- see this file's own top-of-header doc comment):
+   shm_open() is confined to the kernel's separate named-shared-memory
+   namespace, never the general filesystem, and this always opens
+   O_RDONLY with no O_CREAT, so ghostcon can only read a segment the
+   client already created -- it can never create or clobber one.
+   Matches Ghostty's own graphics_image.zig readSharedMemory(): reject
+   before mmap'ing anything if the segment is bigger than max_len (same
+   "reject before allocating on attacker-influenced size" posture as
+   decode_png_rgba above), and unconditionally shm_unlink() the segment
+   afterward -- success or failure -- since per the Kitty spec the
+   client creates+writes it and hands ownership of deleting it to the
+   terminal; leaving that to the client would accumulate an unbounded
+   number of live shm segments across repeated transmissions. Returns
+   a freshly malloc'd copy of the segment's contents (caller owns it,
+   the mapping itself is never handed back) on success, NULL on any
+   failure. */
+static uint8_t *
+read_shm_segment(const char *name, size_t max_len, size_t *out_len)
+{
+    int fd = shm_open(name, O_RDONLY, 0);
+    if (fd < 0)
+        return NULL;
+
+    struct stat st;
+    if (fstat(fd, &st) != 0 || st.st_size <= 0 || (size_t)st.st_size > max_len) {
+        close(fd);
+        shm_unlink(name);
+        return NULL;
+    }
+
+    size_t len = (size_t)st.st_size;
+    void *map = mmap(NULL, len, PROT_READ, MAP_SHARED, fd, 0);
+    close(fd);
+    if (map == MAP_FAILED) {
+        shm_unlink(name);
+        return NULL;
+    }
+
+    uint8_t *buf = malloc(len);
+    if (buf)
+        memcpy(buf, map, len);
+    munmap(map, len);
+    shm_unlink(name);
+
+    if (!buf)
+        return NULL;
+    *out_len = len;
+    return buf;
 }
 
 /* ------------------------------------------------------------------ */
@@ -502,9 +563,23 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
     uint32_t id = (uint32_t)resolved_id;
     also_display = resolved_display;
 
-    if (ctl->medium && ctl->medium != 'd') {
+    if (ctl->medium && ctl->medium != 'd' && ctl->medium != 's') {
         kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                  "error=EBADF:only direct (t=d) transmission is supported");
+                  "error=EBADF:only direct (t=d) or shared-memory (t=s) transmission is supported");
+        return;
+    }
+    bool from_shm = ctl->medium == 's';
+    if (from_shm && ctl->more == 1) {
+        /* Chunked shm-name assembly is legal per spec (names are just
+           another base64 payload, mechanically chunkable like
+           anything else) but never useful in practice -- shm segment
+           names are always short enough for one chunk -- and adding
+           it would mean threading a second "this accumulation is a
+           name, not pixels" mode through the entire chunk/continuation
+           machinery above. Reject cleanly rather than silently
+           mishandling it. */
+        kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
+                  "error=EBADF:chunked shared-memory transmission is not supported");
         return;
     }
 
@@ -576,19 +651,59 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
         }
     }
 
-    size_t decoded_cap = b64_decoded_max(payload_len);
-    uint8_t *decoded = decoded_cap ? malloc(decoded_cap) : NULL;
-    if (decoded_cap && !decoded) {
-        kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                  "error=ENOMEM:allocation failed");
-        return;
-    }
-    size_t decoded_len = payload_len ? b64_decode(payload, payload_len, decoded, decoded_cap) : 0;
-    if (decoded_len == SIZE_MAX) {
-        free(decoded);
-        kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                  "error=EINVAL:malformed base64 payload");
-        return;
+    uint8_t *decoded;
+    size_t decoded_len;
+    if (from_shm) {
+        /* payload/payload_len here is the base64-encoded shm segment
+           NAME (per spec, the payload is always base64 regardless of
+           medium -- only what it MEANS differs), not image bytes. */
+        size_t name_cap = b64_decoded_max(payload_len);
+        uint8_t *name_buf = malloc(name_cap + 1);
+        if (!name_buf) {
+            kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
+                      "error=ENOMEM:allocation failed");
+            return;
+        }
+        size_t name_len = payload_len ? b64_decode(payload, payload_len, name_buf, name_cap) : 0;
+        if (name_len == SIZE_MAX) {
+            free(name_buf);
+            kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
+                      "error=EINVAL:malformed base64 payload");
+            return;
+        }
+        name_buf[name_len] = '\0';
+        /* POSIX shm names cannot contain internal NULs -- same check
+           Ghostty applies to the decoded path/name before calling
+           shm_open(), and for the same reason (a NUL would silently
+           truncate the name shm_open() actually sees). */
+        if (strlen((char *)name_buf) != name_len) {
+            free(name_buf);
+            kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
+                      "error=EINVAL:invalid shared-memory segment name");
+            return;
+        }
+        decoded = read_shm_segment((char *)name_buf, GHOSTCON_KITTY_MAX_IMAGE_BYTES, &decoded_len);
+        free(name_buf);
+        if (!decoded) {
+            kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
+                      "error=EBADF:unable to read shared memory segment");
+            return;
+        }
+    } else {
+        size_t decoded_cap = b64_decoded_max(payload_len);
+        decoded = decoded_cap ? malloc(decoded_cap) : NULL;
+        if (decoded_cap && !decoded) {
+            kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
+                      "error=ENOMEM:allocation failed");
+            return;
+        }
+        decoded_len = payload_len ? b64_decode(payload, payload_len, decoded, decoded_cap) : 0;
+        if (decoded_len == SIZE_MAX) {
+            free(decoded);
+            kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
+                      "error=EINVAL:malformed base64 payload");
+            return;
+        }
     }
 
     bool more = ctl->more == 1;

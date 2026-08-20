@@ -2,15 +2,19 @@
 #define GHOSTCON_TERM_KITTY_GRAPHICS_H
 
 /* Kitty graphics protocol (APC _G...ST) -- transmission, placement, and
-   deletion of images. v1 scope, deliberately: only the direct
-   transmission medium (t=d, image bytes embedded in the escape
-   sequence itself) and raw pixel formats (f=24 RGB, f=32 RGBA) are
-   supported. PNG payloads (f=100) and the file/temp-file/shared-memory
-   transmission mediums (t=f, t=t, t=s) are rejected with a clean error
-   ack rather than silently ignored -- both are deferred follow-up work
-   (a PNG decoder is a much larger parser to harden, and t=f/t=t let a
-   client ask the terminal to read an arbitrary file path off disk,
-   which needs its own path-safety policy before it's safe to wire up).
+   deletion of images. Supported: the direct transmission medium (t=d,
+   image bytes embedded in the escape sequence itself), the
+   shared-memory medium (t=s, via POSIX shm_open -- see
+   read_shm_segment() in kitty_graphics.c), and raw pixel formats
+   (f=24 RGB, f=32 RGBA) as well as PNG (f=100, decoded via libpng).
+   The file/temp-file transmission mediums (t=f, t=t) are rejected
+   with a clean error ack rather than silently ignored -- deferred
+   follow-up work, since unlike t=s (confined to the kernel's separate
+   named-shared-memory namespace, and only ever opened read-only with
+   no O_CREAT -- see read_shm_segment()'s own doc comment), t=f/t=t
+   let a client ask the terminal to read an arbitrary path off the
+   general filesystem, which needs its own path-safety policy before
+   it's safe to wire up.
 
    This module is intentionally decoupled from ghostcon_screen_t: it
    receives the cursor position as plain ints from the caller rather
