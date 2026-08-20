@@ -205,6 +205,16 @@ kitty_ack(ghostcon_kitty_output_fn output_fn, void *userdata,
 {
     if (!output_fn)
         return;
+    /* Matches Ghostty's Response.encode() exactly: no id (and this v1
+       doesn't implement I=/image-number at all) means there's nothing
+       for the client to attach a response to, so the terminal stays
+       silent -- even for an error. A malformed command with no i= at
+       all (e.g. missing i= entirely) legitimately gets no reply on
+       real Ghostty; echoing "i=0;error=..." back, as an earlier
+       version of this function did unconditionally, is protocol noise
+       a well-behaved client isn't expecting. */
+    if (image_id == 0)
+        return;
     /* q=1 suppresses OK acks (errors still sent); q=2 suppresses all. */
     bool is_error = strncmp(status, "error", 5) == 0;
     if (quiet >= 2)
@@ -636,23 +646,22 @@ handle_placement(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
 }
 
 static void
-handle_delete(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
-             ghostcon_kitty_output_fn output_fn, void *userdata)
+handle_delete(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl)
 {
-    int32_t quiet = ctl->quiet >= 0 ? ctl->quiet : 0;
-
+    /* Matches Ghostty's graphics_exec.zig delete() exactly: "Delete
+       never responds on success" -- and, since it unconditionally
+       returns an empty Response regardless of what happened
+       internally, not on failure either. No kitty_ack() calls
+       anywhere in this function is intentional, not an oversight. */
     if (ctl->delete_mode == 'a') {
         for (int i = 0; i < GHOSTCON_KITTY_MAX_IMAGES; i++)
             free_image(kg, &kg->images[i]);
         memset(kg->placements, 0, sizeof kg->placements);
-        kitty_ack(output_fn, userdata, quiet, 0, -1, "OK");
         return;
     }
     if (ctl->delete_mode == 'i') {
-        if (ctl->image_id < 0 || ctl->image_id > UINT32_MAX) {
-            kitty_ack(output_fn, userdata, quiet, 0, -1, "error=EINVAL:missing i=");
+        if (ctl->image_id < 0 || ctl->image_id > UINT32_MAX)
             return;
-        }
         uint32_t id = (uint32_t)ctl->image_id;
         delete_placements_for_image(kg, id, ctl->placement_id);
         if (ctl->placement_id < 0) {
@@ -660,11 +669,10 @@ handle_delete(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
             if (img)
                 free_image(kg, img);
         }
-        kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id, "OK");
-        return;
     }
-
-    kitty_ack(output_fn, userdata, quiet, 0, -1, "error=EINVAL:unsupported delete mode");
+    /* Unsupported delete modes (per this v1's scope -- see kitty_graphics.h)
+       are silently no-ops, same as an unrecognized mode is on real
+       Ghostty (it just wouldn't match any Delete union tag). */
 }
 
 const ghostcon_kitty_image_t *
@@ -735,7 +743,7 @@ ghostcon_kitty_graphics_handle(ghostcon_kitty_graphics_t *kg,
                          output_fn, output_userdata, out_move);
         break;
     case 'd':
-        handle_delete(kg, &ctl, output_fn, output_userdata);
+        handle_delete(kg, &ctl);
         break;
     default:
         kitty_ack(output_fn, output_userdata, ctl.quiet >= 0 ? ctl.quiet : 0,
