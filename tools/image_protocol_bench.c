@@ -797,6 +797,23 @@ main(int argc, char **argv)
     }
 
     disable_echo();
+
+    /* Full reset (RIS) before anything else -- this tool assumes a
+       clean starting terminal state (scroll region spanning the whole
+       screen, DECOM off, etc.), but nothing guarantees that: any
+       earlier command in the same shell session that set a scroll
+       region (DECSTBM) and didn't clear it leaves ESC[H (cursor home,
+       what banner() uses to return to a blank canvas between pages)
+       going to the top of THAT region instead of the physical top of
+       the screen -- silently offsetting every page's layout by
+       whatever the leftover top margin was. Found live: a page's own
+       image-to-label clearance was correct by the exact row count
+       expected (confirmed via TIOCGWINSZ diagnostics -- cell size was
+       never the problem), but the label still landed 3 rows lower
+       than it should have. */
+    printf(ESC "c");
+    fflush(stdout);
+
     query_cell_size();
 
     if (argc > 1 && strcmp(argv[1], "--all") != 0) {
