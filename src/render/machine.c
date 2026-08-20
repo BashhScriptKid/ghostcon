@@ -1,6 +1,7 @@
 #include "ghostcon/render/machine.h"
 
 #include <math.h>
+#include <stdlib.h>
 
 #include "ghostcon/term/cell.h"
 #include "ghostcon/term/style.h"
@@ -144,8 +145,8 @@ ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
             bool is_symbol = cp != 0 && cp != ' ' && ghostcon_cell_is_symbol(cp);
             uint8_t constraint_width = is_symbol ? symbol_constraint_width(row, x) : 1;
 
-            ghostcon_gles_push_rect(gles, px, py, (float)cell_w, (float)cell_h,
-                                     bg[0], bg[1], bg[2], 1.0f);
+            ghostcon_gles_push_bg_rect(gles, px, py, (float)cell_w, (float)cell_h,
+                                       bg[0], bg[1], bg[2], 1.0f);
 
             if (constraint_width == 2) {
                 ghostcon_cell_t next_cell = row->cells[x + 1];
@@ -154,8 +155,8 @@ ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
                 float next_fg[3], next_bg[3];
                 resolve_colors(screen, next_style, next_fg, next_bg);
                 override_bg_from_content(screen, next_cell, next_bg);
-                ghostcon_gles_push_rect(gles, px + (float)cell_w, py, (float)cell_w, (float)cell_h,
-                                         next_bg[0], next_bg[1], next_bg[2], 1.0f);
+                ghostcon_gles_push_bg_rect(gles, px + (float)cell_w, py, (float)cell_w, (float)cell_h,
+                                           next_bg[0], next_bg[1], next_bg[2], 1.0f);
             }
 
             if (style->flags & GC_STYLE_HIDDEN) {
@@ -386,13 +387,34 @@ render_one_placement(ghostcon_gles_t *gles, const ghostcon_kitty_graphics_t *kg,
     float px = (float)(p->anchor_col * cell_w);
     float py = (float)(p->anchor_row * cell_h);
 
-    if (p->z < 0) {
-        ghostcon_gles_draw_image_now(gles, tex, px, py, draw_w, draw_h,
-                                     src_x, src_y, src_w, src_h, 1.0f);
-    } else {
-        ghostcon_gles_queue_image(gles, tex, px, py, draw_w, draw_h,
-                                  src_x, src_y, src_w, src_h, 1.0f);
-    }
+    /* Always queued now, never drawn immediately -- gles_end() controls
+       exactly where each tier lands relative to the background/glyph
+       draw calls (see gles.h). z<0 -> below_text (above backgrounds,
+       below glyphs); z>=0 -> above_text (above everything). */
+    ghostcon_gles_queue_image(gles, tex, px, py, draw_w, draw_h,
+                              src_x, src_y, src_w, src_h, 1.0f, p->z >= 0);
+}
+
+/* Matches Ghostty's renderer/image.zig exactly: placements are sorted
+   by (z ascending, then image_id ascending as the tie-break) before
+   drawing, not walked in whatever order they happen to occupy in
+   storage. Without this, two placements sharing a z<0-vs-z>=0 bucket
+   (this renderer's own coarse "behind or in front of text" split,
+   see gles.h) would still stack in an arbitrary, storage-slot-
+   dependent order relative to EACH OTHER instead of by z -- correct
+   for the single-image-per-bucket case (like kitty_zindex's test
+   page) but wrong the moment a scene has multiple negative-z or
+   multiple positive-z images. */
+static int
+placement_z_cmp(const void *a, const void *b)
+{
+    const ghostcon_kitty_placement_t *pa = *(const ghostcon_kitty_placement_t *const *)a;
+    const ghostcon_kitty_placement_t *pb = *(const ghostcon_kitty_placement_t *const *)b;
+    if (pa->z != pb->z)
+        return pa->z < pb->z ? -1 : 1;
+    if (pa->image_id != pb->image_id)
+        return pa->image_id < pb->image_id ? -1 : 1;
+    return 0;
 }
 
 void
@@ -404,10 +426,14 @@ ghostcon_machine_render_images(ghostcon_screen_t *screen,
         return;
 
     const ghostcon_kitty_graphics_t *kg = &screen->kitty_graphics;
+    const ghostcon_kitty_placement_t *sorted[GHOSTCON_KITTY_MAX_PLACEMENTS];
+    int count = 0;
     for (int i = 0; i < GHOSTCON_KITTY_MAX_PLACEMENTS; i++) {
-        const ghostcon_kitty_placement_t *p = &kg->placements[i];
-        if (!p->in_use)
-            continue;
-        render_one_placement(gles, kg, p, cell_w, cell_h);
+        if (kg->placements[i].in_use)
+            sorted[count++] = &kg->placements[i];
     }
+    qsort(sorted, (size_t)count, sizeof(sorted[0]), placement_z_cmp);
+
+    for (int i = 0; i < count; i++)
+        render_one_placement(gles, kg, sorted[i], cell_w, cell_h);
 }

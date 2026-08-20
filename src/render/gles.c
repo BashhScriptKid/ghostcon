@@ -208,8 +208,18 @@ struct ghostcon_gles {
     GLuint blit_program;
     GLint blit_attr_pos, blit_attr_uv, blit_uniform_tex;
 
+    /* Foreground layer: glyphs, cursor, selection (push_glyph /
+       push_rect). Drawn second, after the background layer and after
+       any below-text Kitty images -- see gles.h's "Arbitrary-texture
+       images" doc comment for why this is now two separate draw calls
+       rather than one combined batch. */
     ghostcon_vertex_t *verts;
     size_t vert_count, vert_cap;
+
+    /* Background layer: cell background fills only (push_bg_rect).
+       Drawn first, in its own draw call. */
+    ghostcon_vertex_t *bg_verts;
+    size_t bg_vert_count, bg_vert_cap;
 
     /* Kitty graphics image quads -- separate pipeline, see gles.h's
        doc comment on this section. */
@@ -239,6 +249,7 @@ struct ghostcon_gles_queued_image {
     float x, y, w, h;
     float src_x, src_y, src_w, src_h;
     float alpha;
+    bool above_text;
 };
 
 /* Kitty graphics image quads -- deliberately its own tiny shader
@@ -445,6 +456,8 @@ ghostcon_gles_create(uint32_t viewport_w, uint32_t viewport_h, bool want_linear_
 
     gles->vert_cap = 1024;
     gles->verts = malloc(gles->vert_cap * sizeof(ghostcon_vertex_t));
+    gles->bg_vert_cap = 1024;
+    gles->bg_verts = malloc(gles->bg_vert_cap * sizeof(ghostcon_vertex_t));
 
     return gles;
 
@@ -468,6 +481,7 @@ ghostcon_gles_destroy(ghostcon_gles_t *gles)
         glDeleteProgram(gles->blit_program);
     }
     free(gles->verts);
+    free(gles->bg_verts);
     free(gles->queued_images);
     for (size_t i = 0; i < gles->kitty_tex_count; i++)
         ghostcon_gles_image_destroy(gles->kitty_tex[i].tex);
@@ -516,6 +530,7 @@ void
 ghostcon_gles_begin(ghostcon_gles_t *gles, bool clear, float bg_r, float bg_g, float bg_b)
 {
     gles->vert_count = 0;
+    gles->bg_vert_count = 0;
     if (gles->linear_blending)
         glBindFramebuffer(GL_FRAMEBUFFER, gles->srgb_fbo);
     if (clear) {
@@ -530,16 +545,19 @@ ghostcon_gles_begin(ghostcon_gles_t *gles, bool clear, float bg_r, float bg_g, f
 }
 
 static void
-push_vertex(ghostcon_gles_t *gles, ghostcon_vertex_t v)
+push_vertex(ghostcon_gles_t *gles, ghostcon_vertex_t v, bool bg)
 {
-    if (gles->vert_count >= gles->vert_cap) {
-        gles->vert_cap *= 2;
-        gles->verts = realloc(gles->verts, gles->vert_cap * sizeof(ghostcon_vertex_t));
+    ghostcon_vertex_t **arr = bg ? &gles->bg_verts : &gles->verts;
+    size_t *count = bg ? &gles->bg_vert_count : &gles->vert_count;
+    size_t *cap = bg ? &gles->bg_vert_cap : &gles->vert_cap;
+    if (*count >= *cap) {
+        *cap *= 2;
+        *arr = realloc(*arr, *cap * sizeof(ghostcon_vertex_t));
     }
     /* Pixel space (top-left origin, y-down) -> NDC. */
     v.x = (v.x / (float)gles->viewport_w) * 2.0f - 1.0f;
     v.y = 1.0f - (v.y / (float)gles->viewport_h) * 2.0f;
-    gles->verts[gles->vert_count++] = v;
+    (*arr)[(*count)++] = v;
 }
 
 static void
@@ -548,19 +566,19 @@ push_quad(ghostcon_gles_t *gles,
           float u0, float v0, float u1, float v1,
           float r, float g, float b, float a,
           float bg_r, float bg_g, float bg_b,
-          float is_glyph)
+          float is_glyph, bool bg)
 {
     ghostcon_vertex_t tl = { x,     y,     u0, v0, r, g, b, a, bg_r, bg_g, bg_b, is_glyph };
     ghostcon_vertex_t tr = { x + w, y,     u1, v0, r, g, b, a, bg_r, bg_g, bg_b, is_glyph };
     ghostcon_vertex_t bl = { x,     y + h, u0, v1, r, g, b, a, bg_r, bg_g, bg_b, is_glyph };
     ghostcon_vertex_t br = { x + w, y + h, u1, v1, r, g, b, a, bg_r, bg_g, bg_b, is_glyph };
 
-    push_vertex(gles, tl);
-    push_vertex(gles, bl);
-    push_vertex(gles, tr);
-    push_vertex(gles, tr);
-    push_vertex(gles, bl);
-    push_vertex(gles, br);
+    push_vertex(gles, tl, bg);
+    push_vertex(gles, bl, bg);
+    push_vertex(gles, tr, bg);
+    push_vertex(gles, tr, bg);
+    push_vertex(gles, bl, bg);
+    push_vertex(gles, br, bg);
 }
 
 void
@@ -572,8 +590,18 @@ ghostcon_gles_push_rect(ghostcon_gles_t *gles,
        exactly this — sampling (0,0) always yields mask=(1,1,1). bg == fg
        here so the gamma correction curve is a guaranteed no-op, and
        is_glyph=0 keeps this on the plain alpha-blended path (needed
-       for e.g. the selection overlay's partial-alpha tint). */
-    push_quad(gles, x, y, w, h, 0.0f, 0.0f, 0.0f, 0.0f, r, g, b, a, r, g, b, 0.0f);
+       for e.g. the selection overlay's partial-alpha tint). Foreground
+       layer -- see gles.h for why cell backgrounds use push_bg_rect
+       instead. */
+    push_quad(gles, x, y, w, h, 0.0f, 0.0f, 0.0f, 0.0f, r, g, b, a, r, g, b, 0.0f, false);
+}
+
+void
+ghostcon_gles_push_bg_rect(ghostcon_gles_t *gles,
+                           float x, float y, float w, float h,
+                           float r, float g, float b, float a)
+{
+    push_quad(gles, x, y, w, h, 0.0f, 0.0f, 0.0f, 0.0f, r, g, b, a, r, g, b, 0.0f, true);
 }
 
 void
@@ -584,7 +612,7 @@ ghostcon_gles_push_glyph(ghostcon_gles_t *gles,
                           float bg_r, float bg_g, float bg_b)
 {
     push_quad(gles, x, y, w, h, glyph->u0, glyph->v0, glyph->u1, glyph->v1,
-              r, g, b, a, bg_r, bg_g, bg_b, 1.0f);
+              r, g, b, a, bg_r, bg_g, bg_b, 1.0f, false);
 }
 
 void
@@ -689,15 +717,6 @@ draw_image_internal(ghostcon_gles_t *gles, ghostcon_gles_image_t *img,
     glDisableVertexAttribArray(gles->img_attr_uv);
 }
 
-void
-ghostcon_gles_draw_image_now(ghostcon_gles_t *gles, ghostcon_gles_image_t *img,
-                             float x, float y, float w, float h,
-                             float src_x, float src_y, float src_w, float src_h,
-                             float alpha)
-{
-    draw_image_internal(gles, img, x, y, w, h, src_x, src_y, src_w, src_h, alpha);
-}
-
 ghostcon_gles_image_t *
 ghostcon_gles_kitty_tex_get(ghostcon_gles_t *gles,
                            const struct ghostcon_kitty_graphics *kg,
@@ -752,7 +771,7 @@ void
 ghostcon_gles_queue_image(ghostcon_gles_t *gles, ghostcon_gles_image_t *img,
                           float x, float y, float w, float h,
                           float src_x, float src_y, float src_w, float src_h,
-                          float alpha)
+                          float alpha, bool above_text)
 {
     if (gles->queued_count >= gles->queued_cap) {
         gles->queued_cap = gles->queued_cap ? gles->queued_cap * 2 : 8;
@@ -760,61 +779,91 @@ ghostcon_gles_queue_image(ghostcon_gles_t *gles, ghostcon_gles_image_t *img,
                                       gles->queued_cap * sizeof(*gles->queued_images));
     }
     gles->queued_images[gles->queued_count++] = (struct ghostcon_gles_queued_image){
-        img, x, y, w, h, src_x, src_y, src_w, src_h, alpha,
+        img, x, y, w, h, src_x, src_y, src_w, src_h, alpha, above_text,
     };
 }
 
-void
-ghostcon_gles_end(ghostcon_gles_t *gles)
+/* Binds attribute pointers to `src` and issues its draw call --
+   shared by both layers below since they use the identical shader/
+   program/uniforms, only the vertex data differs. */
+static void
+draw_layer(ghostcon_gles_t *gles, const ghostcon_vertex_t *src, size_t count)
 {
+    if (count == 0)
+        return;
+    /* Re-bind every time, not just once at the top of end(): a
+       below-text Kitty image draw (its own program/texture) can run
+       between this layer and the previous one, and glUseProgram/
+       glBindTexture are global GL state, not scoped to draw_layer's
+       own caller. */
     glUseProgram(gles->program);
+    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, gles->atlas_tex);
     glUniform1i(gles->uniform_atlas, 0);
     glUniform1i(gles->uniform_gamma_correct, gles->gamma_correct ? 1 : 0);
     glUniform1i(gles->uniform_linear_blending, gles->linear_blending ? 1 : 0);
 
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
     glVertexAttribPointer(gles->attr_pos, 2, GL_FLOAT, GL_FALSE,
-                           sizeof(ghostcon_vertex_t),
-                           &gles->verts[0].x);
+                           sizeof(ghostcon_vertex_t), &src[0].x);
     glVertexAttribPointer(gles->attr_uv, 2, GL_FLOAT, GL_FALSE,
-                           sizeof(ghostcon_vertex_t),
-                           &gles->verts[0].u);
+                           sizeof(ghostcon_vertex_t), &src[0].u);
     glVertexAttribPointer(gles->attr_color, 4, GL_FLOAT, GL_FALSE,
-                           sizeof(ghostcon_vertex_t),
-                           &gles->verts[0].r);
+                           sizeof(ghostcon_vertex_t), &src[0].r);
     glVertexAttribPointer(gles->attr_bg, 3, GL_FLOAT, GL_FALSE,
-                           sizeof(ghostcon_vertex_t),
-                           &gles->verts[0].bg_r);
+                           sizeof(ghostcon_vertex_t), &src[0].bg_r);
     glVertexAttribPointer(gles->attr_is_glyph, 1, GL_FLOAT, GL_FALSE,
-                           sizeof(ghostcon_vertex_t),
-                           &gles->verts[0].is_glyph);
+                           sizeof(ghostcon_vertex_t), &src[0].is_glyph);
     glEnableVertexAttribArray(gles->attr_pos);
     glEnableVertexAttribArray(gles->attr_uv);
     glEnableVertexAttribArray(gles->attr_color);
     glEnableVertexAttribArray(gles->attr_bg);
     glEnableVertexAttribArray(gles->attr_is_glyph);
 
-    if (gles->vert_count > 0)
-        glDrawArrays(GL_TRIANGLES, 0, (GLsizei)gles->vert_count);
+    glDrawArrays(GL_TRIANGLES, 0, (GLsizei)count);
 
     glDisableVertexAttribArray(gles->attr_pos);
     glDisableVertexAttribArray(gles->attr_uv);
     glDisableVertexAttribArray(gles->attr_color);
     glDisableVertexAttribArray(gles->attr_bg);
     glDisableVertexAttribArray(gles->attr_is_glyph);
+}
 
-    /* z>=0 image placements: drawn now, after the text/background
-       batch above but before the sRGB blit/swap below -- see gles.h's
-       doc comment on why draw call TIMING is what controls paint
-       order for these, not vertex order. */
+/* Draws every queued image whose tier matches `above_text`, in queue
+   order (queue order matters for same-tier ties -- render/machine.c
+   already sorted placements by (z, image_id) before queuing, see its
+   own doc comment on why array/insertion order alone isn't correct). */
+static void
+draw_queued_images(ghostcon_gles_t *gles, bool above_text)
+{
     for (size_t i = 0; i < gles->queued_count; i++) {
         struct ghostcon_gles_queued_image *q = &gles->queued_images[i];
+        if (q->above_text != above_text)
+            continue;
         draw_image_internal(gles, q->img, q->x, q->y, q->w, q->h,
                             q->src_x, q->src_y, q->src_w, q->src_h, q->alpha);
     }
+}
+
+void
+ghostcon_gles_end(ghostcon_gles_t *gles)
+{
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    /* Background layer first (cell fills only), then z<0 Kitty images
+       (above backgrounds, below glyphs), then the foreground layer
+       (glyphs/cursor/selection), then z>=0 Kitty images (above
+       everything) -- matches Ghostty's three-tier ordering exactly
+       (renderer/image.zig: kitty_below_bg / kitty_below_text /
+       kitty_above_text). This used to be one combined bg+glyph batch
+       with images either fully before or fully after it; that made a
+       z<0 placement permanently invisible, since "before the batch"
+       meant before its opaque background fills too, not just before
+       glyphs -- found live via a controlled two-image z-order test. */
+    draw_layer(gles, gles->bg_verts, gles->bg_vert_count);
+    draw_queued_images(gles, false);
+    draw_layer(gles, gles->verts, gles->vert_count);
+    draw_queued_images(gles, true);
     gles->queued_count = 0;
 
     if (gles->linear_blending) {

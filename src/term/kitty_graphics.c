@@ -130,7 +130,21 @@ kitty_parse_control(char *control)
 {
     kitty_control_t c = {0};
     c.format = -1; c.width = -1; c.height = -1;
-    c.image_id = -1; c.placement_id = -1; c.more = -1; c.quiet = -1; c.z = -1;
+    c.image_id = -1; c.placement_id = -1; c.more = -1; c.quiet = -1;
+    /* z legitimately ranges negative (spec: z<0 renders behind text) --
+       -1 collides with a real value a client would actually send (it's
+       the most common "just behind text" choice), so it can't double
+       as the "absent" sentinel the way -1 safely does for every other
+       field here (all of which are spec-defined non-negative). Found
+       live: every placement sent with z=-1 was silently coerced to the
+       z=0 default by the old `ctl->z >= 0 ? ctl->z : 0` check below,
+       so a z<0 (behind-text) placement was actually rendering in the
+       z>=0 (in-front-of-text) bucket the entire time -- an adversarial
+       two-negative-z ordering test caught it, not the original
+       zindex test page, which never actually verified genuine
+       text-over-image compositing, only that both colors existed
+       somewhere on screen. */
+    c.z = INT32_MIN;
     c.crop_x = -1; c.crop_y = -1; c.crop_w = -1; c.crop_h = -1;
     c.cell_cols = -1; c.cell_rows = -1;
     c.no_cursor_move = -1;
@@ -563,7 +577,7 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
         p->placement_id = ctl->placement_id > 0 ? (uint32_t)ctl->placement_id : 0;
         p->anchor_col = cursor_col;
         p->anchor_row = cursor_row;
-        p->z = ctl->z >= 0 ? ctl->z : 0;
+        p->z = ctl->z != INT32_MIN ? ctl->z : 0;
         p->crop_x = ctl->crop_x >= 0 ? ctl->crop_x : 0;
         p->crop_y = ctl->crop_y >= 0 ? ctl->crop_y : 0;
         p->crop_w = ctl->crop_w >= 0 ? ctl->crop_w : 0;
@@ -628,7 +642,7 @@ handle_placement(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
     p->placement_id = ctl->placement_id > 0 ? (uint32_t)ctl->placement_id : 0;
     p->anchor_col = cursor_col;
     p->anchor_row = cursor_row;
-    p->z = ctl->z >= 0 ? ctl->z : 0;
+    p->z = ctl->z != INT32_MIN ? ctl->z : 0;
     p->crop_x = cx; p->crop_y = cy; p->crop_w = cw; p->crop_h = ch;
     p->cell_cols = ctl->cell_cols >= 0 ? ctl->cell_cols : 0;
     p->cell_rows = ctl->cell_rows >= 0 ? ctl->cell_rows : 0;

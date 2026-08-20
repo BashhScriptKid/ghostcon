@@ -108,10 +108,27 @@ void ghostcon_gles_sync_atlas(ghostcon_gles_t *gles, ghostcon_atlas_t *atlas, bo
 void ghostcon_gles_begin(ghostcon_gles_t *gles, bool clear,
                           float bg_r, float bg_g, float bg_b);
 
-/* Appends an opaque solid-color rect (background cell / cursor block). */
+/* Appends an opaque solid-color rect to the FOREGROUND layer (cursor
+   block, selection overlay) -- drawn after glyphs, on top of
+   everything. For cell background fills specifically, use
+   ghostcon_gles_push_bg_rect() below instead: backgrounds and
+   glyphs/cursor/selection are now two separate draw calls (not one
+   combined batch), specifically so a Kitty graphics z<0 placement can
+   be sandwiched between them -- see this header's "Arbitrary-texture
+   images" section for why that split exists (real terminals draw
+   z<0 images above cell backgrounds but below glyphs, which a single
+   combined batch can't represent: found live, a z<0 image was always
+   completely hidden under the batch's own opaque background fills). */
 void ghostcon_gles_push_rect(ghostcon_gles_t *gles,
                               float x, float y, float w, float h,
                               float r, float g, float b, float a);
+
+/* Appends an opaque solid-color rect to the BACKGROUND layer (cell
+   background fills only). Drawn in its own draw call, before glyphs
+   and before z<0 Kitty image placements. */
+void ghostcon_gles_push_bg_rect(ghostcon_gles_t *gles,
+                                float x, float y, float w, float h,
+                                float r, float g, float b, float a);
 
 /* Appends a glyph quad at (x, y) sized (w, h), sampling `glyph`'s UV
    rect, tinted with the foreground color. bg_r/g/b is the cell's
@@ -151,10 +168,20 @@ void ghostcon_gles_end(ghostcon_gles_t *gles);
 /* each Kitty image is its own arbitrary-sized GPU texture, not        */
 /* something the shared glyph atlas allocator manages, and GLES2 can't */
 /* sample a different texture per vertex within one draw call. Each    */
-/* image placement is its own immediate glDrawArrays call instead of   */
-/* being folded into the push_rect/push_glyph batch. See render/       */
-/* machine.c for how z<0 vs z>=0 placements get ordered relative to    */
-/* that batch (call timing IS paint order here, not vertex order).     */
+/* image placement is its own glDrawArrays call, queued and drawn at   */
+/* one of two points in ghostcon_gles_end()'s sequence: */
+/*   push_bg_rect draw call (backgrounds) */
+/*   -> queued below_text images (z<0) */
+/*   -> push_rect/push_glyph draw call (cursor/selection/glyphs) */
+/*   -> queued above_text images (z>=0) */
+/*   -> blit/swap */
+/* matching Ghostty's own three-tier ordering (renderer/image.zig):    */
+/* z<0 is above cell backgrounds but below glyphs, not below           */
+/* everything -- a single combined bg+glyph batch (this renderer's     */
+/* original design) can't represent that, since ANY draw before the    */
+/* whole batch is a draw before its opaque background fills too. Found */
+/* live: a z<0 placement rendered as if permanently hidden, because    */
+/* the batch's own background quads painted over it every frame. */
 /* ------------------------------------------------------------------ */
 
 typedef struct ghostcon_gles_image ghostcon_gles_image_t;
@@ -165,27 +192,21 @@ ghostcon_gles_image_t *ghostcon_gles_image_create(const uint8_t *pixels,
                                                    int width, int height, int bpp);
 void ghostcon_gles_image_destroy(ghostcon_gles_image_t *img);
 
-/* Draws one placement immediately (its own draw call, executes right
-   now, not deferred) -- use for z<0 placements, called before the
-   frame's render_dirty/push_glyph batch so text ends up on top.
-   src_w/src_h == 0 means "full image" (src_x/src_y ignored). alpha
-   scales the whole placement's opacity (1.0 = fully opaque). Must be
-   called between ghostcon_gles_begin and ghostcon_gles_end. */
-void ghostcon_gles_draw_image_now(ghostcon_gles_t *gles, ghostcon_gles_image_t *img,
-                                  float x, float y, float w, float h,
-                                  float src_x, float src_y, float src_w, float src_h,
-                                  float alpha);
-
-/* Defers a placement draw until after ghostcon_gles_end()'s main batch
-   draw call (but still before the frame's swap/blit) -- use for z>=0
-   placements, so they paint on top of text. Same parameters as
-   ghostcon_gles_draw_image_now. The queue is drained and cleared by
-   the next ghostcon_gles_end() call; nothing needs to be called to
-   reset it between frames. */
+/* Queues a placement draw for one of the two points in end()'s
+   sequence described above -- above_text=false for z<0 (drawn between
+   the background and glyph draw calls), above_text=true for z>=0
+   (drawn after everything else, before the blit/swap). src_w/src_h ==
+   0 means "full image" (src_x/src_y ignored). alpha scales the whole
+   placement's opacity (1.0 = fully opaque). Both queues are drained
+   and cleared by the next ghostcon_gles_end() call; nothing needs to
+   be called to reset them between frames, and queuing can happen any
+   time between ghostcon_gles_begin and ghostcon_gles_end regardless
+   of push_rect/push_glyph call order -- only the tier (above_text)
+   controls where it actually lands in the draw sequence. */
 void ghostcon_gles_queue_image(ghostcon_gles_t *gles, ghostcon_gles_image_t *img,
                                float x, float y, float w, float h,
                                float src_x, float src_y, float src_w, float src_h,
-                               float alpha);
+                               float alpha, bool above_text);
 
 /* Returns a GPU texture for Kitty image `image_id`, uploading from
    `pixels` on first use and re-uploading whenever `generation` differs
