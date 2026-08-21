@@ -323,6 +323,16 @@ if not meson.is_subproject()
         include_directories: include_directories('../include'),
         link_with: core_diag_lib,
         dependencies: [dep_systemd],
+        # backtrace_symbols() resolves names via dladdr(), which only
+        # sees the DYNAMIC symbol table -- without -rdynamic, this
+        # test's own static functions (recurse_and_abort) show up as
+        # bare offsets ("test_diag(+0x4a25)") instead of by name, which
+        # would make its backtrace-content assertion fail even though
+        # the actual crash-reporting path is working correctly. Not
+        # needed by ghostcon-core itself (that binary's own crash
+        # reports are fine with offset-only frames -- this is purely
+        # so THIS test can assert on symbol names).
+        link_args: ['-rdynamic'],
     )
     test('test_diag', test_diag_exe, timeout: 30)
 endif
