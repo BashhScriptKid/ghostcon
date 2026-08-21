@@ -1317,17 +1317,24 @@ project doesn't need to own.
 | 133 | Shell integration (prompt markers) | Implement directly | State tracking via ported terminal state machine |
 | 633 | VSCode-style shell integration | Implement directly | Same as 133 |
 | 777 | Notification (rxvt-style) | Implement, merge with OSC 9 | Same event type, different wire spelling — normalized in the terminal engine before IPC |
-| 1337 | iTerm2 proprietary (images, clipboard, etc.) | **Deprioritized** | Reverse-engineer surface-level if needed later, but: `CurrentDir` duplicates OSC 7, `Copy` duplicates OSC 52, `CursorShape` duplicates standard `DECUSCR`. The one genuinely unique piece (`File=` inline images) belongs to the inline-graphics surface generally, and should be considered only if/when sixel and Kitty graphics are scheduled (see the note below) — not implemented ahead of them. |
+| 1337 | iTerm2 proprietary (images, clipboard, etc.) | **Deprioritized** | Reverse-engineer surface-level if needed later, but: `CurrentDir` duplicates OSC 7, `Copy` duplicates OSC 52, `CursorShape` duplicates standard `DECUSCR`. The one genuinely unique piece (`File=` inline images) belongs to the inline-graphics surface generally — see the note below, which now covers actual implementation status rather than scheduling. Still not implemented, and still not planned: with Kitty graphics done, OSC 1337 `File=` would only be redundant transport for the same capability, not new coverage. |
 
-> **Inline graphics (sixel / Kitty graphics protocol) are not yet
-> scheduled.** The rationale section names them as part of the modern
-> floor, but no phase in this plan implements them: they are absent from
-> the Phase 0 module list and from Phase 1 and 2, and there is no such
-> code in the tree. An earlier version of the OSC 1337 row above claimed
-> the ported state machine already had sixel/Kitty graphics support — it
-> does not, and that claim was wrong. Adding them is a real, unscheduled
-> work item; `ghostcon-diag` pages 8 and 9 (sixel, Kitty graphics) will
-> score FAIL against `ghostcon` until it is done.
+> **Inline graphics: implemented.** Kitty graphics protocol (`term/
+> kitty_graphics.h`/`.c`) supports all four transmission mediums (t=d
+> direct, t=s shared-memory, t=t temporary-file, t=f plain-file), raw
+> pixel formats (f=24/f=32) and PNG (f=100, via libpng), full
+> placement/z-order/crop/cell-scale/delete/chunking, and per-screen
+> (primary/alt) scoping. Sixel graphics (`term/sixel.h`/`.c`) supports
+> the full private color-register model (`#Pc;2;...` RGB and
+> `#Pc;1;...` HLS definitions), raster-attribute-driven sizing, and the
+> same per-screen scoping. Both render via `render/machine.c` and
+> `render/gles.c`'s texture-cache paths and are exercised by
+> `tools/image_protocol_bench.c`'s kitty_*/sixel_* pages. `ghostcon-diag`
+> pages 8 and 9 (sixel, Kitty graphics) — see the Testing strategy
+> section below — remain unbuilt (that tool doesn't exist yet at all),
+> so there's no automated score for either beyond the bench tool's own
+> pixel-verified pages; this note should be read as "the capability
+> exists and is tested," not "ghostcon-diag confirms it."
 | *(unimplemented/unknown)* | — | **Fallback policy** | Log to journald (structured, queryable e.g. `journalctl -t ghostcon | grep unimplemented-osc`), send a low-priority nudge via `ghostcon-ipc` notify socket, discard payload, continue parsing normally. Never crash or hang on an unrecognized sequence. Use real-world frequency of these log entries to prioritize future work. |
 
 ---
