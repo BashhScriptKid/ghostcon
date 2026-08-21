@@ -391,18 +391,23 @@ if not meson.is_subproject()
     fake_renderer_exe = executable('test_fake_renderer',
         '../tests/fake_renderer.c',
         include_directories: include_directories('../include'),
+        link_with: core_transport_lib,
     )
 
     test_supervisor_exe = executable('test_supervisor',
         '../tests/test_supervisor.c',
         include_directories: include_directories('../include'),
+        link_with: ptyserv_protocol_lib,
     )
     test('test_supervisor', test_supervisor_exe,
         env: {
             'GHOSTCON_CORE_BIN': fake_renderer_exe.full_path(),
             'SUPERVISOR_BIN': supervisor_exe.full_path(),
+            'GHOSTCON_PTYSERV_BIN': ghost_ptyserv_exe.full_path(),
+            'GHOSTCON_PTY_CHILD_BIN': pty_child_exe.full_path(),
+            'GHOSTCON_PTY_SKIP_LOGIN': '1',
         },
-        depends: [fake_renderer_exe, supervisor_exe],
+        depends: [fake_renderer_exe, supervisor_exe, ghost_ptyserv_exe, pty_child_exe],
         timeout: 30,
     )
 

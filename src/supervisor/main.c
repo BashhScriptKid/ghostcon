@@ -64,6 +64,8 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/un.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
@@ -205,6 +207,68 @@ kill_and_reap(pid_t pid, int canary_fd)
 /* Recovery file + wall broadcast                                      */
 /* ------------------------------------------------------------------ */
 
+/* Looks up the real pty child pid via ghost-ptyserv's registry (same
+   "GET <vtnum>" protocol ghostcon-core's own transport.c uses to
+   connect) so the recovery file records something a human/tool can
+   actually act on, instead of a permanent placeholder. Returns -1 on
+   any failure (registry unreachable, no pty child registered for this
+   vt yet -- e.g. a startup_timeout so early ghostcon-core never got
+   as far as querying the registry itself) -- same conservative
+   fallback the caller already had before this existed, just no
+   longer the ONLY possible outcome. Best-effort and deliberately
+   simple: a short, bounded round-trip on the same registry socket
+   the renderer itself would use, not a persistent connection. */
+static pid_t
+query_pty_child_pid(const char *registry_socket, int vtnum)
+{
+    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (fd < 0)
+        return -1;
+
+    /* Bounded, not best-effort-eventually: this runs inline in the
+       supervisor's own state-machine loop, so a registry that accepts
+       the connection but never writes back (ghost-ptyserv wedged,
+       mid-restart, or simply slow) must not be able to block this
+       process indefinitely -- that would turn a "write a diagnostic
+       recovery file" call into exactly the kind of wedged-event-loop
+       condition this whole project exists to detect and recover from
+       in OTHER processes. Found live via test_undead_head.c timing
+       out after this function was added without a timeout: a
+       plain blocking read() here has no such protection on its own. */
+    struct timeval tv = { .tv_sec = 0, .tv_usec = 500000 };
+    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    strncpy(addr.sun_path, registry_socket, sizeof(addr.sun_path) - 1);
+    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        close(fd);
+        return -1;
+    }
+
+    char req[GHOSTCON_PTYSERV_LINE_MAX];
+    size_t req_len = ghostcon_ptyserv_format_get(req, sizeof(req), vtnum);
+    if (req_len == 0 || write(fd, req, req_len) != (ssize_t)req_len) {
+        close(fd);
+        return -1;
+    }
+
+    char resp[GHOSTCON_PTYSERV_LINE_MAX];
+    ssize_t r = read(fd, resp, sizeof(resp) - 1);
+    close(fd);
+    if (r <= 0)
+        return -1;
+    resp[r] = '\0';
+
+    int pid = -1;
+    char socket_path[GHOSTCON_PTYSERV_LINE_MAX];
+    if (!ghostcon_ptyserv_parse_ok(resp, &pid, socket_path))
+        return -1;
+    return (pid_t)pid;
+}
+
 static void
 write_recovery_file(int vtnum, pid_t pty_child_pid, const char *reason)
 {
@@ -238,9 +302,32 @@ wall_broadcast(int vtnum, const char *reason)
     static time_t last_broadcast[2]; /* [0]=hang-class, [1]=startup-class -- see index below */
     int class_idx = (strcmp(reason, "hang") == 0) ? 0 : 1;
     time_t now = time(NULL);
-    if (now - last_broadcast[class_idx] < WALL_RATE_LIMIT_SECS)
+
+    /* Test-only override -- a real rate limit test waiting out the
+       actual 60s window would be needlessly slow; this exercises the
+       exact same rate-limit logic against a much shorter window
+       instead of changing what ships. Defaults to the real constant
+       when unset. */
+    long rate_limit_secs = WALL_RATE_LIMIT_SECS;
+    const char *rate_override = getenv("GHOSTCON_WALL_RATE_LIMIT_SECS");
+    if (rate_override)
+        rate_limit_secs = atol(rate_override);
+
+    if (now - last_broadcast[class_idx] < rate_limit_secs)
         return;
     last_broadcast[class_idx] = now;
+
+    /* Test-only: substitute the real wall(1) exec with a log line so a
+       test can observe how many times a broadcast WOULD have fired --
+       unlike GHOSTCON_DISABLE_WALL above (a silent, no-side-effects
+       skip that returns before any rate-limit bookkeeping at all, so
+       it can never be used to test the rate limiter itself), this
+       still runs the real rate-limit check above, it just doesn't
+       spam real logged-in users with the result. */
+    if (getenv("GHOSTCON_WALL_DEBUG_LOG")) {
+        fprintf(stderr, "would wall-broadcast: reason=%s vt=%d\n", reason, vtnum);
+        return;
+    }
 
     pid_t pid = fork();
     if (pid < 0)
@@ -489,7 +576,7 @@ main(int argc, char **argv)
                 fprintf(stderr, "supervisor: vt %d: renderer did not claim VT in time, falling back\n", vtnum);
                 kill_and_reap(child_pid, canary_fd);
                 canary_fd = -1;
-                write_recovery_file(vtnum, -1, "startup_timeout");
+                write_recovery_file(vtnum, query_pty_child_pid(registry_socket, vtnum), "startup_timeout");
                 wall_broadcast(vtnum, "failed to start");
 
                 child_pid = spawn_kmscon_fallback(vtnum);
@@ -537,7 +624,7 @@ main(int argc, char **argv)
                 fprintf(stderr, "supervisor: vt %d: renderer hung (canary silent), killing and retrying\n", vtnum);
                 kill_and_reap(child_pid, canary_fd);
                 canary_fd = -1;
-                write_recovery_file(vtnum, -1, "hang");
+                write_recovery_file(vtnum, query_pty_child_pid(registry_socket, vtnum), "hang");
                 wall_broadcast(vtnum, "hang");
                 state = ST_SPAWNING; /* retry ghostcon, NOT fallback -- see file header */
             }
