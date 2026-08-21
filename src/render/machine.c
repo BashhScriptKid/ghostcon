@@ -250,8 +250,19 @@ ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
                    next cell's background quad (pushed after this one)
                    can't silently paint back over part of this glyph.
                    gx/gy are untouched, so correctly-sized glyphs (the
-                   overwhelming majority) render exactly as before. */
-                float max_draw_w = (float)cell_w - (float)glyph->bearing_x;
+                   overwhelming majority) render exactly as before.
+
+                   The cap itself must scale with the cell's actual
+                   grid width, not always cell_w -- found live: a wide
+                   glyph (CJK ideographs, always grid width 2) is
+                   naturally rendered close to 2*cell_w by the font,
+                   which is correct, but a flat cell_w cap here
+                   mistook that for the same kind of AA-padding
+                   overflow this branch exists to fix and squashed
+                   every wide glyph down to a single cell's width --
+                   visibly compressing every CJK character. */
+                float max_draw_w = (float)cell_w * (float)ghostcon_cell_grid_width(cell)
+                                    - (float)glyph->bearing_x;
                 if (draw_w > max_draw_w && max_draw_w > 0.0f)
                     draw_w = max_draw_w;
             }
