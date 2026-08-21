@@ -199,18 +199,27 @@ spawn_session(const char *shell, int *out_master_fd)
                forkpty) instead of agetty opening a tty device itself --
                same convention kmscon's own unit file uses.
 
-               --login-options "-p" passes login(1) its own
+               --login-options "-p \u" passes login(1) its own
                -p/--preserve-environment flag -- without it, login's PAM
                handling silently drops the TERM_PROGRAM/TERM_PROGRAM_VERSION
                vars set above (confirmed live: only bare TERM survived to
                the shell without this), the same env-var convention
                fastfetch/neofetch use to attach a version string once
-               they've found the terminal name. Not a security concern
-               here the way --login-options's own man page warns about for
-               --autologin (embedded "-" options in a hostile username) --
-               this passes a fixed, hardcoded option string, no username
-               interpolation via \u involved. */
-            execlp("agetty", "agetty", "-8", "--noclear", "--login-options", "-p", "-", term, (char *)NULL);
+               they've found the terminal name.
+
+               The \u is NOT optional -- found live, the hard way: giving
+               --login-options a value with no \u in it makes agetty skip
+               appending the username it captured at its own "login:"
+               prompt to login's argv entirely (see agetty's
+               login_options_to_argv()/agetty_init_login_argv() --
+               username substitution only happens via literal \u
+               replacement, there's no other fallback). login then runs
+               with no username, so it prompts for one itself -- a
+               second, independent "login:" prompt, with PAM logging
+               "User unknown" until that second prompt is answered. \u
+               here is agetty's own placeholder syntax (replaced with the
+               captured username before exec), not a C escape. */
+            execlp("agetty", "agetty", "-8", "--noclear", "--login-options", "-p \\u", "-", term, (char *)NULL);
         }
         perror("execlp session");
         _exit(127);
