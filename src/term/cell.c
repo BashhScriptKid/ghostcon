@@ -1,4 +1,5 @@
 #include "ghostcon/term/cell.h"
+#include "ghostcon/term/cell_symbol_table.h"
 #include <stddef.h>
 
 /* ------------------------------------------------------------------ */
@@ -130,41 +131,35 @@ ghostcon_unicode_width(uint32_t cp) {
     return 1;
 }
 
-/* See cell.h's doc comment: a curated range-list approximation of
-   Ghostty's UCD-derived isSymbol(), covering Unicode General Category
-   Symbol blocks relevant to terminal use plus the full PUA (Nerd Font
-   icons). Kept as a flat sorted table + binary search, matching the
-   width-table convention just above. */
-static const gc_width_range_t gc_symbol[] = {
-    {0x2100,0x214F}, /* Letterlike Symbols */
-    {0x2190,0x21FF}, /* Arrows */
-    {0x2200,0x22FF}, /* Mathematical Operators (e.g. U+2299 CIRCLED DOT OPERATOR) */
-    {0x2300,0x23FF}, /* Miscellaneous Technical */
-    {0x2400,0x243F}, /* Control Pictures */
-    {0x2440,0x245F}, /* Optical Character Recognition */
-    {0x2460,0x24FF}, /* Enclosed Alphanumerics */
-    /* U+2500-259F (Box Drawing, Block Elements) deliberately excluded --
-       rendered procedurally by render/box_draw.c, never reach the
-       font-glyph path this classification is for. */
-    {0x25A0,0x25FF}, /* Geometric Shapes (e.g. U+25C9 FISHEYE, U+25CE BULLSEYE) */
-    {0x2600,0x26FF}, /* Miscellaneous Symbols */
-    {0x2700,0x27BF}, /* Dingbats */
-    {0x2900,0x297F}, /* Supplemental Arrows-B */
-    {0x2B00,0x2BFF}, /* Miscellaneous Symbols and Arrows */
-    {0xE000,0xF8FF}, /* Private Use Area -- Nerd Font icons (incl.
-                         Powerline, U+E0B0-E0D7) live here */
-    {0x1CC00,0x1CEBF}, /* Legacy Computing Supplement */
-    {0x1FB00,0x1FBFF}, /* Symbols for Legacy Computing */
-};
+/* See cell.h's doc comment. ghostcon_generated_symbol_ranges[] (in
+   cell_symbol_table.gen.c, produced by tools/gen_symbol_table.py from
+   the UCD) covers real Unicode General Category Sm/Sc/Sk/So, matching
+   Ghostty's UCD-derived isSymbol(). Two hand-added carve-outs sit on
+   top of that generated data, for reasons the UCD can't express:
 
+   - U+2500-259F (Box Drawing, Block Elements) IS genuinely category So
+     in the UCD, so it appears in the generated table -- but it must be
+     excluded here regardless, because those codepoints are rendered
+     procedurally by render/box_draw.c and must never reach the
+     font-glyph/symbol-constraint path this classification feeds.
+   - U+E000-F8FF (Private Use Area, incl. Nerd Font icons/Powerline)
+     is category Co (Private Use), NOT Symbol, so it's absent from the
+     generated table -- but is added back here since those glyphs need
+     the same fit-to-cell treatment in practice. */
 bool
 ghostcon_cell_is_symbol(uint32_t cp) {
-    size_t lo = 0, hi = sizeof(gc_symbol) / sizeof(gc_symbol[0]);
+    if (cp >= 0x2500 && cp <= 0x259F) {
+        return false;
+    }
+    if (cp >= 0xE000 && cp <= 0xF8FF) {
+        return true;
+    }
+    size_t lo = 0, hi = ghostcon_generated_symbol_ranges_count;
     while (lo < hi) {
         size_t mid = (lo + hi) / 2;
-        if (cp < gc_symbol[mid].lo) {
+        if (cp < ghostcon_generated_symbol_ranges[mid].lo) {
             hi = mid;
-        } else if (cp > gc_symbol[mid].hi) {
+        } else if (cp > ghostcon_generated_symbol_ranges[mid].hi) {
             lo = mid + 1;
         } else {
             return true;

@@ -239,21 +239,29 @@ static inline ghostcon_cell_t ghostcon_cell_make(uint32_t codepoint) {
 /* Unicode display width: 0 (combining/zero-width), 1, or 2 (wide) */
 uint8_t ghostcon_unicode_width(uint32_t codepoint);
 
-/* Curated approximation of Ghostty's isSymbol() (renderer/cell.zig) --
-   Unicode General Category "Symbol" (Sm/Sc/Sk/So), covering the blocks
-   that actually matter for terminal use, plus the full Private Use
-   Area (where Nerd Font icon glyphs live). Not a byte-for-byte replica
-   of Ghostty's generated UCD table (that's regenerated from the
-   Unicode database at their build time, not something reproducible
-   here) -- a maintainable range-list covering what's practically
-   relevant to the bug class this exists for: a "symbol" character is
-   correctly single-width per ghostcon_unicode_width() (matching the
-   reference terminal exactly -- confirmed live), but the actual
-   installed font's glyph for it can rasterize physically wider than
-   one cell (common for icon/dingbat-style glyphs, especially in Nerd
-   Fonts) -- found live: a Nerd Font's "pull request" icon and several
-   Geometric Shapes/Mathematical-Operators circle glyphs (U+2299,
-   U+25C9, U+25CE, and the actual git-pull-request octicon U+F407) all
+/* Matches Ghostty's isSymbol() (renderer/cell.zig): Unicode General
+   Category "Symbol" (Sm/Sc/Sk/So), sourced from a real UCD-generated
+   table (src/term/cell_symbol_table.gen.c, produced by
+   tools/gen_symbol_table.py from third_party/UnicodeData.txt -- same
+   approach Ghostty itself uses, just codegen'd ahead of time here
+   instead of at their build time). Two hand-added carve-outs sit on
+   top of the generated data for reasons the UCD can't express: Box
+   Drawing/Block Elements (U+2500-259F) are excluded even though
+   they're genuinely category So, because those are rendered
+   procedurally by render/box_draw.c; the Private Use Area
+   (U+E000-F8FF, where Nerd Font icons live) is included even though
+   it's category Co (not Symbol), because those glyphs need the same
+   treatment in practice. See ghostcon_cell_is_symbol()'s doc comment
+   in cell.c for the exact logic.
+
+   This exists because a "symbol" character is correctly single-width
+   per ghostcon_unicode_width() (matching the reference terminal
+   exactly -- confirmed live), but the actual installed font's glyph
+   for it can rasterize physically wider than one cell (common for
+   icon/dingbat-style glyphs, especially in Nerd Fonts) -- found live:
+   a Nerd Font's "pull request" icon and several Geometric
+   Shapes/Mathematical-Operators circle glyphs (U+2299, U+25C9,
+   U+25CE, and the actual git-pull-request octicon U+F407) all
    measured wider than cell_w at the configured font size. Used by
    render/machine.c to decide which glyphs need the context-aware
    fit-to-cell(s) treatment (see ghostcon_cell_is_graphics_element()

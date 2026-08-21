@@ -26,7 +26,7 @@ TEST(cell_is_symbol_classification) {
     ASSERT(!ghostcon_cell_is_symbol(0x2500), "box-drawing (U+2500) excluded -- rendered procedurally, never reaches this");
     ASSERT(!ghostcon_cell_is_symbol(0x2588), "block element (U+2588) excluded, same reason");
     ASSERT(!ghostcon_cell_is_symbol('A'), "plain ASCII letter is not a symbol");
-    ASSERT(!ghostcon_cell_is_symbol(0x1F600), "an already-wide emoji (grinning face) is not classified as 'symbol'");
+    ASSERT(ghostcon_cell_is_symbol(0x1F600), "grinning face IS genuinely Unicode category So (Symbol) -- the UCD-generated table now correctly classifies it; already-wide emoji still bound to 2 cells via symbol_constraint_width()'s next-cell-blank check, so this only adds re-centering, not clipping (live-verified)");
 
     ASSERT(ghostcon_cell_is_graphics_element(0xE0B2), "Powerline glyph is a tiling graphics element");
     ASSERT(ghostcon_cell_is_graphics_element(0x1FB10), "Legacy Computing glyph is a tiling graphics element");

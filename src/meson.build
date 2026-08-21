@@ -22,6 +22,7 @@ endif
 # Terminal core (Phase 0)
 term_srcs = files(
     'term/cell.c',
+    'term/cell_symbol_table.gen.c',
     'term/row.c',
     'term/style.c',
     'term/color.c',
@@ -55,6 +56,17 @@ if not meson.is_subproject()
         dependencies: [dep_ghostty_vt],
     )
 
+    # Not a test -- prints codepoints as raw UTF-8 + ghostcon's
+    # is_symbol() classification, to paste into a real Ghostty window
+    # for independent visual cross-check. See symbol_probe.c's doc
+    # comment. Usage: symbol_probe [--boundaries]
+    symbol_probe_exe = executable('symbol_probe',
+        '../tools/symbol_probe.c',
+        include_directories: include_directories('../include'),
+        link_with: term_lib,
+        dependencies: [dep_ghostty_vt],
+    )
+
     test_exe = executable('test_term',
         '../tests/test_term.c',
         include_directories: include_directories('../include'),
@@ -70,6 +82,19 @@ if not meson.is_subproject()
         dependencies: [dep_ghostty_vt],
     )
     test('test_conformance', conformance_exe)
+
+    # Full-UCD-sweep cross-check for ghostcon_cell_is_symbol() -- see
+    # tools/gen_symbol_table.py (which produces cell_symbol_table.gen.c
+    # from the same vendored file) and test_symbol_table.c's own doc
+    # comment.
+    test_symbol_table_exe = executable('test_symbol_table',
+        '../tests/test_symbol_table.c',
+        include_directories: include_directories('../include'),
+        link_with: term_lib,
+        dependencies: [dep_ghostty_vt],
+        c_args: ['-DGHOSTCON_UCD_PATH="' + meson.project_source_root() + '/third_party/UnicodeData.txt"'],
+    )
+    test('test_symbol_table', test_symbol_table_exe)
 
     test_osc_exe = executable('test_osc',
         '../tests/test_osc.c',
