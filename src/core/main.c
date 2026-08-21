@@ -524,9 +524,16 @@ release_display(app_t *app)
     ghostcon_kms_deinit(&app->kms);
     if (app->have_master)
         drmDropMaster(app->drm_fd);
-    if (app->drm_fd >= 0)
-        close(app->drm_fd);
-    app->drm_fd = -1;
+    /* Deliberately NOT closing app->drm_fd here -- found live: close(2) on
+       this fd measured 70-80ms+ in isolation, and possibly much more under
+       real conditions, and it runs synchronously inside vtctl_pre_ack,
+       BEFORE the VT_RELDISP ack goes out (see vtctl_pre_ack's own doc
+       comment) -- so it was sitting directly on the critical path the
+       kernel/incoming compositor waits on. The fd is left open and
+       genuinely unused (master already dropped above) until
+       acquire_display() unconditionally closes it and opens a fresh one --
+       never reused for drmSetMaster, which was proven unreliable on this
+       system across extensive testing (see git log). */
     app->have_master = false;
     app->did_modeset = false;
     app->display_acquired = false;
@@ -551,6 +558,13 @@ release_display(app_t *app)
 static bool
 acquire_display(app_t *app)
 {
+    /* Always close whatever fd release_display() left open and get a
+       genuinely fresh one -- see release_display()'s doc comment. Reusing
+       a fd that previously dropped master was tested extensively and
+       drmSetMaster() never reliably reclaimed it; a fresh open() is the
+       only thing that's ever worked. */
+    if (app->drm_fd >= 0)
+        close(app->drm_fd);
     app->drm_fd = open(app->drm_node, O_RDWR | O_CLOEXEC);
     if (app->drm_fd < 0) {
         fprintf(stderr, "ghostcon-core: open %s: %s\n", app->drm_node, strerror(errno));

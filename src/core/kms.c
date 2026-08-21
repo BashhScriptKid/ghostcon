@@ -529,8 +529,24 @@ ghostcon_kms_deinit(ghostcon_kms_t *kms)
 {
     if (kms->current_bo)
         gbm_surface_release_buffer(kms->gbm_surf, kms->current_bo);
-    if (kms->current_fb_id)
-        drmModeRmFB(kms->fd, kms->current_fb_id);
+    /* Deliberately NOT drmModeRmFB(current_fb_id) here -- found live: this
+       runs while ghostcon still holds DRM master, on the framebuffer
+       actively being scanned out. Removing a live FB isn't a passive
+       resource free -- the kernel has to stop scanning it out first,
+       which for the primary plane means disabling the CRTC outright
+       (the physical output drops). The NEXT master (kmscon, Wayland,
+       ...) then has to bring the panel back up from a cold, disabled
+       state -- a real, driver-level cost that lands entirely on THEIR
+       timeline, not ghostcon's, which is exactly why ghostcon's own
+       release/reacquire profiling (both well under 300ms combined)
+       never showed the ~1s black-screen gap actually observed on a
+       real VT switch. Confirmed against kmscon's own source
+       (drm_shared.c's drop_drm_master(): just drmDropMaster(), nothing
+       else) -- dropping master never requires touching FB_ID at all;
+       the display stays configured and parked, and the fd close below
+       (or, once this leaks less transiently, process exit) is what
+       actually reaps this id, harmlessly, with no live scanout to
+       disturb. */
     for (int s = 0; s < GC_CURSOR_STATE_COUNT; s++)
         destroy_cursor_image(kms, (ghostcon_cursor_state_t)s);
     if (kms->mode_blob_id)
