@@ -5,7 +5,9 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
+#include <limits.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -26,6 +28,13 @@
    edges crisp enough for the bleed to stand out from the noise). */
 #define GHOSTCON_ATLAS_GLYPH_PADDING 1
 
+/* Bound for a color bitmap glyph's rasterized size -- see this file's
+   color-loading path in ghostcon_atlas_glyph() for why this needs to
+   be wider than the mono/outline path's 128x128 cap (a color font's
+   fixed strike size, not the target font_size_px). Still headroom,
+   not a real limit -- Noto Color Emoji's actual strike is 136x128. */
+#define GHOSTCON_ATLAS_COLOR_GLYPH_MAX 160
+
 typedef struct {
     uint32_t codepoint; /* 0 = empty slot (codepoint 0 / NUL is never rendered) */
     bool     occupied;
@@ -42,6 +51,14 @@ struct ghostcon_atlas {
 
     /* Shelf packer state */
     uint32_t pen_x, pen_y, shelf_h;
+
+    /* Color glyph atlas -- separate bitmap/packer/dirty flag, same dim
+       as the mask atlas above. See atlas.h's doc comment on
+       ghostcon_glyph_t.is_color for why this can't share the mask
+       atlas's storage or packer state. */
+    uint8_t *color_bitmap; /* dim * dim * 4, RGBA (straight alpha) */
+    bool     color_dirty;
+    uint32_t color_pen_x, color_pen_y, color_shelf_h;
 
     int cell_w, cell_h;
     int ascent; /* baseline offset from cell top, pixels */
@@ -210,6 +227,9 @@ ghostcon_atlas_create(const char *font_family, const char *font_variant,
     atlas->bitmap = calloc(1, (size_t)atlas_dim * atlas_dim * 3);
     if (!atlas->bitmap)
         goto fail_face;
+    atlas->color_bitmap = calloc(1, (size_t)atlas_dim * atlas_dim * 4);
+    if (!atlas->color_bitmap)
+        goto fail_face;
 
     /* Reserve a 2x2 opaque block at the atlas origin for solid-color
        quads (background cells, cursor) — see ghostcon_atlas_reserved_uv()
@@ -225,6 +245,8 @@ ghostcon_atlas_create(const char *font_family, const char *font_variant,
     return atlas;
 
 fail_face:
+    free(atlas->bitmap);
+    free(atlas->color_bitmap);
     FT_Done_Face(atlas->face);
     FT_Done_FreeType(atlas->ft);
 fail:
@@ -241,6 +263,7 @@ ghostcon_atlas_destroy(ghostcon_atlas_t *atlas)
     if (!atlas)
         return;
     free(atlas->bitmap);
+    free(atlas->color_bitmap);
     if (atlas->fallback_set) {
         for (int i = 0; i < atlas->fallback_set->nfont; i++) {
             FT_Face f = atlas->fallback_faces[i];
@@ -308,12 +331,99 @@ pack_bitmap(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t codepoint,
     return &slot->glyph;
 }
 
+/* Same shelf-packing scheme as pack_bitmap() above, into the SEPARATE
+   color atlas/pen state instead -- see atlas.h's doc comment on
+   ghostcon_glyph_t.is_color for why color glyphs can't share the mask
+   atlas's storage. `pitch` is width*4 for a tightly-packed RGBA
+   source. */
+static const ghostcon_glyph_t *
+pack_bitmap_rgba(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t codepoint,
+                  const uint8_t *bitmap, unsigned width, unsigned rows,
+                  unsigned pitch, int16_t bearing_x, int16_t bearing_y, float advance)
+{
+    if (atlas->color_pen_x + width + GHOSTCON_ATLAS_GLYPH_PADDING > atlas->dim) {
+        atlas->color_pen_x = 0;
+        atlas->color_pen_y += atlas->color_shelf_h + GHOSTCON_ATLAS_GLYPH_PADDING;
+        atlas->color_shelf_h = 0;
+    }
+    if (atlas->color_pen_y + rows + GHOSTCON_ATLAS_GLYPH_PADDING > atlas->dim)
+        return NULL; /* color atlas full */
+
+    for (unsigned row = 0; row < rows; row++) {
+        uint8_t *dst = atlas->color_bitmap + (size_t)(atlas->color_pen_y + row) * atlas->dim * 4
+                        + (size_t)atlas->color_pen_x * 4;
+        const uint8_t *src = bitmap + (size_t)row * pitch;
+        memcpy(dst, src, (size_t)width * 4);
+    }
+    atlas->color_dirty = true;
+
+    slot->occupied = true;
+    slot->codepoint = codepoint;
+    slot->glyph = (ghostcon_glyph_t){
+        .u0 = (float)atlas->color_pen_x / (float)atlas->dim,
+        .v0 = (float)atlas->color_pen_y / (float)atlas->dim,
+        .u1 = (float)(atlas->color_pen_x + width) / (float)atlas->dim,
+        .v1 = (float)(atlas->color_pen_y + rows) / (float)atlas->dim,
+        .width = (int16_t)width,
+        .height = (int16_t)rows,
+        .bearing_x = bearing_x,
+        .bearing_y = bearing_y,
+        .advance = advance,
+        .is_color = true,
+    };
+
+    atlas->color_pen_x += width + GHOSTCON_ATLAS_GLYPH_PADDING;
+    if (rows > atlas->color_shelf_h)
+        atlas->color_shelf_h = rows;
+
+    return &slot->glyph;
+}
+
+/* Picks the fixed bitmap strike (face->available_sizes) whose height
+   is closest to target_px -- color bitmap fonts (CBDT/CBLC, e.g. Noto
+   Color Emoji) ship a handful of discrete pre-rendered sizes, not a
+   scalable outline, so there's no exact match in general. The chosen
+   strike's actual pixel size (not target_px) becomes the glyph's
+   width/height; machine.c's existing symbol-constraint shrink-to-fit
+   path (ghostcon_cell_is_symbol() now covers emoji -- see cell.c)
+   already handles the mismatch between whatever strike this picks and
+   the cell's actual size, so no separate scaling logic is needed here. */
+static int
+best_fixed_size_index(FT_Face face, int target_px)
+{
+    int best = 0;
+    int best_diff = INT_MAX;
+    for (int i = 0; i < face->num_fixed_sizes; i++) {
+        int diff = abs((int)face->available_sizes[i].height - target_px);
+        if (diff < best_diff) {
+            best_diff = diff;
+            best = i;
+        }
+    }
+    return best;
+}
+
 /* Returns the first face (the primary face, or a lazily-opened
    fallback from atlas->fallback_set) that actually has a glyph for
    `codepoint`, and sets *out_gidx to that face's glyph index for it.
    Returns NULL if none of them do -- same "give up" outcome as
    before this fallback chain existed, just checked against more than
-   one font first. */
+   one font first.
+
+   Scans the WHOLE fallback list (not stopping at the first hit)
+   because fontconfig's sort order is generic font-similarity, not
+   "best format for this codepoint" -- found live: for an emoji
+   codepoint, a plain outline font (e.g. DejaVu Sans, which has a
+   monochrome fallback glyph for a lot of emoji) commonly ranks ahead
+   of a real color-bitmap emoji font (e.g. Noto Color Emoji) in that
+   order, so stopping at the first match would silently prefer the
+   worse-looking glyph every time. A color-capable face's glyph wins
+   immediately when found; otherwise the first (in fontconfig's order)
+   ordinary match is used, same as before this preference existed.
+   The full scan only costs anything on a genuine cache miss -- every
+   candidate face opened here is cached in fallback_faces[], so a
+   repeat lookup for a different codepoint from the same fallback set
+   doesn't reopen anything. */
 static FT_Face
 find_face_for_codepoint(ghostcon_atlas_t *atlas, uint32_t codepoint, FT_UInt *out_gidx)
 {
@@ -325,6 +435,9 @@ find_face_for_codepoint(ghostcon_atlas_t *atlas, uint32_t codepoint, FT_UInt *ou
 
     if (!atlas->fallback_set)
         return NULL;
+
+    FT_Face first_match = NULL;
+    FT_UInt first_match_gidx = 0;
 
     for (int i = 0; i < atlas->fallback_set->nfont; i++) {
         FT_Face face = atlas->fallback_faces[i];
@@ -340,11 +453,21 @@ find_face_for_codepoint(ghostcon_atlas_t *atlas, uint32_t codepoint, FT_UInt *ou
             FT_Set_Pixel_Sizes(face, 0, (FT_UInt)atlas->font_size_px);
             atlas->fallback_faces[i] = face;
         }
-        gidx = FT_Get_Char_Index(face, codepoint);
-        if (gidx != 0) {
-            *out_gidx = gidx;
+        FT_UInt g = FT_Get_Char_Index(face, codepoint);
+        if (g == 0)
+            continue;
+        if (FT_HAS_COLOR(face)) {
+            *out_gidx = g;
             return face;
         }
+        if (!first_match) {
+            first_match = face;
+            first_match_gidx = g;
+        }
+    }
+    if (first_match) {
+        *out_gidx = first_match_gidx;
+        return first_match;
     }
     return NULL;
 }
@@ -396,6 +519,61 @@ ghostcon_atlas_glyph(ghostcon_atlas_t *atlas, uint32_t codepoint)
     FT_Face face = find_face_for_codepoint(atlas, codepoint, &gidx);
     if (!face)
         return NULL;
+
+    /* Color bitmap fonts (CBDT/CBLC, e.g. Noto Color Emoji) need a
+       completely different load path from ordinary outline fonts:
+       FT_LOAD_COLOR (so FreeType hands back the color strike instead
+       of trying -- and failing -- to render an outline that doesn't
+       exist for this face), and FT_Select_Size to pick which discrete
+       strike size, since these fonts aren't scalable. See
+       best_fixed_size_index()'s doc comment above for why an exact
+       size match isn't expected or needed. */
+    if (FT_HAS_COLOR(face)) {
+        FT_Select_Size(face, best_fixed_size_index(face, atlas->font_size_px));
+        if (FT_Load_Glyph(face, gidx, FT_LOAD_COLOR | FT_LOAD_RENDER))
+            return NULL;
+
+        FT_GlyphSlot cg = face->glyph;
+        FT_Bitmap *cbmp = &cg->bitmap;
+        if (cbmp->pixel_mode != FT_PIXEL_MODE_BGRA)
+            return NULL; /* unexpected for a FT_HAS_COLOR face -- give up gracefully */
+        /* Wider cap than the mono/outline path's 128x128 (see below) --
+           color bitmap strikes are fixed, pre-rendered sizes, not
+           scaled to the target pixel size, and commonly come out
+           larger than a small text font size would suggest: found
+           live, Noto Color Emoji's closest strike to this project's
+           actual font_size_px is 136x128, already past 128 wide. */
+        if (cbmp->width == 0 || cbmp->width > GHOSTCON_ATLAS_COLOR_GLYPH_MAX ||
+            cbmp->rows > GHOSTCON_ATLAS_COLOR_GLYPH_MAX)
+            return NULL;
+
+        /* FreeType's color bitmaps are BGRA, premultiplied alpha.
+           gles.c's color-glyph shader path samples this atlas as
+           direct (non-premultiplied) source color, so both the
+           channel order and the premultiplication need undoing here,
+           once, at pack time rather than per-frame in the shader. */
+        uint8_t conv[GHOSTCON_ATLAS_COLOR_GLYPH_MAX * GHOSTCON_ATLAS_COLOR_GLYPH_MAX * 4];
+        for (unsigned row = 0; row < cbmp->rows; row++) {
+            const uint8_t *src = cbmp->buffer + (size_t)row * (unsigned)cbmp->pitch;
+            uint8_t *dst = conv + (size_t)row * cbmp->width * 4;
+            for (unsigned col = 0; col < cbmp->width; col++) {
+                uint8_t bch = src[col * 4 + 0], gch = src[col * 4 + 1],
+                        rch = src[col * 4 + 2], ach = src[col * 4 + 3];
+                if (ach > 0 && ach < 255) {
+                    rch = (uint8_t)((unsigned)rch * 255 / ach);
+                    gch = (uint8_t)((unsigned)gch * 255 / ach);
+                    bch = (uint8_t)((unsigned)bch * 255 / ach);
+                }
+                dst[col * 4 + 0] = rch;
+                dst[col * 4 + 1] = gch;
+                dst[col * 4 + 2] = bch;
+                dst[col * 4 + 3] = ach;
+            }
+        }
+        return pack_bitmap_rgba(atlas, slot, codepoint, conv, cbmp->width, cbmp->rows,
+                                 cbmp->width * 4, (int16_t)cg->bitmap_left, (int16_t)cg->bitmap_top,
+                                 (float)(cg->advance.x >> 6));
+    }
 
     FT_Int32 load_flags = FT_LOAD_RENDER;
     switch (atlas->aa_mode) {
@@ -497,6 +675,24 @@ void
 ghostcon_atlas_clear_dirty(ghostcon_atlas_t *atlas)
 {
     atlas->dirty = false;
+}
+
+const uint8_t *
+ghostcon_atlas_color_bitmap(const ghostcon_atlas_t *atlas)
+{
+    return atlas->color_bitmap;
+}
+
+bool
+ghostcon_atlas_color_dirty(const ghostcon_atlas_t *atlas)
+{
+    return atlas->color_dirty;
+}
+
+void
+ghostcon_atlas_color_clear_dirty(ghostcon_atlas_t *atlas)
+{
+    atlas->color_dirty = false;
 }
 
 void

@@ -16,13 +16,26 @@
 /* per-subpixel coverage. See PLAN.md "Renderer design" /              */
 /* IMPLEMENTATION.md "Font atlas", and render/gles.c's FRAG_SRC doc    */
 /* comment for how the shader turns that mask into a blended pixel.    */
+/*                                                                     */
+/* Color glyphs (CBDT/CBLC bitmap-strike emoji fonts, e.g. Noto Color  */
+/* Emoji) are a SEPARATE second atlas (RGBA, 4 bytes/pixel), not the   */
+/* mask atlas above -- their pixels are real source color to sample    */
+/* directly, not a coverage mask to tint with the cell's foreground    */
+/* color, so they can't share the mask atlas's format or the shader    */
+/* path that consumes it. ghostcon_glyph_t.is_color says which atlas a */
+/* given glyph's UV rect lives in; see ghostcon_atlas_color_bitmap()   */
+/* below and gles.c's u_atlas_color/v_is_color_glyph.                  */
 /* ------------------------------------------------------------------ */
 
 typedef struct {
-    float    u0, v0, u1, v1;   /* UV rect in the atlas texture, normalized */
+    float    u0, v0, u1, v1;   /* UV rect, normalized -- in the color atlas
+                                   (ghostcon_atlas_color_bitmap()) if is_color,
+                                   otherwise the mask atlas (ghostcon_atlas_bitmap()) */
     int16_t  width, height;    /* glyph bitmap size, pixels */
     int16_t  bearing_x, bearing_y; /* pen-to-bitmap-top-left offset, pixels */
     float    advance;          /* horizontal advance, pixels */
+    bool     is_color;         /* true for a CBDT/CBLC color bitmap glyph --
+                                   see this header's own doc comment above */
 } ghostcon_glyph_t;
 
 typedef struct ghostcon_atlas ghostcon_atlas_t;
@@ -76,6 +89,16 @@ uint32_t ghostcon_atlas_dim(const ghostcon_atlas_t *atlas);
    call (i.e. the GPU texture needs re-uploading). */
 bool ghostcon_atlas_dirty(const ghostcon_atlas_t *atlas);
 void ghostcon_atlas_clear_dirty(ghostcon_atlas_t *atlas);
+
+/* CPU-side COLOR atlas bitmap: atlas_dim * atlas_dim * 4 bytes, RGBA
+   (straight, not premultiplied -- see atlas.c's un-premultiply step)
+   per pixel — upload as GL_RGBA. Shares the same dim as the mask
+   atlas (ghostcon_atlas_dim() above covers both), but is otherwise a
+   fully separate bitmap/packer/dirty flag -- see this header's own
+   doc comment on ghostcon_glyph_t.is_color for why. */
+const uint8_t *ghostcon_atlas_color_bitmap(const ghostcon_atlas_t *atlas);
+bool ghostcon_atlas_color_dirty(const ghostcon_atlas_t *atlas);
+void ghostcon_atlas_color_clear_dirty(ghostcon_atlas_t *atlas);
 
 /* Monospace cell size derived from the loaded font's metrics. */
 void ghostcon_atlas_cell_size(const ghostcon_atlas_t *atlas,

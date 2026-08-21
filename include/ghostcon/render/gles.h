@@ -17,14 +17,17 @@ struct ghostcon_sixel_state;
 /* ------------------------------------------------------------------ */
 /* GLES 2.0 renderer                                                   */
 /*                                                                     */
-/* One shader program, one atlas texture. A quad is either a solid     */
-/* fill (background cell, cursor block — sampled from a reserved       */
-/* opaque texel at the atlas origin) or a glyph (sampled from the      */
-/* glyph's UV rect, alpha = per-pixel coverage). Both go through the   */
-/* same textured-quad path per PLAN.md's "Renderer design": draw       */
-/* background quads first, then glyph quads on top with alpha          */
-/* blending. See render/machine.c for turning screen damage into the   */
-/* quad list this consumes.                                            */
+/* One shader program, two atlas textures (u_atlas: mask, u_atlas_color:  */
+/* color glyphs -- see atlas.h's doc comment on ghostcon_glyph_t.is_color */
+/* for why they're separate). A quad is either a solid fill (background   */
+/* cell, cursor block — sampled from a reserved opaque texel at the mask  */
+/* atlas origin), a mask glyph (sampled from u_atlas, alpha = per-pixel   */
+/* coverage, tinted with the foreground color), or a color glyph (sampled */
+/* from u_atlas_color as direct source color, no tint). All three go      */
+/* through the same textured-quad path per PLAN.md's "Renderer design":   */
+/* draw background quads first, then glyph quads on top with alpha        */
+/* blending. See render/machine.c for turning screen damage into the      */
+/* quad list this consumes.                                               */
 /* ------------------------------------------------------------------ */
 
 typedef struct {
@@ -38,6 +41,12 @@ typedef struct {
                         per-channel subpixel-mix path vs. the plain
                         alpha-blended path. See FRAG_SRC's doc comment
                         in gles.c. */
+    float is_color_glyph; /* 1.0 for a color glyph (glyph->is_color --
+                        e.g. Noto Color Emoji), 0.0 otherwise. Only
+                        meaningful when is_glyph is also 1.0; selects
+                        sampling u_atlas_color as direct RGBA source
+                        color instead of u_atlas as a coverage mask to
+                        tint. See FRAG_SRC's doc comment in gles.c. */
 } ghostcon_vertex_t;
 
 typedef struct ghostcon_gles ghostcon_gles_t;

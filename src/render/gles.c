@@ -16,15 +16,18 @@ static const char *VERT_SRC =
     "attribute vec4 a_color;\n"
     "attribute vec3 a_bg;\n"
     "attribute float a_is_glyph;\n"
+    "attribute float a_is_color_glyph;\n"
     "varying highp vec2 v_uv;\n"
     "varying highp vec4 v_color;\n"
     "varying highp vec3 v_bg;\n"
     "varying highp float v_is_glyph;\n"
+    "varying highp float v_is_color_glyph;\n"
     "void main() {\n"
     "    v_uv = a_uv;\n"
     "    v_color = a_color;\n"
     "    v_bg = a_bg;\n"
     "    v_is_glyph = a_is_glyph;\n"
+    "    v_is_color_glyph = a_is_color_glyph;\n"
     "    gl_Position = vec4(a_pos, 0.0, 1.0);\n"
     "}\n";
 
@@ -72,8 +75,19 @@ static const char *VERT_SRC =
    real linear-blending framebuffer -- which now exists (see
    u_linear_blending below), though it turned out to matter far less
    than expected: see this file's next doc comment for why. */
-/* Glyph quads (v_is_glyph > 0.5) take a different path from every
-   other quad type (background fills, cursor, selection overlay):
+/* Color glyph quads (v_is_color_glyph > 0.5 -- e.g. Noto Color Emoji,
+   see atlas.h's ghostcon_glyph_t.is_color) take a THIRD path, checked
+   first: sample u_atlas_color directly as source RGBA color, no
+   mix/tint against v_color at all. Unlike every other glyph, a color
+   emoji's pixels ARE the final color -- there's no single foreground
+   tint to apply, so the mask-and-tint model below doesn't apply here.
+   u_atlas_color is a wholly separate texture/atlas from u_atlas (see
+   atlas.c's color_bitmap) -- straight (non-premultiplied) alpha,
+   already converted from FreeType's premultiplied BGRA at pack time
+   (atlas.c's ghostcon_atlas_glyph()), so this can go straight to
+   fixed-function GL_BLEND-style output without redoing that math here.
+   Ordinary (non-color) glyph quads (v_is_glyph > 0.5) take a different
+   path from every other quad type (background fills, cursor, selection overlay):
    `mix(v_bg, v_color.rgb, mask)`, computed entirely in-shader from
    the mask sampled out of the (now RGB, 3 bytes/pixel) atlas, with NO
    reliance on GL's fixed-function blend. This is what makes real
@@ -115,7 +129,9 @@ static const char *FRAG_SRC =
     "varying highp vec4 v_color;\n"
     "varying highp vec3 v_bg;\n"
     "varying highp float v_is_glyph;\n"
+    "varying highp float v_is_color_glyph;\n"
     "uniform sampler2D u_atlas;\n"
+    "uniform sampler2D u_atlas_color;\n"
     "uniform bool u_gamma_correct;\n"
     "uniform bool u_linear_blending;\n"
     "highp float unlin1(highp float v) {\n"
@@ -131,13 +147,18 @@ static const char *FRAG_SRC =
     "    return vec3(lin1(c.r), lin1(c.g), lin1(c.b));\n"
     "}\n"
     "void main() {\n"
-    "    highp vec3 mask = texture2D(u_atlas, v_uv).rgb;\n"
     "    highp vec3 out_rgb;\n"
     "    highp float out_a;\n"
-    "    if (v_is_glyph > 0.5) {\n"
+    "    if (v_is_color_glyph > 0.5) {\n"
+    "        highp vec4 c = texture2D(u_atlas_color, v_uv);\n"
+    "        out_rgb = c.rgb;\n"
+    "        out_a = c.a;\n"
+    "    } else if (v_is_glyph > 0.5) {\n"
+    "        highp vec3 mask = texture2D(u_atlas, v_uv).rgb;\n"
     "        out_rgb = mix(v_bg, v_color.rgb, mask);\n"
     "        out_a = 1.0;\n"
     "    } else {\n"
+    "        highp vec3 mask = texture2D(u_atlas, v_uv).rgb;\n"
     "        highp float a = mask.r;\n"
     "        if (u_gamma_correct) {\n"
     "            highp float fg_l = luminance(v_color.rgb);\n"
@@ -187,10 +208,12 @@ struct ghostcon_gles {
     uint32_t viewport_w, viewport_h;
 
     GLuint program;
-    GLint attr_pos, attr_uv, attr_color, attr_bg, attr_is_glyph;
-    GLint uniform_atlas, uniform_gamma_correct, uniform_linear_blending;
+    GLint attr_pos, attr_uv, attr_color, attr_bg, attr_is_glyph, attr_is_color_glyph;
+    GLint uniform_atlas, uniform_atlas_color, uniform_gamma_correct, uniform_linear_blending;
 
     GLuint atlas_tex;
+    GLuint atlas_color_tex; /* separate RGBA texture -- see atlas.h's
+                                doc comment on ghostcon_glyph_t.is_color */
     uint32_t atlas_dim;
 
     bool gamma_correct;
@@ -360,7 +383,9 @@ ghostcon_gles_create(uint32_t viewport_w, uint32_t viewport_h, bool want_linear_
     gles->attr_color = glGetAttribLocation(gles->program, "a_color");
     gles->attr_bg = glGetAttribLocation(gles->program, "a_bg");
     gles->attr_is_glyph = glGetAttribLocation(gles->program, "a_is_glyph");
+    gles->attr_is_color_glyph = glGetAttribLocation(gles->program, "a_is_color_glyph");
     gles->uniform_atlas = glGetUniformLocation(gles->program, "u_atlas");
+    gles->uniform_atlas_color = glGetUniformLocation(gles->program, "u_atlas_color");
     gles->uniform_gamma_correct = glGetUniformLocation(gles->program, "u_gamma_correct");
     gles->uniform_linear_blending = glGetUniformLocation(gles->program, "u_linear_blending");
     gles->gamma_correct = true;
@@ -462,6 +487,13 @@ ghostcon_gles_create(uint32_t viewport_w, uint32_t viewport_h, bool want_linear_
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
+    glGenTextures(1, &gles->atlas_color_tex);
+    glBindTexture(GL_TEXTURE_2D, gles->atlas_color_tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
     glViewport(0, 0, (GLsizei)viewport_w, (GLsizei)viewport_h);
 
     gles->vert_cap = 1024;
@@ -484,6 +516,7 @@ ghostcon_gles_destroy(ghostcon_gles_t *gles)
     if (!gles)
         return;
     glDeleteTextures(1, &gles->atlas_tex);
+    glDeleteTextures(1, &gles->atlas_color_tex);
     glDeleteProgram(gles->program);
     if (gles->linear_blending) {
         glDeleteTextures(1, &gles->srgb_color_tex);
@@ -514,17 +547,29 @@ ghostcon_gles_resize(ghostcon_gles_t *gles, uint32_t w, uint32_t h)
 void
 ghostcon_gles_sync_atlas(ghostcon_gles_t *gles, ghostcon_atlas_t *atlas, bool force)
 {
-    if (!force && !ghostcon_atlas_dirty(atlas))
-        return;
-
     uint32_t dim = ghostcon_atlas_dim(atlas);
-    glBindTexture(GL_TEXTURE_2D, gles->atlas_tex);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, (GLsizei)dim, (GLsizei)dim, 0,
-                 GL_RGB, GL_UNSIGNED_BYTE, ghostcon_atlas_bitmap(atlas));
-    gles->atlas_dim = dim;
 
-    ghostcon_atlas_clear_dirty(atlas);
+    if (force || ghostcon_atlas_dirty(atlas)) {
+        glBindTexture(GL_TEXTURE_2D, gles->atlas_tex);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, (GLsizei)dim, (GLsizei)dim, 0,
+                     GL_RGB, GL_UNSIGNED_BYTE, ghostcon_atlas_bitmap(atlas));
+        gles->atlas_dim = dim;
+        ghostcon_atlas_clear_dirty(atlas);
+    }
+
+    /* Same force-on-first-sync requirement as the mask atlas above --
+       see this function's own doc comment in gles.h -- applies
+       independently to this second texture, since a fresh
+       ghostcon_gles_t's atlas_color_tex is just as "incomplete" (no
+       level-0 data yet) until its own first sync. */
+    if (force || ghostcon_atlas_color_dirty(atlas)) {
+        glBindTexture(GL_TEXTURE_2D, gles->atlas_color_tex);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (GLsizei)dim, (GLsizei)dim, 0,
+                     GL_RGBA, GL_UNSIGNED_BYTE, ghostcon_atlas_color_bitmap(atlas));
+        ghostcon_atlas_color_clear_dirty(atlas);
+    }
 }
 
 /* Matches FRAG_SRC's lin1() exactly -- clearing an sRGB-attached FBO
@@ -579,12 +624,12 @@ push_quad(ghostcon_gles_t *gles,
           float u0, float v0, float u1, float v1,
           float r, float g, float b, float a,
           float bg_r, float bg_g, float bg_b,
-          float is_glyph, bool bg)
+          float is_glyph, float is_color_glyph, bool bg)
 {
-    ghostcon_vertex_t tl = { x,     y,     u0, v0, r, g, b, a, bg_r, bg_g, bg_b, is_glyph };
-    ghostcon_vertex_t tr = { x + w, y,     u1, v0, r, g, b, a, bg_r, bg_g, bg_b, is_glyph };
-    ghostcon_vertex_t bl = { x,     y + h, u0, v1, r, g, b, a, bg_r, bg_g, bg_b, is_glyph };
-    ghostcon_vertex_t br = { x + w, y + h, u1, v1, r, g, b, a, bg_r, bg_g, bg_b, is_glyph };
+    ghostcon_vertex_t tl = { x,     y,     u0, v0, r, g, b, a, bg_r, bg_g, bg_b, is_glyph, is_color_glyph };
+    ghostcon_vertex_t tr = { x + w, y,     u1, v0, r, g, b, a, bg_r, bg_g, bg_b, is_glyph, is_color_glyph };
+    ghostcon_vertex_t bl = { x,     y + h, u0, v1, r, g, b, a, bg_r, bg_g, bg_b, is_glyph, is_color_glyph };
+    ghostcon_vertex_t br = { x + w, y + h, u1, v1, r, g, b, a, bg_r, bg_g, bg_b, is_glyph, is_color_glyph };
 
     push_vertex(gles, tl, bg);
     push_vertex(gles, bl, bg);
@@ -606,7 +651,7 @@ ghostcon_gles_push_rect(ghostcon_gles_t *gles,
        for e.g. the selection overlay's partial-alpha tint). Foreground
        layer -- see gles.h for why cell backgrounds use push_bg_rect
        instead. */
-    push_quad(gles, x, y, w, h, 0.0f, 0.0f, 0.0f, 0.0f, r, g, b, a, r, g, b, 0.0f, false);
+    push_quad(gles, x, y, w, h, 0.0f, 0.0f, 0.0f, 0.0f, r, g, b, a, r, g, b, 0.0f, 0.0f, false);
 }
 
 void
@@ -614,7 +659,7 @@ ghostcon_gles_push_bg_rect(ghostcon_gles_t *gles,
                            float x, float y, float w, float h,
                            float r, float g, float b, float a)
 {
-    push_quad(gles, x, y, w, h, 0.0f, 0.0f, 0.0f, 0.0f, r, g, b, a, r, g, b, 0.0f, true);
+    push_quad(gles, x, y, w, h, 0.0f, 0.0f, 0.0f, 0.0f, r, g, b, a, r, g, b, 0.0f, 0.0f, true);
 }
 
 void
@@ -625,7 +670,7 @@ ghostcon_gles_push_glyph(ghostcon_gles_t *gles,
                           float bg_r, float bg_g, float bg_b)
 {
     push_quad(gles, x, y, w, h, glyph->u0, glyph->v0, glyph->u1, glyph->v1,
-              r, g, b, a, bg_r, bg_g, bg_b, 1.0f, false);
+              r, g, b, a, bg_r, bg_g, bg_b, 1.0f, glyph->is_color ? 1.0f : 0.0f, false);
 }
 
 void
@@ -865,6 +910,9 @@ draw_layer(ghostcon_gles_t *gles, const ghostcon_vertex_t *src, size_t count)
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, gles->atlas_tex);
     glUniform1i(gles->uniform_atlas, 0);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, gles->atlas_color_tex);
+    glUniform1i(gles->uniform_atlas_color, 1);
     glUniform1i(gles->uniform_gamma_correct, gles->gamma_correct ? 1 : 0);
     glUniform1i(gles->uniform_linear_blending, gles->linear_blending ? 1 : 0);
 
@@ -878,11 +926,14 @@ draw_layer(ghostcon_gles_t *gles, const ghostcon_vertex_t *src, size_t count)
                            sizeof(ghostcon_vertex_t), &src[0].bg_r);
     glVertexAttribPointer(gles->attr_is_glyph, 1, GL_FLOAT, GL_FALSE,
                            sizeof(ghostcon_vertex_t), &src[0].is_glyph);
+    glVertexAttribPointer(gles->attr_is_color_glyph, 1, GL_FLOAT, GL_FALSE,
+                           sizeof(ghostcon_vertex_t), &src[0].is_color_glyph);
     glEnableVertexAttribArray(gles->attr_pos);
     glEnableVertexAttribArray(gles->attr_uv);
     glEnableVertexAttribArray(gles->attr_color);
     glEnableVertexAttribArray(gles->attr_bg);
     glEnableVertexAttribArray(gles->attr_is_glyph);
+    glEnableVertexAttribArray(gles->attr_is_color_glyph);
 
     glDrawArrays(GL_TRIANGLES, 0, (GLsizei)count);
 
@@ -891,6 +942,7 @@ draw_layer(ghostcon_gles_t *gles, const ghostcon_vertex_t *src, size_t count)
     glDisableVertexAttribArray(gles->attr_color);
     glDisableVertexAttribArray(gles->attr_bg);
     glDisableVertexAttribArray(gles->attr_is_glyph);
+    glDisableVertexAttribArray(gles->attr_is_color_glyph);
 }
 
 /* Draws every queued image whose tier matches `above_text`, in queue
