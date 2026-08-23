@@ -67,6 +67,14 @@ typedef struct {
                             (ported from Ghostty's cell_text.f.glsl) --
                             on by default. See render/gles.c's FRAG_SRC
                             doc comment. Applies live, no restart. */
+    bool ligatures; /* shape fixed-charset runs (programming operators
+                        like "->", "==", "!=") through HarfBuzz and draw
+                        the result as a single glyph spanning multiple
+                        cells, when the configured font actually
+                        substitutes one (most do via calt/liga). Off by
+                        default -- not standard console-renderer
+                        behavior. See render/ligature.h. Applies live,
+                        no restart. */
     /* Named color-theme preset (see term/theme.h) -- e.g. "base16-dark",
        "solarized-light". Empty (default) = the built-in xterm-ish
        defaults ghostcon_palette_init() already sets. An unrecognized

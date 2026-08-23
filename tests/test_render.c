@@ -78,7 +78,7 @@ main(void)
     ghostcon_term_feed(&term, (const uint8_t *)text, strlen(text));
 
     ghostcon_gles_begin(gles, true, 0.0f, 0.0f, 0.0f);
-    ghostcon_machine_render_dirty(&term.screen, atlas, gles, cell_w, cell_h);
+    ghostcon_machine_render_dirty(&term.screen, atlas, gles, cell_w, cell_h, false);
     ghostcon_gles_sync_atlas(gles, atlas, true); /* force: fresh texture, nothing uploaded yet */
     ghostcon_gles_end(gles);
 

@@ -40,6 +40,7 @@ ghostcon_config_defaults(ghostcon_config_t *cfg)
                                     visibly dimming thin strokes relative to
                                     thick ones. Off until real linear
                                     blending exists to pair it with. */
+    cfg->ligatures = false; /* opt-in -- see config.h's own doc comment */
     cfg->cursor_base_scale = 1.0f;
     cfg->cursor_scale_with_terminal = true;
     snprintf(cfg->copy_to_clipboard_binding, sizeof(cfg->copy_to_clipboard_binding), "%s", "ctrl+shift+c");
@@ -123,6 +124,7 @@ ghostcon_config_load(const char *path, ghostcon_config_t *cfg)
         load_string(general, "antialiasing", cfg->antialiasing, sizeof(cfg->antialiasing));
         load_string(general, "subpixel_order", cfg->subpixel_order, sizeof(cfg->subpixel_order));
         load_bool(general, "gamma_correct", &cfg->gamma_correct);
+        load_bool(general, "ligatures", &cfg->ligatures);
         load_string(general, "theme", cfg->theme, sizeof(cfg->theme));
     }
 

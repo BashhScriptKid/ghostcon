@@ -134,13 +134,14 @@ render_srcs = files(
     'render/atlas.c',
     'render/box_draw.c',
     'render/gles.c',
+    'render/ligature.c',
     'render/machine.c',
 )
 
 render_lib = static_library('ghostcon-render',
     render_srcs,
     include_directories: include_directories('../include'),
-    dependencies: [dep_fontconfig, dep_freetype, dep_glesv2, dep_m],
+    dependencies: [dep_fontconfig, dep_freetype, dep_harfbuzz, dep_glesv2, dep_m],
     link_with: term_lib,
     install: false,
 )
@@ -211,7 +212,7 @@ if not meson.is_subproject()
         '../tests/test_render.c',
         include_directories: include_directories('../include'),
         link_with: [render_lib, core_egl_lib, term_lib],
-        dependencies: [dep_ghostty_vt, dep_fontconfig, dep_freetype,
+        dependencies: [dep_ghostty_vt, dep_fontconfig, dep_freetype, dep_harfbuzz,
                        dep_glesv2, dep_egl, dep_libgbm, dep_libdrm],
     )
     test('test_render', test_render_exe)
@@ -222,7 +223,7 @@ if not meson.is_subproject()
         '../tools/bench_render.c',
         include_directories: include_directories('../include'),
         link_with: [render_lib, core_egl_lib, term_lib],
-        dependencies: [dep_ghostty_vt, dep_fontconfig, dep_freetype,
+        dependencies: [dep_ghostty_vt, dep_fontconfig, dep_freetype, dep_harfbuzz,
                        dep_glesv2, dep_egl, dep_libgbm, dep_libdrm],
     )
 
@@ -232,7 +233,7 @@ if not meson.is_subproject()
         '../tools/headless_probe.c',
         include_directories: include_directories('../include'),
         link_with: [render_lib, core_egl_lib, term_lib],
-        dependencies: [dep_ghostty_vt, dep_fontconfig, dep_freetype,
+        dependencies: [dep_ghostty_vt, dep_fontconfig, dep_freetype, dep_harfbuzz,
                        dep_glesv2, dep_egl, dep_libgbm, dep_libdrm],
         link_args: ['-lutil'],
     )
@@ -265,9 +266,17 @@ if not meson.is_subproject()
         '../tests/test_box_draw.c',
         include_directories: include_directories('../include'),
         link_with: [render_lib],
-        dependencies: [dep_fontconfig, dep_freetype, dep_glesv2],
+        dependencies: [dep_fontconfig, dep_freetype, dep_harfbuzz, dep_glesv2],
     )
     test('test_box_draw', test_box_draw_exe)
+
+    test_ligature_exe = executable('test_ligature',
+        '../tests/test_ligature.c',
+        include_directories: include_directories('../include'),
+        link_with: [render_lib, term_lib],
+        dependencies: [dep_ghostty_vt, dep_fontconfig, dep_freetype, dep_harfbuzz, dep_glesv2],
+    )
+    test('test_ligature', test_ligature_exe)
 endif
 
 # ptyserv (Phase 1)
@@ -396,7 +405,7 @@ ghostcon_core_exe = executable('ghostcon-core',
     dependencies: [
         dep_ghostty_vt, dep_libdrm, dep_libgbm, dep_egl, dep_glesv2,
         dep_libinput, dep_libudev, dep_xkbcommon, dep_systemd,
-        dep_fontconfig, dep_freetype, dep_tomlc99,
+        dep_fontconfig, dep_freetype, dep_harfbuzz, dep_tomlc99,
     ],
     install: true,
     install_dir: get_option('libexecdir') / 'ghostcon',

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdbool.h>
+
 #include "ghostcon/term/screen.h"
 #include "atlas.h"
 #include "gles.h"
@@ -14,10 +16,14 @@
 /* pipeline: begin -> render_dirty -> end -> swap).                    */
 /* ------------------------------------------------------------------ */
 
+/* `ligatures`: see config.h's field of the same name -- when false,
+   behaves exactly as before this parameter existed (no row scan, no
+   HarfBuzz call, zero overhead). */
 void ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
                                     ghostcon_atlas_t *atlas,
                                     ghostcon_gles_t *gles,
-                                    int cell_w, int cell_h);
+                                    int cell_w, int cell_h,
+                                    bool ligatures);
 
 /* Pushes a solid-color quad for the cursor at its current screen
    position, shaped per screen->cursor.cursor_style (block/underline/

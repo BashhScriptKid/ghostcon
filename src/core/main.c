@@ -124,6 +124,7 @@ typedef struct {
     char subpixel_order[8]; /* "rgb" (default) or "bgr" -- only meaningful
                                 when antialiasing == "cleartype" */
     bool gamma_correct;
+    bool ligatures;
 
     /* Cursor sprite config -- see PLAN.md's "Cursor sprite: raster
        images, per-state, config-driven" section. Persisted here (not
@@ -711,7 +712,7 @@ render_frame(app_t *app)
     ghostcon_machine_render_images(&app->term.screen, app->gles,
                                     app->cell_w, app->cell_h);
     ghostcon_machine_render_dirty(&app->term.screen, app->atlas, app->gles,
-                                   app->cell_w, app->cell_h);
+                                   app->cell_w, app->cell_h, app->ligatures);
     ghostcon_machine_render_cursor(&app->term.screen, app->gles,
                                     app->cell_w, app->cell_h);
     ghostcon_machine_render_selection(&app->term.screen, app->gles,
@@ -1001,6 +1002,11 @@ apply_config_reload(app_t *app)
         need_render = true;
     }
 
+    if (app->ligatures != new_cfg.ligatures) {
+        app->ligatures = new_cfg.ligatures;
+        need_render = true;
+    }
+
     bool theme_changed =
         strcmp(app->theme, new_cfg.theme) != 0 ||
         strcmp(app->color_background, new_cfg.color_background) != 0 ||
@@ -1134,6 +1140,7 @@ main(int argc, char **argv)
             snprintf(app.antialiasing, sizeof(app.antialiasing), "%s", initial_cfg.antialiasing);
             snprintf(app.subpixel_order, sizeof(app.subpixel_order), "%s", initial_cfg.subpixel_order);
             app.gamma_correct = initial_cfg.gamma_correct;
+            app.ligatures = initial_cfg.ligatures;
             snprintf(app.theme, sizeof(app.theme), "%s", initial_cfg.theme);
             snprintf(app.color_background, sizeof(app.color_background), "%s", initial_cfg.color_background);
             snprintf(app.color_foreground, sizeof(app.color_foreground), "%s", initial_cfg.color_foreground);

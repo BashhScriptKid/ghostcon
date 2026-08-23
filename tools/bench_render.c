@@ -130,7 +130,7 @@ main(int argc, char **argv)
        touched) so it doesn't land inside the timed loop as a one-time
        cost masquerading as steady-state frame time. */
     ghostcon_gles_begin(gles, true, 0.0f, 0.0f, 0.0f);
-    ghostcon_machine_render_dirty(&term.screen, atlas, gles, cell_w, cell_h);
+    ghostcon_machine_render_dirty(&term.screen, atlas, gles, cell_w, cell_h, false);
     ghostcon_gles_sync_atlas(gles, atlas, true);
     ghostcon_gles_end(gles);
     ghostcon_egl_swap(&egl);
@@ -143,7 +143,7 @@ main(int argc, char **argv)
         ghostcon_screen_scroll_view(&term.screen, dir);
         dir = -dir;
         ghostcon_gles_begin(gles, true, 0.0f, 0.0f, 0.0f);
-        ghostcon_machine_render_dirty(&term.screen, atlas, gles, cell_w, cell_h);
+        ghostcon_machine_render_dirty(&term.screen, atlas, gles, cell_w, cell_h, false);
         ghostcon_machine_render_cursor(&term.screen, gles, cell_w, cell_h);
         ghostcon_gles_sync_atlas(gles, atlas, false);
         ghostcon_gles_end(gles);
@@ -164,7 +164,7 @@ main(int argc, char **argv)
 
         double t0 = now_ms();
         ghostcon_gles_begin(gles, true, 0.0f, 0.0f, 0.0f);
-        ghostcon_machine_render_dirty(&term.screen, atlas, gles, cell_w, cell_h);
+        ghostcon_machine_render_dirty(&term.screen, atlas, gles, cell_w, cell_h, false);
         ghostcon_machine_render_cursor(&term.screen, gles, cell_w, cell_h);
         ghostcon_machine_render_selection(&term.screen, gles, cell_w, cell_h);
         ghostcon_gles_sync_atlas(gles, atlas, false);

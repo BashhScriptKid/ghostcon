@@ -58,6 +58,7 @@ main(int argc, char **argv)
     int settle_ms = argc > 5 ? atoi(argv[5]) : 1500;
     const char *font_family = argc > 6 ? argv[6] : NULL;
     const char *font_variant = argc > 7 ? argv[7] : NULL;
+    bool ligatures = getenv("HEADLESS_PROBE_LIGATURES") != NULL;
 
     int cmd_idx = -1;
     for (int i = 8; i < argc; i++) {
@@ -183,7 +184,7 @@ main(int argc, char **argv)
                          (float)bg_rgb.g / 255.0f,
                          (float)bg_rgb.b / 255.0f);
     ghostcon_machine_render_images(&term.screen, gles, cell_w, cell_h);
-    ghostcon_machine_render_dirty(&term.screen, atlas, gles, cell_w, cell_h);
+    ghostcon_machine_render_dirty(&term.screen, atlas, gles, cell_w, cell_h, ligatures);
     ghostcon_machine_render_cursor(&term.screen, gles, cell_w, cell_h);
     ghostcon_gles_sync_atlas(gles, atlas, false);
     ghostcon_gles_end(gles);

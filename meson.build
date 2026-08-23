@@ -27,6 +27,11 @@ dep_libudev    = dependency('libudev',    required: false)
 dep_xkbcommon  = dependency('xkbcommon',  required: false)
 dep_fontconfig = dependency('fontconfig', required: false)
 dep_freetype   = dependency('freetype2',  required: false)
+# Ligature shaping (render/atlas.c, opt-in via [general] ligatures) --
+# HarfBuzz's FreeType integration (hb_ft_font_create_referenced) needs
+# harfbuzz built with FreeType support, which is the default on every
+# distro that packages it.
+dep_harfbuzz   = dependency('harfbuzz',   required: false)
 dep_libpng     = dependency('libpng')
 dep_systemd    = dependency('libsystemd', required: false)
 

@@ -5,6 +5,9 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
+#include <hb.h>
+#include <hb-ft.h>
+
 #include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -44,6 +47,16 @@ typedef struct {
 struct ghostcon_atlas {
     FT_Library ft;
     FT_Face    face;
+
+    /* HarfBuzz view of `face` above, for ligature shaping (see
+       ghostcon_atlas_shape_run()) -- NULL if harfbuzz wasn't available
+       at build time (dep_harfbuzz is `required: false`), in which case
+       shaping is simply unavailable and render/ligature.c's caller
+       treats every run as "not a real ligature", same as any other
+       codepoint the font doesn't substitute. hb_ft_font_create_referenced
+       keeps its own reference to `face`, independent of this struct's
+       own FT_Done_Face in ghostcon_atlas_destroy(). */
+    hb_font_t *hb_font;
 
     uint32_t dim;
     uint8_t *bitmap; /* dim * dim * 3, RGB (one byte per channel) per pixel */
@@ -242,6 +255,8 @@ ghostcon_atlas_create(const char *font_family, const char *font_variant,
 
     atlas->dirty = true;
 
+    atlas->hb_font = hb_ft_font_create_referenced(atlas->face);
+
     return atlas;
 
 fail_face:
@@ -262,6 +277,8 @@ ghostcon_atlas_destroy(ghostcon_atlas_t *atlas)
 {
     if (!atlas)
         return;
+    if (atlas->hb_font)
+        hb_font_destroy(atlas->hb_font);
     free(atlas->bitmap);
     free(atlas->color_bitmap);
     if (atlas->fallback_set) {
@@ -472,6 +489,10 @@ find_face_for_codepoint(ghostcon_atlas_t *atlas, uint32_t codepoint, FT_UInt *ou
     return NULL;
 }
 
+static const ghostcon_glyph_t *
+load_glyph_into_slot(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t slot_key,
+                      FT_Face face, FT_UInt gidx);
+
 const ghostcon_glyph_t *
 ghostcon_atlas_glyph(ghostcon_atlas_t *atlas, uint32_t codepoint)
 {
@@ -520,6 +541,20 @@ ghostcon_atlas_glyph(ghostcon_atlas_t *atlas, uint32_t codepoint)
     if (!face)
         return NULL;
 
+    return load_glyph_into_slot(atlas, slot, codepoint, face, gidx);
+}
+
+/* Shared by ghostcon_atlas_glyph() (codepoint lookup, any face in the
+   fallback chain) and ghostcon_atlas_glyph_by_index() (raw glyph index
+   in the primary face, for HarfBuzz-shaped ligatures -- see atlas.h).
+   `slot_key` is whatever slot_find() was called with (a real codepoint
+   for the former, a synthetic 0x80000000|glyph_index for the latter)
+   purely for atlas_slot_t bookkeeping -- rendering itself only cares
+   about face+gidx. */
+static const ghostcon_glyph_t *
+load_glyph_into_slot(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t slot_key,
+                      FT_Face face, FT_UInt gidx)
+{
     /* Color bitmap fonts (CBDT/CBLC, e.g. Noto Color Emoji) need a
        completely different load path from ordinary outline fonts:
        FT_LOAD_COLOR (so FreeType hands back the color strike instead
@@ -570,7 +605,7 @@ ghostcon_atlas_glyph(ghostcon_atlas_t *atlas, uint32_t codepoint)
                 dst[col * 4 + 3] = ach;
             }
         }
-        return pack_bitmap_rgba(atlas, slot, codepoint, conv, cbmp->width, cbmp->rows,
+        return pack_bitmap_rgba(atlas, slot, slot_key, conv, cbmp->width, cbmp->rows,
                                  cbmp->width * 4, (int16_t)cg->bitmap_left, (int16_t)cg->bitmap_top,
                                  (float)(cg->advance.x >> 6));
     }
@@ -600,9 +635,24 @@ ghostcon_atlas_glyph(ghostcon_atlas_t *atlas, uint32_t codepoint)
        128x128 headroom precedent above -- an absurdly large glyph at
        any sane font size just silently doesn't render, same "give up
        gracefully" convention as an atlas-full/no-outline miss
-       elsewhere in this function. */
+       elsewhere in this function.
+
+       A genuinely EMPTY bitmap (real_width==0 and/or bmp->rows==0) is
+       NOT a failure to reject here, unlike the too-large case -- found
+       live: some fonts' ligature substitutions (see ligature.h) use a
+       real, deliberately empty glyph for one half of a 2-glyph pair
+       (JetBrains Mono does this for every pair this project tested).
+       Rejecting it as if the load had failed sent
+       ghostcon_atlas_glyph_by_index() down the "no glyph" path, which
+       render/machine.c was (reasonably) treating as "fall back to the
+       plain per-codepoint glyph" -- drawing a real, visible character
+       where the font intended nothing to appear at all (a stray
+       disconnected mark next to the real ligature glyph, e.g. "!="'s
+       "!" leaving a tiny tick above the "≠"). pack_bitmap() below
+       already handles width==0/rows==0 safely (copies nothing, packs
+       a zero-size UV rect), so just let it through. */
     unsigned real_width = (bmp->pixel_mode == FT_PIXEL_MODE_LCD) ? bmp->width / 3 : bmp->width;
-    if (real_width == 0 || real_width > 128 || bmp->rows > 128)
+    if (real_width > 128 || bmp->rows > 128)
         return NULL;
     uint8_t conv[128 * 128 * 3];
     for (unsigned row = 0; row < bmp->rows; row++) {
@@ -649,8 +699,70 @@ ghostcon_atlas_glyph(ghostcon_atlas_t *atlas, uint32_t codepoint)
             break;
         }
     }
-    return pack_bitmap(atlas, slot, codepoint, conv, real_width, bmp->rows, real_width * 3,
+    return pack_bitmap(atlas, slot, slot_key, conv, real_width, bmp->rows, real_width * 3,
                         (int16_t)g->bitmap_left, (int16_t)g->bitmap_top, (float)(g->advance.x >> 6));
+}
+
+/* Synthetic slot key for ghostcon_atlas_glyph_by_index() -- real Unicode
+   codepoints top out at 0x10FFFF, well clear of the high bit, so this
+   can never collide with a genuine codepoint's slot. */
+#define GHOSTCON_ATLAS_GIDX_SLOT_KEY(gidx) (0x80000000u | (uint32_t)(gidx))
+
+const ghostcon_glyph_t *
+ghostcon_atlas_glyph_by_index(ghostcon_atlas_t *atlas, uint32_t glyph_index)
+{
+    uint32_t key = GHOSTCON_ATLAS_GIDX_SLOT_KEY(glyph_index);
+    bool found;
+    atlas_slot_t *slot = slot_find(atlas, key, &found);
+    if (!slot)
+        return NULL; /* table full */
+    if (found)
+        return &slot->glyph;
+    return load_glyph_into_slot(atlas, slot, key, atlas->face, (FT_UInt)glyph_index);
+}
+
+int
+ghostcon_atlas_shape_run(ghostcon_atlas_t *atlas, const uint32_t *codepoints, int count,
+                          uint32_t *out_glyph_indices, float *out_advances, int max_out)
+{
+    if (!atlas->hb_font)
+        return -1;
+
+    hb_buffer_t *buf = hb_buffer_create();
+    hb_buffer_add_utf32(buf, codepoints, count, 0, count);
+    hb_buffer_set_direction(buf, HB_DIRECTION_LTR);
+    /* Force 'latn', not HB_SCRIPT_COMMON's 'DFLT' -- most fonts
+       (including the JetBrains Mono family, confirmed live) register
+       their calt/liga ligature lookups only under the Latin script
+       table, not DFLT, so shaping punctuation as script-neutral
+       silently finds no ligature feature at all even when the font
+       genuinely has one. */
+    hb_buffer_set_script(buf, HB_SCRIPT_LATIN);
+    hb_buffer_set_language(buf, hb_language_get_default());
+    hb_buffer_guess_segment_properties(buf);
+
+    hb_shape(atlas->hb_font, buf, NULL, 0);
+
+    unsigned int glyph_count = 0;
+    hb_glyph_info_t *infos = hb_buffer_get_glyph_infos(buf, &glyph_count);
+    hb_glyph_position_t *positions = hb_buffer_get_glyph_positions(buf, &glyph_count);
+
+    int n = (int)glyph_count;
+    if (n > max_out)
+        n = max_out;
+    for (int i = 0; i < n; i++) {
+        out_glyph_indices[i] = infos[i].codepoint; /* HarfBuzz repurposes this field as glyph index post-shaping */
+        out_advances[i] = (float)(positions[i].x_advance) / 64.0f;
+    }
+
+    hb_buffer_destroy(buf);
+    return (int)glyph_count;
+}
+
+uint32_t
+ghostcon_atlas_plain_glyph_index(ghostcon_atlas_t *atlas, uint32_t codepoint)
+{
+    return (uint32_t)FT_Get_Char_Index(atlas->face, codepoint);
 }
 
 const uint8_t *

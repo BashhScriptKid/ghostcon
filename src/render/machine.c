@@ -1,11 +1,13 @@
 #include "ghostcon/render/machine.h"
 
 #include <math.h>
+#include <stdbool.h>
 #include <stdlib.h>
 
 #include "ghostcon/term/cell.h"
 #include "ghostcon/term/style.h"
 #include "ghostcon/term/color.h"
+#include "ghostcon/render/ligature.h"
 
 /* Port of Ghostty's renderer/cell.zig constraintWidth() -- how many
    cells (1 or 2) a "symbol"-classified glyph (see cell.h's own doc
@@ -100,7 +102,8 @@ void
 ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
                                ghostcon_atlas_t *atlas,
                                ghostcon_gles_t *gles,
-                               int cell_w, int cell_h)
+                               int cell_w, int cell_h,
+                               bool ligatures)
 {
     ghostcon_dirty_region_t dirty = ghostcon_screen_get_dirty(screen);
     if (dirty.y_min < 0)
@@ -113,7 +116,27 @@ ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
         if (!row)
             continue;
 
+        /* Per-cell glyph-index substitutions from ligature shaping --
+           see ligature.h's own doc comment for why this is a per-cell
+           override list, not a multi-cell run list: the fonts this
+           targets implement ligatures via contextual-alternate glyphs
+           that each still occupy exactly one cell. Sized to the row's
+           own width -- worst case, every cell in the row gets a
+           substitution. */
+        ghostcon_ligature_glyph_t ligature_overrides[row->cols > 0 ? row->cols : 1];
+        int n_ligature_overrides = ligatures
+            ? ghostcon_ligature_scan_row(row, atlas, ligature_overrides, row->cols)
+            : 0;
+        int next_ligature_override = 0;
+
         for (uint16_t x = 0; x < row->cols; x++) {
+            const ghostcon_ligature_glyph_t *ligature = NULL;
+            if (next_ligature_override < n_ligature_overrides &&
+                ligature_overrides[next_ligature_override].x == x) {
+                ligature = &ligature_overrides[next_ligature_override];
+                next_ligature_override++;
+            }
+
             ghostcon_cell_t cell = row->cells[x];
             const ghostcon_style_t *style =
                 ghostcon_style_set_get(screen->styles, ghostcon_cell_get_style(cell));
@@ -124,6 +147,53 @@ ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
 
             float px = (float)(x * cell_w);
             float py = (float)(y * cell_h);
+
+            ghostcon_cell_content_tag_t tag = ghostcon_cell_get_tag(cell);
+            uint32_t cp = (tag == GHOSTCON_CELL_CODEPOINT ||
+                           tag == GHOSTCON_CELL_CODEPOINT_GRAPHEME)
+                ? ghostcon_cell_get_codepoint(cell) : 0;
+
+            /* A ligature-substituted glyph is only safe to draw at its
+               own natural (bearing-based) position if its footprint
+               stays within the cell span HarfBuzz actually shaped it
+               for (ligature->run_start/run_len) -- found live: some
+               fonts (confirmed: JetBrains Mono) draw a whole ligature
+               via one wide glyph with a large bearing reaching into a
+               neighboring cell BY DESIGN (the other cell's own
+               substitute is an empty placeholder), so this is expected
+               and safe as long as it doesn't reach further than the
+               run it came from. If it doesn't fit -- not expected for
+               any case seen so far, but a font could in principle do
+               anything -- fall back to the plain per-codepoint glyph,
+               same as if no substitution had been found at all, rather
+               than risk painting over an unrelated neighboring cell. */
+            const ghostcon_glyph_t *ligature_glyph = NULL;
+            if (ligature) {
+                ligature_glyph = ghostcon_atlas_glyph_by_index(atlas, ligature->glyph_index);
+                /* A glyph with no rows/columns draws nothing regardless
+                   of where it's positioned -- found live: the "empty
+                   placeholder" half of a 2-glyph ligature pair (e.g.
+                   JetBrains Mono's "->"/"!="/etc. always substitute an
+                   invisible glyph for the FIRST character, see
+                   ligature.h) can still have a nonzero, even slightly
+                   negative bearing_x despite height==0, which failed
+                   this bound check by a couple pixels for no visual
+                   reason and fell back to drawing the PLAIN character
+                   glyph instead -- a real, visible glyph where nothing
+                   should have appeared at all (a stray disconnected
+                   mark floating next to the real ligature glyph, e.g.
+                   "!="'s "!" leaving a tiny tick above the "≠"). Only
+                   bounds-check glyphs that would actually draw
+                   something. */
+                if (ligature_glyph && ligature_glyph->width > 0 && ligature_glyph->height > 0) {
+                    float run_lo = (float)(ligature->run_start * cell_w);
+                    float run_hi = (float)((ligature->run_start + ligature->run_len) * cell_w);
+                    float natural_gx = px + (float)ligature_glyph->bearing_x;
+                    if (natural_gx < run_lo || natural_gx + (float)ligature_glyph->width > run_hi)
+                        ligature_glyph = NULL; /* doesn't fit -- fall back below */
+                }
+            }
+            bool is_ligature = ligature_glyph != NULL;
 
             /* Figure out up front whether this cell's glyph (if any) is
                a symbol borrowing the next cell's space, so the
@@ -137,12 +207,13 @@ ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
                entirely. Fixed by pushing BOTH cells' backgrounds here
                (each with its own resolved color, not assumed to
                match) and skipping the borrowed cell's own iteration
-               entirely, rather than letting it redundantly repaint. */
-            ghostcon_cell_content_tag_t tag = ghostcon_cell_get_tag(cell);
-            uint32_t cp = (tag == GHOSTCON_CELL_CODEPOINT ||
-                           tag == GHOSTCON_CELL_CODEPOINT_GRAPHEME)
-                ? ghostcon_cell_get_codepoint(cell) : 0;
-            bool is_symbol = cp != 0 && cp != ' ' && ghostcon_cell_is_symbol(cp);
+               entirely, rather than letting it redundantly repaint.
+               Ligature glyphs that fit their run bypass this entirely
+               -- they're positioned by their own bearing, not centered
+               in a borrowed bound, and their fit-check above already
+               guarantees they stay within cells this same scan already
+               marked dirty, so no separate borrowing is needed. */
+            bool is_symbol = !is_ligature && cp != 0 && cp != ' ' && ghostcon_cell_is_symbol(cp);
             uint8_t constraint_width = is_symbol ? symbol_constraint_width(row, x) : 1;
 
             ghostcon_gles_push_bg_rect(gles, px, py, (float)cell_w, (float)cell_h,
@@ -173,7 +244,9 @@ ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
             if (cp == 0)
                 continue;
 
-            const ghostcon_glyph_t *glyph = ghostcon_atlas_glyph(atlas, cp);
+            const ghostcon_glyph_t *glyph = is_ligature
+                ? ligature_glyph
+                : ghostcon_atlas_glyph(atlas, cp);
             if (!glyph) {
                 if (constraint_width == 2)
                     x++;
@@ -236,6 +309,14 @@ ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
                    established bound_w/bound_h on either edge. */
                 gx = floorf(px + (bound_w - draw_w) / 2.0f);
                 gy = floorf(py + (bound_h - draw_h) / 2.0f);
+            } else if (is_ligature) {
+                /* Already verified above to fit within its run's own
+                   cell span at its natural (bearing-based) position --
+                   gx/draw_w computed above are used as-is, unlike the
+                   ordinary-glyph path below which would otherwise clamp
+                   draw_w using a formula that assumes a non-negative
+                   bearing_x (wrong direction for a glyph like this one,
+                   whose bearing intentionally reaches backward). */
             } else {
                 /* Ordinary (non-symbol) glyphs can still occasionally
                    overflow their single cell by a pixel or two --
