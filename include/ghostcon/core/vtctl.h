@@ -17,6 +17,11 @@
 /* src/uterm/vt_real.c) — PLAN.md's own reading-guide pointer:          */
 /*   1. Open /dev/ttyN with O_RDWR | O_NOCTTY.                         */
 /*   2. ioctl(KDSETMODE, KD_GRAPHICS).                                 */
+/*   2b. If the inherited console keyboard mode is one that makes the   */
+/*      kernel drop Ctrl+Alt+Fn (K_OFF/K_RAW/K_MEDIUMRAW), override it  */
+/*      to K_UNICODE — otherwise the kernel's own switch handling this  */
+/*      handshake rides on never runs (see vtctl.c's                   */
+/*      kbd_mode_blocks_vt_switch()).                                   */
 /*   3. ioctl(VT_SETMODE, { VT_PROCESS, acqsig=SIGUSR1, relsig=SIGUSR2 }).*/
 /*   4. On SIGUSR2 (release): caller must drmDropMaster(), then this   */
 /*      module acks via ioctl(VT_RELDISP, 1).                          */
@@ -57,7 +62,9 @@ typedef struct ghostcon_vtctl ghostcon_vtctl_t;
    or ACTIVE if it already is. Returns NULL on failure (see stderr). */
 ghostcon_vtctl_t *ghostcon_vtctl_open(int vt_num);
 
-/* Restores KD_TEXT + VT_AUTO and closes the tty fd. */
+/* Restores KD_TEXT + VT_AUTO (and the pre-existing keyboard mode, unless
+   that mode was a switching-blocking one — see vtctl.c) and closes the
+   tty fd. */
 void ghostcon_vtctl_close(ghostcon_vtctl_t *vt);
 
 ghostcon_vt_state_t ghostcon_vtctl_state(const ghostcon_vtctl_t *vt);

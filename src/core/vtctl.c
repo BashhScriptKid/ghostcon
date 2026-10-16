@@ -20,7 +20,28 @@ struct ghostcon_vtctl {
     int vt_num;
     ghostcon_vt_state_t state;
     int pipe_fds[2]; /* [0]=read (public, poll()'d), [1]=write (signal handler only) */
+    int saved_kbd_mode; /* KDGKBMODE at open; -1 if not captured. See kbd_mode_blocks_vt_switch(). */
 };
+
+/* Console keyboard modes that disable the kernel's own console-switch
+   keys. Ctrl+Alt+Fn is a KT_CONS key: in kbd_keycode() (drivers/tty/vt/
+   keyboard.c) every key type except KT_SPEC/KT_SHIFT is dropped before
+   its handler runs whenever kbdmode is VC_RAW, VC_MEDIUMRAW, or VC_OFF —
+   so k_cons()/set_console() never executes, the kernel never initiates a
+   switch, and our VT_PROCESS handshake (SIGUSR2 -> VT_RELDISP) never
+   fires. Found live: Ctrl+Alt+Fn was completely dead inside a ghostcon
+   session with the active tty2 reporting kb_mode=K_OFF. The mode is
+   kernel state that survives a renderer restart, so taking over a VT a
+   previous owner (kmscon sets K_OFF and does not always restore it on an
+   unclean exit) left in one of these silently breaks VT switching for
+   ghostcon's entire lifetime — ghostcon relies on the kernel's own switch
+   handling rather than implementing it itself (unlike kmscon's
+   --no-switchvt), so it needs the switch key to keep working. */
+static bool
+kbd_mode_blocks_vt_switch(int mode)
+{
+    return mode == K_OFF || mode == K_RAW || mode == K_MEDIUMRAW;
+}
 
 /* Signal handlers can't take arbitrary context, and PLAN.md's
    architecture is one process per VT, so one static instance is the
@@ -64,6 +85,7 @@ ghostcon_vtctl_open(int vt_num)
         return NULL;
     vt->vt_num = vt_num;
     vt->pipe_fds[0] = vt->pipe_fds[1] = -1;
+    vt->saved_kbd_mode = -1; /* calloc() would make this 0 == K_RAW, a real (if bogus) mode */
 
     char path[32];
     snprintf(path, sizeof(path), "/dev/tty%d", vt_num);
@@ -112,6 +134,26 @@ ghostcon_vtctl_open(int vt_num)
         goto fail_pipe;
     }
 
+    /* KDSETMODE(KD_GRAPHICS) helps the console but does NOT stop the
+       kernel from dropping the console-switch keys; a stale K_OFF/raw mode
+       inherited from a previous owner does, and that silently kills the
+       very VT-switch keys this handshake depends on (see
+       kbd_mode_blocks_vt_switch()'s own comment). Override to a
+       switching-capable mode when needed, remembering the old value so a
+       clean shutdown can put it back. Best-effort: a failed KDGKBMODE/
+       KDSKBMODE is logged, not fatal — worst case VT switching stays as
+       broken as it already was, never worse. Placed after VT_SETMODE so
+       no earlier failure path has to unwind it. */
+    int kbm = -1;
+    if (ioctl(vt->fd, KDGKBMODE, &kbm) != 0) {
+        fprintf(stderr, "vtctl: KDGKBMODE on %s: %s\n", path, strerror(errno));
+    } else {
+        vt->saved_kbd_mode = kbm;
+        if (kbd_mode_blocks_vt_switch(kbm) &&
+            ioctl(vt->fd, KDSKBMODE, K_UNICODE) != 0)
+            fprintf(stderr, "vtctl: KDSKBMODE(K_UNICODE) on %s: %s\n", path, strerror(errno));
+    }
+
     bool active = false;
     if (!currently_active(vt->fd, vt_num, &active)) {
         fprintf(stderr, "vtctl: VT_GETSTATE on %s: %s\n", path, strerror(errno));
@@ -145,6 +187,15 @@ ghostcon_vtctl_close(ghostcon_vtctl_t *vt)
     vtm.mode = VT_AUTO;
     ioctl(vt->fd, VT_SETMODE, &vtm);
     ioctl(vt->fd, KDSETMODE, KD_TEXT);
+
+    /* Restore the keyboard mode only if it wasn't itself a switching-
+       blocking one. Putting K_OFF/K_RAW/K_MEDIUMRAW back would hand the VT
+       to whatever runs next (a getty, another renderer) in the exact state
+       kbd_mode_blocks_vt_switch() exists to repair, so a mode this module
+       had to override is deliberately left as the usable K_UNICODE instead
+       of being faithfully (and uselessly) restored. */
+    if (vt->saved_kbd_mode >= 0 && !kbd_mode_blocks_vt_switch(vt->saved_kbd_mode))
+        ioctl(vt->fd, KDSKBMODE, vt->saved_kbd_mode);
 
     signal(SIGUSR1, SIG_DFL);
     signal(SIGUSR2, SIG_DFL);
