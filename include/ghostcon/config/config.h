@@ -85,35 +85,51 @@ typedef struct {
      * color fringing instead of removing it.
      */
     char subpixel_order[8];
+
     /* Luminance-based glyph-edge alpha correction (ported from
-     * Ghostty's cell_text.f.glsl) -- on by default. See render/gles.c's
-     * FRAG_SRC doc comment. Applies live, no restart.
+     * Ghostty's cell_text.f.glsl)
+     *
+     * on by default.
+     *
+     * See render/gles.c's FRAG_SRC doc comment.
+     * Applies live, no restart.
      */
     bool gamma_correct;
-    /* Shape fixed-charset runs (programming operators like "->", "==",
-     * "!=") through HarfBuzz and draw the result as a single glyph
-     * spanning multiple cells, when the configured font actually
-     * substitutes one (most do via calt/liga). Off by default -- not
-     * standard console-renderer behavior. See render/ligature.h.
+
+    /* Shape fixed-charset runs
+     * (programming operators like "->", "==", "!=")
+     * through HarfBuzz and draw the result as a single glyph spanning
+     * multiple cells, when the configured font actually
+     * substitutes one (most do via calt/liga).
+     *
+     * Off by default. Non-standard console-renderer behavior.
+     * See render/ligature.h.
      * Applies live, no restart.
      */
     bool ligatures;
-    /* Named color-theme preset (see term/theme.h) -- e.g.
-     * "base16-dark", "solarized-light". Empty (default) = the built-in
-     * xterm-ish defaults ghostcon_palette_init() already sets. An
-     * unrecognized name falls back to those same built-in defaults,
-     * not an error.
+
+    /* Named color-theme preset (see term/theme.h)
+     * e.g. "base16-dark", "solarized-light".
+     * Empty (default) = the built-in xterm-ish defaults
+     * ghostcon_palette_init() already sets.
      *
-     * Applied at startup and live on reload; see the [colors] table
-     * below for explicit per-color overrides applied ON TOP of
+     * An unrecognized name falls back to those same
+     * built-in defaults as fallback.
+     *
+     * Applied at startup and live on reload
+     *
+     * see the [colors] table below
+     * for explicit per-color overrides applied ON TOP of
      * whichever theme (or lack of one) is active.
      */
     char theme[32];
 
-    /* Explicit per-color overrides, applied after `theme` above --
-     * same preset-then-explicit-override layering [cursor]'s fields
-     * already use. Empty string (the default) = "don't override this
-     * one, leave whatever the theme/built-in default set."
+    /* Explicit per-color overrides, applied after `theme` above
+     *
+     * Same preset-then-explicit-override layering [cursor]'s fields
+     * already use.
+     *
+     * Empty string (the default) = "Nah we trust the theme on this one"
      *
      * Accepts any format ghostcon_color_parse_spec() understands
      * (#RGB, #RRGGBB, #RRRGGGBBB, #RRRRGGGGBBBB, or X11 "rgb:R/G/B");
@@ -121,8 +137,7 @@ typedef struct {
      * unrecognized `theme` name.
      *
      * color[0..15] are the ANSI palette slots in the standard order
-     * (0=black, 1=red, ... 7=white, 8=bright black, ... 15=bright
-     * white).
+     * (0=black, 1=red, ... 7=white, 8=bright black, ... 15=bright white).
      */
     char color_background[16];
     char color_foreground[16];
@@ -154,12 +169,17 @@ typedef struct {
     int  repeat_delay_ms;
     int  repeat_rate_ms;
 
-    /* Hardware cursor sprite -- see PLAN.md's "Cursor sprite: raster
-     * images, per-state, config-driven" section. Empty string = unset.
+    /* Hardware cursor sprite
      *
-     * Precedence per state: cursor_<state>_path (explicit override) >
-     * cursor_theme's auto-resolved asset for that state > the built-in
-     * procedural I-beam fallback.
+     * see PLAN.md's
+     * "Cursor sprite: raster images, per-state, config-driven" section.
+     *
+     * Empty string = unset.
+     *
+     * Precedence per state (multiple fallback):
+     * cursor_<state>_path (explicit override) >
+     * cursor_theme's auto-resolved asset for that state >
+     * the built-in procedural I-beam fallback.
      */
     char cursor_theme[256];
     char cursor_default_path[256];
@@ -212,26 +232,35 @@ typedef struct {
     char paste_from_clipboard_binding[64];
 
     /* [mouse] / [touchpad] -- per-device-class libinput tuning,
-     * applied to every currently-connected device of that class (via
-     * libinput's own tap-finger-count check, the library's own
-     * recommended way to distinguish a touchpad from a mouse) and to
-     * each newly-hotplugged one as it's discovered. See
-     * core/input.c's apply_device_config() for the libinput API each
-     * field maps to.
+     * applied to every currently-connected device of that class and to
+     * each newly-hotplugged one as it is discovered. libinput's own
+     * tap-finger-count check tells a touchpad apart from a mouse, as
+     * that is the library's recommended way to do so.
      *
-     * - enable: false fully disables the device (no movement, clicks,
-     *   or scroll at all) via LIBINPUT_CONFIG_SEND_EVENTS_DISABLED.
-     * - sensitivity: libinput's own pointer-acceleration speed knob,
-     *   -1.0 (slowest) .. 1.0 (fastest), 0.0 = libinput's own default.
-     * - scroll_speed: NOT a libinput API -- libinput has no such knob,
-     *   so this is implemented entirely in core/input.c as a
-     *   fractional accumulator over the terminal-scroll "ticks" a raw
-     *   scroll event would otherwise produce 1:1: add scroll_speed to
-     *   a running accumulator per raw tick, fire one terminal-scroll
-     *   tick and subtract 1.0 each time it crosses 1.0. 1.0 (default)
-     *   is unchanged passthrough; > 1.0 amplifies (multiple ticks per
-     *   raw event); < 1.0 throttles (multiple raw events needed
-     *   before one tick reaches the app).
+     * See core/input.c's apply_device_config() for the libinput API
+     * each field maps to.
+     *
+     * enable
+     *      false fully disables the device (no movement, clicks, or
+     *      scroll at all) via LIBINPUT_CONFIG_SEND_EVENTS_DISABLED.
+     *
+     * sensitivity
+     *      libinput's own pointer-acceleration speed knob:
+     *      -1.0 (slowest) .. 1.0 (fastest); 0.0 = libinput's default.
+     *
+     * scroll_speed
+     *      Not a libinput API -- libinput has no such knob. Implemented
+     *      entirely in core/input.c as a fractional accumulator over
+     *      the terminal-scroll "ticks" a raw scroll event would
+     *      otherwise produce 1:1:
+     *
+     *        - add scroll_speed to an accumulator on each raw tick
+     *        - whenever it reaches 1.0, emit one terminal-scroll tick
+     *          and subtract 1.0
+     *
+     *      1.0 (default) is unchanged passthrough; > 1.0 amplifies
+     *      (multiple ticks per raw event); < 1.0 throttles (multiple
+     *      raw events needed before one tick reaches the app).
      */
     bool  mouse_enable;
     float mouse_scroll_speed;
