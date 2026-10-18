@@ -863,6 +863,8 @@ main(int argc, char **argv)
         if (!transport_connected)
             usleep(20000);
     }
+    GC_LOG(pty, "connect to pty child for vt %d: %s",
+            app.vt_num, transport_connected ? "ok" : "FAILED");
     if (!transport_connected) {
         fprintf(stderr, "ghostcon-core: could not connect to pty child for vt %d\n", app.vt_num);
         ghostcon_term_deinit(&app.term);
@@ -962,6 +964,7 @@ main(int argc, char **argv)
 
         if (config_watch_idx >= 0 && (fds[config_watch_idx].revents & POLLIN)) {
             if (ghostcon_config_watch_check(app.config_watch_fd, app.config_path)) {
+                GC_LOG(config, "config file change detected");
                 if (apply_config_reload(&app))
                     need_render = true;
             }
@@ -971,9 +974,11 @@ main(int argc, char **argv)
             ghostcon_vt_state_t before = ghostcon_vtctl_state(app.vt);
             ghostcon_vtctl_process_pending(app.vt, vtctl_pre_ack, &app);
             ghostcon_vt_state_t after = ghostcon_vtctl_state(app.vt);
+            GC_LOG(vt, "vt state %d -> %d", (int)before, (int)after);
 
             if (before != GC_VT_STATE_ACTIVE && after == GC_VT_STATE_ACTIVE) {
                 if (!acquire_display(&app)) {
+                    GC_LOG(vt, "reacquire FAILED, retrying on next switch");
                     fprintf(stderr, "ghostcon-core: reacquire failed, will keep retrying on next switch\n");
                 } else {
                     /* The terminal grid was sized at startup from
@@ -996,6 +1001,8 @@ main(int argc, char **argv)
                        noted elsewhere in this file too. */
                     uint16_t new_cols = (uint16_t)(ghostcon_display_width(app.disp) / (uint32_t)app.cell_w);
                     uint16_t new_rows = (uint16_t)(ghostcon_display_height(app.disp) / (uint32_t)app.cell_h);
+                    GC_LOG(vt, "grid %ux%u (was %ux%u)",
+                            new_cols, new_rows, app.term.cols, app.term.rows);
                     if (new_cols != app.term.cols || new_rows != app.term.rows) {
                         if (!ghostcon_term_resize(&app.term, new_cols, new_rows))
                             fprintf(stderr, "ghostcon-core: term_resize to %ux%u failed\n",
@@ -1090,6 +1097,9 @@ main(int argc, char **argv)
         if (ctl_idx >= 0 && (fds[ctl_idx].revents & (POLLIN | POLLHUP | POLLERR))) {
             bool got_clear = false;
             ghostcon_transport_read_ctl(&app.transport, &got_clear);
+            if (got_clear)
+                GC_LOG(pty, "CLEAR received, clear_on_logout=%d",
+                        app.clear_on_logout ? 1 : 0);
             if (got_clear && app.clear_on_logout) {
                 ghostcon_screen_erase_display(&app.term.screen, GC_ERASE_DISPLAY_ALL);
                 ghostcon_screen_erase_display(&app.term.screen, GC_ERASE_DISPLAY_SCROLLBACK);
@@ -1116,7 +1126,7 @@ main(int argc, char **argv)
                latency doesn't depend on content rendering. Called
                directly here instead. */
             if (pointer.moved)
-                GC_LOG(selection, "pointer pixel=(%d,%d)", pointer.x, pointer.y);
+                GC_LOG(input, "pointer moved to (%d,%d)", pointer.x, pointer.y);
             if (pointer.moved && ghostcon_display_is_acquired(app.disp)) {
                 /* Hardware cursor movement is deliberately NOT folded
                    into need_render/render_frame() -- see kms.h's own
@@ -1193,8 +1203,11 @@ main(int argc, char **argv)
                                                          app.zoom_step,
                                                          ZOOM_MIN_FONT_SIZE,
                                                          ZOOM_MAX_FONT_SIZE);
-                if (apply_font_size(&app, new_size, false))
+                int old_size = app.font_size;
+                if (apply_font_size(&app, new_size, false)) {
+                    GC_LOG(input, "zoom %d -> %d", old_size, app.font_size);
                     need_render = true;
+                }
             }
 
             /* Ctrl+Alt+D -- dump the live screen state right now, at
@@ -1255,6 +1268,7 @@ main(int argc, char **argv)
                     (now.tv_sec - app.term.screen.synchronized_output_since.tv_sec) * 1000.0 +
                     (now.tv_nsec - app.term.screen.synchronized_output_since.tv_nsec) / 1e6;
                 still_withholding = elapsed_ms < SYNC_OUTPUT_TIMEOUT_MS;
+                GC_LOG(vt, "render withheld for sync-output batch (%.1f ms)", elapsed_ms);
             }
 
             if (!still_withholding) {
@@ -1262,6 +1276,7 @@ main(int argc, char **argv)
                 if (!ghostcon_display_render_frame(app.disp, &app.term.screen,
                                                     app.atlas, app.cell_w, app.cell_h,
                                                     app.ligatures, app.screenshot_requested)) {
+                    GC_LOG(drm, "present failed, releasing display");
                     fprintf(stderr, "ghostcon-core: render_frame failed, releasing display\n");
                     release_display(&app);
                 }

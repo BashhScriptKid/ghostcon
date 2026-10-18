@@ -52,8 +52,13 @@ ghostcon_ui_update_selection(ghostcon_screen_t *screen,
     if (pointer->left_released && screen->selection.pending) {
         ghostcon_selection_finish(&screen->selection);
         ghostcon_selection_t *sel = &screen->selection;
-        if (sel->x1 == sel->x2 && sel->y1 == sel->y2)
+        if (sel->x1 == sel->x2 && sel->y1 == sel->y2) {
+            GC_LOG(selection, "release without drag -> cleared");
             ghostcon_selection_clear(sel);
+        } else {
+            GC_LOG(selection, "finished (%d,%d)-(%d,%d)",
+                    sel->x1, sel->y1, sel->x2, sel->y2);
+        }
         need_render = true;
     }
 

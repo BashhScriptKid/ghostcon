@@ -140,6 +140,7 @@ ghostcon_display_reload_cursor(ghostcon_display_t *disp, int cell_h)
                       CURSOR_THEME_NAMES_LINK,
                       sizeof(CURSOR_THEME_NAMES_LINK) / sizeof(CURSOR_THEME_NAMES_LINK[0]),
                       cell_h);
+    GC_LOG(cursor, "reloaded sprites for cell_h=%d", cell_h);
 }
 
 void
@@ -268,6 +269,7 @@ ghostcon_display_release(ghostcon_display_t *disp)
     disp->did_modeset = false;
     disp->acquired = false;
 
+    GC_LOG(drm, "released, master dropped");
     ghostcon_diag_log_warning("vt %d: display released", disp->vt_num);
 }
 
@@ -334,6 +336,7 @@ ghostcon_display_acquire(ghostcon_display_t *disp, int cell_h, ghostcon_atlas_t 
     if (out_width)  *out_width = disp->kms.width;
     if (out_height) *out_height = disp->kms.height;
 
+    GC_LOG(drm, "acquired %ux%u", disp->kms.width, disp->kms.height);
     ghostcon_diag_log_warning("vt %d: display acquired (%ux%u)",
                               disp->vt_num, disp->kms.width, disp->kms.height);
     return true;
@@ -384,16 +387,23 @@ ghostcon_display_render_frame(ghostcon_display_t *disp, ghostcon_screen_t *scree
             fprintf(stderr, "ghostcon-display: screenshot requested but failed\n");
     }
 
-    if (!ghostcon_egl_swap(&disp->egl))
+    if (!ghostcon_egl_swap(&disp->egl)) {
+        GC_LOG(drm, "egl swap failed");
         return false;
+    }
 
     if (!disp->did_modeset) {
-        if (!ghostcon_kms_modeset(&disp->kms))
+        if (!ghostcon_kms_modeset(&disp->kms)) {
+            GC_LOG(drm, "initial modeset failed");
             return false;
+        }
         disp->did_modeset = true;
+        GC_LOG(drm, "initial modeset committed");
     } else {
-        if (!ghostcon_kms_page_flip(&disp->kms))
+        if (!ghostcon_kms_page_flip(&disp->kms)) {
+            GC_LOG(drm, "page flip failed");
             return false;
+        }
     }
 
     return true;
