@@ -37,6 +37,9 @@ term_srcs = files(
     'term/mouse.c',
     'term/screen.c',
     'term/stream.c',
+    'term/stream_csi.c',
+    'term/stream_osc.c',
+    'term/stream_apc.c',
     'term/term.c',
     'term/dump.c',
 )
