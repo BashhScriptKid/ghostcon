@@ -13,6 +13,19 @@
 /* design and format references.                                       */
 /* ------------------------------------------------------------------ */
 
+/* Interaction states the hardware cursor sprite can be in -- each has
+   its own independently-loaded image (so switching between them, e.g.
+   on hovering an OSC-8 hyperlink cell, is a cheap FB swap rather than
+   a decode-and-reupload). See PLAN.md's "Cursor sprite: raster images,
+   per-state, config-driven" section for the full design. Lives here
+   (not in kms.h, where it was previously defined) so the DRM-free
+   ui.h/display.h layers can share it without pulling in libdrm. */
+typedef enum {
+    GC_CURSOR_STATE_DEFAULT,
+    GC_CURSOR_STATE_LINK,
+    GC_CURSOR_STATE_COUNT,
+} ghostcon_cursor_state_t;
+
 /* Decodes an uncompressed 24- or 32-bit BMP into a freshly malloc'd
    ARGB8888 buffer (row-major, top-to-bottom regardless of the BMP's
    own top-down/bottom-up storage order — that's normalized here).

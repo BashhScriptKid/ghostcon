@@ -7,6 +7,8 @@
 #include <xf86drm.h>
 #include <xf86drmMode.h>
 
+#include "ghostcon/core/cursor_image.h"
+
 /* ------------------------------------------------------------------ */
 /* DRM/KMS mode setting + atomic page flip                             */
 /*                                                                     */
@@ -25,17 +27,6 @@
 /* Callers must already hold DRM master on `drm_path`'s fd before      */
 /* calling ghostcon_kms_init.                                          */
 /* ------------------------------------------------------------------ */
-
-/* Interaction states the hardware cursor sprite can be in -- each has
-   its own independently-loaded image (so switching between them, e.g.
-   on hovering an OSC-8 hyperlink cell, is a cheap FB swap rather than
-   a decode-and-reupload). See PLAN.md's "Cursor sprite: raster images,
-   per-state, config-driven" section for the full design. */
-typedef enum {
-    GC_CURSOR_STATE_DEFAULT,
-    GC_CURSOR_STATE_LINK,
-    GC_CURSOR_STATE_COUNT,
-} ghostcon_cursor_state_t;
 
 typedef struct {
     int fd; /* not owned — caller (core/vtctl.c) manages master/VT lifecycle */

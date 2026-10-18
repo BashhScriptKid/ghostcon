@@ -371,6 +371,27 @@ if not meson.is_subproject()
     test('test_diag', test_diag_exe, timeout: 30)
 endif
 
+# core/ui.c — pure logic extracted out of main.c (hover hit-testing,
+# selection transitions, zoom clamping, comm-name formatting). No
+# DRM/libinput dependency at all, so runtime-testable headlessly.
+core_ui_lib = static_library('ghostcon-core-ui',
+    'core/ui.c',
+    include_directories: include_directories('../include'),
+    link_with: term_lib,
+    dependencies: [dep_ghostty_vt],
+    install: false,
+)
+
+if not meson.is_subproject()
+    test_ui_exe = executable('test_ui',
+        '../tests/test_ui.c',
+        include_directories: include_directories('../include'),
+        link_with: [core_ui_lib, term_lib],
+        dependencies: [dep_ghostty_vt],
+    )
+    test('test_ui', test_ui_exe)
+endif
+
 # core/input.c (Phase 1 item 5) — libinput + xkbcommon + key encoding
 core_input_lib = static_library('ghostcon-core-input',
     'core/input.c',
