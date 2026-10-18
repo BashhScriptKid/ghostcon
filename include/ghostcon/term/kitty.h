@@ -3,8 +3,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-/* Kitty keyboard protocol state */
-/* https://sw.kovidgoyal.net/kitty/keyboard-protocol/ */
+/* Kitty keyboard protocol state
+ * https://sw.kovidgoyal.net/kitty/keyboard-protocol/
+ */
 
 /* Flags bit positions */
 #define GC_KITTY_DISAMBIGUATE      (1 << 0)  /* disambiguate escape codes (CSI u)          */

@@ -39,16 +39,18 @@ main(void)
     n = ghostcon_mouse_encode(&off, GC_MOUSE_LEFT, GC_MOUSE_PRESS, 0, 5, 3, buf, sizeof(buf));
     CHECK(n == 0, "tracking disabled: press returns 0 bytes");
 
-    /* Mode 1000 (click-only): motion is never reported, even in a
-       drag with a button held. */
+    /* Mode 1000 (click-only): motion is never reported, even in a drag with
+     * a button held.
+     */
     ghostcon_screen_t m1000 = screen_with(true, 1000, false);
     n = ghostcon_mouse_encode(&m1000, GC_MOUSE_LEFT, GC_MOUSE_MOTION, 0, 5, 3, buf, sizeof(buf));
     CHECK(n == 0, "mode 1000 filters out motion");
     n = ghostcon_mouse_encode(&m1000, GC_MOUSE_LEFT, GC_MOUSE_PRESS, 0, 5, 3, buf, sizeof(buf));
     CHECK(n > 0, "mode 1000 still reports press");
 
-    /* Mode 1002 (button+drag): motion only reported while a button is
-       held; bare motion (GC_MOUSE_NONE) is filtered out. */
+    /* Mode 1002 (button+drag): motion only reported while a button is held;
+     * bare motion (GC_MOUSE_NONE) is filtered out.
+     */
     ghostcon_screen_t m1002 = screen_with(true, 1002, false);
     n = ghostcon_mouse_encode(&m1002, GC_MOUSE_NONE, GC_MOUSE_MOTION, 0, 5, 3, buf, sizeof(buf));
     CHECK(n == 0, "mode 1002 filters out bare motion (no button held)");
@@ -61,13 +63,15 @@ main(void)
     CHECK(n > 0, "mode 1003 reports bare motion");
 
     /* Wheel events always reported when tracking is on, regardless of
-       protocol mode (even 1000, the most restrictive). */
+     * protocol mode (even 1000, the most restrictive).
+     */
     n = ghostcon_mouse_encode(&m1000, GC_MOUSE_WHEEL_UP, GC_MOUSE_PRESS, 0, 5, 3, buf, sizeof(buf));
     CHECK(n > 0, "wheel reported even in mode 1000");
 
-    /* X10 legacy framing: "ESC[M" + 3 bytes, col/row offset by 33
-       (1-based + 32), button by 32. Left press, no mods, col=5,row=3
-       (0-based) -> Cb=0+32=32, Cx=6+32=38, Cy=4+32=36. */
+    /* X10 legacy framing: "ESC[M" + 3 bytes, col/row offset by 33 (1-based
+     * + 32), button by 32. Left press, no mods, col=5,row=3 (0-based) ->
+     * Cb=0+32=32, Cx=6+32=38, Cy=4+32=36.
+     */
     n = ghostcon_mouse_encode(&m1000, GC_MOUSE_LEFT, GC_MOUSE_PRESS, 0, 5, 3, buf, sizeof(buf));
     CHECK(n == 6, "X10 framing is exactly 6 bytes");
     CHECK(memcmp(buf, "\x1b[M", 3) == 0, "X10 framing starts with ESC[M");
@@ -75,8 +79,9 @@ main(void)
     CHECK((unsigned char)buf[4] == 38, "X10 column byte (col=5 0-based -> 38)");
     CHECK((unsigned char)buf[5] == 36, "X10 row byte (row=3 0-based -> 36)");
 
-    /* SGR framing: "ESC[<Cb;Cx;CyM" (press) / "...m" (release),
-       decimal, 1-based, no offset. */
+    /* SGR framing: "ESC[<Cb;Cx;CyM" (press) / "...m" (release), decimal,
+     * 1-based, no offset.
+     */
     ghostcon_screen_t sgr = screen_with(true, 1000, true);
     n = ghostcon_mouse_encode(&sgr, GC_MOUSE_LEFT, GC_MOUSE_PRESS, 0, 5, 3, buf, sizeof(buf));
     buf[n] = '\0';

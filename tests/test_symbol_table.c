@@ -3,15 +3,15 @@
 #include "ghostcon/term/cell.h"
 #include "conftest.h"
 
-/* Full-range sweep of ghostcon_cell_is_symbol() against the vendored
-   UCD (third_party/UnicodeData.txt, the same input tools/gen_symbol_table.py
-   reads) -- not a spot-check of known-problem codepoints (that's
-   cell_is_symbol_classification in test_conformance.c), but a
-   cross-check that the generated table plus its two carve-outs
-   (Box Drawing/Block Elements excluded, PUA included) agrees with
-   real UCD General Category data everywhere, catching codegen bugs
-   and carve-out boundary mistakes that a handful of spot checks would
-   miss. */
+/* Full-range sweep of ghostcon_cell_is_symbol() against the vendored UCD
+ * (third_party/UnicodeData.txt, the same input tools/gen_symbol_table.py
+ * reads) -- not a spot-check of known-problem codepoints (that's
+ * cell_is_symbol_classification in test_conformance.c), but a cross-check
+ * that the generated table plus its two carve-outs (Box Drawing/Block
+ * Elements excluded, PUA included) agrees with real UCD General Category
+ * data everywhere, catching codegen bugs and carve-out boundary mistakes
+ * that a handful of spot checks would miss.
+ */
 
 #ifndef GHOSTCON_UCD_PATH
 #error "GHOSTCON_UCD_PATH must be defined (path to vendored UnicodeData.txt)"

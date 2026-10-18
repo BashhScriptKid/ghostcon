@@ -28,10 +28,11 @@ static void put_u16(uint8_t *p, uint16_t v) {
     p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8);
 }
 
-/* Hand-constructs a tiny 2x2, 32bpp, top-down (negative height) BMP --
-   the same layout ghostcon_cursor_write_bmp() itself produces, but
-   built independently here so the decoder test doesn't just validate
-   against its own encoder's output. */
+/* Hand-constructs a tiny 2x2, 32bpp, top-down (negative height) BMP --the
+ * same layout ghostcon_cursor_write_bmp() itself produces, but built
+ * independently here so the decoder test doesn't just validate against its
+ * own encoder's output.
+ */
 static void
 write_synthetic_bmp(const char *path, uint32_t argb00, uint32_t argb10,
                      uint32_t argb01, uint32_t argb11)
@@ -67,8 +68,9 @@ write_synthetic_bmp(const char *path, uint32_t argb00, uint32_t argb10,
     if (f) { fwrite(buf, 1, sizeof(buf), f); fclose(f); }
 }
 
-/* Hand-constructs a minimal valid Xcursor file: one TOC entry
-   pointing at one 2x2 image chunk. */
+/* Hand-constructs a minimal valid Xcursor file: one TOC entry pointing at
+ * one 2x2 image chunk.
+ */
 static void
 write_synthetic_xcursor(const char *path, uint32_t hot_x, uint32_t hot_y,
                          uint32_t argb00, uint32_t argb10, uint32_t argb01, uint32_t argb11)
@@ -76,13 +78,14 @@ write_synthetic_xcursor(const char *path, uint32_t hot_x, uint32_t hot_y,
     uint8_t buf[16 /* file header */ + 12 /* toc entry */ + 36 /* image header */ + 2 * 2 * 4];
     memset(buf, 0, sizeof(buf));
 
-    /* Written as the literal ASCII bytes "Xcur", NOT as a pre-computed
-       u32 constant -- a hand-computed magic number here would just
-       re-derive the same value the decoder itself hardcodes, silently
-       validating the test against itself instead of against the real
-       file format (exactly what happened before this was fixed: a
-       transposed digit in both places passed this test while
-       rejecting every real Xcursor file on disk). */
+    /* Written as the literal ASCII bytes "Xcur", NOT as a pre-computed u32
+     * constant -- a hand-computed magic number here would just re-derive
+     * the same value the decoder itself hardcodes, silently validating the
+     * test against itself instead of against the real file format (exactly
+     * what happened before this was fixed: a transposed digit in both
+     * places passed this test while rejecting every real Xcursor file on
+     * disk).
+     */
     buf[0] = 'X'; buf[1] = 'c'; buf[2] = 'u'; buf[3] = 'r';
     put_u32(buf + 4, 16);      /* header_size */
     put_u32(buf + 8, 0x10000); /* version -- unchecked by our decoder, any value */
@@ -180,8 +183,9 @@ main(void)
     /* Also reachable via the theme-root form (dir/cursors/name). */
     char cursors_dir[512];
     snprintf(cursors_dir, sizeof(cursors_dir), "%s/cursors", dir);
-    /* mkdir via system-independent approach: just use rename to move
-       the same file into a cursors/ subdir for this check. */
+    /* mkdir via system-independent approach: just use rename to move the
+     * same file into a cursors/ subdir for this check.
+     */
     char mkdir_cmd[600];
     snprintf(mkdir_cmd, sizeof(mkdir_cmd), "mkdir -p '%s'", cursors_dir);
     if (system(mkdir_cmd) == 0) {
@@ -197,9 +201,10 @@ main(void)
     CHECK(ghostcon_cursor_load_xcursor(dir, "doesnotexist", &xw, &xh, &hot_x, &hot_y) == NULL,
           "Xcursor decode fails cleanly on missing name");
 
-    /* ghostcon_cursor_scale(): 2x2 -> 4x4 upscale, nearest-neighbor --
-       each output quadrant should exactly equal the source pixel it
-       mapped from, no blending. */
+    /* ghostcon_cursor_scale(): 2x2 -> 4x4 upscale, nearest-neighbor --each
+     * output quadrant should exactly equal the source pixel it mapped from,
+     * no blending.
+     */
     {
         uint32_t src2x2[4] = { 0xFF000001, 0xFF000002, 0xFF000003, 0xFF000004 };
         uint32_t *up = ghostcon_cursor_scale(src2x2, 2, 2, 4, 4);
@@ -212,9 +217,10 @@ main(void)
             free(up);
         }
 
-        /* 4x4 -> 2x2 downscale (nearest-neighbor picks one source pixel
-           per output cell, no averaging -- just checking it produces
-           in-bounds source pixels, not a specific blend result). */
+        /* 4x4 -> 2x2 downscale (nearest-neighbor picks one source pixel per
+         * output cell, no averaging -- just checking it produces in-bounds
+         * source pixels, not a specific blend result).
+         */
         uint32_t src4x4[16];
         for (int i = 0; i < 16; i++)
             src4x4[i] = 0xFF000000u | (uint32_t)i;
@@ -226,10 +232,11 @@ main(void)
               "cursor_scale rejects a zero destination dimension");
     }
 
-    /* ghostcon_cursor_crop_to_content(): a 4x4 image with a single
-       opaque pixel at (2,1) and everything else transparent -- should
-       crop to a 1x1 image, and the hotspot (originally 2,1, i.e. right
-       on the opaque pixel) should shift to (0,0) in the cropped space. */
+    /* ghostcon_cursor_crop_to_content(): a 4x4 image with a single opaque
+     * pixel at (2,1) and everything else transparent -- should crop to a
+     * 1x1 image, and the hotspot (originally 2,1, i.e. right on the opaque
+     * pixel) should shift to (0,0) in the cropped space.
+     */
     {
         uint32_t padded[16] = { 0 };
         padded[1 * 4 + 2] = 0xFFAABBCCu; /* row 1, col 2 */
@@ -243,9 +250,10 @@ main(void)
             free(cropped);
         }
 
-        /* A wider opaque rectangle, hotspot outside it (in the
-           padding) -- should clamp onto the cropped image's edge
-           rather than go negative or out of bounds. */
+        /* A wider opaque rectangle, hotspot outside it (in the padding) --
+         * should clamp onto the cropped image's edge rather than go
+         * negative or out of bounds.
+         */
         uint32_t rect[16] = { 0 };
         for (uint32_t y = 1; y <= 2; y++)
             for (uint32_t x = 1; x <= 2; x++)
@@ -259,8 +267,9 @@ main(void)
             free(rcropped);
         }
 
-        /* Fully transparent -- nothing to crop to, must return NULL
-           without touching the hotspot out-parameters. */
+        /* Fully transparent -- nothing to crop to, must return NULL without
+         * touching the hotspot out-parameters.
+         */
         uint32_t blank[4] = { 0 };
         uint32_t bw, bh, bhx = 9, bhy = 9;
         CHECK(ghostcon_cursor_crop_to_content(blank, 2, 2, &bw, &bh, &bhx, &bhy) == NULL,

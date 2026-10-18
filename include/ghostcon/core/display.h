@@ -6,13 +6,12 @@
 #include "ghostcon/render/atlas.h"
 #include "ghostcon/term/screen.h"
 
-/* ------------------------------------------------------------------ */
-/* Display Lifecycle & Hardware Presentation Backend                  */
-/*                                                                     */
-/* Encapsulates DRM/KMS atomic modesetting, DRM Master management,     */
-/* GBM buffer surfaces, EGL contexts, GLES 2.0 rendering, and hardware */
-/* cursor planes. Isolates Linux graphics plumbing from higher layers. */
-/* ------------------------------------------------------------------ */
+/* Display Lifecycle & Hardware Presentation Backend
+ *
+ * Encapsulates DRM/KMS atomic modesetting, DRM Master management, GBM
+ * buffer surfaces, EGL contexts, GLES 2.0 rendering, and hardware cursor
+ * planes. Isolates Linux graphics plumbing from higher layers.
+ */
 
 typedef struct ghostcon_display ghostcon_display_t;
 
@@ -31,8 +30,9 @@ typedef struct {
 ghostcon_display_t *ghostcon_display_create(const char *drm_node, int vt_num, bool gamma_correct);
 void ghostcon_display_destroy(ghostcon_display_t *disp);
 
-/* Acquire DRM master, initialize KMS, GBM, EGL, and GLES.
-   Returns true on success, and populates out_width / out_height with screen resolution. */
+/* Acquire DRM master, initialize KMS, GBM, EGL, and GLES. Returns true on
+ * success, and populates out_width / out_height with screen resolution.
+ */
 bool ghostcon_display_acquire(ghostcon_display_t *disp, int cell_h, ghostcon_atlas_t *atlas,
                               uint32_t *out_width, uint32_t *out_height);
 
@@ -65,8 +65,9 @@ void ghostcon_display_set_gamma_correct(ghostcon_display_t *disp, bool gamma_cor
 /* Sync font atlas into GLES texture */
 void ghostcon_display_sync_atlas(ghostcon_display_t *disp, ghostcon_atlas_t *atlas, bool force);
 
-/* Render a complete frame and commit to display (swap + page flip / modeset).
-   Returns true on success. */
+/* Render a complete frame and commit to display (swap + page flip /
+ * modeset). Returns true on success.
+ */
 bool ghostcon_display_render_frame(ghostcon_display_t *disp, ghostcon_screen_t *screen,
                                    ghostcon_atlas_t *atlas, int cell_w, int cell_h,
                                    bool ligatures, bool screenshot_requested);

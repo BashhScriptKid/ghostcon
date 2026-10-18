@@ -35,10 +35,11 @@
 #define ATLAS_DIM 1024
 #define DRM_RENDER_NODE "/dev/dri/renderD128"
 #define WARMUP_FRAMES 10
-/* Enough scrollback that bouncing scroll_view() back and forth for
-   the whole benchmark run never runs out of history to scroll into --
-   each "frame" scrolls by 1 line, so this needs to comfortably exceed
-   half of any plausible --frames value. */
+/* Enough scrollback that bouncing scroll_view() back and forth for the
+ * whole benchmark run never runs out of history to scroll into --each
+ * "frame" scrolls by 1 line, so this needs to comfortably exceed half of
+ * any plausible --frames value.
+ */
 #define SCROLLBACK_LINES 2000
 
 static double
@@ -50,12 +51,13 @@ now_ms(void)
 }
 
 /* Fills the terminal with SCROLLBACK_LINES lines of varied, colorful
-   content -- exercises the atlas's real glyph rasterization path
-   (many distinct codepoints, not just one repeated character) and the
-   color-resolution path (machine.c's resolve_colors()), same as real
-   terminal output would, rather than a degenerate all-blank or
-   all-one-glyph case that wouldn't stress the atlas/GLES paths
-   realistically. */
+ * content -- exercises the atlas's real glyph rasterization path (many
+ * distinct codepoints, not just one repeated character) and the
+ * color-resolution path (machine.c's resolve_colors()), same as real
+ * terminal output would, rather than a degenerate all-blank or
+ * all-one-glyph case that wouldn't stress the atlas/GLES paths
+ * realistically.
+ */
 static void
 fill_scrollback(ghostcon_term_t *term, uint16_t cols)
 {
@@ -63,7 +65,8 @@ fill_scrollback(ghostcon_term_t *term, uint16_t cols)
     for (int i = 0; i < SCROLLBACK_LINES; i++) {
         size_t off = 0;
         /* Cycle through 6 SGR colors and a mix of letters/digits/
-           punctuation so the atlas has real variety to rasterize. */
+         * punctuation so the atlas has real variety to rasterize.
+         */
         int color = 31 + (i % 6);
         off += (size_t)snprintf(line + off, cols * 32, "\x1b[%dm", color);
         for (uint16_t c = 0; c < cols; c++) {
@@ -127,8 +130,9 @@ main(int argc, char **argv)
     fill_scrollback(&term, cols);
 
     /* Force one full sync now (uploads every glyph fill_scrollback()
-       touched) so it doesn't land inside the timed loop as a one-time
-       cost masquerading as steady-state frame time. */
+     * touched) so it doesn't land inside the timed loop as a one-time cost
+     * masquerading as steady-state frame time.
+     */
     ghostcon_gles_begin(gles, true, 0.0f, 0.0f, 0.0f);
     ghostcon_machine_render_dirty(&term.screen, atlas, gles, cell_w, cell_h, false);
     ghostcon_gles_sync_atlas(gles, atlas, true);
@@ -136,8 +140,9 @@ main(int argc, char **argv)
     ghostcon_egl_swap(&egl);
     glFinish();
 
-    /* Warmup: first few real frames often pay one-time driver/shader
-       JIT costs not representative of steady-state performance. */
+    /* Warmup: first few real frames often pay one-time driver/shader JIT
+     * costs not representative of steady-state performance.
+     */
     int dir = -1;
     for (int i = 0; i < WARMUP_FRAMES; i++) {
         ghostcon_screen_scroll_view(&term.screen, dir);
@@ -155,10 +160,11 @@ main(int argc, char **argv)
     double total_ms = 0.0, min_ms = 1e9, max_ms = 0.0;
 
     for (int i = 0; i < frames; i++) {
-        /* scroll_view() marks the WHOLE visible grid dirty (see its
-           own doc comment) -- exactly the worst case a fast-scrolling
-           TUI hits every frame: every visible cell's content changed,
-           nothing can be skipped via dirty-region tracking. */
+        /* scroll_view() marks the WHOLE visible grid dirty (see its own doc
+         * comment) -- exactly the worst case a fast-scrolling TUI hits
+         * every frame: every visible cell's content changed, nothing can be
+         * skipped via dirty-region tracking.
+         */
         ghostcon_screen_scroll_view(&term.screen, dir);
         dir = -dir;
 
@@ -179,9 +185,10 @@ main(int argc, char **argv)
         if (dt > max_ms) max_ms = dt;
     }
 
-    /* Simple descending sort for percentiles -- frames is small
-       (hundreds), O(n^2) insertion sort is plenty fast enough here and
-       keeps this file dependency-free. */
+    /* Simple descending sort for percentiles -- frames is small (hundreds),
+     * O(n^2) insertion sort is plenty fast enough here and keeps this file
+     * dependency-free.
+     */
     for (int i = 1; i < frames; i++) {
         double key = frame_ms[i];
         int j = i - 1;

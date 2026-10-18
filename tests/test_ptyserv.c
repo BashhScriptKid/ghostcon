@@ -41,7 +41,8 @@ connect_unix(const char *path)
 }
 
 /* Reads from fd until `needle` appears in the accumulated buffer or the
-   deadline (in milliseconds from now) expires. Returns true on match. */
+ * deadline (in milliseconds from now) expires. Returns true on match.
+ */
 static bool
 wait_for_substring(int fd, const char *needle, int timeout_ms)
 {
@@ -135,8 +136,9 @@ main(void)
     printf("PASS: registry GET %d -> pid=%d socket=%s\n",
            TEST_VT, pty_child_pid, pty_socket);
 
-    /* Connect a fake renderer, wait for the pty child socket to appear
-       (it binds slightly after the fork). */
+    /* Connect a fake renderer, wait for the pty child socket to appear (it
+     * binds slightly after the fork).
+     */
     int renderer_fd = -1;
     for (int i = 0; i < 50 && renderer_fd < 0; i++) {
         renderer_fd = connect_unix(pty_socket);
@@ -162,7 +164,8 @@ main(void)
     printf("PASS: bidirectional byte flow\n");
 
     /* Disconnect (simulating a killed/hung renderer), then reconnect and
-       verify the ring buffer replays prior output. */
+     * verify the ring buffer replays prior output.
+     */
     close(renderer_fd);
     usleep(50000);
 
@@ -181,15 +184,16 @@ main(void)
     }
     printf("PASS: ring buffer replay on reconnect\n");
 
-    /* Reliability fix verification: kill ghost-ptyserv itself directly
-       (not the pty child), start a fresh instance pointed at the SAME
-       registry socket, and confirm it recognizes and reuses the
-       already-running pty-ttyN instead of spawning a duplicate -- the
-       live session (renderer_fd2, still connected this whole time)
-       must keep working straight through, uninterrupted. See
-       ptyserv/main.c's spawn_pty_child() pidfile-liveness check and
-       pty_child.c's own setpgid(0,0) (which is what lets pty-ttyN
-       survive ghost-ptyserv's process-group kill in the first place). */
+    /* Reliability fix verification: kill ghost-ptyserv itself directly (not
+     * the pty child), start a fresh instance pointed at the SAME registry
+     * socket, and confirm it recognizes and reuses the already-running
+     * pty-ttyN instead of spawning a duplicate -- the live session
+     * (renderer_fd2, still connected this whole time) must keep working
+     * straight through, uninterrupted. See ptyserv/main.c's
+     * spawn_pty_child() pidfile-liveness check and pty_child.c's own
+     * setpgid(0,0) (which is what lets pty-ttyN survive ghost-ptyserv's
+     * process-group kill in the first place).
+     */
     kill(ptyserv_pid, SIGKILL);
     waitpid(ptyserv_pid, NULL, 0);
 
@@ -252,8 +256,9 @@ main(void)
     printf("PASS: restarted ghost-ptyserv reused the existing pty-ttyN (pid %d, socket %s)\n",
            pty_child_pid2, pty_socket2);
 
-    /* The live session survived the whole thing -- renderer_fd2 has
-       been connected since before ghost-ptyserv was ever killed. */
+    /* The live session survived the whole thing -- renderer_fd2 has been
+     * connected since before ghost-ptyserv was ever killed.
+     */
     const char *cmd2 = "echo STILL_ALIVE_GHOSTCON\n";
     write(renderer_fd2, cmd2, strlen(cmd2));
     if (!wait_for_substring(renderer_fd2, "STILL_ALIVE_GHOSTCON", 3000)) {

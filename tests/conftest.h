@@ -195,9 +195,7 @@ gc_test_run_all(void) {
     } \
 } while(0)
 
-/* ------------------------------------------------------------------ */
-/* Output capture helpers (for testing DSR/DA/DECRPM responses)        */
-/* ------------------------------------------------------------------ */
+/* Output capture helpers (for testing DSR/DA/DECRPM responses) */
 
 #define GC_TEST_OUTPUT_BUF_SIZE 256
 

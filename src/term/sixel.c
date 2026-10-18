@@ -27,15 +27,16 @@ alloc_placement_slot(ghostcon_sixel_state_t *st)
             return &st->placements[i];
         }
     }
-    /* No free slot -- sixel has no ack/error-reporting channel back
-       to the client at all (unlike Kitty's ENOSPC ack), so silently
-       dropping a new image would be the only alternative to eviction.
-       Evicting the lowest-index in-use slot isn't strict LRU, but
-       with 64 slots this only matters for a client placing an
-       unusually large number of live sixel images at once, and "the
-       oldest-ish one disappears to make room for the newest" is a
-       reasonable, unsurprising fallback -- matching the spirit of how
-       a real terminal's finite backing store behaves under pressure. */
+    /* No free slot -- sixel has no ack/error-reporting channel back to the
+     * client at all (unlike Kitty's ENOSPC ack), so silently dropping a new
+     * image would be the only alternative to eviction. Evicting the
+     * lowest-index in-use slot isn't strict LRU, but with 64 slots this
+     * only matters for a client placing an unusually large number of live
+     * sixel images at once, and "the oldest-ish one disappears to make room
+     * for the newest" is a reasonable, unsurprising fallback -- matching
+     * the spirit of how a real terminal's finite backing store behaves
+     * under pressure.
+     */
     ghostcon_sixel_placement_t *victim = &st->placements[0];
     if (st->total_bytes >= victim->pixel_len)
         st->total_bytes -= victim->pixel_len;
@@ -51,13 +52,13 @@ typedef struct {
 } color_reg_t;
 
 /* Parses a `#Pc[;Pu;Px;Py;Pz]` color-introducer command starting right
-   after the '#'. Advances *p past the command. Pu=1 is HLS
-   (Px=hue 0-360, Py=lightness 0-100, Pz=saturation 0-100), Pu=2 is RGB
-   (Px,Py,Pz all 0-100 percent) -- matches the encoder in
-   tools/image_protocol_bench.c's sixel_send(), which always emits
-   Pu=2 (RGB), and real-world encoders (img2sixel) do the same. HLS is
-   supported anyway since it's part of the spec and some encoders can
-   use it. */
+ * after the '#'. Advances *p past the command. Pu=1 is HLS (Px=hue 0-360,
+ * Py=lightness 0-100, Pz=saturation 0-100), Pu=2 is RGB (Px,Py,Pz all 0-100
+ * percent) -- matches the encoder in tools/image_protocol_bench.c's
+ * sixel_send(), which always emits Pu=2 (RGB), and real-world encoders
+ * (img2sixel) do the same. HLS is supported anyway since it's part of the
+ * spec and some encoders can use it.
+ */
 static void
 parse_color_intro(const char **p, const char *end, color_reg_t *regs,
                   int *current_reg)
@@ -132,27 +133,28 @@ ghostcon_sixel_decode(ghostcon_sixel_state_t *st,
     if (out_move)
         memset(out_move, 0, sizeof *out_move);
 
-    /* P2 (background select): 1 = positions never touched by any
-       sixel character stay transparent (the underlying cell content
-       shows through); 0/2/absent = untouched positions are filled
-       with an opaque background. Real terminals fill with the
-       terminal's actual current background color for P2=0; this
-       module is decoupled from screen state (see this file's own
-       header doc comment) the same way kitty_graphics.h is, so there
-       is no background color to reach for here -- opaque black is
-       used instead, matching what most sixel-producing tools already
-       expect in practice (they fill their own canvas fully rather
-       than relying on this corner of the spec). */
+    /* P2 (background select): 1 = positions never touched by any sixel
+     * character stay transparent (the underlying cell content shows
+     * through); 0/2/absent = untouched positions are filled with an opaque
+     * background. Real terminals fill with the terminal's actual current
+     * background color for P2=0; this module is decoupled from screen state
+     * (see this file's own header doc comment) the same way
+     * kitty_graphics.h is, so there is no background color to reach for
+     * here -- opaque black is used instead, matching what most
+     * sixel-producing tools already expect in practice (they fill their own
+     * canvas fully rather than relying on this corner of the spec).
+     */
     int32_t p2 = params_count > 1 ? dcs_params[1] : 0;
     bool transparent_bg = (p2 == 1);
 
-    /* First pass: scan for a raster-attribute command ("Pan;Pad;Ph;Pv)
-       to get a declared size hint, and separately find the true
-       extent by tracking max x reached and max y-band reached while
-       walking the sixel character stream -- some encoders declare a
-       size that doesn't match what they actually emit, so the final
-       canvas uses whichever is larger, same "trust but verify"
-       posture as kitty_graphics.c's PNG width/height handling. */
+    /* First pass: scan for a raster-attribute command ("Pan;Pad;Ph;Pv) to
+     * get a declared size hint, and separately find the true extent by
+     * tracking max x reached and max y-band reached while walking the sixel
+     * character stream -- some encoders declare a size that doesn't match
+     * what they actually emit, so the final canvas uses whichever is
+     * larger, same "trust but verify" posture as kitty_graphics.c's PNG
+     * width/height handling.
+     */
     int32_t declared_w = 0, declared_h = 0;
     int32_t max_x = 0, max_y_band_end = 0;
     {
@@ -210,19 +212,19 @@ ghostcon_sixel_decode(ghostcon_sixel_state_t *st,
 
     int32_t width = declared_w > max_x ? declared_w : max_x;
     /* Trust declared_h outright when present, rather than taking
-       max(declared_h, max_y_band_end): max_y_band_end is rounded UP
-       to the nearest multiple of 6 (sixel's row-band height), so for
-       any declared height that isn't itself a multiple of 6 (e.g.
-       200), max_y_band_end (204) would always appear "bigger" and
-       silently inflate the canvas by up to 5 extra blank rows even
-       though the raster attribute -- which real encoders compute
-       exactly -- already says how tall the image actually is. A sixel
-       stream legitimately containing more row-bands than declared is
-       still handled safely: the paint pass below bounds-checks every
-       write against `height`, so excess bands are just clipped, the
-       same way a real terminal clips to the declared raster size.
-       max_y_band_end is only used as a fallback when no raster
-       attribute was sent at all (declared_h <= 0). */
+     * max(declared_h, max_y_band_end): max_y_band_end is rounded UP to the
+     * nearest multiple of 6 (sixel's row-band height), so for any declared
+     * height that isn't itself a multiple of 6 (e.g. 200), max_y_band_end
+     * (204) would always appear "bigger" and silently inflate the canvas by
+     * up to 5 extra blank rows even though the raster attribute -- which
+     * real encoders compute exactly -- already says how tall the image
+     * actually is. A sixel stream legitimately containing more row-bands
+     * than declared is still handled safely: the paint pass below
+     * bounds-checks every write against `height`, so excess bands are just
+     * clipped, the same way a real terminal clips to the declared raster
+     * size. max_y_band_end is only used as a fallback when no raster
+     * attribute was sent at all (declared_h <= 0).
+     */
     int32_t height = declared_h > 0 ? declared_h : max_y_band_end;
     if (width <= 0 || height <= 0 ||
         (uint32_t)width > GHOSTCON_SIXEL_MAX_DIM ||
@@ -236,8 +238,9 @@ ghostcon_sixel_decode(ghostcon_sixel_state_t *st,
     uint8_t *pixels = malloc(pixel_len);
     if (!pixels)
         return;
-    /* Fill with the P2-determined default: transparent (alpha 0) or
-       opaque black -- see the P2 doc comment above. */
+    /* Fill with the P2-determined default: transparent (alpha 0) or opaque
+     * black -- see the P2 doc comment above.
+     */
     if (transparent_bg) {
         memset(pixels, 0, pixel_len);
     } else {
@@ -246,12 +249,13 @@ ghostcon_sixel_decode(ghostcon_sixel_state_t *st,
         }
     }
 
-    /* Second pass: actually paint. Registers start undefined (black,
-       per this module's decoupled-from-screen-state posture -- see
-       parse_color_intro's own doc comment); every real-world encoder
-       defines every register it uses before selecting it, so this
-       only matters for a pathological stream that selects a register
-       it never defined. */
+    /* Second pass: actually paint. Registers start undefined (black, per
+     * this module's decoupled-from-screen-state posture -- see
+     * parse_color_intro's own doc comment); every real-world encoder
+     * defines every register it uses before selecting it, so this only
+     * matters for a pathological stream that selects a register it never
+     * defined.
+     */
     color_reg_t regs[GHOSTCON_SIXEL_COLOR_REGISTERS];
     memset(regs, 0, sizeof regs);
     int current_reg = 0;

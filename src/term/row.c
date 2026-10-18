@@ -77,9 +77,10 @@ ghostcon_row_fill(ghostcon_row_t *row, ghostcon_cell_t fill) {
     ghostcon_row_fill_range(row, 0, row->cols, fill);
 
     /* A fully-cleared row is a fresh blank row: reset wrap state too
-       (matches Ghostty's clearRows/scroll semantics where ED and scroll
-       erase produce unwrapped rows). EL/ECH go through row_clear_range
-       and intentionally preserve wrap. */
+     * (matches Ghostty's clearRows/scroll semantics where ED and scroll
+     * erase produce unwrapped rows). EL/ECH go through row_clear_range and
+     * intentionally preserve wrap.
+     */
     row->wrap = false;
     row->wrap_continuation = false;
 }

@@ -2,16 +2,14 @@
 #include "ghostcon/term/cell_symbol_table.h"
 #include <stddef.h>
 
-/* ------------------------------------------------------------------ */
-/* Unicode display width                                               */
-/*                                                                     */
-/* Based on Markus Kuhn's classic wcwidth() implementation (public     */
-/* domain), used by the majority of terminal emulators. Returns the    */
-/* cell width a codepoint occupies: 0 (combining/zero-width), 1, or 2. */
-/* Ghostty uses a UCD-derived table; this table mirrors Kuhn's wcwidth  */
-/* wide/fullwidth + combining ranges, matching Ghostty for practical   */
-/* input.                                                              */
-/* ------------------------------------------------------------------ */
+/* Unicode display width
+ *
+ * Based on Markus Kuhn's classic wcwidth() implementation (public domain),
+ * used by the majority of terminal emulators. Returns the cell width a
+ * codepoint occupies: 0 (combining/zero-width), 1, or 2. Ghostty uses a
+ * UCD-derived table; this table mirrors Kuhn's wcwidth wide/fullwidth +
+ * combining ranges, matching Ghostty for practical input.
+ */
 
 typedef struct { uint32_t lo, hi; } gc_width_range_t;
 
@@ -55,7 +53,8 @@ static const gc_width_range_t gc_combining[] = {
 };
 
 /* East Asian wide/fullwidth ranges (from Markus Kuhn's wcwidth, which
-   Ghostty's UCD-derived table agrees with for practical input). */
+ * Ghostty's UCD-derived table agrees with for practical input).
+ */
 static const gc_width_range_t gc_wide[] = {
     {0x1100,0x115F}, {0x231A,0x231B}, {0x2329,0x232A}, {0x23E9,0x23EC},
     {0x23F0,0x23F0}, {0x23F3,0x23F3}, {0x25FD,0x25FE}, {0x2614,0x2615},
@@ -132,20 +131,21 @@ ghostcon_unicode_width(uint32_t cp) {
 }
 
 /* See cell.h's doc comment. ghostcon_generated_symbol_ranges[] (in
-   cell_symbol_table.gen.c, produced by tools/gen_symbol_table.py from
-   the UCD) covers real Unicode General Category Sm/Sc/Sk/So, matching
-   Ghostty's UCD-derived isSymbol(). Two hand-added carve-outs sit on
-   top of that generated data, for reasons the UCD can't express:
-
-   - U+2500-259F (Box Drawing, Block Elements) IS genuinely category So
-     in the UCD, so it appears in the generated table -- but it must be
-     excluded here regardless, because those codepoints are rendered
-     procedurally by render/box_draw.c and must never reach the
-     font-glyph/symbol-constraint path this classification feeds.
-   - U+E000-F8FF (Private Use Area, incl. Nerd Font icons/Powerline)
-     is category Co (Private Use), NOT Symbol, so it's absent from the
-     generated table -- but is added back here since those glyphs need
-     the same fit-to-cell treatment in practice. */
+ * cell_symbol_table.gen.c, produced by tools/gen_symbol_table.py from the
+ * UCD) covers real Unicode General Category Sm/Sc/Sk/So, matching Ghostty's
+ * UCD-derived isSymbol(). Two hand-added carve-outs sit on top of that
+ * generated data, for reasons the UCD can't express:
+ *
+ * - U+2500-259F (Box Drawing, Block Elements) IS genuinely category So in
+ *   the UCD, so it appears in the generated table -- but it must be
+ *   excluded here regardless, because those codepoints are rendered
+ *   procedurally by render/box_draw.c and must never reach the
+ *   font-glyph/symbol-constraint path this classification feeds. -
+ *   U+E000-F8FF (Private Use Area, incl. Nerd Font icons/Powerline) is
+ *   category Co (Private Use), NOT Symbol, so it's absent from the
+ *   generated table -- but is added back here since those glyphs need the
+ *   same fit-to-cell treatment in practice.
+ */
 bool
 ghostcon_cell_is_symbol(uint32_t cp) {
     if (cp >= 0x2500 && cp <= 0x259F) {

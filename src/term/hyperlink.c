@@ -5,7 +5,8 @@
 #include <string.h>
 
 /* Mirrors style.c's open-addressing ref-counted set exactly -- see
-   hyperlink.h's doc comment for why. */
+ * hyperlink.h's doc comment for why.
+ */
 
 #define HYPERLINK_SET_MIN_CAPACITY 16
 #define HYPERLINK_ID_MAX 0x7FFF

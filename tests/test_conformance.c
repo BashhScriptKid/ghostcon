@@ -6,13 +6,12 @@ static void feed(ghostcon_term_t *t, const char *s) {
     ghostcon_term_feed(t, (const uint8_t *)s, strlen(s));
 }
 
-/* ================================================================== */
-/* Symbol / graphics-element classification                            */
-/*                                                                     */
-/* Feeds the codepoints found live to genuinely overflow cell_w at the */
-/* configured font size (U+2299, U+25C9, U+25CE, and the actual Nerd   */
-/* Font git-pull-request octicon U+F407) plus boundary/negative cases. */
-/* ================================================================== */
+/* Symbol / graphics-element classification
+ *
+ * Feeds the codepoints found live to genuinely overflow cell_w at the
+ * configured font size (U+2299, U+25C9, U+25CE, and the actual Nerd Font
+ * git-pull-request octicon U+F407) plus boundary/negative cases.
+ */
 
 TEST(cell_is_symbol_classification) {
     ASSERT(ghostcon_cell_is_symbol(0x2299), "U+2299 CIRCLED DOT OPERATOR (Math Operators)");
@@ -33,9 +32,7 @@ TEST(cell_is_symbol_classification) {
     ASSERT(!ghostcon_cell_is_graphics_element(0x25C9), "an ordinary symbol (not designed to tile) is not a graphics element");
 }
 
-/* ================================================================== */
-/* Basic text                                                          */
-/* ================================================================== */
+/* Basic text */
 
 TEST(basic_text) {
     ghostcon_term_t t;
@@ -87,9 +84,7 @@ TEST(text_full_screen) {
     ghostcon_term_deinit(&t);
 }
 
-/* ================================================================== */
-/* Cursor movement                                                     */
-/* ================================================================== */
+/* Cursor movement */
 
 TEST(cursor_up) {
     ghostcon_term_t t;
@@ -120,15 +115,15 @@ TEST(cursor_down) {
 }
 
 TEST(cursor_up_down_scroll_region_no_origin_mode) {
-    /* CUU/CUD clamp to the scroll region only under origin mode
-       (DECOM) -- with it off (the default, and the common case: most
-       apps never set DECOM), they must clamp to the FULL screen, not
-       the scroll region. Real bug found live: a status line reserved
-       via a scroll region that excludes the last 2 rows, combined
-       with the well-known "CSI H then a large CSI B" idiom for
-       jumping to the absolute screen bottom, landed 2 rows short of
-       where CUP/VPA-based positioning to that same row correctly
-       landed -- the same text rendered on two different rows. */
+    /* CUU/CUD clamp to the scroll region only under origin mode (DECOM) --
+     * with it off (the default, and the common case: most apps never set
+     * DECOM), they must clamp to the FULL screen, not the scroll region.
+     * Real bug found live: a status line reserved via a scroll region that
+     * excludes the last 2 rows, combined with the well-known "CSI H then a
+     * large CSI B" idiom for jumping to the absolute screen bottom, landed
+     * 2 rows short of where CUP/VPA-based positioning to that same row
+     * correctly landed -- the same text rendered on two different rows.
+     */
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[1;22r");   /* DECSTBM: scroll region rows 1-22 (0-based 0-21), reserving the last 2 rows */
@@ -143,9 +138,10 @@ TEST(cursor_up_down_scroll_region_no_origin_mode) {
 }
 
 TEST(cursor_up_down_scroll_region_with_origin_mode) {
-    /* Same setup, but WITH origin mode on: now CUU/CUD correctly DO
-       clamp to the scroll region -- this is the one case the
-       pre-fix code accidentally got right, so it must stay correct. */
+    /* Same setup, but WITH origin mode on: now CUU/CUD correctly DO clamp
+     * to the scroll region -- this is the one case the pre-fix code
+     * accidentally got right, so it must stay correct.
+     */
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[1;22r");   /* scroll region rows 1-22 (0-based 0-21) */
@@ -159,13 +155,14 @@ TEST(cursor_up_down_scroll_region_with_origin_mode) {
 }
 
 TEST(cursor_next_line_below_scroll_region_does_not_scroll) {
-    /* CNL (CSI E) real bug: incrementing cursor.y then checking
-       `> scroll_region.bottom` fired even when the cursor started
-       BELOW the scroll region entirely (e.g. a fixed status/input
-       area a TUI deliberately excludes from the region) -- spuriously
-       scrolling the main content on every redraw of that fixed area.
-       Fix mirrors soft_wrap()'s correct `==` check: only scroll if the
-       cursor was actually AT the region's bottom edge before moving. */
+    /* CNL (CSI E) real bug: incrementing cursor.y then checking `>
+     * scroll_region.bottom` fired even when the cursor started BELOW the
+     * scroll region entirely (e.g. a fixed status/input area a TUI
+     * deliberately excludes from the region) -- spuriously scrolling the
+     * main content on every redraw of that fixed area. Fix mirrors
+     * soft_wrap()'s correct `==` check: only scroll if the cursor was
+     * actually AT the region's bottom edge before moving.
+     */
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[1;22r");   /* scroll region rows 1-22 (0-based 0-21), reserving the last 2 rows */
@@ -180,8 +177,9 @@ TEST(cursor_next_line_below_scroll_region_does_not_scroll) {
 
 TEST(cursor_next_line_at_scroll_region_bottom_still_scrolls) {
     /* Regression guard: the one case that must still scroll (cursor
-       genuinely at the region's bottom edge) keeps working after the
-       fix above. */
+     * genuinely at the region's bottom edge) keeps working after the fix
+     * above.
+     */
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[1;22r");
@@ -285,9 +283,7 @@ TEST(cursor_horizontal_abs) {
     ghostcon_term_deinit(&t);
 }
 
-/* ================================================================== */
-/* Erase                                                               */
-/* ================================================================== */
+/* Erase */
 
 TEST(erase_display_from_cursor) {
     ghostcon_term_t t;
@@ -378,9 +374,7 @@ TEST(erase_line_all) {
     ghostcon_term_deinit(&t);
 }
 
-/* ================================================================== */
-/* Line wrapping                                                       */
-/* ================================================================== */
+/* Line wrapping */
 
 TEST(wrapping_basic) {
     ghostcon_term_t t;
@@ -464,9 +458,7 @@ TEST(ed_complete_clears_wrap) {
     ghostcon_term_deinit(&t);
 }
 
-/* ================================================================== */
-/* Scroll regions                                                      */
-/* ================================================================== */
+/* Scroll regions */
 
 TEST(scroll_region_basic) {
     ghostcon_term_t t;
@@ -499,9 +491,7 @@ TEST(scroll_region_reset) {
     ghostcon_term_deinit(&t);
 }
 
-/* ================================================================== */
-/* Alt screen                                                          */
-/* ================================================================== */
+/* Alt screen */
 
 TEST(alt_screen_basic) {
     ghostcon_term_t t;
@@ -517,9 +507,7 @@ TEST(alt_screen_basic) {
     ghostcon_term_deinit(&t);
 }
 
-/* ================================================================== */
-/* Tab stops                                                           */
-/* ================================================================== */
+/* Tab stops */
 
 TEST(tab_stops_basic) {
     ghostcon_term_t t;
@@ -540,9 +528,7 @@ TEST(tab_stops_clear_set) {
     ghostcon_term_deinit(&t);
 }
 
-/* ================================================================== */
-/* SGR attributes                                                      */
-/* ================================================================== */
+/* SGR attributes */
 
 TEST(sgr_bold) {
     ghostcon_term_t t;
@@ -623,9 +609,7 @@ TEST(sgr_truecolor) {
     ghostcon_term_deinit(&t);
 }
 
-/* ================================================================== */
-/* OSC sequences                                                       */
-/* ================================================================== */
+/* OSC sequences */
 
 TEST(osc_window_title) {
     ghostcon_term_t t;
@@ -664,9 +648,7 @@ TEST(osc_invalid_ignored) {
     ghostcon_term_deinit(&t);
 }
 
-/* ================================================================== */
-/* Modes                                                               */
-/* ================================================================== */
+/* Modes */
 
 TEST(dec_private_modes) {
     ghostcon_term_t t;
@@ -697,9 +679,7 @@ TEST(ansi_mode_irm) {
     ghostcon_term_deinit(&t);
 }
 
-/* ================================================================== */
-/* Synchronized output                                                 */
-/* ================================================================== */
+/* Synchronized output */
 
 TEST(synchronized_output) {
     ghostcon_term_t t;
@@ -712,9 +692,7 @@ TEST(synchronized_output) {
     ghostcon_term_deinit(&t);
 }
 
-/* ================================================================== */
-/* DCS passthrough                                                     */
-/* ================================================================== */
+/* DCS passthrough */
 
 TEST(dcs_passthrough) {
     ghostcon_term_t t;
@@ -725,9 +703,7 @@ TEST(dcs_passthrough) {
     ghostcon_term_deinit(&t);
 }
 
-/* ================================================================== */
-/* Scrollback                                                          */
-/* ================================================================== */
+/* Scrollback */
 
 TEST(scrollback_basic) {
     ghostcon_term_t t;
@@ -756,9 +732,7 @@ TEST(scrollback_size) {
     ghostcon_term_deinit(&t);
 }
 
-/* ================================================================== */
-/* Edge cases                                                          */
-/* ================================================================== */
+/* Edge cases */
 
 TEST(empty_input) {
     ghostcon_term_t t;
@@ -826,9 +800,7 @@ TEST(repeated_resize) {
     ghostcon_term_deinit(&t);
 }
 
-/* ================================================================== */
-/* Insert/Delete/Erase chars                                           */
-/* ================================================================== */
+/* Insert/Delete/Erase chars */
 
 TEST(insert_chars) {
     ghostcon_term_t t;
@@ -874,16 +846,16 @@ TEST(delete_chars) {
 
 TEST(insert_delete_chars_cursor_past_margin_is_noop) {
     /* Hardening regression: absolute CUP is NOT constrained to
-       margin_region.right (only to cols-1 -- see
-       ghostcon_screen_cursor_set()), so an app can legitimately
-       position the cursor past an active DECSLRM margin before
-       issuing ICH/DCH. An earlier version of both handlers computed
-       their clamped count through unsigned/narrowing arithmetic that
-       depended on incidental wraparound cancellation to stay safe in
-       exactly this case, rather than an explicit guard -- this locks
-       in the correct behavior (a no-op) so a future edit that removes
-       that fragile cancellation can't silently reintroduce
-       out-of-bounds cell access. */
+     * margin_region.right (only to cols-1 -- see
+     * ghostcon_screen_cursor_set()), so an app can legitimately position
+     * the cursor past an active DECSLRM margin before issuing ICH/DCH. An
+     * earlier version of both handlers computed their clamped count through
+     * unsigned/narrowing arithmetic that depended on incidental wraparound
+     * cancellation to stay safe in exactly this case, rather than an
+     * explicit guard -- this locks in the correct behavior (a no-op) so a
+     * future edit that removes that fragile cancellation can't silently
+     * reintroduce out-of-bounds cell access.
+     */
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 192, 49, 500), "init");
     feed(&t, "\x1b[?69h");     /* DECLRMM on */
@@ -898,15 +870,15 @@ TEST(insert_delete_chars_cursor_past_margin_is_noop) {
 
 TEST(erase_display_scroll_complete_no_double_free) {
     /* Fuzzer-found (hardening plan #5, libFuzzer over ghostcon_term_feed):
-       minimized to 4 bytes, ESC[4J (GC_ERASE_DISPLAY_SCROLL_COMPLETE).
-       push_history() steals a row's cells by struct-copying the
-       pointer into a history slot without nulling the source -- the
-       handler discarded the freshly-allocated replacement row instead
-       of assigning it back, so s->rows[] and s->history[] both ended
-       up owning the same buffer. Crashed under ASAN as a double-free
-       on deinit; ran clean (undetected corruption) without a
-       sanitizer. Locks in that erasing+scrolling the whole display
-       doesn't corrupt row ownership. */
+     * minimized to 4 bytes, ESC[4J (GC_ERASE_DISPLAY_SCROLL_COMPLETE).
+     * push_history() steals a row's cells by struct-copying the pointer
+     * into a history slot without nulling the source -- the handler
+     * discarded the freshly-allocated replacement row instead of assigning
+     * it back, so s->rows[] and s->history[] both ended up owning the same
+     * buffer. Crashed under ASAN as a double-free on deinit; ran clean
+     * (undetected corruption) without a sanitizer. Locks in that
+     * erasing+scrolling the whole display doesn't corrupt row ownership.
+     */
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 20, 10, 500), "init");
     feed(&t, "hello");
@@ -916,18 +888,18 @@ TEST(erase_display_scroll_complete_no_double_free) {
 }
 
 TEST(reverse_index_above_scroll_region_does_not_go_negative) {
-    /* Fuzzer-found (hardening plan #5): minimized to 9 bytes --
-       ESC[3r (DECSTBM, homes cursor to screen row 0 since origin mode
-       is off, which sits ABOVE the new scroll region's top of row 2),
-       then C1 RI (0x8D) mid-escape. ghostcon_screen_reverse_index()
-       only scrolled when cursor.y == scroll_region.top; anywhere else
-       it decremented cursor.y with no lower bound. A cursor above the
-       region's top (this exact case) walked cursor.y negative, and
-       row_idx()'s modulo on a negative index turned the next put_char
-       into a wild out-of-bounds s->rows[] access -- a real SEGV, not
-       just an ASAN-flagged one. Locks in that RI above the scroll
-       region clamps at the same floor ghostcon_screen_cursor_up()
-       already uses, instead of walking past it. */
+    /* Fuzzer-found (hardening plan #5): minimized to 9 bytes --ESC[3r
+     * (DECSTBM, homes cursor to screen row 0 since origin mode is off,
+     * which sits ABOVE the new scroll region's top of row 2), then C1 RI
+     * (0x8D) mid-escape. ghostcon_screen_reverse_index() only scrolled when
+     * cursor.y == scroll_region.top; anywhere else it decremented cursor.y
+     * with no lower bound. A cursor above the region's top (this exact
+     * case) walked cursor.y negative, and row_idx()'s modulo on a negative
+     * index turned the next put_char into a wild out-of-bounds s->rows[]
+     * access -- a real SEGV, not just an ASAN-flagged one. Locks in that RI
+     * above the scroll region clamps at the same floor
+     * ghostcon_screen_cursor_up() already uses, instead of walking past it.
+     */
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 20, 10, 500), "init");
     static const uint8_t crash_bytes[] = {
@@ -938,18 +910,18 @@ TEST(reverse_index_above_scroll_region_does_not_go_negative) {
 }
 
 TEST(cursor_relative_move_huge_param_does_not_reverse_direction) {
-    /* Fuzzer-found (hardening plan #5): minimized to 9 bytes --
-       ESC[64614aS (HPR with a huge count, same handler as CUF, then a
-       literal 'S'). ghostcon_screen_cursor_right()/_left()/_up()/
-       _down() all cast the raw uint16_t n straight to int16_t before
-       the add -- for n >= 32768 that wraps negative, silently
-       reversing the direction, and each function only ever clamped
-       the bound it expected to hit from the correct direction. HPR
-       with n=64614 walked cursor.x to -922 with no lower-bound check;
-       the next printable character then wrote clean off the front of
-       the row's cells array (a real heap-buffer-underflow, not just
-       an ASAN-flagged one). Locks in that a huge count in either
-       direction clamps to the screen instead. */
+    /* Fuzzer-found (hardening plan #5): minimized to 9 bytes --ESC[64614aS
+     * (HPR with a huge count, same handler as CUF, then a literal 'S').
+     * ghostcon_screen_cursor_right()/_left()/_up()/ _down() all cast the
+     * raw uint16_t n straight to int16_t before the add -- for n >= 32768
+     * that wraps negative, silently reversing the direction, and each
+     * function only ever clamped the bound it expected to hit from the
+     * correct direction. HPR with n=64614 walked cursor.x to -922 with no
+     * lower-bound check; the next printable character then wrote clean off
+     * the front of the row's cells array (a real heap-buffer-underflow, not
+     * just an ASAN-flagged one). Locks in that a huge count in either
+     * direction clamps to the screen instead.
+     */
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     static const uint8_t crash_bytes[] = {
@@ -972,15 +944,16 @@ TEST(cursor_relative_move_huge_param_does_not_reverse_direction) {
 
 TEST(scroll_region_huge_param_is_clamped_to_screen) {
     /* Hardening regression: DECSTBM/DECSLRM only guarded against a
-       *negative* top/bottom/left/right (which only ever happens via
-       an int16_t wrap from a huge param) -- a mid-range param like
-       30000 on a small screen stayed positive and got stored into
-       scroll_region/margin_region completely unclamped against the
-       actual row/col count. region_height computed from that feeds
-       a per-line malloc loop in scroll_up/down (ghostcon_row_init per
-       iteration) -- one escape sequence could turn into an unbounded
-       allocation storm. Locks in that a huge region param clamps to
-       the actual screen instead. */
+     * negative* top/bottom/left/right (which only ever happens via an
+     * int16_t wrap from a huge param) -- a mid-range param like 30000 on a
+     * small screen stayed positive and got stored into
+     * scroll_region/margin_region completely unclamped against the actual
+     * row/col count. region_height computed from that feeds a per-line
+     * malloc loop in scroll_up/down (ghostcon_row_init per iteration) --
+     * one escape sequence could turn into an unbounded allocation storm.
+     * Locks in that a huge region param clamps to the actual screen
+     * instead.
+     */
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 20, 10, 500), "init");
     feed(&t, "\x1b[1;30000r"); /* DECSTBM: bottom way past rows_visible (10) */
@@ -995,12 +968,13 @@ TEST(scroll_region_huge_param_is_clamped_to_screen) {
 
 TEST(insert_delete_lines_huge_param_is_clamped_not_corrupted) {
     /* Hardening regression: an earlier version of both handlers cast an
-       unclamped n (up to UINT16_MAX) straight into int16_t loop-bound
-       arithmetic (e.g. `top + (int16_t)n`) -- for n >= 32768 that cast
-       wraps negative, corrupting the loop bounds and walking far outside
-       the valid row range. Locks in that a huge IL/DL count is instead
-       clamped to the scroll region's actual height and behaves exactly
-       like a full-region clear, not a crash. */
+     * unclamped n (up to UINT16_MAX) straight into int16_t loop-bound
+     * arithmetic (e.g. `top + (int16_t)n`) -- for n >= 32768 that cast
+     * wraps negative, corrupting the loop bounds and walking far outside
+     * the valid row range. Locks in that a huge IL/DL count is instead
+     * clamped to the scroll region's actual height and behaves exactly like
+     * a full-region clear, not a crash.
+     */
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 20, 10, 500), "init");
     feed(&t, "\x1b[3;7r");      /* DECSTBM region rows 3-7 (0-based 2-6) */
@@ -1020,9 +994,10 @@ TEST(insert_delete_lines_huge_param_is_clamped_not_corrupted) {
 
 TEST(csi_loop_handlers_huge_param_does_not_hang) {
     /* REP/CNL/CPL/CHT/CBT drive a per-step loop directly off a raw CSI
-       param (up to UINT16_MAX). Locks in that a huge count is clamped
-       to something bounded by the screen instead of looping 65535 times
-       synchronously in the render/input loop. */
+     * param (up to UINT16_MAX). Locks in that a huge count is clamped to
+     * something bounded by the screen instead of looping 65535 times
+     * synchronously in the render/input loop.
+     */
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 20, 10, 500), "init");
     feed(&t, "x");
@@ -1053,9 +1028,7 @@ TEST(erase_chars) {
     ghostcon_term_deinit(&t);
 }
 
-/* ================================================================== */
-/* Insert/Delete lines                                                 */
-/* ================================================================== */
+/* Insert/Delete lines */
 
 TEST(insert_lines) {
     ghostcon_term_t t;
@@ -1087,9 +1060,7 @@ TEST(delete_lines) {
     ghostcon_term_deinit(&t);
 }
 
-/* ================================================================== */
-/* Scroll up/down                                                      */
-/* ================================================================== */
+/* Scroll up/down */
 
 TEST(scroll_up) {
     ghostcon_term_t t;
@@ -1119,9 +1090,7 @@ TEST(scroll_down) {
     ghostcon_term_deinit(&t);
 }
 
-/* ================================================================== */
-/* SCOSC / SCORC (CSI s / CSI u)                                       */
-/* ================================================================== */
+/* SCOSC / SCORC (CSI s / CSI u) */
 
 TEST(save_restore_cursor_csi) {
     ghostcon_term_t t;
@@ -1135,9 +1104,7 @@ TEST(save_restore_cursor_csi) {
     ghostcon_term_deinit(&t);
 }
 
-/* ================================================================== */
-/* DECSLRM (CSI s with params) + DECLRMM (mode 69)                     */
-/* ================================================================== */
+/* DECSLRM (CSI s with params) + DECLRMM (mode 69) */
 
 TEST(set_left_right_margin) {
     ghostcon_term_t t;
@@ -1158,9 +1125,7 @@ TEST(set_left_right_margin_requires_mode) {
     ghostcon_term_deinit(&t);
 }
 
-/* ================================================================== */
-/* CSI intermediate discrimination                                     */
-/* ================================================================== */
+/* CSI intermediate discrimination */
 
 TEST(decsca) {
     ghostcon_term_t t;
@@ -1328,9 +1293,7 @@ TEST(decrqm_parses_without_side_effects) {
     ghostcon_term_deinit(&t);
 }
 
-/* ================================================================== */
-/* Missing CSI finals: REP, CHT, CBT, HPA(`), VPA(d), HPR(a), VPR(e)  */
-/* ================================================================== */
+/* Missing CSI finals: REP, CHT, CBT, HPA(`), VPA(d), HPR(a), VPR(e) */
 
 TEST(repeat_character) {
     ghostcon_term_t t;
@@ -1430,9 +1393,7 @@ TEST(vpr_cursor_down) {
     ghostcon_term_deinit(&t);
 }
 
-/* ================================================================== */
-/* Output channel: DA1, DA2, DA3, DSR, DECRQM                         */
-/* ================================================================== */
+/* Output channel: DA1, DA2, DA3, DSR, DECRQM */
 
 TEST(da1_response) {
     ghostcon_term_t t;
@@ -1524,15 +1485,14 @@ TEST(decrqm_unknown) {
     ghostcon_term_deinit(&t);
 }
 
-/* ================================================================== */
-/* CSI parameter robustness                                            */
-/* ================================================================== */
+/* CSI parameter robustness */
 
 TEST(csi_too_many_params) {
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     /* 30 params >= GC_STREAM_MAX_PARAMS (24) — Ghostty drops the entire
-       sequence (csiDispatchFinal returns before dispatch). */
+     * sequence (csiDispatchFinal returns before dispatch).
+     */
     feed(&t, "\x1b[1;2;3;4;5;6;7;8;9;10;11;12;13;14;15;16;17;18;19;20;21;22;23;24;25;26;27;28;29;30H");
     ASSERT_CURSOR(t, 0, 0, "over-parameterized CUP ignored");
     ghostcon_term_deinit(&t);
@@ -1575,9 +1535,7 @@ TEST(csi_param_overflow) {
     ghostcon_term_deinit(&t);
 }
 
-/* ================================================================== */
-/* UTF-8 decoding                                                      */
-/* ================================================================== */
+/* UTF-8 decoding */
 
 TEST(utf8_basic) {
     ghostcon_term_t t;
@@ -1666,8 +1624,9 @@ TEST(utf8_partially_invalid_ghostty_parity) {
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     /* Mirror of Ghostty's UTF8Decoder "Partially invalid utf-8" test:
-       \xF0\x9F😄\xED\xA0\x80 -> FFFD, 1F604, FFFD, FFFD, FFFD.
-       😄 (U+1F604) is width 2, so it occupies two cells. */
+     * \xF0\x9F😄\xED\xA0\x80 -> FFFD, 1F604, FFFD, FFFD, FFFD.
+     * 😄 (U+1F604) is width 2, so it occupies two cells.
+     */
     feed(&t, "\xF0\x9F" "\xF0\x9F\x98\x84" "\xED\xA0\x80");
     ASSERT_CELL(t, 0, 0, 0xFFFD, "truncated 4-byte lead");
     ASSERT_CELL(t, 1, 0, 0x1F604, "😄 decodes");
@@ -1683,8 +1642,9 @@ TEST(utf8_partially_invalid_ghostty_parity) {
 TEST(utf8_wide_at_margin) {
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
-    /* 79 'A's fill cols 0-78 (cursor at 79, pending wrap), then a wide
-       char wraps to the next line. */
+    /* 79 'A's fill cols 0-78 (cursor at 79, pending wrap), then a wide char
+     * wraps to the next line.
+     */
     char buf[80];
     memset(buf, 'A', 79);
     ghostcon_term_feed(&t, (const uint8_t *)buf, 79);
@@ -1723,9 +1683,7 @@ TEST(utf8_lone_c1_replaced) {
     ghostcon_term_deinit(&t);
 }
 
-/* ================================================================== */
-/* Main — runs all registered tests                                    */
-/* ================================================================== */
+/* Main — runs all registered tests */
 
 int main(void) {
     return gc_test_run_all();

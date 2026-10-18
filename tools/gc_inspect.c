@@ -91,9 +91,10 @@ cursor_style_name(ghostcon_cursor_style_t style)
     return "?";
 }
 
-/* Prints `cp` as a UTF-8 sequence inside the single quotes of the
-   char='' field, escaping anything non-printable as \xNN so one cell
-   always occupies exactly one output line. */
+/* Prints `cp` as a UTF-8 sequence inside the single quotes of the char=''
+ * field, escaping anything non-printable as \xNN so one cell always
+ * occupies exactly one output line.
+ */
 static void
 print_char_field(uint32_t cp)
 {
@@ -173,8 +174,9 @@ dump_cells(ghostcon_screen_t *s)
                                  : 0);
             printf(" cp=0x%x tag=%s", ghostcon_cell_get_codepoint(c), tag_name(tag));
 
-            /* The content tag's own payload -- the field the old dump
-               paths omitted, and the whole reason this tool exists. */
+            /* The content tag's own payload -- the field the old dump paths
+             * omitted, and the whole reason this tool exists.
+             */
             if (tag == GHOSTCON_CELL_BG_COLOR_PALETTE) {
                 printf(" content=PALETTE:%u", ghostcon_cell_get_palette_idx(c));
             } else if (tag == GHOSTCON_CELL_BG_COLOR_RGB) {
@@ -269,9 +271,10 @@ main(int argc, char **argv)
         return 1;
     }
 
-    /* Terminal-generated replies (DA/DSR/OSC queries) have nowhere to
-       go in an offline inspection: leave the output callback unset,
-       which the stream treats as "drop". */
+    /* Terminal-generated replies (DA/DSR/OSC queries) have nowhere to go in
+     * an offline inspection: leave the output callback unset, which the
+     * stream treats as "drop".
+     */
     bool ok = feed_file(&term, path);
     if (ok) {
         if (offset > 0)

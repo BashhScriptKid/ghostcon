@@ -3,9 +3,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-/* ------------------------------------------------------------------ */
-/* Cell content tag (2 bits)                                          */
-/* ------------------------------------------------------------------ */
+/* Cell content tag (2 bits) */
 typedef enum {
     GHOSTCON_CELL_CODEPOINT         = 0, /* single codepoint (or empty) */
     GHOSTCON_CELL_CODEPOINT_GRAPHEME = 1, /* first cp of multi-cp grapheme */
@@ -33,23 +31,22 @@ typedef struct {
     uint8_t r, g, b;
 } ghostcon_rgb_t;
 
-/* ------------------------------------------------------------------ */
-/* Cell: 8-byte packed representation (matching Ghostty's Cell)       */
-/*                                                                     */
-/* Memory layout (64 bits total):                                      */
-/*   bits  0- 1: content_tag                                          */
-/*   bits  2-25: content (u24: codepoint u21, or RGB, or palette idx) */
-/*   bits 26-40: style_id (15 bits, 0 = default)                      */
-/*   bits 41-42: wide (2 bits)                                        */
-/*   bit     43: protected                                            */
-/*   bit     44: (unused, formerly a 1-bit hyperlink flag -- replaced  */
-/*                by the 15-bit hyperlink_id field below since a bare  */
-/*                bool can't distinguish which hyperlink a cell is in) */
-/*   bits 45-46: semantic_content (2 bits)                             */
-/*   bits 47-61: hyperlink_id (15 bits, 0 = no hyperlink, same width   */
-/*                and 0-is-default convention as style_id)             */
-/*   bits 62-63: padding                                              */
-/* ------------------------------------------------------------------ */
+/* Cell: 8-byte packed representation (matching Ghostty's Cell)
+ *
+ * Memory layout (64 bits total):
+ * bits  0- 1: content_tag
+ * bits  2-25: content (u24: codepoint u21, or RGB, or palette idx)
+ * bits 26-40: style_id (15 bits, 0 = default)
+ * bits 41-42: wide (2 bits)
+ * bit     43: protected
+ * bit     44: (unused, formerly a 1-bit hyperlink flag -- replaced
+ * by the 15-bit hyperlink_id field below since a bare
+ * bool can't distinguish which hyperlink a cell is in)
+ * bits 45-46: semantic_content (2 bits)
+ * bits 47-61: hyperlink_id (15 bits, 0 = no hyperlink, same width
+ * and 0-is-default convention as style_id)
+ * bits 62-63: padding
+ */
 typedef struct {
     uint64_t raw;
 } ghostcon_cell_t;
@@ -78,9 +75,7 @@ typedef uint16_t ghostcon_style_id_t;
 /* Codepoint extracted from content field */
 #define GC_CELL_MAX_CODEPOINT 0x1FFFFF
 
-/* ------------------------------------------------------------------ */
-/* Inline accessors                                                    */
-/* ------------------------------------------------------------------ */
+/* Inline accessors */
 
 static inline ghostcon_cell_content_tag_t
 ghostcon_cell_get_tag(ghostcon_cell_t c) {
@@ -240,44 +235,42 @@ static inline ghostcon_cell_t ghostcon_cell_make(uint32_t codepoint) {
 uint8_t ghostcon_unicode_width(uint32_t codepoint);
 
 /* Matches Ghostty's isSymbol() (renderer/cell.zig): Unicode General
-   Category "Symbol" (Sm/Sc/Sk/So), sourced from a real UCD-generated
-   table (src/term/cell_symbol_table.gen.c, produced by
-   tools/gen_symbol_table.py from third_party/UnicodeData.txt -- same
-   approach Ghostty itself uses, just codegen'd ahead of time here
-   instead of at their build time). Two hand-added carve-outs sit on
-   top of the generated data for reasons the UCD can't express: Box
-   Drawing/Block Elements (U+2500-259F) are excluded even though
-   they're genuinely category So, because those are rendered
-   procedurally by render/box_draw.c; the Private Use Area
-   (U+E000-F8FF, where Nerd Font icons live) is included even though
-   it's category Co (not Symbol), because those glyphs need the same
-   treatment in practice. See ghostcon_cell_is_symbol()'s doc comment
-   in cell.c for the exact logic.
-
-   This exists because a "symbol" character is correctly single-width
-   per ghostcon_unicode_width() (matching the reference terminal
-   exactly -- confirmed live), but the actual installed font's glyph
-   for it can rasterize physically wider than one cell (common for
-   icon/dingbat-style glyphs, especially in Nerd Fonts) -- found live:
-   a Nerd Font's "pull request" icon and several Geometric
-   Shapes/Mathematical-Operators circle glyphs (U+2299, U+25C9,
-   U+25CE, and the actual git-pull-request octicon U+F407) all
-   measured wider than cell_w at the configured font size. Used by
-   render/machine.c to decide which glyphs need the context-aware
-   fit-to-cell(s) treatment (see ghostcon_cell_is_graphics_element()
-   below and machine.c's symbol_constraint_width()) instead of being
-   drawn at native size like ordinary text. */
+ * Category "Symbol" (Sm/Sc/Sk/So), sourced from a real UCD-generated table
+ * (src/term/cell_symbol_table.gen.c, produced by tools/gen_symbol_table.py
+ * from third_party/UnicodeData.txt -- same approach Ghostty itself uses,
+ * just codegen'd ahead of time here instead of at their build time). Two
+ * hand-added carve-outs sit on top of the generated data for reasons the
+ * UCD can't express: Box Drawing/Block Elements (U+2500-259F) are excluded
+ * even though they're genuinely category So, because those are rendered
+ * procedurally by render/box_draw.c; the Private Use Area (U+E000-F8FF,
+ * where Nerd Font icons live) is included even though it's category Co (not
+ * Symbol), because those glyphs need the same treatment in practice. See
+ * ghostcon_cell_is_symbol()'s doc comment in cell.c for the exact logic.
+ *
+ * This exists because a "symbol" character is correctly single-width per
+ * ghostcon_unicode_width() (matching the reference terminal exactly --
+ * confirmed live), but the actual installed font's glyph for it can
+ * rasterize physically wider than one cell (common for icon/dingbat-style
+ * glyphs, especially in Nerd Fonts) -- found live: a Nerd Font's "pull
+ * request" icon and several Geometric Shapes/Mathematical-Operators circle
+ * glyphs (U+2299, U+25C9, U+25CE, and the actual git-pull-request octicon
+ * U+F407) all measured wider than cell_w at the configured font size. Used
+ * by render/machine.c to decide which glyphs need the context-aware
+ * fit-to-cell(s) treatment (see ghostcon_cell_is_graphics_element() below
+ * and machine.c's symbol_constraint_width()) instead of being drawn at
+ * native size like ordinary text.
+ */
 bool ghostcon_cell_is_symbol(uint32_t codepoint);
 
-/* Codepoint ranges whose glyphs are specifically designed to tile/
-   connect edge-to-edge across adjacent cells: Legacy Computing
-   (sextants etc.) and Powerline glyphs. Box-drawing (U+2500-257F) and
-   block elements (U+2580-259F) are NOT included here -- they're
-   already rendered procedurally at exactly cell_w/cell_h by
-   render/box_draw.c and never reach the font-glyph path this
-   distinction matters for at all. Mirrors Ghostty's
-   isGraphicsElement(): used only to exempt these from the "previous
-   cell was also a symbol -> constrain to 1 cell" rule in
-   machine.c's symbol_constraint_width(), since squeezing a
-   tiling glyph down would visibly break the tiling. */
+/* Codepoint ranges whose glyphs are specifically designed to tile/ connect
+ * edge-to-edge across adjacent cells: Legacy Computing (sextants etc.) and
+ * Powerline glyphs. Box-drawing (U+2500-257F) and block elements
+ * (U+2580-259F) are NOT included here -- they're already rendered
+ * procedurally at exactly cell_w/cell_h by render/box_draw.c and never
+ * reach the font-glyph path this distinction matters for at all. Mirrors
+ * Ghostty's isGraphicsElement(): used only to exempt these from the
+ * "previous cell was also a symbol -> constrain to 1 cell" rule in
+ * machine.c's symbol_constraint_width(), since squeezing a tiling glyph
+ * down would visibly break the tiling.
+ */
 bool ghostcon_cell_is_graphics_element(uint32_t codepoint);

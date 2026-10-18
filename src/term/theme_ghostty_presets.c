@@ -1,10 +1,10 @@
-/* GENERATED FILE -- do not hand-edit.
-   Produced from Ghostty's own bundled theme files (one-time codegen,
-   see tools/gen_ghostty_themes.py) for real Ghostty theme-name parity --
-   a `theme = "..."` value copied verbatim out of a real Ghostty config
-   resolves to the exact same colors here. Case-sensitive exact match,
-   same as Ghostty's own theme names. Looked up as a fallback AFTER
-   theme.c's own small curated preset list. */
+/* GENERATED FILE -- do not hand-edit. Produced from Ghostty's own bundled
+ * theme files (one-time codegen, see tools/gen_ghostty_themes.py) for real
+ * Ghostty theme-name parity --a `theme = "..."` value copied verbatim out
+ * of a real Ghostty config resolves to the exact same colors here.
+ * Case-sensitive exact match, same as Ghostty's own theme names. Looked up
+ * as a fallback AFTER theme.c's own small curated preset list.
+ */
 
 #include "ghostcon/term/theme.h"
 

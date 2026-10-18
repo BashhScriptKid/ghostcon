@@ -47,12 +47,13 @@ now_ms(void)
     return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1e6;
 }
 
-/* Builds one full-screen redraw: CSI H (cursor home, what a TUI does
-   before repainting) then `rows` lines of SGR-colored, varied-glyph
-   content filling every column -- same content-generation approach as
-   bench_render.c's fill_scrollback(), for the same reason (real color/
-   glyph variety, not a degenerate single-repeated-byte case). Returns
-   bytes written. */
+/* Builds one full-screen redraw: CSI H (cursor home, what a TUI does before
+ * repainting) then `rows` lines of SGR-colored, varied-glyph content
+ * filling every column -- same content-generation approach as
+ * bench_render.c's fill_scrollback(), for the same reason (real color/
+ * glyph variety, not a degenerate single-repeated-byte case). Returns bytes
+ * written.
+ */
 static size_t
 build_one_screen(char *out, size_t out_cap, uint16_t cols, uint16_t rows, int screen_idx)
 {
@@ -94,7 +95,8 @@ main(int argc, char **argv)
     }
 
     /* Pre-generate all screens' bytes up front so the timed loop below
-       measures ONLY parse throughput, not this synthesis work. */
+     * measures ONLY parse throughput, not this synthesis work.
+     */
     char **screen_data = malloc((size_t)screens * sizeof(char *));
     size_t *screen_len = malloc((size_t)screens * sizeof(size_t));
     size_t total_bytes = 0;
@@ -110,10 +112,11 @@ main(int argc, char **argv)
     printf("bench_parse: %ux%u cells, %d synthetic full-screen redraws, %zu bytes total\n",
            cols, rows, screens, total_bytes);
 
-    /* Feed everything through in READ_CHUNK-sized pieces, spanning
-       screen boundaries arbitrarily (a real pty read has no idea where
-       one TUI redraw ends and the next begins either) -- flatten into
-       one contiguous buffer first so chunking is exact. */
+    /* Feed everything through in READ_CHUNK-sized pieces, spanning screen
+     * boundaries arbitrarily (a real pty read has no idea where one TUI
+     * redraw ends and the next begins either) -- flatten into one
+     * contiguous buffer first so chunking is exact.
+     */
     char *all = malloc(total_bytes);
     size_t off = 0;
     for (int i = 0; i < screens; i++) {

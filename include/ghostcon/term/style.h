@@ -4,14 +4,13 @@
 #include <stdbool.h>
 #include "cell.h"
 
-/* ------------------------------------------------------------------ */
-/* Style — text attributes for a cell                                 */
-/*                                                                     */
-/* Each cell references a style via ghostcon_style_id_t (15-bit).      */
-/* style_id 0 = default style (no attributes, default fg/bg colors).   */
-/*                                                                     */
-/* Style flags map 1:1 to Ghostty's style.zig attributes.             */
-/* ------------------------------------------------------------------ */
+/* Style — text attributes for a cell
+ *
+ * Each cell references a style via ghostcon_style_id_t (15-bit). style_id 0
+ * = default style (no attributes, default fg/bg colors).
+ *
+ * Style flags map 1:1 to Ghostty's style.zig attributes.
+ */
 
 #define GC_STYLE_DEFAULT_ID 0
 
@@ -68,12 +67,11 @@ static inline bool ghostcon_style_eq(const ghostcon_style_t *a, const ghostcon_s
            a->underline == b->underline;
 }
 
-/* ------------------------------------------------------------------ */
-/* StyleSet — a ref-counted set of styles                             */
-/*                                                                     */
-/* Simplified version of Ghostty's StyleSet (RefCountedSet).           */
-/* Maps ghostcon_style_id_t → ghostcon_style_t with reference counts. */
-/* ------------------------------------------------------------------ */
+/* StyleSet — a ref-counted set of styles
+ *
+ * Simplified version of Ghostty's StyleSet (RefCountedSet). Maps
+ * ghostcon_style_id_t → ghostcon_style_t with reference counts.
+ */
 typedef struct ghostcon_style_set ghostcon_style_set_t;
 
 /* Create a style set with initial capacity */
@@ -82,8 +80,9 @@ ghostcon_style_set_t *ghostcon_style_set_create(uint16_t capacity);
 /* Destroy a style set */
 void ghostcon_style_set_destroy(ghostcon_style_set_t *set);
 
-/* Add a style, returning its ID. If the style already exists, increments refcount. */
-/* Returns GC_STYLE_DEFAULT_ID if style == default. */
+/* Add a style, returning its ID. If the style already exists, increments
+ * refcount. Returns GC_STYLE_DEFAULT_ID if style == default.
+ */
 ghostcon_style_id_t ghostcon_style_set_add(ghostcon_style_set_t *set, const ghostcon_style_t *style);
 
 /* Increment refcount for an existing ID */

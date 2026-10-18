@@ -26,9 +26,7 @@
 
 #include "ghostcon/term/stream.h"
 
-/* ------------------------------------------------------------------ */
-/* CSI parameter access                                                */
-/* ------------------------------------------------------------------ */
+/* CSI parameter access */
 
 /* Parse a collected CSI parameter. Returns default if empty. */
 static inline int
@@ -43,18 +41,20 @@ param(ghostcon_stream_t *st, int idx, int def) {
 #define PARAM2(st, def) param(st, 1, def)
 
 /* Ghostty drops CSI sequences whose parameter count doesn't match the
-   handler's expected range (stream.zig `switch (input.params.len)` with
-   an `else => return`). mirror that here. */
+ * handler's expected range (stream.zig `switch (input.params.len)` with an
+ * `else => return`). mirror that here.
+ */
 static inline bool
 csi_param_count(ghostcon_stream_t *st, uint8_t minc, uint8_t maxc) {
     return st->params_idx >= minc && st->params_idx <= maxc;
 }
 
-/* A raw CSI param can be up to UINT16_MAX (65535). Handlers that apply
-   it via an O(n) per-step loop (rather than O(1) arithmetic or a single
-   memmove) must not loop that many times just to hang synchronously in
-   the single-threaded render/input loop -- clamp to the largest count
-   that can still change anything observable. */
+/* A raw CSI param can be up to UINT16_MAX (65535). Handlers that apply it
+ * via an O(n) per-step loop (rather than O(1) arithmetic or a single
+ * memmove) must not loop that many times just to hang synchronously in the
+ * single-threaded render/input loop -- clamp to the largest count that can
+ * still change anything observable.
+ */
 static inline int
 clamp_loop_count(int n, int max_useful) {
     if (n > max_useful) return max_useful;
@@ -62,9 +62,7 @@ clamp_loop_count(int n, int max_useful) {
     return n;
 }
 
-/* ------------------------------------------------------------------ */
-/* Output channel helper                                               */
-/* ------------------------------------------------------------------ */
+/* Output channel helper */
 
 static inline void
 stream_output(ghostcon_stream_t *st, const char *s) {
@@ -72,17 +70,16 @@ stream_output(ghostcon_stream_t *st, const char *s) {
         st->output_fn(st->output_userdata, (const uint8_t *)s, strlen(s));
 }
 
-/* ------------------------------------------------------------------ */
-/* Cross-module dispatch entry points                                  */
-/* ------------------------------------------------------------------ */
+/* Cross-module dispatch entry points */
 
 typedef void (*gc_stream_csi_handler_t)(ghostcon_stream_t *,
                                         ghostcon_screen_t *);
 
 /* Looks up the handler for a completed CSI sequence (final byte +
-   accumulated intermediates/params). Returns NULL for unknown/invalid
-   combinations. The state machine invokes the returned handler, so
-   handlers may live file-static in stream_csi.c. */
+ * accumulated intermediates/params). Returns NULL for unknown/invalid
+ * combinations. The state machine invokes the returned handler, so handlers
+ * may live file-static in stream_csi.c.
+ */
 gc_stream_csi_handler_t
 gc_stream_csi_dispatch(ghostcon_stream_t *st, uint8_t final_byte);
 
@@ -91,5 +88,6 @@ void gc_stream_apc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s);
 void gc_stream_dcs_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s);
 
 /* Grows st->buf to fit one more byte (up to the DCS cap). Only the
-   DCS_PASSTHROUGH state machine state calls this -- see stream.c. */
+ * DCS_PASSTHROUGH state machine state calls this -- see stream.c.
+ */
 bool gc_stream_dcs_buf_grow(ghostcon_stream_t *st);

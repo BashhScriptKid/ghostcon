@@ -70,8 +70,9 @@ main(int argc, char **argv)
         return 1;
     }
 
-    /* Dirty-tracked view: what the real renderer would show, one text
-       line per row, updated only for rows the dirty region covers. */
+    /* Dirty-tracked view: what the real renderer would show, one text line
+     * per row, updated only for rows the dirty region covers.
+     */
     char **dirty_view = malloc(rows * sizeof(char *));
     for (uint16_t y = 0; y < rows; y++) {
         dirty_view[y] = malloc((size_t)cols + 1);
@@ -98,10 +99,11 @@ main(int argc, char **argv)
             ghostcon_screen_clear_dirty(&term.screen);
         }
 
-        /* Transient content-duplication check, done EVERY chunk (not
-           just at the end) -- the reported symptom disappears once
-           later output overwrites it, so checking only the final
-           state would miss it entirely. */
+        /* Transient content-duplication check, done EVERY chunk (not just
+         * at the end) -- the reported symptom disappears once later output
+         * overwrites it, so checking only the final state would miss it
+         * entirely.
+         */
         {
             char lines[512][512];
             for (uint16_t y = 0; y < rows && y < 512; y++)
@@ -124,8 +126,9 @@ main(int argc, char **argv)
         chunk_idx++;
     }
 
-    /* Final comparison: dirty_view (what real rendering accumulated)
-       vs. the screen's true final content (unconditional read-back). */
+    /* Final comparison: dirty_view (what real rendering accumulated) vs.
+     * the screen's true final content (unconditional read-back).
+     */
     int mismatches = 0;
     for (uint16_t y = 0; y < rows; y++) {
         row_to_text(&term.screen, y, true_line, cols);
@@ -151,12 +154,12 @@ main(int argc, char **argv)
     (void)first_mismatch_chunk;
 
     /* Content-duplication check (separate from dirty-tracking above):
-       reported symptom is the SAME text appearing on two rows -- a
-       content-placement bug (wrong cursor/scroll math during parsing),
-       not a stale-redraw bug, so it'd show up in the TRUE state itself,
-       not just the dirty-view/true-view diff above. Scan every row
-       pair within a few lines of each other for near-duplicate
-       non-blank content. */
+     * reported symptom is the SAME text appearing on two rows -- a
+     * content-placement bug (wrong cursor/scroll math during parsing), not
+     * a stale-redraw bug, so it'd show up in the TRUE state itself, not
+     * just the dirty-view/true-view diff above. Scan every row pair within
+     * a few lines of each other for near-duplicate non-blank content.
+     */
     printf("\n--- content-duplication scan ---\n");
     char lines[512][512];
     for (uint16_t y = 0; y < rows && y < 512; y++)

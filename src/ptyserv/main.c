@@ -50,12 +50,13 @@ static char g_pty_child_path_canonical[4096]; /* g_pty_child_path, realpath()-re
 static char g_registry_dir[GHOSTCON_PTYSERV_LINE_MAX];
 
 /* Resolves `name` relative to this executable's own directory (via
-   /proc/self/exe) instead of trusting PATH -- this normally runs under
-   pkexec, which resets the environment (including PATH) for security,
-   so a bare name silently fails to exec. Same fix as
-   undead_head/main.c and supervisor/main.c; found the same way, one
-   binary later (pty-ttyN wasn't covered by that earlier fix). Falls
-   back to the bare name only if /proc/self/exe itself is unavailable. */
+ * /proc/self/exe) instead of trusting PATH -- this normally runs under
+ * pkexec, which resets the environment (including PATH) for security, so a
+ * bare name silently fails to exec. Same fix as undead_head/main.c and
+ * supervisor/main.c; found the same way, one binary later (pty-ttyN wasn't
+ * covered by that earlier fix). Falls back to the bare name only if
+ * /proc/self/exe itself is unavailable.
+ */
 static void
 resolve_sibling_path(char *out, size_t out_len, const char *name)
 {
@@ -77,14 +78,15 @@ resolve_sibling_path(char *out, size_t out_len, const char *name)
 }
 
 /* Sidecar pidfile path for a VT's pty-ttyN, alongside its socket
-   (<dir>/pty-tty<N>.pid next to <dir>/pty-tty<N>.sock). Lets a
-   restarted ghost-ptyserv recognize an already-running, still-live
-   pty-ttyN (see spawn_pty_child()'s reuse path below) without needing
-   to touch its renderer-facing socket at all -- connecting to that
-   socket just to test liveness was considered and rejected: pty_child.c
-   treats any new connection as "the renderer reconnected" and replaces
-   (closes) whatever was already connected, so a bare liveness probe
-   would kick out a real, working renderer connection. */
+ * (<dir>/pty-tty<N>.pid next to <dir>/pty-tty<N>.sock). Lets a restarted
+ * ghost-ptyserv recognize an already-running, still-live pty-ttyN (see
+ * spawn_pty_child()'s reuse path below) without needing to touch its
+ * renderer-facing socket at all -- connecting to that socket just to test
+ * liveness was considered and rejected: pty_child.c treats any new
+ * connection as "the renderer reconnected" and replaces (closes) whatever
+ * was already connected, so a bare liveness probe would kick out a real,
+ * working renderer connection.
+ */
 static void
 pid_file_path(char *out, size_t out_len, int vtnum)
 {
@@ -92,10 +94,11 @@ pid_file_path(char *out, size_t out_len, int vtnum)
 }
 
 /* Returns the still-alive pid recorded in `path`, or -1 if the file is
-   missing, unreadable, names a dead pid, or names a pid that's no
-   longer actually pty-ttyN (the /proc/<pid>/exe cross-check closes the
-   pid-reuse edge case: a long-dead entry's pid could have since been
-   recycled by an unrelated process). */
+ * missing, unreadable, names a dead pid, or names a pid that's no longer
+ * actually pty-ttyN (the /proc/<pid>/exe cross-check closes the pid-reuse
+ * edge case: a long-dead entry's pid could have since been recycled by an
+ * unrelated process).
+ */
 static pid_t
 read_live_pid_file(const char *path)
 {
@@ -129,7 +132,8 @@ read_live_pid_file(const char *path)
 }
 
 /* Writes `pid` to `path` via a temp-file-then-rename, so a reader never
-   observes a partially-written pid. */
+ * observes a partially-written pid.
+ */
 static void
 write_pid_file(const char *path, pid_t pid)
 {
@@ -169,11 +173,12 @@ spawn_pty_child(int vtnum)
     pid_file_path(pid_path, sizeof(pid_path), vtnum);
 
     /* If a pty-ttyN for this VT is already alive (this ghost-ptyserv
-       instance itself was restarted -- e.g. after a crash -- while a
-       previous one's children kept running independently: see
-       pty_child.c's own setpgid(0,0)), reuse it instead of spawning a
-       duplicate. A duplicate would orphan the real, possibly-mid-use
-       shell session behind a socket the registry no longer points to. */
+     * instance itself was restarted -- e.g. after a crash -- while a
+     * previous one's children kept running independently: see pty_child.c's
+     * own setpgid(0,0)), reuse it instead of spawning a duplicate. A
+     * duplicate would orphan the real, possibly-mid-use shell session
+     * behind a socket the registry no longer points to.
+     */
     pid_t existing = read_live_pid_file(pid_path);
     if (existing > 0) {
         e->pid = existing;
@@ -289,9 +294,10 @@ main(int argc, char **argv)
             spawning fresh, same as today's behavior */
 
     /* Best-effort: the registry socket's directory (typically
-       /run/ghostcon, whose real deployment would get this from a
-       systemd tmpfiles.d rule -- no such infra here yet) may not exist.
-       bind() below fails with ENOENT if it doesn't. */
+     * /run/ghostcon, whose real deployment would get this from a systemd
+     * tmpfiles.d rule -- no such infra here yet) may not exist. bind()
+     * below fails with ENOENT if it doesn't.
+     */
     mkdir(g_registry_dir, 0755);
 
     signal(SIGPIPE, SIG_IGN);

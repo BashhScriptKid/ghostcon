@@ -107,10 +107,11 @@ main(void)
     printf("PASS: bidirectional byte flow over transport\n");
 
     ghostcon_transport_close(&t);
-    /* pty-ttyN is ghost-ptyserv's child, not ours -- SIGTERM on
-       ptyserv_pid doesn't touch it, and it holds a dup'd stdout fd
-       from fork() that would otherwise keep the test harness waiting
-       on this process's output pipe forever after we exit. */
+    /* pty-ttyN is ghost-ptyserv's child, not ours -- SIGTERM on ptyserv_pid
+     * doesn't touch it, and it holds a dup'd stdout fd from fork() that
+     * would otherwise keep the test harness waiting on this process's
+     * output pipe forever after we exit.
+     */
     kill(t.pty_child_pid, SIGTERM);
     kill(ptyserv_pid, SIGTERM);
     waitpid(ptyserv_pid, NULL, 0);

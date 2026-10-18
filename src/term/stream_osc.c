@@ -6,34 +6,32 @@
 #include <string.h>
 #include <stdio.h>
 
-/* ------------------------------------------------------------------ */
-/* OSC dispatch (see stream_internal.h)                                */
-/*                                                                     */
-/* Split out of stream.c per PLAN.md "Phase 2": OSC 4/10/11/12/104,     */
-/* 7, 8, 9/777, 52, 133/633 live in the manual number tier below;      */
-/* everything else falls through to the libghostty-vt classification   */
-/* loop at the bottom of this file.                                    */
-/* ------------------------------------------------------------------ */
+/* OSC dispatch (see stream_internal.h)
+ *
+ * Split out of stream.c per PLAN.md "Phase 2": OSC 4/10/11/12/104, 7, 8,
+ * 9/777, 52, 133/633 live in the manual number tier below; everything else
+ * falls through to the libghostty-vt classification loop at the bottom of
+ * this file.
+ */
 
-/* ------------------------------------------------------------------ */
-/* OSC dispatch — manual (number-level) tier                          */
-/*                                                                     */
-/* The installed libghostty-vt's OSC C API only exposes coarse command */
-/* classification plus window-title text extraction (verified against */
-/* both the distro package and a from-source master build with        */
-/* -Demit-lib-vt=true — see color.h's own note). Everything else is    */
-/* parsed by us directly from st->buf, the raw NUL-terminated          */
-/* "N;p1;p2;..." OSC payload we already own from accumulating OSC      */
-/* bytes ourselves in the state machine below. This sidesteps the API's*/
-/* classification ambiguity too: e.g. OSC 4/10/11/12/104 (all color    */
-/* operations) collapse into one GHOSTTY_OSC_COMMAND_COLOR_OPERATION   */
-/* type with no way to tell them apart via the API — we just read the  */
-/* leading number ourselves instead.                                   */
-/* ------------------------------------------------------------------ */
+/* OSC dispatch — manual (number-level) tier
+ *
+ * The installed libghostty-vt's OSC C API only exposes coarse command
+ * classification plus window-title text extraction (verified against both
+ * the distro package and a from-source master build with -Demit-lib-vt=true
+ * — see color.h's own note). Everything else is parsed by us directly from
+ * st->buf, the raw NUL-terminated "N;p1;p2;..." OSC payload we already own
+ * from accumulating OSC bytes ourselves in the state machine below. This
+ * sidesteps the API's classification ambiguity too: e.g. OSC 4/10/11/12/104
+ * (all color operations) collapse into one
+ * GHOSTTY_OSC_COMMAND_COLOR_OPERATION type with no way to tell them apart
+ * via the API — we just read the leading number ourselves instead.
+ */
 
-/* Splits `buf` (length `len`, NUL-terminated) on ';' in place, writing
-   up to `max_fields` pointers into `fields`. fields[0] is always the
-   leading OSC number. Returns the field count. */
+/* Splits `buf` (length `len`, NUL-terminated) on ';' in place, writing up
+ * to `max_fields` pointers into `fields`. fields[0] is always the leading
+ * OSC number. Returns the field count.
+ */
 static int
 osc_split_fields(char *buf, uint16_t len, char **fields, int max_fields)
 {
@@ -49,12 +47,13 @@ osc_split_fields(char *buf, uint16_t len, char **fields, int max_fields)
 }
 
 /* OSC 52's payload is base64 -- rejects anything that isn't, rather than
-   storing (and later echoing back through a query) arbitrary garbage a
-   misbehaving program sent. Doesn't validate padding placement/length is
-   a multiple of 4 -- xterm itself is lenient about this, and being
-   stricter here would just make a legitimate-but-slightly-malformed
-   payload from some other terminal's app silently vanish instead of
-   being stored as-is, which is more surprising than useful. */
+ * storing (and later echoing back through a query) arbitrary garbage a
+ * misbehaving program sent. Doesn't validate padding placement/length is a
+ * multiple of 4 -- xterm itself is lenient about this, and being stricter
+ * here would just make a legitimate-but-slightly-malformed payload from
+ * some other terminal's app silently vanish instead of being stored as-is,
+ * which is more surprising than useful.
+ */
 static bool
 osc52_is_valid_base64(const char *s)
 {
@@ -80,14 +79,15 @@ uri_hex_nibble(char c)
 }
 
 /* Decodes an OSC 7 "report PWD" argument: either a bare path, or (the
-   common case, emitted by bash/zsh/fish's OSC 7 hooks) a
-   file://[host]/path URI. The host component is discarded -- this
-   terminal has no notion of "which host a path is valid on" beyond
-   "whichever one is currently attached", and xterm's own
-   recommendation is to accept it without validating against the
-   local hostname. Percent-encoded bytes are decoded; a lone/invalid
-   '%' escape is passed through literally rather than rejecting the
-   whole sequence, matching OSC 7's "best effort, advisory" spirit. */
+ * common case, emitted by bash/zsh/fish's OSC 7 hooks) a file://[host]/path
+ * URI. The host component is discarded -- this terminal has no notion of
+ * "which host a path is valid on" beyond "whichever one is currently
+ * attached", and xterm's own recommendation is to accept it without
+ * validating against the local hostname. Percent-encoded bytes are decoded;
+ * a lone/invalid '%' escape is passed through literally rather than
+ * rejecting the whole sequence, matching OSC 7's "best effort, advisory"
+ * spirit.
+ */
 static void
 osc7_decode_pwd(const char *arg, char *out, size_t out_len)
 {
@@ -125,22 +125,24 @@ osc_write_response(ghostcon_stream_t *st, const char *body)
 }
 
 /* Handles OSC numbers the manual tier owns. Returns true if `num` was
-   recognized (whether or not the specific field contents were valid —
-   a malformed field is silently ignored per the terminal's usual
-   "never crash on bad input" rule, not treated as "unrecognized OSC").
-   Returns false for anything this tier doesn't own, so the caller can
-   fall through to the ghostty_osc-based path (window title, and the
-   discard-and-log fallback for truly unrecognized sequences). */
+ * recognized (whether or not the specific field contents were valid — a
+ * malformed field is silently ignored per the terminal's usual "never crash
+ * on bad input" rule, not treated as "unrecognized OSC"). Returns false for
+ * anything this tier doesn't own, so the caller can fall through to the
+ * ghostty_osc-based path (window title, and the discard-and-log fallback
+ * for truly unrecognized sequences).
+ */
 static bool
 osc_dispatch_manual(ghostcon_stream_t *st, ghostcon_screen_t *s)
 {
     /* Work on a local copy, not st->buf directly: osc_split_fields()
-       mutates in place (';' -> '\0'), and if this OSC number turns out
-       not to be one we own, the caller falls through to the existing
-       ghostty_osc_next() loop over st->buf -- which needs the original
-       semicolons intact (e.g. window title "0;My Title" would parse as
-       corrupted "0\0My Title" otherwise). Payloads too long for this
-       are definitely not one of our small numeric OSC types anyway. */
+     * mutates in place (';' -> '\0'), and if this OSC number turns out not
+     * to be one we own, the caller falls through to the existing
+     * ghostty_osc_next() loop over st->buf -- which needs the original
+     * semicolons intact (e.g. window title "0;My Title" would parse as
+     * corrupted "0\0My Title" otherwise). Payloads too long for this are
+     * definitely not one of our small numeric OSC types anyway.
+     */
     char copy[1024];
     if (st->osc_len >= sizeof(copy))
         return false;
@@ -247,11 +249,12 @@ osc_dispatch_manual(ghostcon_stream_t *st, ghostcon_screen_t *s)
                     osc7_decode_pwd(fields[2] + 4, s->cwd, sizeof(s->cwd));
                 break;
             default:
-                /* 133;A/B/C/D cover FinalTerm; 633 additionally sends
-                   E (command line text) and others we don't yet store
-                   anywhere -- silently ignored, matches OSC 8's stub
-                   tier philosophy of "don't crash on the unsupported
-                   remainder of a spec". */
+                /* 133;A/B/C/D cover FinalTerm; 633 additionally sends E
+                 * (command line text) and others we don't yet store
+                 * anywhere -- silently ignored, matches OSC 8's stub tier
+                 * philosophy of "don't crash on the unsupported remainder
+                 * of a spec".
+                 */
                 break;
             }
         }
@@ -301,9 +304,7 @@ osc_dispatch_manual(ghostcon_stream_t *st, ghostcon_screen_t *s)
     }
 }
 
-/* ------------------------------------------------------------------ */
-/* OSC dispatch                                                       */
-/* ------------------------------------------------------------------ */
+/* OSC dispatch */
 
 void
 gc_stream_osc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s) {
@@ -333,10 +334,11 @@ gc_stream_osc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s) {
         break;
     }
     case GHOSTTY_OSC_COMMAND_SEMANTIC_PROMPT:
-        /* OSC 133 — handled above in osc_dispatch_manual() (OSC 633,
-           the VSCode superset, isn't classified by the library at all
-           since it isn't in GhosttyOscCommandType — it's caught purely
-           by number in the manual tier). */
+        /* OSC 133 — handled above in osc_dispatch_manual() (OSC 633, the
+         * VSCode superset, isn't classified by the library at all since it
+         * isn't in GhosttyOscCommandType — it's caught purely by number in
+         * the manual tier).
+         */
         break;
     case GHOSTTY_OSC_COMMAND_CLIPBOARD_CONTENTS: {
         /* OSC 52 — stub, needs ghostcon-ipc */
@@ -344,8 +346,9 @@ gc_stream_osc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s) {
     }
     case GHOSTTY_OSC_COMMAND_REPORT_PWD: {
         /* OSC 7 — handled above in osc_dispatch_manual(); the library
-           classifies the command but exposes none of its URI data,
-           same limitation as the color-operation tier. */
+         * classifies the command but exposes none of its URI data, same
+         * limitation as the color-operation tier.
+         */
         break;
     }
     case GHOSTTY_OSC_COMMAND_MOUSE_SHAPE: {
@@ -353,8 +356,9 @@ gc_stream_osc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s) {
         break;
     }
     case GHOSTTY_OSC_COMMAND_COLOR_OPERATION: {
-        /* OSC 4/10/11/12/104 — palette operations */
-        /* Stub: handled in Phase 1 with proper palette integration */
+        /* OSC 4/10/11/12/104 — palette operations Stub: handled in Phase 1
+         * with proper palette integration
+         */
         break;
     }
     case GHOSTTY_OSC_COMMAND_KITTY_COLOR_PROTOCOL:

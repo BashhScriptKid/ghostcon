@@ -11,9 +11,10 @@
 #include <unistd.h>
 
 /* Shared by ghostcon_egl_init (owns gbm_dev, creates its own render-only
-   gbm_surf) and ghostcon_egl_init_with_gbm (borrows both from the
-   caller, e.g. core/kms.c's scanout-capable surface). `borrowed_surf`
-   NULL means "create our own"; non-NULL means "wrap this one". */
+ * gbm_surf) and ghostcon_egl_init_with_gbm (borrows both from the caller,
+ * e.g. core/kms.c's scanout-capable surface). `borrowed_surf` NULL means
+ * "create our own"; non-NULL means "wrap this one".
+ */
 static bool
 init_common(ghostcon_egl_t *egl, struct gbm_surface *borrowed_surf,
             uint32_t width, uint32_t height)
@@ -83,14 +84,15 @@ init_common(ghostcon_egl_t *egl, struct gbm_surface *borrowed_surf,
     }
 
     /* An EGL_KHR_gl_colorspace-requested sRGB window surface was
-       investigated and dropped: confirmed live (enumerating all 160
-       EGL configs this display offers) that Mesa's radeonsi/GBM
-       driver advertises the extension string but doesn't honor
-       EGL_GL_COLORSPACE_SRGB_KHR for ANY window-surface config --
-       every attempt fails EGL_BAD_MATCH. Real linear-space rendering
-       is instead done via an offscreen sRGB-format FBO gles.c renders
-       into and blits from -- see its own doc comment -- which needs
-       nothing from this surface at all. */
+     * investigated and dropped: confirmed live (enumerating all 160 EGL
+     * configs this display offers) that Mesa's radeonsi/GBM driver
+     * advertises the extension string but doesn't honor
+     * EGL_GL_COLORSPACE_SRGB_KHR for ANY window-surface config --every
+     * attempt fails EGL_BAD_MATCH. Real linear-space rendering is instead
+     * done via an offscreen sRGB-format FBO gles.c renders into and blits
+     * from -- see its own doc comment -- which needs nothing from this
+     * surface at all.
+     */
     egl->surface = eglCreateWindowSurface(egl->display, config,
                                            (EGLNativeWindowType)egl->gbm_surf, NULL);
     if (egl->surface == EGL_NO_SURFACE) {

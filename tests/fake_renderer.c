@@ -85,15 +85,15 @@ main(int argc, char **argv)
         if (registry_socket && ghostcon_transport_connect(&transport, registry_socket, vtnum)) {
             fprintf(stderr, "PTY_CHILD_PID: %d\n", transport.pty_child_pid);
 
-            /* Check BEFORE write, deliberately: this only drains
-               whatever ghost-ptyserv's ring-buffer replay hands over
-               immediately on connect (see transport.h's own doc
-               comment on ghostcon_transport_connect()) -- i.e. output
-               from a PRIOR instance's session, not an echo of this
-               instance's own write below. That ordering is what makes
-               a "found" here actual proof of session continuity
-               across a hang/respawn cycle, not just proof that some
-               shell somewhere responds to input. */
+            /* Check BEFORE write, deliberately: this only drains whatever
+             * ghost-ptyserv's ring-buffer replay hands over immediately on
+             * connect (see transport.h's own doc comment on
+             * ghostcon_transport_connect()) -- i.e. output from a PRIOR
+             * instance's session, not an echo of this instance's own write
+             * below. That ordering is what makes a "found" here actual
+             * proof of session continuity across a hang/respawn cycle, not
+             * just proof that some shell somewhere responds to input.
+             */
             const char *check = getenv("FAKE_RENDERER_CHECK_MARKER");
             if (check) {
                 char buf[8192];

@@ -2,9 +2,7 @@
 
 #include <string.h>
 
-/* ------------------------------------------------------------------ */
-/* Shared helpers                                                      */
-/* ------------------------------------------------------------------ */
+/* Shared helpers */
 
 static void
 fill_rect(uint8_t *alpha, int cell_w, int cell_h,
@@ -19,9 +17,7 @@ fill_rect(uint8_t *alpha, int cell_w, int cell_h,
             alpha[y * cell_w + x] = v;
 }
 
-/* ------------------------------------------------------------------ */
-/* Block Elements, U+2580-259F                                         */
-/* ------------------------------------------------------------------ */
+/* Block Elements, U+2580-259F */
 
 static bool
 render_block_element(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
@@ -47,11 +43,12 @@ render_block_element(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
         return true;
     }
     if (cp >= 0x2591 && cp <= 0x2593) {
-        /* Shades: flat partial coverage rather than a dither pattern --
-           simpler, and blends fg/bg proportionally much like a real
-           terminal renderer's shade characters do at typical font
-           sizes; a per-pixel stipple was considered and skipped as
-           unnecessary complexity for this pass. */
+        /* Shades: flat partial coverage rather than a dither pattern
+         * --simpler, and blends fg/bg proportionally much like a real
+         * terminal renderer's shade characters do at typical font sizes; a
+         * per-pixel stipple was considered and skipped as unnecessary
+         * complexity for this pass.
+         */
         static const uint8_t shade[3] = { 64, 128, 192 };
         fill_rect(alpha, cell_w, cell_h, 0, 0, cell_w, cell_h, shade[cp - 0x2591]);
         return true;
@@ -77,16 +74,15 @@ render_block_element(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
     return false;
 }
 
-/* ------------------------------------------------------------------ */
-/* Legacy computing sextants, U+1FB00-1FB3B                            */
-/*                                                                     */
-/* Formula and bit layout taken directly from Ghostty's own source     */
-/* (src/font/sprite/draw/symbols_for_legacy_computing.zig,             */
-/* draw1FB00_1FB3B): the block enumerates all 64 on/off patterns of a  */
-/* 2x3 grid in ascending mask order, skipping mask 21 (the left        */
-/* column, already U+258C) and mask 42 (the right column, already      */
-/* U+2590) since those are representable by existing characters.       */
-/* ------------------------------------------------------------------ */
+/* Legacy computing sextants, U+1FB00-1FB3B
+ *
+ * Formula and bit layout taken directly from Ghostty's own source
+ * (src/font/sprite/draw/symbols_for_legacy_computing.zig, draw1FB00_1FB3B):
+ * the block enumerates all 64 on/off patterns of a 2x3 grid in ascending
+ * mask order, skipping mask 21 (the left column, already U+258C) and mask
+ * 42 (the right column, already U+2590) since those are representable by
+ * existing characters.
+ */
 
 static bool
 render_sextant(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
@@ -109,16 +105,15 @@ render_sextant(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
     return true;
 }
 
-/* ------------------------------------------------------------------ */
-/* Box drawing, U+2500-254B plus single-arm terminators U+2574-257B --  */
-/* pure-weight subset only (both light or both heavy per glyph, or a   */
-/* single arm for the terminators). Rounded corners (U+256D-2570) are  */
-/* handled separately below. Mixed-weight, double-line, dashed, and    */
-/* diagonal variants (U+254C-2573, U+257C+) are deliberately out of    */
-/* scope for this pass -- see box_draw.h's doc comment and PLAN.md --  */
-/* and fall through to the font atlas unchanged (same as before this   */
-/* file existed, not a regression).                                    */
-/* ------------------------------------------------------------------ */
+/* Box drawing, U+2500-254B plus single-arm terminators U+2574-257B
+ * --pure-weight subset only (both light or both heavy per glyph, or a
+ * single arm for the terminators). Rounded corners (U+256D-2570) are
+ * handled separately below. Mixed-weight, double-line, dashed, and diagonal
+ * variants (U+254C-2573, U+257C+) are deliberately out of scope for this
+ * pass -- see box_draw.h's doc comment and PLAN.md --and fall through to
+ * the font atlas unchanged (same as before this file existed, not a
+ * regression).
+ */
 
 typedef struct {
     uint32_t cp;
@@ -152,14 +147,14 @@ static const box_line_t BOX_LINES[] = {
     { 0x253C, 1, 1, 1, 1 }, /* ┼ */
     { 0x254B, 2, 2, 2, 2 }, /* ╋ */
 
-    /* Single-arm terminators, U+2574-2577/2578-257B -- found live: a
-       TUI border used U+2579 (a single short heavy upward tick, no
-       down arm) as a border cap/terminator, rendered via the font
-       fallback with its usual bearing gap, showing as a short
-       disconnected mark below the main vertical line. Only the
-       pure-weight ones (matching this table's existing scope) --
-       U+257C-257F mix light/heavy per direction and would need
-       per-arm thickness, not just per-glyph, so stay deferred. */
+    /* Single-arm terminators, U+2574-2577/2578-257B -- found live: a TUI
+     * border used U+2579 (a single short heavy upward tick, no down arm) as
+     * a border cap/terminator, rendered via the font fallback with its
+     * usual bearing gap, showing as a short disconnected mark below the
+     * main vertical line. Only the pure-weight ones (matching this table's
+     * existing scope) --U+257C-257F mix light/heavy per direction and would
+     * need per-arm thickness, not just per-glyph, so stay deferred.
+     */
     { 0x2574, 0, 0, 0, 1 }, /* ╴ light left */
     { 0x2575, 1, 0, 0, 0 }, /* ╵ light up */
     { 0x2576, 0, 1, 0, 0 }, /* ╶ light right */
@@ -206,20 +201,18 @@ render_box_line(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
     return true;
 }
 
-/* ------------------------------------------------------------------ */
-/* Rounded corners, U+256D-2570 (╭╮╯╰)                                  */
-/*                                                                     */
-/* Ghostty draws these as a stroked bezier curve (src/font/sprite/     */
-/* draw/box.zig's arc()) between two points that both sit exactly at   */
-/* radius r = min(cell_w,cell_h)/2 from the cell center -- i.e. the    */
-/* curve IS a true quarter-circle arc of that radius (the bezier is    */
-/* just how their vector canvas draws it), continuing as straight      */
-/* arms out to the cell edges beyond the arc's endpoints. Reproduced   */
-/* directly here as a circle-band test (squared distances, no libm     */
-/* dependency needed) rather than a bezier stroke -- mathematically    */
-/* the same curve, simpler for this renderer's plain rectangle-fill    */
-/* primitives. */
-/* ------------------------------------------------------------------ */
+/* Rounded corners, U+256D-2570 (╭╮╯╰)
+ *
+ * Ghostty draws these as a stroked bezier curve (src/font/sprite/
+ * draw/box.zig's arc()) between two points that both sit exactly at radius
+ * r = min(cell_w,cell_h)/2 from the cell center -- i.e. the curve IS a true
+ * quarter-circle arc of that radius (the bezier is just how their vector
+ * canvas draws it), continuing as straight arms out to the cell edges
+ * beyond the arc's endpoints. Reproduced directly here as a circle-band
+ * test (squared distances, no libm dependency needed) rather than a bezier
+ * stroke -- mathematically the same curve, simpler for this renderer's
+ * plain rectangle-fill primitives.
+ */
 
 static bool
 render_rounded_corner(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
@@ -253,8 +246,9 @@ render_rounded_corner(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
     else
         fill_rect(alpha, cell_w, cell_h, cx - half_t, 0, cx + half_t, cy - r, 255);
 
-    /* Arc: the quadrant of the circle (radius r, centered on cx,cy)
-       facing this corner's arm directions, stroked to light_t thick. */
+    /* Arc: the quadrant of the circle (radius r, centered on cx,cy) facing
+     * this corner's arm directions, stroked to light_t thick.
+     */
     int r_in = r - half_t, r_out = r + half_t;
     long r_in_sq = (long)r_in * r_in, r_out_sq = (long)r_out * r_out;
     for (int y = 0; y < cell_h; y++) {
@@ -279,11 +273,12 @@ ghostcon_box_draw_render(uint32_t codepoint, int cell_w, int cell_h, uint8_t *al
 {
     memset(alpha, 0, (size_t)cell_w * (size_t)cell_h);
 
-    /* Must precede the box-line check below: rounded corners
-       (U+256D-2570) fall inside that range's bounds, and box-line's
-       own table lookup would just return false for them (not in
-       BOX_LINES), silently skipping the procedural rounded-corner
-       path entirely if checked second. */
+    /* Must precede the box-line check below: rounded corners (U+256D-2570)
+     * fall inside that range's bounds, and box-line's own table lookup
+     * would just return false for them (not in BOX_LINES), silently
+     * skipping the procedural rounded-corner path entirely if checked
+     * second.
+     */
     if (codepoint >= 0x256d && codepoint <= 0x2570)
         return render_rounded_corner(codepoint, cell_w, cell_h, alpha);
     if (codepoint >= 0x2500 && codepoint <= 0x257b)

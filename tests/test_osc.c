@@ -136,8 +136,9 @@ main(void)
           "OSC 104 resets palette[1] to ANSI default");
 
     /* OSC 104 with no args: reset ALL (palette[2] was never touched, so
-       just confirm it's still correct after a full reset, and that
-       palette[1] -- explicitly set again first -- goes back too). */
+     * just confirm it's still correct after a full reset, and that
+     * palette[1] -- explicitly set again first -- goes back too).
+     */
     const char *setagain = "\x1b]4;1;#123456\x1b\\";
     ghostcon_term_feed(&term, (const uint8_t *)setagain, strlen(setagain));
     const char *resetall = "\x1b]104\x1b\\";
@@ -146,14 +147,16 @@ main(void)
     CHECK(c1_after_full_reset.r == 170 && c1_after_full_reset.g == 0 && c1_after_full_reset.b == 0,
           "OSC 104 (no args) resets every palette entry");
 
-    /* Window title (0/1/2) must still work -- the manual tier must not
-       have corrupted st->buf for OSC numbers it doesn't own. */
+    /* Window title (0/1/2) must still work -- the manual tier must not have
+     * corrupted st->buf for OSC numbers it doesn't own.
+     */
     const char *title = "\x1b]0;test title\x1b\\";
     ghostcon_term_feed(&term, (const uint8_t *)title, strlen(title));
-    /* No public API currently stores/exposes the title string (that's
-       OSC 0/2's own separate item, process-identity repurposing, not
-       yet implemented) -- this just needs to not crash or corrupt
-       subsequent parsing, which the next check verifies. */
+    /* No public API currently stores/exposes the title string (that's OSC
+     * 0/2's own separate item, process-identity repurposing, not yet
+     * implemented) -- this just needs to not crash or corrupt subsequent
+     * parsing, which the next check verifies.
+     */
     const char *set4_again = "\x1b]4;2;#abcdef\x1b\\";
     ghostcon_term_feed(&term, (const uint8_t *)set4_again, strlen(set4_again));
     GhosttyColorRgb c2 = ghostcon_palette_resolve(&term.screen.palette, 2);
@@ -161,7 +164,8 @@ main(void)
           "OSC 4 still works correctly after a window-title sequence");
 
     /* OSC 7: report PWD via file://host/path URI, host discarded,
-       percent-encoding decoded */
+     * percent-encoding decoded
+     */
     const char *pwd1 = "\x1b]7;file://myhost/home/user/My%20Docs\x1b\\";
     ghostcon_term_feed(&term, (const uint8_t *)pwd1, strlen(pwd1));
     CHECK(strcmp(term.screen.cwd, "/home/user/My Docs") == 0,
@@ -174,8 +178,9 @@ main(void)
           "OSC 7 accepts a bare path with no file:// wrapper");
 
     /* OSC 133: FinalTerm semantic prompt markers stamp cells as they're
-       printed. A: prompt start, B: input start, C: output start,
-       D[;code]: command finished (+ exit code). */
+     * printed. A: prompt start, B: input start, C: output start, D[;code]:
+     * command finished (+ exit code).
+     */
     CHECK(term.screen.semantic_current == GHOSTCON_CELL_SEMANTIC_OUTPUT,
           "semantic state starts as OUTPUT (default)");
     const char *p133_a = "\x1b]133;A\x1b\\";
@@ -214,8 +219,9 @@ main(void)
     CHECK(term.screen.semantic_last_exit_code == 127,
           "OSC 133;D;127 records a nonzero exit code");
 
-    /* OSC 633: VSCode superset -- same A/B/C/D letters, plus a
-       Cwd property report that should reuse OSC 7's path decoder. */
+    /* OSC 633: VSCode superset -- same A/B/C/D letters, plus a Cwd property
+     * report that should reuse OSC 7's path decoder.
+     */
     const char *p633_a = "\x1b]633;A\x1b\\";
     ghostcon_term_feed(&term, (const uint8_t *)p633_a, strlen(p633_a));
     CHECK(term.screen.semantic_current == GHOSTCON_CELL_SEMANTIC_PROMPT,
@@ -227,9 +233,10 @@ main(void)
           "OSC 633;P;Cwd=... updates screen.cwd via the OSC 7 decoder");
 
     /* OSC 0/2: the term layer hands the raw title string up through a
-       callback (ghostcon-core is the one that turns it into argv[0]/
-       PR_SET_NAME, which this term-level test has no business doing --
-       just verify the plumbing delivers the right string). */
+     * callback (ghostcon-core is the one that turns it into argv[0]/
+     * PR_SET_NAME, which this term-level test has no business doing --just
+     * verify the plumbing delivers the right string).
+     */
     g_title_called = false;
     g_title_buf[0] = '\0';
     ghostcon_term_set_title(&term, capture_title, NULL);
@@ -245,12 +252,13 @@ main(void)
           "OSC 2 delivers the title string via the same callback");
 
     /* Real bug found live: a title containing a UTF-8 character whose
-       encoding happens to contain byte 0x9C (also the C1 code for ST,
-       String Terminator -- e.g. U+2733 "✳", encoded E2 9C B3) got
-       truncated mid-payload, discarding the title AND leaking the
-       remaining bytes into the screen as literal printed text (a
-       real app's animated status title hit this exactly). Both
-       BEL- and ST-terminated forms must deliver the title intact. */
+     * encoding happens to contain byte 0x9C (also the C1 code for ST,
+     * String Terminator -- e.g. U+2733 "✳", encoded E2 9C B3) got truncated
+     * mid-payload, discarding the title AND leaking the remaining bytes
+     * into the screen as literal printed text (a real app's animated status
+     * title hit this exactly). Both BEL- and ST-terminated forms must
+     * deliver the title intact.
+     */
     ghostcon_term_feed(&term, (const uint8_t *)"\r\n", 2); /* known column 0 */
     int16_t emoji_row = term.screen.cursor.y;
     g_title_called = false;
@@ -272,8 +280,9 @@ main(void)
           "same, ST-terminated (ESC \\\\) form");
 
     /* OSC 8: hyperlink start/end round-trip. Start stamps subsequently
-       -printed cells with a nonzero hyperlink_id resolving back to the
-       URI via the interned hyperlink set; end (empty URI) resets to 0. */
+     * -printed cells with a nonzero hyperlink_id resolving back to the URI
+     * via the interned hyperlink set; end (empty URI) resets to 0.
+     */
     const char *reset_row = "\r\n"; /* known column 0 -- earlier tests
         left the cursor mid-row, so indexing rows[0].cells[N] directly
         would check the wrong cell */
@@ -300,11 +309,12 @@ main(void)
           "OSC 8 end (empty URI) resets hyperlink_id to 0 for later text");
 
     /* OSC 9/777: no public storage to inspect (stub tier delivers via a
-       callback core/main.c logs to journald) -- just confirm it's
-       recognized/handled (returns true from osc_dispatch_manual) rather
-       than falling through to the discard path, by checking it doesn't
-       disturb subsequent parsing, same regression style as the
-       window-title check above. */
+     * callback core/main.c logs to journald) -- just confirm it's
+     * recognized/handled (returns true from osc_dispatch_manual) rather
+     * than falling through to the discard path, by checking it doesn't
+     * disturb subsequent parsing, same regression style as the window-title
+     * check above.
+     */
     const char *notify9 = "\x1b]9;hello from OSC 9\x1b\\";
     ghostcon_term_feed(&term, (const uint8_t *)notify9, strlen(notify9));
     const char *notify777 = "\x1b]777;notify;summary;hello from OSC 777\x1b\\";
@@ -333,11 +343,11 @@ main(void)
     CHECK(strcmp(term.screen.clipboard, "aGVsbG8=") == 0,
           "OSC 52 rejects a non-base64 payload, leaving the old value stored");
 
-    /* Kitty keyboard protocol CSI u variants -- shares the plain 'u'
-       final byte with DECRC (CSI u, no intermediate), distinguished by
-       the leading intermediate byte (>/</=/?), same convention DEC
-       private modes (?h/?l) already use to tell themselves apart from
-       ANSI ones. */
+    /* Kitty keyboard protocol CSI u variants -- shares the plain 'u' final
+     * byte with DECRC (CSI u, no intermediate), distinguished by the
+     * leading intermediate byte (>/</=/?), same convention DEC private
+     * modes (?h/?l) already use to tell themselves apart from ANSI ones.
+     */
     CHECK(ghostcon_kitty_current(&term.screen.kitty) == 0,
           "kitty protocol starts disabled");
 
@@ -368,8 +378,9 @@ main(void)
     CHECK(ghostcon_kitty_current(&term.screen.kitty) == 0,
           "CSI < 1 u pops back to the pre-push stack entry (never written, still 0)");
 
-    /* Plain CSI u (no intermediate) must still mean DECRC, unaffected
-       by any of the kitty-protocol dispatch added above. */
+    /* Plain CSI u (no intermediate) must still mean DECRC, unaffected by
+     * any of the kitty-protocol dispatch added above.
+     */
     ghostcon_screen_cursor_set(&term.screen, 3, 3);
     ghostcon_screen_cursor_save(&term.screen);
     ghostcon_screen_cursor_set(&term.screen, 7, 7);

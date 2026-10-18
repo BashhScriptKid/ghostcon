@@ -52,12 +52,12 @@ utf8_encode(uint32_t cp, char *buf) {
 static void
 print_cp(uint32_t cp, const char *label) {
     char utf8[5] = {0};
-    /* U+D800-DFFF are UTF-16 surrogates -- not valid Unicode scalar
-       values, so encoding one as UTF-8 would emit garbage bytes that
-       could desync a paste into a real terminal. is_symbol() itself
-       operates on raw uint32_t with no such restriction, so the
-       classification call below still runs -- only the printed glyph
-       is substituted. */
+    /* U+D800-DFFF are UTF-16 surrogates -- not valid Unicode scalar values,
+     * so encoding one as UTF-8 would emit garbage bytes that could desync a
+     * paste into a real terminal. is_symbol() itself operates on raw
+     * uint32_t with no such restriction, so the classification call below
+     * still runs -- only the printed glyph is substituted.
+     */
     if (cp >= 0xD800 && cp <= 0xDFFF) {
         snprintf(utf8, sizeof(utf8), "?");
     } else {

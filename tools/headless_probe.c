@@ -98,8 +98,9 @@ main(int argc, char **argv)
         _exit(127);
     }
 
-    /* Drain the pty into the term model until the child's initial
-       draw settles (no output for a bit) or settle_ms total elapses. */
+    /* Drain the pty into the term model until the child's initial draw
+     * settles (no output for a bit) or settle_ms total elapses.
+     */
     ghostcon_term_t term;
     if (!ghostcon_term_init(&term, cols, rows, 0)) {
         fprintf(stderr, "FAIL: ghostcon_term_init\n");
@@ -111,12 +112,13 @@ main(int argc, char **argv)
     fcntl(master_fd, F_SETFL, flags | O_NONBLOCK);
 
     if (start_small) {
-        /* Give the child a moment to start up at the placeholder size,
-           then deliver a REAL size change (not a same-size no-op) --
-           this is what a real windowed terminal typically does (pty
-           created at a default/placeholder size, then resized once
-           the actual window geometry is known), and is what
-           HEADLESS_PROBE_WINCH's no-op SIGWINCH test didn't cover. */
+        /* Give the child a moment to start up at the placeholder size, then
+         * deliver a REAL size change (not a same-size no-op) --this is what
+         * a real windowed terminal typically does (pty created at a
+         * default/placeholder size, then resized once the actual window
+         * geometry is known), and is what HEADLESS_PROBE_WINCH's no-op
+         * SIGWINCH test didn't cover.
+         */
         usleep(150000);
         struct winsize real_ws = { .ws_row = rows, .ws_col = cols,
                                    .ws_xpixel = (unsigned short)vw, .ws_ypixel = (unsigned short)vh };
@@ -143,10 +145,11 @@ main(int argc, char **argv)
     }
 
     if (getenv("HEADLESS_PROBE_WINCH")) {
-        /* Real windowed terminals commonly deliver a SIGWINCH shortly
-           after a program starts (window creation/focus) even when
-           the size doesn't actually change; this synthetic pty never
-           does. Test whether that's what triggers a fuller repaint. */
+        /* Real windowed terminals commonly deliver a SIGWINCH shortly after
+         * a program starts (window creation/focus) even when the size
+         * doesn't actually change; this synthetic pty never does. Test
+         * whether that's what triggers a fuller repaint.
+         */
         kill(child, SIGWINCH);
         double extra_ms = 2000;
         for (;;) {

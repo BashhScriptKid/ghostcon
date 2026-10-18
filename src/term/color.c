@@ -99,17 +99,17 @@ hex_nibble(char c)
     return -1;
 }
 
-/* Parses `count` hex digits starting at `s` into an 8-bit channel
-   value, matching how X11/xterm treat variable-width color components:
-   "#f00" and "#ff0000" are both pure red (0xff), not red-scaled-down.
-   X11's actual rule (XParseColor) is bit REPLICATION to fill 16 bits,
-   not zero-padding: a single digit 0xf becomes 0xffff (repeated, not
-   0xf000), so scaling that back down to 8 bits is 0xff, not 0xf0. For
-   count==1 that's implemented directly (nibble replicated into both
-   halves of the byte); for count>=2 the value already occupies >=8
-   bits, so taking the high 8 bits (with count==2 being an exact,
-   no-op case) is both correct and what real terminals conventionally
-   do. */
+/* Parses `count` hex digits starting at `s` into an 8-bit channel value,
+ * matching how X11/xterm treat variable-width color components: "#f00" and
+ * "#ff0000" are both pure red (0xff), not red-scaled-down. X11's actual
+ * rule (XParseColor) is bit REPLICATION to fill 16 bits, not zero-padding:
+ * a single digit 0xf becomes 0xffff (repeated, not 0xf000), so scaling that
+ * back down to 8 bits is 0xff, not 0xf0. For count==1 that's implemented
+ * directly (nibble replicated into both halves of the byte); for count>=2
+ * the value already occupies >=8 bits, so taking the high 8 bits (with
+ * count==2 being an exact, no-op case) is both correct and what real
+ * terminals conventionally do.
+ */
 static bool
 parse_hex_component(const char *s, int count, uint8_t *out)
 {

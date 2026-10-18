@@ -63,26 +63,26 @@ registry_reachable(const char *registry_sock, int timeout_ms)
     }
 }
 
-/* Single pgrep -f call (no internal retry loop -- see pgrep_wait_ne,
-   which is where retry timing belongs; nesting timed retry loops inside
-   each other just makes the outer timeout unpredictable). Returns the
-   first (lowest-pid, i.e. oldest) matching pid, or -1.
-   exec's pgrep directly (no `sh -c "...pattern..."` wrapper) -- found
-   the hard way, via this exact function returning a real but WRONG pid
-   for a not-yet-started process instead of correctly waiting/retrying:
-   pgrep only excludes its own pid from results, not a parent shell's,
-   and a `popen("sh -c \"pgrep -f -- 'PATTERN' ...\"", ...)` wrapper's
-   own cmdline necessarily contains PATTERN as a literal substring too
-   (it's right there in the shell command string) -- so that wrapper
-   shell was itself a guaranteed spurious match for ANY pattern, one
-   that only lost the "first/lowest pid" race when a real, already-
-   running, older target happened to exist by query time. A target
-   checked before it's actually started (this file's new
-   supervisor_pid_before check, added for the ghost-ptyserv-restart-
-   scoping fix, is younger than every existing check in this file and
-   was the first to actually expose it) got the wrapper shell's pid
-   back immediately, on the very first attempt, instead of retrying
-   until the real process appeared. */
+/* Single pgrep -f call (no internal retry loop -- see pgrep_wait_ne, which
+ * is where retry timing belongs; nesting timed retry loops inside each
+ * other just makes the outer timeout unpredictable). Returns the first
+ * (lowest-pid, i.e. oldest) matching pid, or -1. exec's pgrep directly (no
+ * `sh -c "...pattern..."` wrapper) -- found the hard way, via this exact
+ * function returning a real but WRONG pid for a not-yet-started process
+ * instead of correctly waiting/retrying: pgrep only excludes its own pid
+ * from results, not a parent shell's, and a `popen("sh -c \"pgrep -f --
+ * 'PATTERN' ...\"", ...)` wrapper's own cmdline necessarily contains
+ * PATTERN as a literal substring too (it's right there in the shell command
+ * string) -- so that wrapper shell was itself a guaranteed spurious match
+ * for ANY pattern, one that only lost the "first/lowest pid" race when a
+ * real, already-running, older target happened to exist by query time. A
+ * target checked before it's actually started (this file's new
+ * supervisor_pid_before check, added for the ghost-ptyserv-restart-scoping
+ * fix, is younger than every existing check in this file and was the first
+ * to actually expose it) got the wrapper shell's pid back immediately, on
+ * the very first attempt, instead of retrying until the real process
+ * appeared.
+ */
 static pid_t
 pgrep_once(const char *pattern)
 {
@@ -118,16 +118,18 @@ pgrep_once(const char *pattern)
     close(pipefd[0]);
     waitpid(child, NULL, 0);
 
-    /* pgrep's output is newline-separated pids in ascending order --
-       atoi() naturally stops at the first newline, giving the first
-       (lowest/oldest) match. */
+    /* pgrep's output is newline-separated pids in ascending order --atoi()
+     * naturally stops at the first newline, giving the first
+     * (lowest/oldest) match.
+     */
     pid_t pid = (pid_t)atoi(buf);
     return pid > 0 ? pid : -1;
 }
 
 /* Polls pgrep_once until it returns a pid different from `exclude` (or
-   times out). Used to detect "the old process died and a new one with
-   a different pid took its place". */
+ * times out). Used to detect "the old process died and a new one with a
+ * different pid took its place".
+ */
 static pid_t
 pgrep_wait_ne(const char *pattern, pid_t exclude, int timeout_ms)
 {
@@ -147,8 +149,9 @@ pgrep_wait_ne(const char *pattern, pid_t exclude, int timeout_ms)
     }
 }
 
-/* Finds the PID of a running process whose full argv matches `pattern`
-   (via pgrep -f), waiting up to timeout_ms for it to appear. */
+/* Finds the PID of a running process whose full argv matches `pattern` (via
+ * pgrep -f), waiting up to timeout_ms for it to appear.
+ */
 static pid_t
 pgrep_wait(const char *pattern, int timeout_ms)
 {
@@ -225,10 +228,11 @@ main(void)
     }
 
     /* Kill ghost-ptyserv -- undead-head restarts ONLY ghost-ptyserv, not
-       the whole tree (an already-connected renderer has no ongoing
-       dependency on it; see undead_head/main.c's ghost_ptyserv_pid
-       branch and its doc comment). The supervisor must NOT be touched
-       -- if it were, this pid would change too. */
+     * the whole tree (an already-connected renderer has no ongoing
+     * dependency on it; see undead_head/main.c's ghost_ptyserv_pid branch
+     * and its doc comment). The supervisor must NOT be touched -- if it
+     * were, this pid would change too.
+     */
     kill(ptyserv_pid1, SIGKILL);
 
     pid_t ptyserv_pid2 = pgrep_wait_ne(ptyserv_bin, ptyserv_pid1, 10000);
@@ -263,9 +267,10 @@ teardown:
         kill(undead_pid, SIGTERM);
         waitpid(undead_pid, NULL, 0);
     }
-    /* undead-head's own SIGTERM handler kills its whole process tree
-       (see undead_head/main.c) -- best-effort extra cleanup in case
-       that path itself is what's broken. */
+    /* undead-head's own SIGTERM handler kills its whole process tree (see
+     * undead_head/main.c) -- best-effort extra cleanup in case that path
+     * itself is what's broken.
+     */
     system("pkill -9 -f 'test_fake_renderer' 2>/dev/null; "
            "pkill -9 -f 'pty-ttyN' 2>/dev/null");
     unlink(registry_sock);

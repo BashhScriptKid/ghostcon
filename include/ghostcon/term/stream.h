@@ -5,9 +5,7 @@
 #include <stddef.h>
 #include "screen.h"
 
-/* ------------------------------------------------------------------ */
-/* Stream state — ECMA-48 / DEC VT state machine                      */
-/* ------------------------------------------------------------------ */
+/* Stream state — ECMA-48 / DEC VT state machine */
 
 typedef enum {
     GC_STREAM_GROUND,
@@ -30,46 +28,41 @@ typedef enum {
 #define GC_STREAM_MAX_INTERMEDIATES 4
 #define GC_STREAM_MAX_PARAMS        24
 
-/* ------------------------------------------------------------------ */
-/* Output channel                                                      */
-/*                                                                     */
-/* Terminal responses (DSR, DA, DECRPM, ...) are delivered through a   */
-/* callback instead of being written directly to a PTY. The term layer */
-/* bridges this to the host.                                           */
-/* ------------------------------------------------------------------ */
+/* Output channel
+ *
+ * Terminal responses (DSR, DA, DECRPM, ...) are delivered through a
+ * callback instead of being written directly to a PTY. The term layer
+ * bridges this to the host.
+ */
 
 typedef void (*ghostcon_output_fn)(void *userdata,
                                    const uint8_t *data, size_t len);
 
-/* ------------------------------------------------------------------ */
-/* Title channel                                                       */
-/*                                                                     */
-/* OSC 0/2 (window/icon title) carries no rendering meaning on a bare  */
-/* TTY -- there's no window chrome. ghostcon-core repurposes it as     */
-/* process identity (argv[0]/PR_SET_NAME, see PLAN.md's "Process       */
-/* identity" section), which requires prctl()/argv rewriting the term  */
-/* layer has no business doing -- so the raw title string is handed    */
-/* up through this callback instead of being interpreted here.        */
-/* ------------------------------------------------------------------ */
+/* Title channel
+ *
+ * OSC 0/2 (window/icon title) carries no rendering meaning on a bare TTY --
+ * there's no window chrome. ghostcon-core repurposes it as process identity
+ * (argv[0]/PR_SET_NAME, see PLAN.md's "Process identity" section), which
+ * requires prctl()/argv rewriting the term layer has no business doing --
+ * so the raw title string is handed up through this callback instead of
+ * being interpreted here.
+ */
 
 typedef void (*ghostcon_title_fn)(void *userdata, const char *title);
 
-/* ------------------------------------------------------------------ */
-/* Notify channel                                                      */
-/*                                                                     */
-/* OSC 9/777 (desktop notifications) -- stub tier, no ghostcon-ipc      */
-/* broker exists yet (PLAN.md's own deferred item), so the message is   */
-/* handed up rather than acted on here; ghostcon-core logs it via        */
-/* core/diag.c, which term/ deliberately has no dependency on (diag.c   */
-/* needs libsystemd; term/ stays usable standalone, e.g. by the         */
-/* ghostcon_dump tool and its tests, without pulling that in).          */
-/* ------------------------------------------------------------------ */
+/* Notify channel
+ *
+ * OSC 9/777 (desktop notifications) -- stub tier, no ghostcon-ipc broker
+ * exists yet (PLAN.md's own deferred item), so the message is handed up
+ * rather than acted on here; ghostcon-core logs it via core/diag.c, which
+ * term/ deliberately has no dependency on (diag.c needs libsystemd; term/
+ * stays usable standalone, e.g. by the ghostcon_dump tool and its tests,
+ * without pulling that in).
+ */
 
 typedef void (*ghostcon_notify_fn)(void *userdata, const char *message);
 
-/* ------------------------------------------------------------------ */
-/* Stream processor                                                    */
-/* ------------------------------------------------------------------ */
+/* Stream processor */
 
 typedef struct ghostcon_stream ghostcon_stream_t;
 
@@ -91,19 +84,19 @@ struct ghostcon_stream {
     bool                    apc_pending;    /* saw ESC mid-APC, awaiting '\' to confirm ST */
     bool                    apc_overflow;   /* payload exceeded buf_cap -- reject, don't truncate-and-accept */
 
-    /* Internal buffer for collecting OSC/DCS/APC data. local_buf's
-       6144 bytes covers one Kitty graphics chunk (4096 base64 payload
-       bytes, the protocol's own per-chunk cap, plus control-data
-       slack) and any OSC/DCS payload that fits without growing.
-       Un-chunked DCS payloads (sixel, which has no chunking mechanism
-       in the protocol at all, unlike Kitty) routinely exceed that --
-       see the DCS_PASSTHROUGH case in stream.c, which reallocates
-       *buf up to GHOSTCON_STREAM_DCS_MAX_BUF as needed rather than
-       silently truncating. buf_cap/osc_len/dcs_len/apc_len are
-       uint32_t (not uint16_t, the original size before sixel) for the
-       same reason -- a 16-bit length field would itself have capped
-       any single payload at 65535 bytes regardless of how big *buf
-       was allowed to grow. */
+    /* Internal buffer for collecting OSC/DCS/APC data. local_buf's 6144
+     * bytes covers one Kitty graphics chunk (4096 base64 payload bytes, the
+     * protocol's own per-chunk cap, plus control-data slack) and any
+     * OSC/DCS payload that fits without growing. Un-chunked DCS payloads
+     * (sixel, which has no chunking mechanism in the protocol at all,
+     * unlike Kitty) routinely exceed that --see the DCS_PASSTHROUGH case in
+     * stream.c, which reallocates buf up to GHOSTCON_STREAM_DCS_MAX_BUF as
+     * needed rather than silently truncating.
+     * buf_cap/osc_len/dcs_len/apc_len are uint32_t (not uint16_t, the
+     * original size before sixel) for the same reason -- a 16-bit length
+     * field would itself have capped any single payload at 65535 bytes
+     * regardless of how big *buf was allowed to grow.
+     */
     char    *buf;            /* allocated buffer (or local buffer for small) */
     uint32_t buf_cap;
     char     local_buf[6144];
@@ -123,18 +116,16 @@ struct ghostcon_stream {
     void                    *notify_userdata;
 
     /* Renderer's current cell pixel size, needed to compute the
-       post-placement cursor move Kitty graphics does by default (see
-       ghostcon_kitty_graphics_handle's doc comment) -- 0 means
-       unknown, which suppresses that move rather than guessing wrong.
-       Set via ghostcon_stream_set_cell_size(); term/ has no other way
-       to learn this since cell size is purely a rendering/font
-       concept. */
+     * post-placement cursor move Kitty graphics does by default (see
+     * ghostcon_kitty_graphics_handle's doc comment) -- 0 means unknown,
+     * which suppresses that move rather than guessing wrong. Set via
+     * ghostcon_stream_set_cell_size(); term/ has no other way to learn this
+     * since cell size is purely a rendering/font concept.
+     */
     int32_t cell_w, cell_h;
 };
 
-/* ------------------------------------------------------------------ */
-/* Lifecycle                                                           */
-/* ------------------------------------------------------------------ */
+/* Lifecycle */
 
 /* Initialize a stream processor. Returns true on success. */
 bool ghostcon_stream_init(ghostcon_stream_t *st);
@@ -157,20 +148,19 @@ void ghostcon_stream_set_title(ghostcon_stream_t *st,
 void ghostcon_stream_set_notify(ghostcon_stream_t *st,
                                 ghostcon_notify_fn fn, void *userdata);
 
-/* Tell the stream the renderer's current cell pixel size, so Kitty
-   graphics placements can compute their default post-placement cursor
-   move (see ghostcon_kitty_graphics_handle's doc comment). Call again
-   whenever it changes (font size change, DPI change, etc). Never
-   called at all (both stay 0) just means that cursor move is skipped,
-   not a crash. */
+/* Tell the stream the renderer's current cell pixel size, so Kitty graphics
+ * placements can compute their default post-placement cursor move (see
+ * ghostcon_kitty_graphics_handle's doc comment). Call again whenever it
+ * changes (font size change, DPI change, etc). Never called at all (both
+ * stay 0) just means that cursor move is skipped, not a crash.
+ */
 void ghostcon_stream_set_cell_size(ghostcon_stream_t *st, int32_t cell_w, int32_t cell_h);
 
-/* ------------------------------------------------------------------ */
-/* Processing                                                          */
-/* ------------------------------------------------------------------ */
+/* Processing */
 
-/* Feed bytes to the stream processor.
-   The stream processor calls the appropriate screen functions. */
+/* Feed bytes to the stream processor. The stream processor calls the
+ * appropriate screen functions.
+ */
 void ghostcon_stream_process(ghostcon_stream_t *st,
                              const uint8_t *data, size_t len,
                              ghostcon_screen_t *screen);

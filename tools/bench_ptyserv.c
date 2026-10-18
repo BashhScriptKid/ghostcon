@@ -145,10 +145,11 @@ main(int argc, char **argv)
         return 1;
     }
 
-    /* Drain whatever's already buffered (shell prompt, motd if any)
-       before starting the timed run -- a short quiet-period drain,
-       not waiting for a specific string, since a bare shell's prompt
-       content isn't predictable across systems/shells. */
+    /* Drain whatever's already buffered (shell prompt, motd if any) before
+     * starting the timed run -- a short quiet-period drain, not waiting for
+     * a specific string, since a bare shell's prompt content isn't
+     * predictable across systems/shells.
+     */
     {
         struct pollfd pfd = { .fd = renderer_fd, .events = POLLIN };
         char junk[4096];
@@ -163,20 +164,21 @@ main(int argc, char **argv)
     char cmd[128];
     snprintf(cmd, sizeof(cmd), "dd if=/dev/zero bs=65536 count=%d 2>/dev/null; echo %s\n",
              megabytes * 16 /* 65536 * 16 = 1MB per count-unit... */, marker);
-    /* bs=65536 * count -> total bytes = 65536*count; want count such
-       that total == megabytes*1024*1024, i.e. count = megabytes*16. */
+    /* bs=65536 * count -> total bytes = 65536*count; want count such that
+     * total == megabytes*1024*1024, i.e. count = megabytes*16.
+     */
 
     write(renderer_fd, cmd, strlen(cmd));
 
     /* The pty's line discipline echoes typed input back byte-for-byte
-       before the shell even runs it -- since `cmd` itself contains the
-       literal marker text ("echo BENCH_PTYSERV_DONE" is part of what
-       we just typed), searching for the marker without accounting for
-       this would match the ECHO instantly, not dd's actual output
-       (found live: a 64MB request "completing" in under a
-       millisecond). Drain exactly the echoed byte count first --
-       local echo mirrors the write 1:1 -- before starting the timed
-       measurement on dd's real output only. */
+     * before the shell even runs it -- since `cmd` itself contains the
+     * literal marker text ("echo BENCH_PTYSERV_DONE" is part of what we
+     * just typed), searching for the marker without accounting for this
+     * would match the ECHO instantly, not dd's actual output (found live: a
+     * 64MB request "completing" in under a millisecond). Drain exactly the
+     * echoed byte count first --local echo mirrors the write 1:1 -- before
+     * starting the timed measurement on dd's real output only.
+     */
     {
         size_t echoed = 0;
         size_t want = strlen(cmd);
@@ -215,11 +217,12 @@ main(int argc, char **argv)
         if (n <= 0) break;
         total_read += (size_t)n;
 
-        /* Cheap rolling-window marker check, without keeping the
-           whole (potentially large) transfer in memory: concatenate
-           the last `tail_len` bytes seen with this new chunk, check
-           for the marker in that window, then keep only the final
-           sizeof(tail) bytes as the new tail. */
+        /* Cheap rolling-window marker check, without keeping the whole
+         * (potentially large) transfer in memory: concatenate the last
+         * `tail_len` bytes seen with this new chunk, check for the marker
+         * in that window, then keep only the final sizeof(tail) bytes as
+         * the new tail.
+         */
         char window[sizeof(tail) + sizeof(buf)];
         memcpy(window, tail, tail_len);
         memcpy(window + tail_len, buf, (size_t)n);

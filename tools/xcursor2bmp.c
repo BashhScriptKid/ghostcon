@@ -32,18 +32,18 @@ main(int argc, char **argv)
     const char *output_dir = argv[2];
 
     /* Unlike ghostcon_cursor_load_xcursor()'s single-FILE lookup (where
-       trying theme_dir-as-cursors-dir first is unambiguous -- a
-       specific file either exists there or it doesn't), a directory
-       LISTING can't use the same order: opendir(theme_dir) succeeds
-       just as readily on the theme ROOT (which also contains
-       index.theme, icon-theme.cache, etc., not just cursor files) as
-       on the actual cursors/ dir -- found live: pointing this at a
-       real theme root silently "succeeded" by listing (and skipping,
-       one by one, as invalid) the root's own non-cursor files instead
-       of ever finding the real cursors/ subdirectory. Prefer
-       theme_dir/cursors when it exists; only fall back to treating
-       theme_dir itself as the cursors dir if that subdirectory isn't
-       there at all. */
+     * trying theme_dir-as-cursors-dir first is unambiguous -- a specific
+     * file either exists there or it doesn't), a directory LISTING can't
+     * use the same order: opendir(theme_dir) succeeds just as readily on
+     * the theme ROOT (which also contains index.theme, icon-theme.cache,
+     * etc., not just cursor files) as on the actual cursors/ dir -- found
+     * live: pointing this at a real theme root silently "succeeded" by
+     * listing (and skipping, one by one, as invalid) the root's own
+     * non-cursor files instead of ever finding the real cursors/
+     * subdirectory. Prefer theme_dir/cursors when it exists; only fall back
+     * to treating theme_dir itself as the cursors dir if that subdirectory
+     * isn't there at all.
+     */
     char cursors_dir[1024];
     snprintf(cursors_dir, sizeof(cursors_dir), "%s/cursors", theme_dir);
     DIR *d = opendir(cursors_dir);

@@ -15,9 +15,9 @@ ghostcon_config_defaults(ghostcon_config_t *cfg)
 {
     memset(cfg, 0, sizeof(*cfg));
     /* Matches every binary's own hardcoded fallback today -- see
-       core/main.c's DEFAULT_DRM_NODE, supervisor/main.c's
-       DEFAULT_RUN_DIR/DEFAULT_CANARY_DEADLINE_MS, core/main.c's
-       FONT_SIZE. */
+     * core/main.c's DEFAULT_DRM_NODE, supervisor/main.c's
+     * DEFAULT_RUN_DIR/DEFAULT_CANARY_DEADLINE_MS, core/main.c's FONT_SIZE.
+     */
     snprintf(cfg->drm_node, sizeof(cfg->drm_node), "%s", "/dev/dri/card1");
     snprintf(cfg->run_dir, sizeof(cfg->run_dir), "%s", "/run/ghostcon");
     cfg->canary_deadline_ms = 4000;
@@ -194,13 +194,14 @@ ghostcon_config_export_env(const ghostcon_config_t *cfg, const char *config_path
     snprintf(buf, sizeof(buf), "%d", cfg->canary_deadline_ms);
     setenv("GHOSTCON_CANARY_DEADLINE_MS", buf, ow);
 
-    /* Readers check presence only (getenv() truthiness), not the value
-       -- "1" means on, ABSENT means off. On a plain startup export
-       (overwrite=false) that's already correct by construction: a false
-       bool here just never calls setenv, leaving it absent. On a
-       hot-reload export (overwrite=true) a bool can flip in either
-       direction, so a false value must actively unsetenv() a
-       previously-true one, not just skip setenv(). */
+    /* Readers check presence only (getenv() truthiness), not the value --
+     * "1" means on, ABSENT means off. On a plain startup export
+     * (overwrite=false) that's already correct by construction: a false
+     * bool here just never calls setenv, leaving it absent. On a hot-reload
+     * export (overwrite=true) a bool can flip in either direction, so a
+     * false value must actively unsetenv() a previously-true one, not just
+     * skip setenv().
+     */
     if (cfg->disable_wall)
         setenv("GHOSTCON_DISABLE_WALL", "1", ow);
     else if (overwrite)
@@ -214,12 +215,13 @@ ghostcon_config_export_env(const ghostcon_config_t *cfg, const char *config_path
     setenv("GHOSTCON_FONT_SIZE", buf, ow);
 
     /* Default true (see core/main.c's CLEAR_ON_LOGOUT_DEFAULT), unlike
-       every other bool above -- only export "0" when the config
-       explicitly turns it OFF, so the reader's own true-default stands
-       when this key is left out of the file entirely (the common
-       case). Same reload-direction-flip reasoning as above, inverted:
-       a hot-reload back to true must unsetenv() a previously-exported
-       "0", not leave it stuck off. */
+     * every other bool above -- only export "0" when the config explicitly
+     * turns it OFF, so the reader's own true-default stands when this key
+     * is left out of the file entirely (the common case). Same
+     * reload-direction-flip reasoning as above, inverted: a hot-reload back
+     * to true must unsetenv() a previously-exported "0", not leave it stuck
+     * off.
+     */
     if (!cfg->clear_on_logout)
         setenv("GHOSTCON_CLEAR_ON_LOGOUT", "0", ow);
     else if (overwrite)
@@ -244,12 +246,13 @@ ghostcon_config_watch_open(const char *path)
     if (fd < 0)
         return -1;
 
-    /* IN_CLOSE_WRITE covers a plain in-place write; IN_MOVED_TO covers
-       the write-temp-then-rename-over-original pattern most editors
-       (vim included) use by default -- watching the directory rather
-       than the file itself is what makes that second case observable
-       at all (see this function's own header doc comment). IN_MODIFY
-       is a cheap extra safety net for tools that do neither. */
+    /* IN_CLOSE_WRITE covers a plain in-place write; IN_MOVED_TO covers the
+     * write-temp-then-rename-over-original pattern most editors (vim
+     * included) use by default -- watching the directory rather than the
+     * file itself is what makes that second case observable at all (see
+     * this function's own header doc comment). IN_MODIFY is a cheap extra
+     * safety net for tools that do neither.
+     */
     if (inotify_add_watch(fd, dir, IN_CLOSE_WRITE | IN_MOVED_TO | IN_MODIFY) < 0) {
         close(fd);
         return -1;
@@ -265,7 +268,8 @@ ghostcon_config_watch_check(int inotify_fd, const char *path)
 
     bool matched = false;
     /* Aligned so the buffer can be reinterpreted as a sequence of
-       variable-length struct inotify_event records, per inotify(7). */
+     * variable-length struct inotify_event records, per inotify(7).
+     */
     union {
         char buf[4096];
         struct inotify_event align;

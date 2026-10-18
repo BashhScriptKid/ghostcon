@@ -97,20 +97,22 @@ int main(void) {
     printf("PASS: alt screen\n");
 
     /* Test 8: scrollback view (Shift+Up/Down/PageUp/PageDown shortcuts'
-       underlying mechanism — ghostcon_screen_scroll_view()/the history
-       splicing in ghostcon_screen_row()). Isolated small term (5 cols x
-       3 rows) so exact line contents at each viewport position are easy
-       to reason about, independent of the 80x24 term used above. */
+     * underlying mechanism — ghostcon_screen_scroll_view()/the history
+     * splicing in ghostcon_screen_row()). Isolated small term (5 cols x 3
+     * rows) so exact line contents at each viewport position are easy to
+     * reason about, independent of the 80x24 term used above.
+     */
     {
         ghostcon_term_t stest;
         if (!ghostcon_term_init(&stest, 5, 3, 100)) {
             fprintf(stderr, "FAIL: scrollback test term_init\n");
             return 1;
         }
-        /* Each line exactly fills the 5-col width; \r\n avoids relying
-           on auto-wrap behavior at the last column. After this, the
-           live grid holds "DDDDD"/"EEEEE"/"" and history holds
-           "AAAAA","BBBBB","CCCCC" (oldest to newest). */
+        /* Each line exactly fills the 5-col width; \r\n avoids relying on
+         * auto-wrap behavior at the last column. After this, the live grid
+         * holds "DDDDD"/"EEEEE"/"" and history holds
+         * "AAAAA","BBBBB","CCCCC" (oldest to newest).
+         */
         ghostcon_term_feed(&stest, (const uint8_t *)
             "AAAAA\r\nBBBBB\r\nCCCCC\r\nDDDDD\r\nEEEEE\r\n", 35);
 
@@ -128,7 +130,8 @@ int main(void) {
         }
 
         /* Scroll back 1 line: row0 becomes "CCCCC" (the most recently
-           scrolled-off line), row2 becomes "EEEEE" (was live row1). */
+         * scrolled-off line), row2 becomes "EEEEE" (was live row1).
+         */
         ghostcon_screen_scroll_view(&stest.screen, 1);
         r = ghostcon_screen_row(&stest.screen, 0);
         if (!r || ghostcon_cell_get_codepoint(r->cells[0]) != 'C') {
@@ -142,7 +145,8 @@ int main(void) {
         }
 
         /* Scroll back further than history_count -- clamps rather than
-           going out of bounds. Fully back: row0="AAAAA" (oldest). */
+         * going out of bounds. Fully back: row0="AAAAA" (oldest).
+         */
         ghostcon_screen_scroll_view(&stest.screen, 10);
         if (stest.screen.view_offset != 3) {
             fprintf(stderr, "FAIL: scrollback offset expected clamped to 3, got %u\n",

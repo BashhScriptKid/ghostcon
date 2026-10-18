@@ -58,11 +58,12 @@ main(void)
     printf("PASS: atlas created with %s\n", FONT_FAMILY);
 
     /* Known JetBrains Mono ligature sequences (its own font spec lists
-       arrows, comparison chains, etc. under calt). If none of these
-       collapse, either the installed build lacks calt (a real, useful
-       finding) or ghostcon_atlas_shape_run() isn't reaching HarfBuzz --
-       either way this test should fail loudly rather than silently
-       pass on zero runs found. */
+     * arrows, comparison chains, etc. under calt). If none of these
+     * collapse, either the installed build lacks calt (a real, useful
+     * finding) or ghostcon_atlas_shape_run() isn't reaching HarfBuzz
+     * --either way this test should fail loudly rather than silently pass
+     * on zero runs found.
+     */
     static const char *const positive_cases[] = {
         "x -> y",
         "a == b",
@@ -92,8 +93,9 @@ main(void)
         failures++;
     }
 
-    /* Negative cases: plain text and an isolated single operator must
-       never be reported as a ligature run. */
+    /* Negative cases: plain text and an isolated single operator must never
+     * be reported as a ligature run.
+     */
     static const char *const negative_cases[] = {
         "hello world",
         "a + b",

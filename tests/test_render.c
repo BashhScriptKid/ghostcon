@@ -93,8 +93,9 @@ main(void)
     }
 
     /* Background was cleared to black; glyph coverage should paint
-       non-black pixels (default fg is not black) somewhere in the
-       first row's cell band. */
+     * non-black pixels (default fg is not black) somewhere in the first
+     * row's cell band.
+     */
     size_t non_bg = 0;
     for (size_t i = 0; i < npixels; i++) {
         uint8_t r = pixels[i * 4 + 0];

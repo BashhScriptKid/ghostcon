@@ -21,9 +21,7 @@
 
 #include <linux/input-event-codes.h>
 
-/* ------------------------------------------------------------------ */
-/* evdev keycode -> GhosttyKey (W3C UI Events "code" table)             */
-/* ------------------------------------------------------------------ */
+/* evdev keycode -> GhosttyKey (W3C UI Events "code" table) */
 
 GhosttyKey
 ghostcon_input_evdev_to_ghostty_key(uint32_t evdev_code)
@@ -190,9 +188,7 @@ ghostcon_input_evdev_to_ghostty_key(uint32_t evdev_code)
     }
 }
 
-/* ------------------------------------------------------------------ */
-/* Pure per-event encode step                                          */
-/* ------------------------------------------------------------------ */
+/* Pure per-event encode step */
 
 size_t
 ghostcon_input_encode_key(GhosttyKeyEncoder encoder,
@@ -221,9 +217,7 @@ ghostcon_input_encode_key(GhosttyKeyEncoder encoder,
     return result == GHOSTTY_SUCCESS ? written : (size_t)-1;
 }
 
-/* ------------------------------------------------------------------ */
-/* Live libinput + xkbcommon context                                   */
-/* ------------------------------------------------------------------ */
+/* Live libinput + xkbcommon context */
 
 struct ghostcon_input {
     struct udev *udev;
@@ -232,20 +226,22 @@ struct ghostcon_input {
     struct xkb_context *xkb_ctx;
     struct xkb_keymap *xkb_keymap;
     struct xkb_state *xkb_state;
-    /* Fresh, never-updated state for querying the "unshifted" codepoint
-       of a key — see ghostcon_input_dispatch. */
+    /* Fresh, never-updated state for querying the "unshifted" codepoint of
+     * a key — see ghostcon_input_dispatch.
+     */
     struct xkb_state *xkb_state_unshifted;
 
     GhosttyKeyEncoder encoder;
 
     /* Key auto-repeat -- libinput itself never generates repeat events
-       (that's userspace's job); mirrors kmscon's own approach
-       (input_uxkb.c: xkb_keymap_key_repeats() gates which keys repeat
-       at all -- modifiers are excluded by the keymap itself, no manual
-       blocklist needed -- plus a timer that resends the same encoded
-       bytes the initial press produced). repeat_fd < 0 means repeat is
-       unavailable (timerfd_create failed) -- not fatal, matches this
-       module's existing tolerance for the ctl socket/etc being absent. */
+     * (that's userspace's job); mirrors kmscon's own approach
+     * (input_uxkb.c: xkb_keymap_key_repeats() gates which keys repeat at
+     * all -- modifiers are excluded by the keymap itself, no manual
+     * blocklist needed -- plus a timer that resends the same encoded bytes
+     * the initial press produced). repeat_fd < 0 means repeat is
+     * unavailable (timerfd_create failed) -- not fatal, matches this
+     * module's existing tolerance for the ctl socket/etc being absent.
+     */
     int      repeat_fd;
     bool     repeating;
     uint32_t repeat_evdev_code;
@@ -255,86 +251,90 @@ struct ghostcon_input {
         ghostcon_input_open()'s own doc comment on these two parameters */
 
     /* Pointer -- absolute pixel position (mice/touchpads both report
-       RELATIVE motion via libinput, see handle_pointer_event()'s own
-       doc comment; this is the position that relative motion
-       accumulates into), clamped to [0,viewport_w) x [0,viewport_h).
-       pressed_buttons is a bitmask of which of GC_MOUSE_LEFT/MIDDLE/
-       RIGHT are currently held, needed for mode-1002 drag-motion
-       filtering (term/mouse.c's ghostcon_mouse_encode()) and to know
-       what button a MOTION event should report as "held". */
+     * RELATIVE motion via libinput, see handle_pointer_event()'s own doc
+     * comment; this is the position that relative motion accumulates into),
+     * clamped to [0,viewport_w) x [0,viewport_h). pressed_buttons is a
+     * bitmask of which of GC_MOUSE_LEFT/MIDDLE/ RIGHT are currently held,
+     * needed for mode-1002 drag-motion filtering (term/mouse.c's
+     * ghostcon_mouse_encode()) and to know what button a MOTION event
+     * should report as "held".
+     */
     int      viewport_w, viewport_h;
     int      pointer_x, pointer_y;
     uint32_t pressed_buttons; /* bit i set = (ghostcon_mouse_button_t)i is held */
 
-    /* Whether the button/drag currently held down was intercepted for
-       LOCAL selection (should_intercept_for_selection() returned true
-       when it was pressed) rather than sent to the app as a mouse
-       report -- decided once, at press time, and remembered until
-       release, so a drag can't switch modes mid-gesture if e.g. the
-       app toggles mouse-reporting mid-drag (pathological, but cheap to
-       guard against). */
+    /* Whether the button/drag currently held down was intercepted for LOCAL
+     * selection (should_intercept_for_selection() returned true when it was
+     * pressed) rather than sent to the app as a mouse report -- decided
+     * once, at press time, and remembered until release, so a drag can't
+     * switch modes mid-gesture if e.g. the app toggles mouse-reporting
+     * mid-drag (pathological, but cheap to guard against).
+     */
     bool     left_button_intercepted;
 
-    /* Configurable copy/paste shortcuts (config.h's [keybindings]
-       table, parsed once via ghostcon_parse_keybinding() and pushed in
-       via ghostcon_input_set_clipboard_bindings() -- see that
-       function's own doc comment for why this is a mutable setter
-       rather than an ghostcon_input_open() parameter). Defaulted here
-       to this project's own defaults (ctrl+shift+c/v) so copy/paste
-       already work correctly even before the first config (re)load
-       completes, matching every other config-driven field's "sane
-       default until config says otherwise" convention. */
+    /* Configurable copy/paste shortcuts (config.h's [keybindings] table,
+     * parsed once via ghostcon_parse_keybinding() and pushed in via
+     * ghostcon_input_set_clipboard_bindings() -- see that function's own
+     * doc comment for why this is a mutable setter rather than an
+     * ghostcon_input_open() parameter). Defaulted here to this project's
+     * own defaults (ctrl+shift+c/v) so copy/paste already work correctly
+     * even before the first config (re)load completes, matching every other
+     * config-driven field's "sane default until config says otherwise"
+     * convention.
+     */
     GhosttyMods copy_mods, paste_mods;
     uint32_t    copy_evdev, paste_evdev;
 
-    /* [mouse]/[touchpad] tuning (config.h's own doc comment has the
-       full field-by-field mapping to libinput APIs) -- defaulted here
-       so devices already get sane, always-on behavior before the
-       first config load completes, same "default until config says
-       otherwise" convention as copy/paste above. Pushed to real
-       devices via ghostcon_input_set_mouse_config()/
-       set_touchpad_config() below, which re-apply to every currently-
-       tracked device of that class immediately (not just newly
-       hotplugged ones). */
+    /* [mouse]/[touchpad] tuning (config.h's own doc comment has the full
+     * field-by-field mapping to libinput APIs) -- defaulted here so devices
+     * already get sane, always-on behavior before the first config load
+     * completes, same "default until config says otherwise" convention as
+     * copy/paste above. Pushed to real devices via
+     * ghostcon_input_set_mouse_config()/ set_touchpad_config() below, which
+     * re-apply to every currently-tracked device of that class immediately
+     * (not just newly hotplugged ones).
+     */
     bool  mouse_enable, touchpad_enable;
     float mouse_scroll_speed, touchpad_scroll_speed;
     float mouse_sensitivity, touchpad_sensitivity;
     bool  touchpad_tap_to_click, touchpad_natural_scroll;
 
-    /* Devices currently known to be connected -- tracked purely so a
-       config hot-reload can re-apply to devices already plugged in,
-       not just ones added afterward (LIBINPUT_EVENT_DEVICE_ADDED
-       alone only covers the latter). Refed while tracked here, unrefed
-       on LIBINPUT_EVENT_DEVICE_REMOVED or ghostcon_input_close().
-       Fixed-size headroom, not a hard cap on real hardware -- a
-       machine with more pointer devices connected at once than this
-       just stops getting hot-reload re-application for the overflow,
-       still gets correctly configured at add-time. */
+    /* Devices currently known to be connected -- tracked purely so a config
+     * hot-reload can re-apply to devices already plugged in, not just ones
+     * added afterward (LIBINPUT_EVENT_DEVICE_ADDED alone only covers the
+     * latter). Refed while tracked here, unrefed on
+     * LIBINPUT_EVENT_DEVICE_REMOVED or ghostcon_input_close(). Fixed-size
+     * headroom, not a hard cap on real hardware -- a machine with more
+     * pointer devices connected at once than this just stops getting
+     * hot-reload re-application for the overflow, still gets correctly
+     * configured at add-time.
+     */
     struct libinput_device *devices[32];
     int device_count;
 
     /* Fractional scroll-speed accumulators -- see config.h's own doc
-       comment on scroll_speed for the algorithm. Per device CLASS,
-       not per individual device: only the class's configured speed
-       matters, and sharing one accumulator per class across
-       simultaneous multi-device scrolling is an acceptable
-       simplification (real hardware essentially never has two mice
-       or two touchpads active at once). */
+     * comment on scroll_speed for the algorithm. Per device CLASS, not per
+     * individual device: only the class's configured speed matters, and
+     * sharing one accumulator per class across simultaneous multi-device
+     * scrolling is an acceptable simplification (real hardware essentially
+     * never has two mice or two touchpads active at once).
+     */
     double mouse_scroll_accum, touchpad_scroll_accum;
 };
 
-/* kmscon's own documented defaults (xkb-repeat-delay/xkb-repeat-rate) --
-   used as the fallback when ghostcon_input_open() is passed <= 0 for
-   either (a malformed/missing config value), not as fixed constants
-   any more -- see config.h's own repeat_delay_ms/repeat_rate_ms doc
-   comment. */
+/* kmscon's own documented defaults (xkb-repeat-delay/xkb-repeat-rate)
+ * --used as the fallback when ghostcon_input_open() is passed <= 0 for
+ * either (a malformed/missing config value), not as fixed constants any
+ * more -- see config.h's own repeat_delay_ms/repeat_rate_ms doc comment.
+ */
 #define GHOSTCON_REPEAT_DELAY_MS_DEFAULT 250
 #define GHOSTCON_REPEAT_RATE_MS_DEFAULT 50
 
-/* libinput's own recommended way to tell a touchpad from a mouse --
-   NOT guessing from the device name string, which varies wildly
-   across hardware/drivers. Any device that supports tap-to-click at
-   all (finger count > 0) is a touchpad; a plain mouse reports 0. */
+/* libinput's own recommended way to tell a touchpad from a mouse --NOT
+ * guessing from the device name string, which varies wildly across
+ * hardware/drivers. Any device that supports tap-to-click at all (finger
+ * count > 0) is a touchpad; a plain mouse reports 0.
+ */
 static bool
 device_is_touchpad(struct libinput_device *dev)
 {
@@ -342,14 +342,14 @@ device_is_touchpad(struct libinput_device *dev)
 }
 
 /* Applies this input context's currently-configured [mouse]/[touchpad]
-   values (config.h's own doc comment has the field-by-field mapping)
-   to one real device -- called both when a device is newly hotplugged
-   and, from the two setters below, when config changes and needs to
-   reach devices already connected. Each libinput_device_config_*_
-   is_available()/has_*() check is real hardware variation, not
-   defensive paranoia -- e.g. plenty of mice have no accel config at
-   all, and natural-scroll only applies to devices with a scroll
-   method in the first place. */
+ * values (config.h's own doc comment has the field-by-field mapping) to one
+ * real device -- called both when a device is newly hotplugged and, from
+ * the two setters below, when config changes and needs to reach devices
+ * already connected. Each libinput_device_config_*_ is_available()/has_*()
+ * check is real hardware variation, not defensive paranoia -- e.g. plenty
+ * of mice have no accel config at all, and natural-scroll only applies to
+ * devices with a scroll method in the first place.
+ */
 static void
 apply_device_config(ghostcon_input_t *input, struct libinput_device *dev)
 {
@@ -407,15 +407,16 @@ ghostcon_input_open(const char *seat_id, int viewport_w, int viewport_h,
     input->repeat_delay_ms = repeat_delay_ms > 0 ? repeat_delay_ms : GHOSTCON_REPEAT_DELAY_MS_DEFAULT;
     input->repeat_rate_ms = repeat_rate_ms > 0 ? repeat_rate_ms : GHOSTCON_REPEAT_RATE_MS_DEFAULT;
 
-    /* Sane defaults until config.c's [keybindings] table pushes real
-       values via ghostcon_input_set_clipboard_bindings() -- these
-       calls can't fail (both specs are this project's own hardcoded
-       defaults, always valid). */
+    /* Sane defaults until config.c's [keybindings] table pushes real values
+     * via ghostcon_input_set_clipboard_bindings() -- these calls can't fail
+     * (both specs are this project's own hardcoded defaults, always valid).
+     */
     ghostcon_parse_keybinding("ctrl+shift+c", &input->copy_mods, &input->copy_evdev);
     ghostcon_parse_keybinding("ctrl+shift+v", &input->paste_mods, &input->paste_evdev);
 
-    /* Same "sane default until config says otherwise" convention --
-       matches config.c's own ghostcon_config_defaults(). */
+    /* Same "sane default until config says otherwise" convention --matches
+     * config.c's own ghostcon_config_defaults().
+     */
     input->mouse_enable = true;
     input->mouse_scroll_speed = 1.0f;
     input->touchpad_enable = true;
@@ -460,26 +461,26 @@ ghostcon_input_open(const char *seat_id, int viewport_w, int viewport_h,
         goto fail;
     }
 
-    /* Explicit legacy-mode defaults for this fresh encoder -- found
-       live: Ctrl+D (and by extension every other Ctrl+letter combo)
-       was being encoded as kitty keyboard protocol CSI-u sequences
-       (e.g. "\x1b[4;5u") instead of the plain single control byte
-       (0x04) any ordinary shell expects, landing as literal garbage
-       text instead of being interpreted -- the encoder's own out-of-
-       the-box default apparently isn't the plain legacy encoding a
-       bare, unaware shell needs. Just the STARTING point now, not
-       permanent: ghostcon_input_sync_modes() (called every dispatch)
-       re-syncs GHOSTTY_KEY_ENCODER_OPT_KITTY_FLAGS from
-       screen->kitty's live, connected-app-negotiated state (see that
-       function's own doc comment) -- this only matters for the brief
-       window before the first sync_modes() call, or if an app never
-       requests the protocol at all (screen->kitty then stays at its
-       own init default of 0/disabled anyway, so this and that agree).
-       GHOSTTY_KEY_ENCODER_OPT_MODIFY_OTHER_KEYS_STATE_2 (xterm's
-       older, separate mechanism for the same class of problem) has no
-       tracked live state anywhere in this tree yet, so it stays
-       permanently forced off here -- a smaller, still-open version of
-       the same gap the kitty flags used to have. */
+    /* Explicit legacy-mode defaults for this fresh encoder -- found live:
+     * Ctrl+D (and by extension every other Ctrl+letter combo) was being
+     * encoded as kitty keyboard protocol CSI-u sequences (e.g. "\x1b[4;5u")
+     * instead of the plain single control byte (0x04) any ordinary shell
+     * expects, landing as literal garbage text instead of being interpreted
+     * -- the encoder's own out-of-the-box default apparently isn't the
+     * plain legacy encoding a bare, unaware shell needs. Just the STARTING
+     * point now, not permanent: ghostcon_input_sync_modes() (called every
+     * dispatch) re-syncs GHOSTTY_KEY_ENCODER_OPT_KITTY_FLAGS from
+     * screen->kitty's live, connected-app-negotiated state (see that
+     * function's own doc comment) -- this only matters for the brief window
+     * before the first sync_modes() call, or if an app never requests the
+     * protocol at all (screen->kitty then stays at its own init default of
+     * 0/disabled anyway, so this and that agree).
+     * GHOSTTY_KEY_ENCODER_OPT_MODIFY_OTHER_KEYS_STATE_2 (xterm's older,
+     * separate mechanism for the same class of problem) has no tracked live
+     * state anywhere in this tree yet, so it stays permanently forced off
+     * here -- a smaller, still-open version of the same gap the kitty flags
+     * used to have.
+     */
     GhosttyKittyKeyFlags kitty_disabled = GHOSTTY_KITTY_KEY_DISABLED;
     ghostty_key_encoder_setopt(input->encoder,
                                 GHOSTTY_KEY_ENCODER_OPT_KITTY_FLAGS,
@@ -563,21 +564,21 @@ ghostcon_input_sync_modes(ghostcon_input_t *input, const ghostcon_screen_t *scre
                                 GHOSTTY_KEY_ENCODER_OPT_CURSOR_KEY_APPLICATION,
                                 &app_cursor);
 
-    /* Live Kitty keyboard protocol negotiation -- previously
-       hardcoded to GHOSTTY_KITTY_KEY_DISABLED permanently at
-       ghostcon_input_open() time (see that function's own doc comment
-       on why: a real live bug where an unaware shell received CSI-u
-       sequences it couldn't parse). term/stream.c now actually tracks
-       what a connected app requests via its own CSI >/</=/? u
-       sequences (screen->kitty, previously write-only dead state --
-       nothing ever read it back), so this can finally honor that
-       instead of always forcing legacy mode -- GhosttyKittyKeyFlags
-       is bit-for-bit identical to this project's own GC_KITTY_* flags
-       (both DISAMBIGUATE=bit0/REPORT_EVENTS=bit1/.../REPORT_ASSOCIATED
-       =bit4), so no translation is needed, just a direct pass-through.
-       An app that never asked for Kitty protocol still gets flags=0
-       (GHOSTTY_KITTY_KEY_DISABLED) here, i.e. legacy encoding by
-       default -- unchanged behavior for the common case. */
+    /* Live Kitty keyboard protocol negotiation -- previously hardcoded to
+     * GHOSTTY_KITTY_KEY_DISABLED permanently at ghostcon_input_open() time
+     * (see that function's own doc comment on why: a real live bug where an
+     * unaware shell received CSI-u sequences it couldn't parse).
+     * term/stream.c now actually tracks what a connected app requests via
+     * its own CSI >/</=/? u sequences (screen->kitty, previously write-only
+     * dead state --nothing ever read it back), so this can finally honor
+     * that instead of always forcing legacy mode -- GhosttyKittyKeyFlags is
+     * bit-for-bit identical to this project's own GC_KITTY_* flags (both
+     * DISAMBIGUATE=bit0/REPORT_EVENTS=bit1/.../REPORT_ASSOCIATED =bit4), so
+     * no translation is needed, just a direct pass-through. An app that
+     * never asked for Kitty protocol still gets flags=0
+     * (GHOSTTY_KITTY_KEY_DISABLED) here, i.e. legacy encoding by default --
+     * unchanged behavior for the common case.
+     */
     GhosttyKittyKeyFlags kitty_flags = ghostcon_kitty_current(&screen->kitty);
     ghostty_key_encoder_setopt(input->encoder,
                                 GHOSTTY_KEY_ENCODER_OPT_KITTY_FLAGS,
@@ -625,8 +626,9 @@ ghostcon_input_set_touchpad_config(ghostcon_input_t *input, bool enable,
 }
 
 /* Named keys beyond plain letters -- deliberately small, only what's
-   plausible to rebind copy/paste to; not Ghostty's full W3C key table
-   (see ghostcon_parse_keybinding()'s own doc comment on scope). */
+ * plausible to rebind copy/paste to; not Ghostty's full W3C key table (see
+ * ghostcon_parse_keybinding()'s own doc comment on scope).
+ */
 static const struct { const char *name; uint32_t evdev; } KEYBINDING_NAMED_KEYS[] = {
     { "insert", KEY_INSERT }, { "space", KEY_SPACE }, { "tab", KEY_TAB },
     { "enter", KEY_ENTER }, { "return", KEY_ENTER }, { "escape", KEY_ESC },
@@ -662,9 +664,10 @@ ghostcon_parse_keybinding(const char *spec, GhosttyMods *out_mods, uint32_t *out
 
         if (strlen(tok) == 1 && tok[0] >= 'a' && tok[0] <= 'z') {
             /* evdev codes follow physical QWERTY layout, NOT alphabetical
-               order (e.g. KEY_A=30, KEY_Z=44, KEY_C=46 -- nowhere near
-               contiguous), so this needs an explicit table, not
-               KEY_A + offset. */
+             * order (e.g. KEY_A=30, KEY_Z=44, KEY_C=46 -- nowhere near
+             * contiguous), so this needs an explicit table, not KEY_A +
+             * offset.
+             */
             static const uint32_t LETTER_EVDEV[26] = {
                 KEY_A, KEY_B, KEY_C, KEY_D, KEY_E, KEY_F, KEY_G, KEY_H, KEY_I,
                 KEY_J, KEY_K, KEY_L, KEY_M, KEY_N, KEY_O, KEY_P, KEY_Q, KEY_R,
@@ -723,19 +726,19 @@ current_mods(struct xkb_state *state)
     return mods;
 }
 
-/* Ctrl+Alt+F1..F12 is reserved for the kernel's own VT switch handling
-   -- libinput reads raw evdev events completely independently of that
-   (see core/main.c's own doc comment on the analogous input-leak bug
-   for why: this device has no concept of "which reader should get
-   this event," every open fd sees every keystroke). Without this
-   filter, the SAME physical Ctrl+Alt+Fn press that triggers a real VT
-   switch ALSO gets encoded and forwarded here, landing as literal
-   escaped text in whatever's running in the shell at that moment --
-   found live: switching to a GNOME session with Ctrl+Alt+F6 left
-   "^[[17;7~" typed into the login prompt on the VT being switched away
-   from. xkb_state_update_key() (already called before this point)
-   still runs regardless, so modifier tracking stays correct even
-   though the keystroke itself is swallowed here. */
+/* Ctrl+Alt+F1..F12 is reserved for the kernel's own VT switch handling --
+ * libinput reads raw evdev events completely independently of that (see
+ * core/main.c's own doc comment on the analogous input-leak bug for why:
+ * this device has no concept of "which reader should get this event," every
+ * open fd sees every keystroke). Without this filter, the SAME physical
+ * Ctrl+Alt+Fn press that triggers a real VT switch ALSO gets encoded and
+ * forwarded here, landing as literal escaped text in whatever's running in
+ * the shell at that moment --found live: switching to a GNOME session with
+ * Ctrl+Alt+F6 left "^[[17;7~" typed into the login prompt on the VT being
+ * switched away from. xkb_state_update_key() (already called before this
+ * point) still runs regardless, so modifier tracking stays correct even
+ * though the keystroke itself is swallowed here.
+ */
 static bool
 is_vt_switch_combo(uint32_t evdev_code, GhosttyMods mods)
 {
@@ -752,13 +755,14 @@ is_vt_switch_combo(uint32_t evdev_code, GhosttyMods mods)
 }
 
 /* Shift+Up/Down/PageUp/PageDown — scrollback view shortcuts, mirroring
-   kmscon's grab-scroll-up/-down/grab-page-up/-down defaults. Exact
-   Shift-only match (not "Shift held among others"), same specificity
-   kmscon's own default grabs use, so e.g. an app that wants Shift+Ctrl+Up
-   for something else still gets it forwarded normally. Press-only
-   (release is a no-op, same as is_vt_switch_combo's handling doesn't
-   need to distinguish press/release since nothing forwards on release
-   either once true is returned here). */
+ * kmscon's grab-scroll-up/-down/grab-page-up/-down defaults. Exact
+ * Shift-only match (not "Shift held among others"), same specificity
+ * kmscon's own default grabs use, so e.g. an app that wants Shift+Ctrl+Up
+ * for something else still gets it forwarded normally. Press-only (release
+ * is a no-op, same as is_vt_switch_combo's handling doesn't need to
+ * distinguish press/release since nothing forwards on release either once
+ * true is returned here).
+ */
 static bool
 handle_scroll_shortcut(ghostcon_screen_t *screen, uint32_t evdev_code,
                         GhosttyMods mods, GhosttyKeyAction action)
@@ -776,16 +780,17 @@ handle_scroll_shortcut(ghostcon_screen_t *screen, uint32_t evdev_code,
 }
 
 /* Ctrl+=/Ctrl+Minus -- zoom shortcuts, mirroring kmscon's grab-zoom-in/
-   grab-zoom-out defaults (kmscon documents them as <Ctrl>Plus/<Ctrl>Minus;
-   bound here to the unshifted '='/'-' keys instead, matching how most
-   terminals/browsers do Ctrl+= to zoom in without requiring Shift too).
-   KEY_KPPLUS/KEY_KPMINUS are aliases for the numpad. This function has
-   no font/atlas ownership (that's core/main.c's app_t) -- it just
-   accumulates the requested DIRECTION (+-1 "one zoom tick", not a point
-   count) into *zoom_delta; the caller multiplies by its own
-   config-driven step size (app->zoom_step) when actually applying it,
-   since input.c has no config access and shouldn't need any just for
-   this. Press-only, same reasoning as handle_scroll_shortcut. */
+ * grab-zoom-out defaults (kmscon documents them as <Ctrl>Plus/<Ctrl>Minus;
+ * bound here to the unshifted '='/'-' keys instead, matching how most
+ * terminals/browsers do Ctrl+= to zoom in without requiring Shift too).
+ * KEY_KPPLUS/KEY_KPMINUS are aliases for the numpad. This function has no
+ * font/atlas ownership (that's core/main.c's app_t) -- it just accumulates
+ * the requested DIRECTION (+-1 "one zoom tick", not a point count) into
+ * *zoom_delta; the caller multiplies by its own config-driven step size
+ * (app->zoom_step) when actually applying it, since input.c has no config
+ * access and shouldn't need any just for this. Press-only, same reasoning
+ * as handle_scroll_shortcut.
+ */
 static bool
 handle_zoom_shortcut(int *zoom_delta, uint32_t evdev_code, GhosttyMods mods,
                       GhosttyKeyAction action)
@@ -808,13 +813,14 @@ handle_zoom_shortcut(int *zoom_delta, uint32_t evdev_code, GhosttyMods mods,
 }
 
 /* Ctrl+Alt+D -- dump the live screen state to a fixed diagnostic file
-   (core/main.c does the actual write, since it owns app->term; this
-   just detects the chord and reports it via *out_dump_requested, same
-   handoff pattern as handle_zoom_shortcut()'s *zoom_delta). Added to
-   debug a rendering bug that only reproduces in a real, long-running
-   session -- lets you capture the exact live cell state at the moment
-   a glitch is visible, for a direct diff against tools/ghostty_dump.c's
-   reference output, instead of guessing at a reproduction offline. */
+ * (core/main.c does the actual write, since it owns app->term; this just
+ * detects the chord and reports it via *out_dump_requested, same handoff
+ * pattern as handle_zoom_shortcut()'s *zoom_delta). Added to debug a
+ * rendering bug that only reproduces in a real, long-running session --
+ * lets you capture the exact live cell state at the moment a glitch is
+ * visible, for a direct diff against tools/ghostty_dump.c's reference
+ * output, instead of guessing at a reproduction offline.
+ */
 static bool
 handle_dump_shortcut(bool *dump_requested, uint32_t evdev_code, GhosttyMods mods,
                       GhosttyKeyAction action)
@@ -828,8 +834,9 @@ handle_dump_shortcut(bool *dump_requested, uint32_t evdev_code, GhosttyMods mods
 }
 
 /* Forward declarations -- defined later in this file (near
-   send_mouse_report()), but needed here since handle_keyboard_event()
-   comes first. */
+ * send_mouse_report()), but needed here since handle_keyboard_event() comes
+ * first.
+ */
 static void copy_selection_to_clipboard(ghostcon_screen_t *screen);
 static void paste_clipboard_to_pty(ghostcon_screen_t *screen, ghostcon_transport_t *transport);
 
@@ -853,9 +860,10 @@ handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
                                    : GHOSTTY_KEY_ACTION_RELEASE;
 
     /* Releasing the key currently auto-repeating stops it -- checked
-       unconditionally here (not folded into the write-path arm logic
-       below) since a release often encodes to zero bytes in legacy
-       mode and would otherwise never reach that code. */
+     * unconditionally here (not folded into the write-path arm logic below)
+     * since a release often encodes to zero bytes in legacy mode and would
+     * otherwise never reach that code.
+     */
     if (action == GHOSTTY_KEY_ACTION_RELEASE && input->repeating &&
         input->repeat_evdev_code == evdev_code) {
         input->repeating = false;
@@ -864,11 +872,12 @@ handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
     }
 
     /* Inactive (see ghostcon_input_dispatch()'s own doc comment on
-       `active`): XKB modifier tracking above and the repeat-cancel
-       just above are both cheap and worth keeping correct regardless,
-       but nothing past this point -- forwarding, shortcuts, paste --
-       should happen while a stray keystroke typed on a different VT
-       is being defensively discarded here. */
+     * `active`): XKB modifier tracking above and the repeat-cancel just
+     * above are both cheap and worth keeping correct regardless, but
+     * nothing past this point -- forwarding, shortcuts, paste --should
+     * happen while a stray keystroke typed on a different VT is being
+     * defensively discarded here.
+     */
     if (!active)
         return true;
 
@@ -877,23 +886,24 @@ handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
     uint32_t unshifted_cp = 0;
     if (action == GHOSTTY_KEY_ACTION_PRESS) {
         /* xkb_state_key_get_utf8() on input->xkb_state (which has Ctrl
-           currently held for a Ctrl+letter combo) has xkbcommon's own
-           built-in Ctrl-to-control-byte transformation baked in -- it
-           returns the already-transformed control byte (e.g. 0x04 for
-           Ctrl+D), not the plain letter. Feeding that into the Ghostty
-           key encoder alongside GHOSTTY_MODS_CTRL confuses its legacy
-           encoding path (it can't map an already-non-printable byte to
-           a plain Ctrl+letter sequence) and it falls back to kitty-style
-           CSI-u (e.g. "\x1b[4;5u" for Ctrl+D landing as literal text in
-           the shell). kmscon avoids this entirely by working from raw
-           keysyms (xkb_state_key_get_syms/get_one_sym in
-           input_uxkb.c), which are NOT affected by Ctrl, and letting its
-           VTE layer do its own Ctrl mapping -- xkb_state_key_get_one_sym
-           + xkb_keysym_to_utf8 mirrors that here: the keysym lookup
-           itself is unaffected by Ctrl (Ctrl isn't a shift-level
-           modifier), and xkb_keysym_to_utf8() has no special-case Ctrl
-           behavior, so the encoder gets the plain letter and does its
-           own (correct, verified) Ctrl+letter encoding. */
+         * currently held for a Ctrl+letter combo) has xkbcommon's own
+         * built-in Ctrl-to-control-byte transformation baked in -- it
+         * returns the already-transformed control byte (e.g. 0x04 for
+         * Ctrl+D), not the plain letter. Feeding that into the Ghostty
+         * key encoder alongside GHOSTTY_MODS_CTRL confuses its legacy
+         * encoding path (it can't map an already-non-printable byte to
+         * a plain Ctrl+letter sequence) and it falls back to kitty-style
+         * CSI-u (e.g. "\x1b[4;5u" for Ctrl+D landing as literal text in
+         * the shell). kmscon avoids this entirely by working from raw
+         * keysyms (xkb_state_key_get_syms/get_one_sym in
+         * input_uxkb.c), which are NOT affected by Ctrl, and letting its
+         * VTE layer do its own Ctrl mapping -- xkb_state_key_get_one_sym
+         * + xkb_keysym_to_utf8 mirrors that here: the keysym lookup
+         * itself is unaffected by Ctrl (Ctrl isn't a shift-level
+         * modifier), and xkb_keysym_to_utf8() has no special-case Ctrl
+         * behavior, so the encoder gets the plain letter and does its
+         * own (correct, verified) Ctrl+letter encoding.
+         */
         xkb_keysym_t sym = xkb_state_key_get_one_sym(input->xkb_state, xkb_code);
         utf8_len = xkb_keysym_to_utf8(sym, utf8, sizeof(utf8));
         if (utf8_len > 0)
@@ -918,11 +928,12 @@ handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
         return true; /* consumed locally, never forwarded to the pty */
 
     /* Configurable copy/paste shortcuts ([keybindings] in ghostcon.toml,
-       parsed via ghostcon_parse_keybinding(), defaulting to
-       ctrl+shift+c/v -- Ghostty's own Linux defaults, matched
-       deliberately since ghostcon already wraps libghostty-vt). Exact
-       mods match (not "held among others"), same specificity as the
-       scroll/zoom shortcuts above. Press-only. */
+     * parsed via ghostcon_parse_keybinding(), defaulting to ctrl+shift+c/v
+     * -- Ghostty's own Linux defaults, matched deliberately since ghostcon
+     * already wraps libghostty-vt). Exact mods match (not "held among
+     * others"), same specificity as the scroll/zoom shortcuts above.
+     * Press-only.
+     */
     if (mods == input->copy_mods && evdev_code == input->copy_evdev &&
         action == GHOSTTY_KEY_ACTION_PRESS) {
         copy_selection_to_clipboard(screen);
@@ -941,13 +952,13 @@ handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
     if (written == (size_t)-1 || written == 0)
         return true; /* nothing to send (e.g. bare modifier), not an error */
 
-    /* Any other key that actually reaches the shell snaps the view back
-       to live -- found live: after scrolling back, typing kept the
-       scrolled-back history on screen instead of returning to where the
-       new input (and its echo) actually lands, matching every other
-       terminal's behavior of "typing means you want to see what you're
-       doing". Scroll shortcuts themselves already returned above and
-       never reach here. */
+    /* Any other key that actually reaches the shell snaps the view back to
+     * live -- found live: after scrolling back, typing kept the
+     * scrolled-back history on screen instead of returning to where the new
+     * input (and its echo) actually lands, matching every other terminal's
+     * behavior of "typing means you want to see what you're doing". Scroll
+     * shortcuts themselves already returned above and never reach here.
+     */
     if (screen->view_offset > 0)
         ghostcon_screen_scroll_view(screen, -(int)screen->view_offset);
 
@@ -955,12 +966,13 @@ handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
     if (w != (ssize_t)written)
         return false;
 
-    /* Arm/restart auto-repeat for this press if the active keymap says
-       this key should repeat (modifiers etc. are excluded by the
-       keymap itself). timerfd_settime() unconditionally replaces
-       whatever the timer was previously doing, so a different key
-       pressed while one was already repeating naturally takes over --
-       no separate "stop the old one first" step needed. */
+    /* Arm/restart auto-repeat for this press if the active keymap says this
+     * key should repeat (modifiers etc. are excluded by the keymap itself).
+     * timerfd_settime() unconditionally replaces whatever the timer was
+     * previously doing, so a different key pressed while one was already
+     * repeating naturally takes over --no separate "stop the old one first"
+     * step needed.
+     */
     if (action == GHOSTTY_KEY_ACTION_PRESS && input->repeat_fd >= 0 &&
         xkb_keymap_key_repeats(input->xkb_keymap, xkb_code)) {
         input->repeating = true;
@@ -980,10 +992,11 @@ handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
     return true;
 }
 
-/* Maps an evdev button code (BTN_LEFT/BTN_RIGHT/BTN_MIDDLE, as
-   returned by libinput_event_pointer_get_button()) to our button enum.
-   Returns false for anything else (side/extra buttons, etc.) -- not
-   handled in this pass, event is a silent no-op rather than an error. */
+/* Maps an evdev button code (BTN_LEFT/BTN_RIGHT/BTN_MIDDLE, as returned by
+ * libinput_event_pointer_get_button()) to our button enum. Returns false
+ * for anything else (side/extra buttons, etc.) -- not handled in this pass,
+ * event is a silent no-op rather than an error.
+ */
 static bool
 evdev_button_to_mouse(uint32_t code, ghostcon_mouse_button_t *out)
 {
@@ -996,9 +1009,10 @@ evdev_button_to_mouse(uint32_t code, ghostcon_mouse_button_t *out)
 }
 
 /* Encodes and sends one mouse report (if term/mouse.c's
-   ghostcon_mouse_encode() decides this event should be reported at
-   all, per screen's negotiated protocol) using input's current
-   pointer_x/y. Returns false only on a transport write failure. */
+ * ghostcon_mouse_encode() decides this event should be reported at all, per
+ * screen's negotiated protocol) using input's current pointer_x/y. Returns
+ * false only on a transport write failure.
+ */
 static bool
 send_mouse_report(ghostcon_input_t *input, ghostcon_transport_t *transport,
                    ghostcon_screen_t *screen, int cell_w, int cell_h,
@@ -1017,12 +1031,13 @@ send_mouse_report(ghostcon_input_t *input, ghostcon_transport_t *transport,
     return w == (ssize_t)written;
 }
 
-/* Decides whether a click should be intercepted for LOCAL selection
-   (or middle-click paste) rather than forwarded to the app as a mouse
-   report -- mirrors xterm's own "shift bypasses an app's mouse grab"
-   convention: local wins if the app hasn't asked for mouse tracking at
-   all, or if Shift is held and the app hasn't set XTSHIFTESCAPE
-   (mouse_shift_capture) to ask for shift-clicks too. */
+/* Decides whether a click should be intercepted for LOCAL selection (or
+ * middle-click paste) rather than forwarded to the app as a mouse report --
+ * mirrors xterm's own "shift bypasses an app's mouse grab" convention:
+ * local wins if the app hasn't asked for mouse tracking at all, or if Shift
+ * is held and the app hasn't set XTSHIFTESCAPE (mouse_shift_capture) to ask
+ * for shift-clicks too.
+ */
 static bool
 should_intercept_for_selection(const ghostcon_screen_t *screen, GhosttyMods mods)
 {
@@ -1033,13 +1048,14 @@ should_intercept_for_selection(const ghostcon_screen_t *screen, GhosttyMods mods
     return false;
 }
 
-/* Extracts the active selection as plain text and stores it, base64-
-   encoded, into screen->clipboard -- the same buffer OSC 52 already
-   uses, kept to its "always holds base64" convention regardless of
-   which path wrote it. A no-op if there's no active selection. Scratch
-   buffer sized for base64's ~4/3 expansion (clipboard's 4096 bytes can
-   only hold ~3072 raw bytes once encoded), not sizeof(screen->clipboard)
-   itself -- using the full 4096 there would silently truncate. */
+/* Extracts the active selection as plain text and stores it,
+ * base64-encoded, into screen->clipboard -- the same buffer OSC 52 already
+ * uses, kept to its "always holds base64" convention regardless of which
+ * path wrote it. A no-op if there's no active selection. Scratch buffer
+ * sized for base64's ~4/3 expansion (clipboard's 4096 bytes can only hold
+ * ~3072 raw bytes once encoded), not sizeof(screen->clipboard) itself --
+ * using the full 4096 there would silently truncate.
+ */
 static void
 copy_selection_to_clipboard(ghostcon_screen_t *screen)
 {
@@ -1050,13 +1066,13 @@ copy_selection_to_clipboard(ghostcon_screen_t *screen)
     ghostcon_base64_encode((const uint8_t *)text, n, screen->clipboard, sizeof(screen->clipboard));
 }
 
-/* Decodes screen->clipboard (base64, same buffer OSC 52 reads/writes)
-   and writes the raw bytes to the pty, wrapped in bracketed-paste
-   markers if the app has enabled mode 2004 -- skipping that wrap would
-   visibly break paste in any bracketed-paste-aware program (vim,
-   readline), since they'd have no way to tell pasted text apart from
-   typed keystrokes. Shared by the configurable paste shortcut and
-   middle-click paste. */
+/* Decodes screen->clipboard (base64, same buffer OSC 52 reads/writes) and
+ * writes the raw bytes to the pty, wrapped in bracketed-paste markers if
+ * the app has enabled mode 2004 -- skipping that wrap would visibly break
+ * paste in any bracketed-paste-aware program (vim, readline), since they'd
+ * have no way to tell pasted text apart from typed keystrokes. Shared by
+ * the configurable paste shortcut and middle-click paste.
+ */
 static void
 paste_clipboard_to_pty(ghostcon_screen_t *screen, ghostcon_transport_t *transport)
 {
@@ -1072,20 +1088,20 @@ paste_clipboard_to_pty(ghostcon_screen_t *screen, ghostcon_transport_t *transpor
         ghostcon_transport_write(transport, (const uint8_t *)"\x1b[201~", 6);
 }
 
-/* Pointer capture -- mice AND touchpads alike. libinput's own device
-   model groups mice/trackballs/touchpads under one
-   LIBINPUT_DEVICE_CAP_POINTER capability, and touchpad relative
-   dragging is delivered as the exact same LIBINPUT_EVENT_POINTER_MOTION
-   (relative dx/dy) a mouse produces -- MOTION_ABSOLUTE is for
-   genuinely absolute-positioning devices (touchscreens/tablets), not
-   touchpads used as a relative pointer. kmscon, by contrast, hand-
-   rolls touchpad support at the raw evdev level (manual ABS_X/ABS_Y
-   offset-tracking per touchpad in its own input_pointer.c) because it
-   doesn't route pointer input through libinput at all -- verified
-   against that source before writing this; nothing device-type-
-   specific is needed here, both flow through the same already-open
-   libinput context ghostcon_input_open() uses for keyboard. Returns
-   false only on a transport write failure. */
+/* Pointer capture -- mice AND touchpads alike. libinput's own device model
+ * groups mice/trackballs/touchpads under one LIBINPUT_DEVICE_CAP_POINTER
+ * capability, and touchpad relative dragging is delivered as the exact same
+ * LIBINPUT_EVENT_POINTER_MOTION (relative dx/dy) a mouse produces --
+ * MOTION_ABSOLUTE is for genuinely absolute-positioning devices
+ * (touchscreens/tablets), not touchpads used as a relative pointer. kmscon,
+ * by contrast, hand-rolls touchpad support at the raw evdev level (manual
+ * ABS_X/ABS_Y offset-tracking per touchpad in its own input_pointer.c)
+ * because it doesn't route pointer input through libinput at all --
+ * verified against that source before writing this; nothing
+ * device-type-specific is needed here, both flow through the same
+ * already-open libinput context ghostcon_input_open() uses for keyboard.
+ * Returns false only on a transport write failure.
+ */
 static bool
 handle_pointer_event(ghostcon_input_t *input, struct libinput_event *ev,
                       enum libinput_event_type type, ghostcon_transport_t *transport,
@@ -1111,11 +1127,12 @@ handle_pointer_event(ghostcon_input_t *input, struct libinput_event *ev,
             return true; /* side/extra button we don't map -- silent no-op */
         bool pressed = libinput_event_pointer_get_button_state(p) == LIBINPUT_BUTTON_STATE_PRESSED;
 
-        /* Middle-click paste (X11 convention) -- only when this click
-           would otherwise be intercepted for local selection; if the
-           app has grabbed mouse reporting and Shift isn't overriding
-           it, middle-click reports to the app like any other button,
-           same as before this feature existed. */
+        /* Middle-click paste (X11 convention) -- only when this click would
+         * otherwise be intercepted for local selection; if the app has
+         * grabbed mouse reporting and Shift isn't overriding it,
+         * middle-click reports to the app like any other button, same as
+         * before this feature existed.
+         */
         if (button == GC_MOUSE_MIDDLE && pressed &&
             should_intercept_for_selection(screen, current_mods(input->xkb_state))) {
             paste_clipboard_to_pty(screen, transport);
@@ -1123,11 +1140,11 @@ handle_pointer_event(ghostcon_input_t *input, struct libinput_event *ev,
         }
 
         /* The intercept decision is made ONCE, at press time, and
-           remembered until release -- so a drag can't switch between
-           local selection and app-reported mid-gesture if e.g. the
-           app toggles mouse-reporting mid-drag (pathological, but
-           cheap to guard against; see the struct field's own doc
-           comment). */
+         * remembered until release -- so a drag can't switch between local
+         * selection and app-reported mid-gesture if e.g. the app toggles
+         * mouse-reporting mid-drag (pathological, but cheap to guard
+         * against; see the struct field's own doc comment).
+         */
         if (button == GC_MOUSE_LEFT && pressed)
             input->left_button_intercepted =
                 should_intercept_for_selection(screen, current_mods(input->xkb_state));
@@ -1152,10 +1169,11 @@ handle_pointer_event(ghostcon_input_t *input, struct libinput_event *ev,
     case LIBINPUT_EVENT_POINTER_SCROLL_WHEEL:
     case LIBINPUT_EVENT_POINTER_SCROLL_FINGER: {
         /* v120 for a real wheel (per-detent already discretized by
-           libinput); plain scroll_value for touchpad two-finger scroll
-           (a continuous pixel-ish distance) -- it is an application
-           bug to call get_scroll_value_v120() on a non-wheel event
-           (per libinput.h's own doc comment), hence the split here. */
+         * libinput); plain scroll_value for touchpad two-finger scroll (a
+         * continuous pixel-ish distance) -- it is an application bug to
+         * call get_scroll_value_v120() on a non-wheel event (per
+         * libinput.h's own doc comment), hence the split here.
+         */
         if (!libinput_event_pointer_has_axis(p, LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL))
             return true;
         double value = (type == LIBINPUT_EVENT_POINTER_SCROLL_WHEEL)
@@ -1164,17 +1182,17 @@ handle_pointer_event(ghostcon_input_t *input, struct libinput_event *ev,
         if (value == 0.0)
             return true;
 
-        /* scroll_speed (config.h's own doc comment has the full
-           algorithm): fractional accumulator over raw ticks, per
-           device class. raw_ticks is the wheel's own detent count
-           (a single flick can report multiple 120s) for a real wheel;
-           touchpad two-finger scroll has no natural "detent" concept,
-           so each event with a nonzero value simply counts as one
-           raw tick, same simplification the pre-scroll_speed code
-           already made. A direction reversal wipes any built-up
-           fractional backlog from the opposite direction -- otherwise
-           a throttled (speed<1) scroll that reverses could fire an
-           unexpected extra tick from leftover accumulation. */
+        /* scroll_speed (config.h's own doc comment has the full algorithm):
+         * fractional accumulator over raw ticks, per device class.
+         * raw_ticks is the wheel's own detent count (a single flick can
+         * report multiple 120s) for a real wheel; touchpad two-finger
+         * scroll has no natural "detent" concept, so each event with a
+         * nonzero value simply counts as one raw tick, same simplification
+         * the pre-scroll_speed code already made. A direction reversal
+         * wipes any built-up fractional backlog from the opposite direction
+         * -- otherwise a throttled (speed<1) scroll that reverses could
+         * fire an unexpected extra tick from leftover accumulation.
+         */
         bool touchpad = device_is_touchpad(libinput_event_get_device(ev));
         double *accum = touchpad ? &input->touchpad_scroll_accum : &input->mouse_scroll_accum;
         float speed = touchpad ? input->touchpad_scroll_speed : input->mouse_scroll_speed;
@@ -1205,12 +1223,13 @@ handle_pointer_event(ghostcon_input_t *input, struct libinput_event *ev,
     out_pointer->y = input->pointer_y;
     out_pointer->moved = true;
 
-    /* A drag currently intercepted for local selection must not ALSO
-       report motion to the app -- out_pointer->moved above already
-       lets main.c drive ghostcon_selection_update() from this event;
-       reporting it to the pty too would leak drag motion into a mouse-
-       aware app for a click that was, by definition, kept local (see
-       should_intercept_for_selection()). */
+    /* A drag currently intercepted for local selection must not ALSO report
+     * motion to the app -- out_pointer->moved above already lets main.c
+     * drive ghostcon_selection_update() from this event; reporting it to
+     * the pty too would leak drag motion into a mouse-aware app for a click
+     * that was, by definition, kept local (see
+     * should_intercept_for_selection()).
+     */
     if (input->left_button_intercepted && (input->pressed_buttons & (1u << GC_MOUSE_LEFT)))
         return true;
 
@@ -1246,11 +1265,12 @@ ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport
         enum libinput_event_type type = libinput_event_get_type(ev);
 
         if (type == LIBINPUT_EVENT_DEVICE_ADDED) {
-            /* Tracked (and configured) regardless of `active` -- a
-               device plugged in while this VT isn't focused should
-               still come up correctly configured for whenever it
-               does become active, same reasoning XKB modifier
-               tracking below stays live regardless of `active`. */
+            /* Tracked (and configured) regardless of `active` -- a device
+             * plugged in while this VT isn't focused should still come up
+             * correctly configured for whenever it does become active, same
+             * reasoning XKB modifier tracking below stays live regardless
+             * of `active`.
+             */
             struct libinput_device *dev = libinput_event_get_device(ev);
             if (input->device_count < (int)(sizeof(input->devices) / sizeof(input->devices[0]))) {
                 input->devices[input->device_count++] = libinput_device_ref(dev);
@@ -1279,21 +1299,23 @@ ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport
                     type == LIBINPUT_EVENT_POINTER_SCROLL_WHEEL ||
                     type == LIBINPUT_EVENT_POINTER_SCROLL_FINGER)) {
             /* Pointer events are skipped entirely (not just their
-               consequences suppressed) when inactive -- unlike
-               keyboard modifier state, there's no equivalent "still
-               worth tracking so it doesn't desync" reason to process
-               them; out_pointer simply stays at its last known
-               position, which is what it already returns from
-               dispatch()'s own top-of-function default. */
+             * consequences suppressed) when inactive -- unlike keyboard
+             * modifier state, there's no equivalent "still worth tracking
+             * so it doesn't desync" reason to process them; out_pointer
+             * simply stays at its last known position, which is what it
+             * already returns from dispatch()'s own top-of-function
+             * default.
+             */
             if (!handle_pointer_event(input, ev, type, transport, screen, cell_w, cell_h, out_pointer)) {
                 libinput_event_destroy(ev);
                 return false;
             }
         }
-        /* Other pointer/gesture event types (LIBINPUT_EVENT_POINTER_AXIS
-           -- deprecated/legacy, superseded by SCROLL_WHEEL/FINGER above;
-           tablet/gesture events): observed and discarded, not handled
-           in this pass. */
+        /* Other pointer/gesture event types (LIBINPUT_EVENT_POINTER_AXIS --
+         * deprecated/legacy, superseded by SCROLL_WHEEL/FINGER above;
+         * tablet/gesture events): observed and discarded, not handled in
+         * this pass.
+         */
 
         libinput_event_destroy(ev);
     }

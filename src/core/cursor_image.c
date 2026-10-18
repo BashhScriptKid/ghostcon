@@ -4,10 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* ------------------------------------------------------------------ */
-/* Little-endian primitive reads -- BMP and Xcursor are both LE on     */
-/* disk regardless of host byte order.                                 */
-/* ------------------------------------------------------------------ */
+/* Little-endian primitive reads -- BMP and Xcursor are both LE on disk
+ * regardless of host byte order.
+ */
 
 static uint32_t
 rd_u32le(const uint8_t *p)
@@ -75,9 +74,7 @@ read_whole_file(const char *path, size_t *out_len)
     return buf;
 }
 
-/* ------------------------------------------------------------------ */
-/* BMP                                                                  */
-/* ------------------------------------------------------------------ */
+/* BMP */
 
 #define BMP_FILE_HEADER_SIZE 14
 #define BMP_DIB_HEADER_SIZE 40 /* BITMAPINFOHEADER -- the only variant this decoder reads/writes */
@@ -133,7 +130,8 @@ ghostcon_cursor_load_bmp(const char *path, uint32_t *out_w, uint32_t *out_h)
 
     for (uint32_t y = 0; y < h; y++) {
         /* BMP's default (positive height field) storage is bottom-up;
-           normalize to top-down output regardless of source order. */
+         * normalize to top-down output regardless of source order.
+         */
         uint32_t src_row = top_down ? y : (h - 1 - y);
         const uint8_t *row = buf + pixel_offset + (size_t)src_row * row_size;
         uint32_t *out_row = pixels + (size_t)y * w;
@@ -173,11 +171,12 @@ ghostcon_cursor_write_bmp(const char *path, const uint32_t *pixels, uint32_t w, 
 
     wr_u32le(buf + 14, BMP_DIB_HEADER_SIZE);
     wr_u32le(buf + 18, w);
-    /* Negative height = top-down storage -- avoids needing to flip rows
-       on write (we already hold pixels top-down internally) or on a
-       later read-back via ghostcon_cursor_load_bmp(), which handles
-       both signs. Well-supported (Windows since 3.0, every modern
-       reader including this one) despite being the less common case. */
+    /* Negative height = top-down storage -- avoids needing to flip rows on
+     * write (we already hold pixels top-down internally) or on a later
+     * read-back via ghostcon_cursor_load_bmp(), which handles both signs.
+     * Well-supported (Windows since 3.0, every modern reader including this
+     * one) despite being the less common case.
+     */
     wr_u32le(buf + 22, (uint32_t)(-(int32_t)h));
     wr_u16le(buf + 26, 1);  /* planes */
     wr_u16le(buf + 28, 32); /* bpp */
@@ -207,26 +206,26 @@ ghostcon_cursor_write_bmp(const char *path, const uint32_t *pixels, uint32_t w, 
     return n == file_size;
 }
 
-/* ------------------------------------------------------------------ */
-/* Xcursor                                                              */
-/*                                                                       */
-/* Format (see PLAN.md's "Cursor sprite" section for the reference this */
-/* mirrors): magic "Xcur" + version (u32) + ntoc (u32), then `ntoc`     */
-/* table-of-contents entries (type u32, subtype u32, position u32),     */
-/* each pointing to a chunk. An image chunk (type 0xfffd0002) has its   */
-/* own header (header_size, type, subtype, version -- all u32) followed */
-/* by width/height/xhot/yhot/delay (all u32), then width*height raw     */
-/* ARGB32 pixels.                                                       */
-/* ------------------------------------------------------------------ */
+/* Xcursor
+ *
+ * Format (see PLAN.md's "Cursor sprite" section for the reference this
+ * mirrors): magic "Xcur" + version (u32) + ntoc (u32), then `ntoc`
+ * table-of-contents entries (type u32, subtype u32, position u32), each
+ * pointing to a chunk. An image chunk (type 0xfffd0002) has its own header
+ * (header_size, type, subtype, version -- all u32) followed by
+ * width/height/xhot/yhot/delay (all u32), then width*height raw ARGB32
+ * pixels.
+ */
 
-/* "Xcur" (bytes 0x58,0x63,0x75,0x72 on disk) read as a little-endian
-   u32 -- verified against a real system Xcursor file's actual header
-   bytes, not just derived by hand: an earlier version of this constant
-   (0x72754358) was a transposition typo that happened to match this
-   file's own hand-built synthetic test (which used the same wrong
-   value for both writing and reading), passing that test while
-   rejecting every real Xcursor file on the system as invalid -- found
-   live via xcursor2bmp against a real theme. */
+/* "Xcur" (bytes 0x58,0x63,0x75,0x72 on disk) read as a little-endian u32 --
+ * verified against a real system Xcursor file's actual header bytes, not
+ * just derived by hand: an earlier version of this constant (0x72754358)
+ * was a transposition typo that happened to match this file's own
+ * hand-built synthetic test (which used the same wrong value for both
+ * writing and reading), passing that test while rejecting every real
+ * Xcursor file on the system as invalid -- found live via xcursor2bmp
+ * against a real theme.
+ */
 #define XCURSOR_MAGIC 0x72756358u
 #define XCURSOR_IMAGE_TYPE 0xfffd0002u
 #define XCURSOR_FILE_HEADER_SIZE 16 /* magic, header_size, version, ntoc -- all u32 */
@@ -245,9 +244,10 @@ decode_xcursor_buf(const uint8_t *buf, size_t len,
     if (header_size > len)
         return NULL;
 
-    /* Find the image-type TOC entry with the largest subtype (pixel
-       size) -- see this file's own header doc comment on why "largest
-       wins" rather than picking a specific DPI match. */
+    /* Find the image-type TOC entry with the largest subtype (pixel size)
+     * -- see this file's own header doc comment on why "largest wins"
+     * rather than picking a specific DPI match.
+     */
     uint32_t best_subtype = 0;
     uint32_t best_position = 0;
     bool found = false;
@@ -289,9 +289,10 @@ decode_xcursor_buf(const uint8_t *buf, size_t len,
         return NULL;
 
     /* Xcursor image pixels are already stored as raw ARGB32
-       (premultiplied), byte order matching this project's own ARGB8888
-       convention (see core/kms.c's cursor buffer format) -- a direct
-       word-for-word copy, no channel reordering needed. */
+     * (premultiplied), byte order matching this project's own ARGB8888
+     * convention (see core/kms.c's cursor buffer format) -- a direct
+     * word-for-word copy, no channel reordering needed.
+     */
     memcpy(pixels, buf + pixels_off, pixels_need);
 
     *out_w = width;
@@ -308,9 +309,10 @@ ghostcon_cursor_load_xcursor(const char *theme_dir, const char *name,
 {
     char path[1024];
 
-    /* Try `theme_dir` as the cursors/ directory itself first (cheaper
-       than stat()-ing to decide), then fall back to `theme_dir/cursors/`
-       -- see this function's own doc comment in cursor_image.h. */
+    /* Try `theme_dir` as the cursors/ directory itself first (cheaper than
+     * stat()-ing to decide), then fall back to `theme_dir/cursors/` -- see
+     * this function's own doc comment in cursor_image.h.
+     */
     snprintf(path, sizeof(path), "%s/%s", theme_dir, name);
     size_t len;
     uint8_t *buf = read_whole_file(path, &len);
@@ -362,11 +364,12 @@ ghostcon_cursor_crop_to_content(const uint32_t *src, uint32_t src_w, uint32_t sr
 
     *out_w = crop_w;
     *out_h = crop_h;
-    /* Shift the hotspot to match the new, smaller coordinate space --
-       clamped so a hotspot that fell inside the trimmed padding (e.g.
-       BMP callers always pass 0,0, which is almost always padding on a
-       real asset) lands on the nearest edge of the cropped image
-       rather than going negative/out of bounds. */
+    /* Shift the hotspot to match the new, smaller coordinate space
+     * --clamped so a hotspot that fell inside the trimmed padding (e.g. BMP
+     * callers always pass 0,0, which is almost always padding on a real
+     * asset) lands on the nearest edge of the cropped image rather than
+     * going negative/out of bounds.
+     */
     *hot_x = *hot_x > min_x ? *hot_x - min_x : 0;
     *hot_y = *hot_y > min_y ? *hot_y - min_y : 0;
     if (*hot_x >= crop_w) *hot_x = crop_w - 1;
@@ -386,8 +389,9 @@ ghostcon_cursor_scale(const uint32_t *src, uint32_t src_w, uint32_t src_h,
         return NULL;
 
     /* Fixed-point (16.16) src-per-dst step -- avoids repeated float
-       division inside the pixel loop, and dst_x/dst_y * step can't
-       overflow a 32-bit accumulator at any cursor-sized dimension. */
+     * division inside the pixel loop, and dst_x/dst_y * step can't overflow
+     * a 32-bit accumulator at any cursor-sized dimension.
+     */
     uint32_t step_x = (src_w << 16) / dst_w;
     uint32_t step_y = (src_h << 16) / dst_h;
 

@@ -99,7 +99,8 @@ main(int argc, char **argv)
     }
 
     /* Feed in deterministic chunks so split-sequence handling is exercised
-       identically on both sides. */
+     * identically on both sides.
+     */
     const size_t chunk = 256;
     for (long off = 0; off < len; off += (long)chunk) {
         size_t n = (size_t)len - (size_t)off;

@@ -42,9 +42,10 @@ main(void)
         snprintf(msg, sizeof(msg), "%s: fg != bg", presets[i]);
         CHECK(!rgb_eq(pal.fg_default, pal.bg_default), msg);
 
-        /* Every ANSI slot actually got touched (i.e. isn't still
-           whatever ghostcon_palette_init()'s own baseline set) --
-           weak but catches an obviously-truncated preset table entry. */
+        /* Every ANSI slot actually got touched (i.e. isn't still whatever
+         * ghostcon_palette_init()'s own baseline set) --weak but catches an
+         * obviously-truncated preset table entry.
+         */
         bool any_differs = false;
         for (int c = 0; c < 16 && !any_differs; c++)
             any_differs = !rgb_eq(pal.table[c], GC_ANSI_COLORS[c]);
@@ -52,9 +53,10 @@ main(void)
         CHECK(any_differs, msg);
     }
 
-    /* Real Ghostty theme catalog fallback (generated from Ghostty's
-       own bundled theme files -- see theme_ghostty_presets.c). Case-
-       sensitive exact match, same as Ghostty's own theme names. */
+    /* Real Ghostty theme catalog fallback (generated from Ghostty's own
+     * bundled theme files -- see theme_ghostty_presets.c). Case-sensitive
+     * exact match, same as Ghostty's own theme names.
+     */
     {
         ghostcon_palette_t pal;
         ghostcon_palette_init(&pal);

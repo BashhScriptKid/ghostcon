@@ -53,8 +53,9 @@ main(void)
     CHECK(!ghostcon_selection_row_range(&sel, 4, 80, &xs, &xe), "row_range rejects a row outside the selection");
 
     /* This is the exact bug ghostcon_selection_contains() used to have
-       before row_range() was factored out: a single-row selection's
-       right bound must be respected, not just its left bound. */
+     * before row_range() was factored out: a single-row selection's right
+     * bound must be respected, not just its left bound.
+     */
     CHECK(ghostcon_selection_contains(&sel, 2, 3), "contains() includes the left edge");
     CHECK(ghostcon_selection_contains(&sel, 5, 3), "contains() includes the right edge");
     CHECK(!ghostcon_selection_contains(&sel, 6, 3), "contains() excludes past the right edge");
@@ -94,8 +95,9 @@ main(void)
     CHECK(n == strlen("hello world") && strcmp(buf, "hello world") == 0,
           "extract_text: single row, trailing padding trimmed");
 
-    /* Select across both rows -- newline between them since row 0 is
-       not a wrap continuation of row 1 (it's a real \r\n). */
+    /* Select across both rows -- newline between them since row 0 is not a
+     * wrap continuation of row 1 (it's a real \r\n).
+     */
     ghostcon_selection_clear(&term.screen.selection);
     ghostcon_selection_start(&term.screen.selection, 0, 0, GC_SEL_CHAR, term.screen.cols);
     ghostcon_selection_update(&term.screen.selection, 6, 1);

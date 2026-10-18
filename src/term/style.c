@@ -3,20 +3,19 @@
 #include <string.h>
 
 /* fg_palette=0/bg_palette=0 would otherwise be indistinguishable from
-   "explicitly set to ANSI black via SGR 30/40" — Ghostty's real
-   Style.fg_color/bg_color default to a tagged `.none` ("use terminal
-   default"), which this flat-flags port represents via the FG/BG_DEFAULT
-   bits. Those must be set here, matching this constant's own doc comment
-   ("fg=default, bg=default") — found via the renderer actually exercising
-   color resolution for the first time; Phase 0's tests never checked
-   colors, only codepoints/dirty tracking, so this went unnoticed. */
+ * "explicitly set to ANSI black via SGR 30/40" — Ghostty's real
+ * Style.fg_color/bg_color default to a tagged `.none` ("use terminal
+ * default"), which this flat-flags port represents via the FG/BG_DEFAULT
+ * bits. Those must be set here, matching this constant's own doc comment
+ * ("fg=default, bg=default") — found via the renderer actually exercising
+ * color resolution for the first time; Phase 0's tests never checked
+ * colors, only codepoints/dirty tracking, so this went unnoticed.
+ */
 const ghostcon_style_t GHOSTCON_STYLE_DEFAULT = {
     .flags = GC_STYLE_FG_DEFAULT | GC_STYLE_BG_DEFAULT,
 };
 
-/* ------------------------------------------------------------------ */
-/* Simple ref-counted style set using open-addressing hash table       */
-/* ------------------------------------------------------------------ */
+/* Simple ref-counted style set using open-addressing hash table */
 
 /* Initial capacity for style sets */
 #define STYLE_SET_MIN_CAPACITY 16

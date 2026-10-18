@@ -78,11 +78,11 @@ main(int argc, char **argv)
         }
     }
     if (!have_master) {
-        /* Report the REAL errno rather than guessing at a cause --
-           found live: this used to unconditionally claim "something
-           else holds master," which was flat wrong (fuser showed
-           nothing holding the device) and sent troubleshooting in the
-           wrong direction entirely. */
+        /* Report the REAL errno rather than guessing at a cause --found
+         * live: this used to unconditionally claim "something else holds
+         * master," which was flat wrong (fuser showed nothing holding the
+         * device) and sent troubleshooting in the wrong direction entirely.
+         */
         fprintf(stderr, "FAIL: drmSetMaster on %s: %s (errno %d)\n",
                 drm_node, strerror(last_errno), last_errno);
         close(drm_fd);
@@ -116,8 +116,9 @@ main(int argc, char **argv)
         return 1;
     }
 
-    /* First frame: blocking modeset (same as core/main.c's
-       render_frame() does the very first time -- app->did_modeset). */
+    /* First frame: blocking modeset (same as core/main.c's render_frame()
+     * does the very first time -- app->did_modeset).
+     */
     ghostcon_gles_begin(gles, true, 0.1f, 0.1f, 0.3f);
     ghostcon_gles_end(gles);
     if (!ghostcon_egl_swap(&egl) || !ghostcon_kms_modeset(&kms)) {
@@ -134,9 +135,9 @@ main(int argc, char **argv)
 
     for (int i = 0; i < frames; i++) {
         /* Cycle the clear color so it's visually obvious on the real
-           display that frames are actually changing, not just
-           re-committing an identical buffer the driver might
-           special-case. */
+         * display that frames are actually changing, not just re-committing
+         * an identical buffer the driver might special-case.
+         */
         float t = (float)i / (float)frames;
         ghostcon_gles_begin(gles, true, t, 1.0f - t, 0.5f);
         ghostcon_gles_end(gles);
