@@ -59,6 +59,25 @@ if not meson.is_subproject()
         dependencies: [dep_ghostty_vt],
     )
 
+    # gc-inspect — offline cell-level inspector for a recorded raw PTY
+    # byte stream (PLAN.md refactor 3.2). Prints each cell's content tag
+    # AND payload, which is precisely what ghostcon_dump missed for
+    # background-only cells.
+    gc_inspect_exe = executable('gc-inspect',
+        '../tools/gc_inspect.c',
+        include_directories: include_directories('../include'),
+        link_with: term_lib,
+        dependencies: [dep_ghostty_vt, dep_libpng],
+        install: true,
+    )
+
+    test('test_gc_inspect',
+        find_program('../tests/test_gc_inspect.sh'),
+        env: {'GC_INSPECT_BIN': gc_inspect_exe.full_path()},
+        depends: [gc_inspect_exe],
+        timeout: 30,
+    )
+
     # Not a test -- prints codepoints as raw UTF-8 + ghostcon's
     # is_symbol() classification, to paste into a real Ghostty window
     # for independent visual cross-check. See symbol_probe.c's doc
