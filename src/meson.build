@@ -414,12 +414,24 @@ if not meson.is_subproject()
     test('test_input', test_input_exe)
 endif
 
+# core/display.c — display backend extracted out of main.c (PLAN.md
+# refactor 1.1): owns the whole KMS/GBM/EGL/GLES lifecycle and the DRM
+# master acquire/release cycle behind one small API, so higher layers
+# never touch DRM ioctls directly.
+core_display_lib = static_library('ghostcon-core-display',
+    'core/display.c',
+    include_directories: include_directories('../include'),
+    dependencies: [dep_libdrm],
+    link_with: [core_kms_lib, core_egl_lib, core_cursor_image_lib, core_diag_lib, render_lib],
+    install: false,
+)
+
 # core/main.c (Phase 1 item 6) — ghostcon-core entry point
 ghostcon_core_exe = executable('ghostcon-core',
     'core/main.c',
     include_directories: include_directories('../include'),
     link_with: [
-        core_vtctl_lib, core_kms_lib, core_egl_lib, core_transport_lib,
+        core_vtctl_lib, core_display_lib, core_ui_lib, core_transport_lib,
         core_input_lib, core_diag_lib, render_lib, term_lib, ptyserv_protocol_lib,
         config_lib,
     ],
