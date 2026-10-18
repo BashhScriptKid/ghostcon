@@ -1,6 +1,7 @@
 #define _DEFAULT_SOURCE
 
 #include "ghostcon/core/ui.h"
+#include "ghostcon/core/log.h"
 #include <stdio.h>
 #include <string.h>
 

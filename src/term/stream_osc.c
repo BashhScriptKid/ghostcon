@@ -1,5 +1,6 @@
 #define _DEFAULT_SOURCE
 #include "stream_internal.h"
+#include "ghostcon/core/log.h"
 #include <ghostty/vt/osc.h>
 #include <stdlib.h>
 #include <string.h>
@@ -383,6 +384,7 @@ gc_stream_osc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s) {
     case GHOSTTY_OSC_COMMAND_INVALID:
     default:
         /* Per PLAN.md: log to journald (future), discard, continue */
+        GC_LOG(stream, "OSC discarded (%s)", st->buf);
         break;
     }
 

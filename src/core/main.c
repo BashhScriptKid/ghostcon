@@ -33,6 +33,7 @@
 #include "ghostcon/core/diag.h"
 #include "ghostcon/core/display.h"
 #include "ghostcon/core/input.h"
+#include "ghostcon/core/log.h"
 #include "ghostcon/core/transport.h"
 #include "ghostcon/core/ui.h"
 #include "ghostcon/core/vtctl.h"
@@ -362,6 +363,7 @@ release_display(app_t *app)
        release for why the fd stays open-but-unmarked-until-reacquire).
        Idempotent: no-op if nothing is acquired. */
     ghostcon_display_release(app->disp);
+    GC_LOG(vt, "released");
 
     if (app->input)
         ghostcon_input_close(app->input);
@@ -387,8 +389,11 @@ acquire_display(app_t *app)
        texture regardless of CPU-side atlas dirty state; see gles.h),
        and uploads cursor sprites. Returns dimensions via out params. */
     uint32_t width = 0, height = 0;
-    if (!ghostcon_display_acquire(app->disp, app->cell_h, app->atlas, &width, &height))
+    GC_LOG(vt, "acquire request");
+    if (!ghostcon_display_acquire(app->disp, app->cell_h, app->atlas, &width, &height)) {
+        GC_LOG(vt, "acquire FAILED");
         return false;
+    }
 
     /* Fresh input context every acquire -- see app_t's own doc comment
        on `input` for why this must not be reused across a release/
@@ -683,7 +688,7 @@ apply_config_reload(app_t *app)
         app->repeat_rate_ms = new_cfg.repeat_rate_ms;
     apply_mouse_touchpad_config(app);
 
-    fprintf(stderr, "ghostcon-core: config changed, applied\n");
+    GC_LOG(config, "reload applied, need_render=%d", need_render);
     return need_render;
 }
 
@@ -1076,8 +1081,10 @@ main(int argc, char **argv)
                 running = false;
                 break;
             }
-            if (got_data)
+            if (got_data) {
+                GC_LOG(pty, "drained %zu bytes", total_drained);
                 need_render = true;
+            }
         }
 
         if (ctl_idx >= 0 && (fds[ctl_idx].revents & (POLLIN | POLLHUP | POLLERR))) {
@@ -1108,6 +1115,8 @@ main(int argc, char **argv)
                a real DRM cursor plane over a GLES quad is that its
                latency doesn't depend on content rendering. Called
                directly here instead. */
+            if (pointer.moved)
+                GC_LOG(selection, "pointer pixel=(%d,%d)", pointer.x, pointer.y);
             if (pointer.moved && ghostcon_display_is_acquired(app.disp)) {
                 /* Hardware cursor movement is deliberately NOT folded
                    into need_render/render_frame() -- see kms.h's own
@@ -1195,6 +1204,7 @@ main(int argc, char **argv)
                debug action, one dump at a time, no need for the
                per-vtN namespacing the ctl sockets use. */
             if (dump_requested) {
+                GC_LOG(input, "screen dump requested (Ctrl+Alt+D)");
                 app.screenshot_requested = true;
                 need_render = true;
                 FILE *df = fopen("/tmp/ghostcon-dump.txt", "w");

@@ -1,6 +1,7 @@
 #define _DEFAULT_SOURCE
 
 #include "ghostcon/core/display.h"
+#include "ghostcon/core/log.h"
 #include "ghostcon/core/diag.h"
 #include "ghostcon/core/egl.h"
 #include "ghostcon/core/kms.h"
@@ -219,6 +220,8 @@ ghostcon_display_set_cursor_state(ghostcon_display_t *disp, ghostcon_cursor_stat
     if (state != disp->cursor_state) {
         disp->cursor_state = state;
         ghostcon_kms_set_cursor_state(&disp->kms, state);
+        GC_LOG(cursor, "state -> %s",
+                state == GC_CURSOR_STATE_LINK ? "LINK" : "DEFAULT");
     }
 }
 
@@ -289,8 +292,10 @@ ghostcon_display_acquire(ghostcon_display_t *disp, int cell_h, ghostcon_atlas_t 
     for (int i = 0; i < DRM_MASTER_RETRIES && !disp->have_master; i++) {
         if (drmSetMaster(disp->drm_fd) == 0)
             disp->have_master = true;
-        else
+        else {
+            GC_LOG(drm, "master busy, retry %d/%d", i + 1, DRM_MASTER_RETRIES);
             usleep(DRM_MASTER_RETRY_DELAY_US);
+        }
     }
     if (!disp->have_master) {
         fprintf(stderr, "ghostcon-display: drmSetMaster failed: %s\n", strerror(errno));

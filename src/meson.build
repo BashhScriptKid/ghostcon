@@ -393,6 +393,13 @@ if not meson.is_subproject()
         dependencies: [dep_ghostty_vt],
     )
     test('test_ui', test_ui_exe)
+
+    # GHOSTCON_LOG domain matcher (header-only utility, no library to link)
+    test_log_exe = executable('test_log',
+        '../tests/test_log.c',
+        include_directories: include_directories('../include'),
+    )
+    test('test_log', test_log_exe)
 endif
 
 # core/input.c (Phase 1 item 5) — libinput + xkbcommon + key encoding

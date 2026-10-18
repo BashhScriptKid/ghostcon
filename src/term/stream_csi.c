@@ -1,5 +1,6 @@
 #define _DEFAULT_SOURCE /* CLOCK_MONOTONIC under -std=c11 without this */
 #include "stream_internal.h"
+#include "ghostcon/core/log.h"
 #include <ghostty/vt/sgr.h>
 #include <ghostty/vt/osc.h>
 #include <stdlib.h>
@@ -690,8 +691,8 @@ handle_csi_sgr(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 
 typedef void (*csi_handler_t)(ghostcon_stream_t *, ghostcon_screen_t *);
 
-gc_stream_csi_handler_t
-gc_stream_csi_dispatch(ghostcon_stream_t *st, uint8_t final_byte) {
+static gc_stream_csi_handler_t
+csi_lookup(ghostcon_stream_t *st, uint8_t final_byte) {
     /* Intermediate discrimination mirrors Ghostty's
        `switch (input.intermediates.len)` structure (stream.zig). The
        private markers < = > ? are collected into intermediates when they
@@ -795,3 +796,12 @@ gc_stream_csi_dispatch(ghostcon_stream_t *st, uint8_t final_byte) {
     return NULL;
 }
 
+gc_stream_csi_handler_t
+gc_stream_csi_dispatch(ghostcon_stream_t *st, uint8_t final_byte)
+{
+    gc_stream_csi_handler_t h = csi_lookup(st, final_byte);
+    if (!h)
+        GC_LOG(stream, "unhandled CSI final '%c' (%s params)",
+                final_byte, st->params_idx ? "with" : "without");
+    return h;
+}
