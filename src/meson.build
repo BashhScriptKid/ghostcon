@@ -533,6 +533,12 @@ if not meson.is_subproject()
             'GHOSTCON_PTY_SKIP_LOGIN': '1',
         },
         depends: [undead_head_exe, ghost_ptyserv_exe, supervisor_exe, fake_renderer_exe, pty_child_exe],
+        # Runs real undead-head/supervisor/ghost-ptyserv processes with
+        # sleep-based canary/deadline checks. Under the default parallel
+        # test scheduling it occasionally starved past its 30s timeout
+        # (observed twice, on a cold build dir); standalone it finishes
+        # in <1s. Run it alone rather than inflating the timeout.
+        is_parallel: false,
         timeout: 30,
     )
 
