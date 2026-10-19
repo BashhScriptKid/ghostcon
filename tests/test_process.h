@@ -46,8 +46,7 @@ gc_test_run_command(char *const argv[])
 /* Runs argv, capturing its stdout into buf (NUL-terminated, truncated to
  * cap-1 bytes) and discarding stderr. Returns the byte count read, or -1
  * on fork/pipe failure. */
-static inline ssize_t
-gc_test_capture_command(char *const argv[], char *buf, size_t cap)
+static inline ssize_t gc_test_capture_command(char *const argv[], char *buf, size_t cap)
 {
     if (cap == 0)
         return -1;

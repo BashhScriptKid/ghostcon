@@ -37,8 +37,7 @@ ghostcon_parse_int(const char *s, int *out)
     return true;
 }
 
-static inline bool
-ghostcon_parse_long(const char *s, long *out)
+static inline bool ghostcon_parse_long(const char *s, long *out)
 {
     if (!s || *s == '\0')
         return false;
@@ -51,8 +50,7 @@ ghostcon_parse_long(const char *s, long *out)
     return true;
 }
 
-static inline bool
-ghostcon_parse_uint(const char *s, unsigned *out)
+static inline bool ghostcon_parse_uint(const char *s, unsigned *out)
 {
     if (!s || *s == '\0' || *s == '-')
         return false;
@@ -67,8 +65,7 @@ ghostcon_parse_uint(const char *s, unsigned *out)
     return true;
 }
 
-static inline bool
-ghostcon_parse_ulong(const char *s, unsigned long *out)
+static inline bool ghostcon_parse_ulong(const char *s, unsigned long *out)
 {
     if (!s || *s == '\0' || *s == '-')
         return false;
