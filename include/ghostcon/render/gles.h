@@ -114,9 +114,9 @@ void ghostcon_gles_resize(ghostcon_gles_t *gles, uint32_t w, uint32_t h);
  * separate, longer-lived object than any one GLES instance's GPU texture.
  *
  * A brand-new instance's texture is created empty (glGenTextures, no data yet);
- * if the atlas bitmap happens to already be "not dirty" at that point[2],
- * a dirty-gated sync_atlas call would skip uploading anything, leaving that
- * fresh texture "incomplete" per the GL spec (never given level-0 data)
+ * if the atlas bitmap happens to already be "not dirty" at that point[2], a
+ * dirty-gated sync_atlas call would skip uploading anything, leaving that fresh
+ * texture "incomplete" per the GL spec (never given level-0 data)
  *
  * sampling it is implementation-defined, and on at least one real driver this
  * silently returned solid opaque alpha, making every glyph quad render as a
@@ -159,10 +159,11 @@ void ghostcon_gles_sync_atlas(ghostcon_gles_t *gles, ghostcon_atlas_t *atlas, bo
  * Proper per-buffer damage tracking would make the incremental version correct,
  * but is real complexity this doesn't need yet
  *
- * see core/main.c's render_frame() and PLAN.md's own renderer design note
- * > "redrawing all dirty cells each frame is sufficient" for a terminal at this
- * > scale, which in practice means every frame, full stop, not just
- * > first-frame-after-acquire
+ * see core/main.c's render_frame() and PLAN.md's own renderer design note[1]
+ *
+ * [1] "redrawing all dirty cells each frame is sufficient" for a terminal at
+ *     this scale, which in practice means every frame, full stop, not just
+ *     first-frame-after-acquire
  */
 void ghostcon_gles_begin(ghostcon_gles_t *gles, bool clear,
                           float bg_r, float bg_g, float bg_b);
@@ -277,13 +278,12 @@ void ghostcon_gles_image_destroy(ghostcon_gles_image_t *img);
  * above_text=false for z<0 (drawn between the background and glyph draw calls),
  * above_text=true  for z>=0 (drawn after everything else, before the blit/swap).
  *
- * src_w/src_h == 0 means "full image" (src_x/src_y ignored).
- * alpha scales the whole placement's opacity (1.0 = fully opaque).
+ * src_w/src_h == 0 means "full image" (src_x/src_y ignored). alpha scales the
+ * whole placement's opacity (1.0 = fully opaque).
  *
  * Both queues are drained and cleared by the next ghostcon_gles_end() call;
- * nothing needs to be called to reset them between frames,
- * and queuing can happen any time between
- * ghostcon_gles_begin and ghostcon_gles_end regardless of
+ * nothing needs to be called to reset them between frames, and queuing can happen
+ * any time between ghostcon_gles_begin and ghostcon_gles_end regardless of
  * push_rect/push_glyph call order
  *
  * only the tier (above_text) controls where it actually lands in the draw
@@ -303,10 +303,10 @@ void ghostcon_gles_queue_image(ghostcon_gles_t *gles, ghostcon_gles_image_t *img
  *   and don't hold onto it past the current frame
  *   (a later re-transmission can invalidate and replace it).
  *
- * Bounded to the same max-image count as the term-layer store;
- * under pressure, evicts whichever cached entry's id doesn't
- * currently resolve via ghostcon_kitty_graphics_find_image first
- * (requires the same screen's kitty_graphics to check).
+ * Bounded to the same max-image count as the term-layer store; under pressure,
+ * evicts whichever cached entry's id doesn't currently resolve via
+ * ghostcon_kitty_graphics_find_image first (requires the same screen's
+ * kitty_graphics to check).
  *
  * Falls back to simple oldest-first if every cached entry is still live.
  *
