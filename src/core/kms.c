@@ -530,9 +530,10 @@ bool ghostcon_kms_init(ghostcon_kms_t *kms, int drm_fd)
      * primary plane's identical-shaped block above.
      *
      * The cursor IMAGE itself isn't set up here -- it needs font_height
-     * (cell_h), which isn't known at this layer; the caller (core/ main.c's
-     * acquire_display()) calls ghostcon_kms_set_cursor_shape() right after
-     * this returns.
+     * (cell_h), which isn't known at this layer.
+     *
+     * The caller (core/ main.c's acquire_display()) calls
+     * ghostcon_kms_set_cursor_shape() right after this returns.
      */
     if (kms->cursor_plane_id)
     {
@@ -592,10 +593,11 @@ void ghostcon_kms_deinit(ghostcon_kms_t *kms)
      *
      * Confirmed against kmscon's own source (drm_shared.c's
      * drop_drm_master(): just drmDropMaster(), nothing else) -- dropping
-     * master never requires touching FB_ID at all; the display stays
-     * configured and parked, and the fd close below (or, once this leaks
-     * less transiently, process exit) is what actually reaps this id,
-     * harmlessly, with no live scanout to disturb.
+     * master never requires touching FB_ID at all.
+     *
+     * The display stays configured and parked, and the fd close below (or,
+     * once this leaks less transiently, process exit) is what actually
+     * reaps this id, harmlessly, with no live scanout to disturb.
      */
     for (int s = 0; s < GC_CURSOR_STATE_COUNT; s++)
         destroy_cursor_image(kms, (ghostcon_cursor_state_t)s);
@@ -1006,8 +1008,8 @@ bool ghostcon_kms_page_flip(ghostcon_kms_t *kms)
      * real-hardware testing.
      *
      * Adopting the new buffer as current unconditionally on a successful
-     * commit (and retiring the old one) is the actual correctness boundary;
-     * the completion event below is only used to pace the next flip.
+     * commit (and retiring the old one) is the actual correctness boundary.
+     * The completion event below is only used to pace the next flip.
      */
     if (kms->current_bo)
         gbm_surface_release_buffer(kms->gbm_surf, kms->current_bo);

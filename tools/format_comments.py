@@ -21,7 +21,7 @@ in one paragraph become individual bullet paragraphs.
 import glob, re, sys, textwrap
 
 WIDTH = 76
-MAX_PARA_LINES = 4
+MAX_PARA_LINES = 3
 SKIP_MARKERS = (
     "Copyright", "Permission is hereby granted", "SPDX-License-Identifier",
     "THE SOFTWARE IS PROVIDED", "MERCHANTABILITY",
@@ -90,7 +90,16 @@ def join_para(para):
         text += nxt if text.endswith('-') else ' ' + nxt
     return text
 
+# Semicolons that introduce a new independent clause are sentence
+# boundaries. Split those (and capitalize the connector) instead of
+# producing long "x; and then y" sentences.
+SEMI_CONNECTOR = re.compile(
+    r';\s+(see|use|add|call|write|pass|set|keep|run|check|return|then|'
+    r'so|this|it|that|the|but|and)\b')
+
 def split_sentences(text):
+    text = SEMI_CONNECTOR.sub(
+        lambda m: '. ' + m.group(1)[0].upper() + m.group(1)[1:], text)
     parts, start = [], 0
     for m in re.finditer(r'[.!?](?=\s)', text):
         end = m.end()
@@ -145,6 +154,8 @@ def needs_breathing_room(inner, indent):
         text = join_para(para)
         if re.match(r'^([-*]|\d+[.)])\s+', text):
             continue
+        if SEMI_CONNECTOR.search(text):
+            return True
         wrapped = textwrap.wrap(text, width=avail,
                                 break_long_words=False, break_on_hyphens=False)
         if len(wrapped) > MAX_PARA_LINES:
@@ -169,11 +180,17 @@ def paragraphs_of(lines):
             prev_text = join_para(merged[-1]).rstrip()
             if (para[0][:1].islower() and prev_text
                     and prev_text[-1] not in '.!?:;'):
-                # A word-final fragment needs punctuation when rejoined,
-                # otherwise the result is a run-on sentence.
-                if prev_text[-1].isalnum():
-                    merged[-1][-1] = merged[-1][-1].rstrip() + ';'
-                merged[-1] = merged[-1] + para
+                tail = prev_text[-1]
+                if tail in ',;:)':
+                    # Explicit continuation punctuation: keep one sentence.
+                    merged[-1] = merged[-1] + para
+                else:
+                    # A dropped sentence boundary: close the previous
+                    # sentence and start a new, short one (capitalized).
+                    merged[-1][-1] = merged[-1][-1].rstrip() + '.'
+                    para = para[:]
+                    para[0] = para[0][0].upper() + para[0][1:]
+                    merged.append(para)
                 continue
         merged.append(para)
     return merged

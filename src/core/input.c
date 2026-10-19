@@ -252,10 +252,12 @@ struct ghostcon_input {
 
     /* Pointer -- absolute pixel position (mice/touchpads both report
      * RELATIVE motion via libinput, see handle_pointer_event()'s own doc
-     * comment; this is the position that relative motion accumulates into),
-     * clamped to [0,viewport_w) x [0,viewport_h). pressed_buttons is a
-     * bitmask of which of GC_MOUSE_LEFT/MIDDLE/ RIGHT are currently held,
-     * needed for mode-1002 drag-motion filtering (term/mouse.c's
+     * comment.
+     *
+     * This is the position that relative motion accumulates into), clamped
+     * to [0,viewport_w) x [0,viewport_h). pressed_buttons is a bitmask of
+     * which of GC_MOUSE_LEFT/MIDDLE/ RIGHT are currently held, needed for
+     * mode-1002 drag-motion filtering (term/mouse.c's
      * ghostcon_mouse_encode()) and to know what button a MOTION event
      * should report as "held".
      */
@@ -829,9 +831,11 @@ static bool handle_scroll_shortcut(ghostcon_screen_t *screen, uint32_t evdev_cod
  *
  * This function has no font/atlas ownership (that's core/main.c's app_t)
  * --it just accumulates the requested DIRECTION (+-1 "one zoom tick", not a
- * point count) into *zoom_delta; the caller multiplies by its own
- * config-driven step size (app->zoom_step) when actually applying it, since
- * input.c has no config access and shouldn't need any just for this.
+ * point count) into *zoom_delta.
+ *
+ * The caller multiplies by its own config-driven step size (app->zoom_step)
+ * when actually applying it, since input.c has no config access and
+ * shouldn't need any just for this.
  *
  * Press-only, same reasoning as handle_scroll_shortcut.
  */
@@ -857,9 +861,10 @@ static bool handle_zoom_shortcut(int *zoom_delta, uint32_t evdev_code, GhosttyMo
 }
 
 /* Ctrl+Alt+D -- dump the live screen state to a fixed diagnostic file
- * (core/main.c does the actual write, since it owns app->term; this just
- * detects the chord and reports it via *out_dump_requested, same handoff
- * pattern as handle_zoom_shortcut()'s *zoom_delta).
+ * (core/main.c does the actual write, since it owns app->term.
+ *
+ * This just detects the chord and reports it via *out_dump_requested, same
+ * handoff pattern as handle_zoom_shortcut()'s *zoom_delta).
  *
  * Added to debug a rendering bug that only reproduces in a real,
  * long-running session --lets you capture the exact live cell state at the
@@ -1199,7 +1204,9 @@ static bool handle_pointer_event(ghostcon_input_t *input, struct libinput_event 
          * remembered until release -- so a drag can't switch between local
          * selection and app-reported mid-gesture if e.g. the app toggles
          * mouse-reporting mid-drag (pathological, but cheap to guard
-         * against; see the struct field's own doc comment).
+         * against.
+         *
+         * See the struct field's own doc comment).
          */
         if (button == GC_MOUSE_LEFT && pressed)
             input->left_button_intercepted =

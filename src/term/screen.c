@@ -913,8 +913,10 @@ void ghostcon_screen_erase_display(ghostcon_screen_t *s, int mode)
          * Only the ACTIVE screen's images -- matching Ghostty, which erases
          * screens.active, not both -- so an ED on the primary screen
          * doesn't reach through and wipe images placed on the alt screen
-         * (or vice versa; see kitty_graphics_alt's own doc comment on why
-         * these are separate instances at all).
+         * (or vice versa.
+         *
+         * See kitty_graphics_alt's own doc comment on why these are
+         * separate instances at all).
          */
         {
             ghostcon_kitty_graphics_t *akg = ghostcon_screen_active_kitty_graphics(s);

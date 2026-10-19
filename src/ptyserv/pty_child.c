@@ -588,7 +588,7 @@ int main(int argc, char **argv)
                  * and leaving the VT's PTY with nothing attached at all
                  * (found live: "exiting bails it to blank kernel state").
                  *
-                 * The renderer stays connected throughout; it'll just see
+                 * The renderer stays connected throughout. It'll just see
                  * the new login prompt appear as ordinary output.
                  */
                 /* Tell the renderer this session's screen owner is gone,
@@ -635,10 +635,11 @@ int main(int argc, char **argv)
                  * main().
                  *
                  * The child's actual death is detected exclusively via the
-                 * SIGCHLD self-pipe handled above; this branch just backs
-                 * off polling master_fd briefly so a persistent (but
-                 * transient) hangup condition doesn't busy-spin the loop,
-                 * then retries.
+                 * SIGCHLD self-pipe handled above.
+                 *
+                 * This branch just backs off polling master_fd briefly so a
+                 * persistent (but transient) hangup condition doesn't
+                 * busy-spin the loop, then retries.
                  */
                 master_quiet = true;
                 master_quiet_ms = (master_quiet_ms == 0) ? 20 : master_quiet_ms * 2;

@@ -13,7 +13,7 @@
  * hb_shape() call that reports "no substitution", same as any character
  * never in this set.
  *
- * Not meant to be exhaustive; the real gate is HarfBuzz's own output, not
+ * Not meant to be exhaustive. The real gate is HarfBuzz's own output, not
  * this list.
  */
 static const char ligature_trigger_chars[] = "!#$%&*+-./:<=>?@^|~";

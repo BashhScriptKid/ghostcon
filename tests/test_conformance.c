@@ -1002,8 +1002,9 @@ TEST(cursor_relative_move_huge_param_does_not_reverse_direction)
      * function only ever clamped the bound it expected to hit from the
      * correct direction.
      *
-     * HPR with n=64614 walked cursor.x to -922 with no lower-bound check;
-     * the next printable character then wrote clean off the front of the
+     * HPR with n=64614 walked cursor.x to -922 with no lower-bound check.
+     *
+     * The next printable character then wrote clean off the front of the
      * row's cells array (a real heap-buffer-underflow, not just an
      * ASAN-flagged one).
      *

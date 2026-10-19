@@ -8,7 +8,7 @@
  * used by the majority of terminal emulators. Returns the cell width a
  * codepoint occupies: 0 (combining/zero-width), 1, or 2.
  *
- * Ghostty uses a UCD-derived table; this table mirrors Kuhn's wcwidth
+ * Ghostty uses a UCD-derived table. This table mirrors Kuhn's wcwidth
  * wide/fullwidth + combining ranges, matching Ghostty for practical input.
  */
 

@@ -563,8 +563,8 @@ static void page_kitty_shm(void)
      * successful t=s transmission (see ghostcon's read_shm_segment())
      * --don't shm_unlink() here.
      *
-     * If ghostcon is buggy and never reads it, this leaks a shm segment;
-     * that's the scenario this page exists to catch, not something to paper
+     * If ghostcon is buggy and never reads it, this leaks a shm segment.
+     * That's the scenario this page exists to catch, not something to paper
      * over client-side.
      */
     size_t name_b64_len = 0;
@@ -617,8 +617,8 @@ static void page_kitty_temp_file(void)
     /* Ownership of deleting the file passes to the terminal on a successful
      * t=t transmission -- don't unlink() here.
      *
-     * If ghostcon is buggy and never reads it, this leaks a temp file;
-     * that's the scenario this page exists to catch.
+     * If ghostcon is buggy and never reads it, this leaks a temp file.
+     * That's the scenario this page exists to catch.
      */
     size_t path_b64_len = 0;
     char *path_b64 = b64_encode((const uint8_t *)path, strlen(path), &path_b64_len);

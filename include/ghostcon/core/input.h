@@ -130,7 +130,7 @@ bool ghostcon_input_repeat_fire(ghostcon_input_t *input, ghostcon_transport_t *t
  * (currently just DECCKM/application-cursor) from live screen state into
  * the encoder.
  *
- * Cheap; call before dispatch each time, there's no dirty-tracking for this
+ * Cheap. Call before dispatch each time, there's no dirty-tracking for this
  * on the screen side.
  */
 void ghostcon_input_sync_modes(ghostcon_input_t *input, const ghostcon_screen_t *screen);
@@ -187,7 +187,7 @@ typedef struct
      * should_intercept_for_selection()) rather than reported to the app as
      * a mouse escape sequence -- both stay false for every other event.
      *
-     * Middle-click paste needs no field here; it's fully handled inside
+     * Middle-click paste needs no field here. It's fully handled inside
      * input.c (direct screen/transport access, no per-frame state main.c
      * needs to drive).
      */
@@ -205,14 +205,16 @@ typedef struct
  * forwarding anything to the pty.
  *
  * Zoom: Ctrl+=/Ctrl+Minus, plus Ctrl+Keypad+/Ctrl+Keypad-, cannot be
- * applied here because this layer does not own the font or atlas. Each
- * press adds +1 or -1 to *out_zoom_delta; the caller starts it at zero and
- * applies the result, for example by rebuilding the glyph atlas.
+ * applied here because this layer does not own the font or atlas.
+ *
+ * Each press adds +1 or -1 to *out_zoom_delta. The caller starts it at zero
+ * and applies the result, for example by rebuilding the glyph atlas.
  *
  * Pointer events (motion, buttons, wheel; mice and touchpads alike) are
  * converted to a terminal column/row and encoded with
- * ghostcon_mouse_encode() using `screen`'s current protocol. They are
- * written to `transport` like key bytes.
+ * ghostcon_mouse_encode() using `screen`'s current protocol.
+ *
+ * They are written to `transport` like key bytes.
  *
  * An event that encodes to zero bytes (tracking off, or an unreported event
  * type) is dropped silently.
@@ -246,7 +248,9 @@ typedef struct
 /* out_dump_requested: set to true (never cleared -- caller starts it at
  * false, same convention as *out_zoom_delta) when Ctrl+Alt+D was pressed
  * this call. core/main.c owns the actual dump-to-file since it has
- * app->term; this function only detects the chord.
+ * app->term.
+ *
+ * This function only detects the chord.
  *
  * See handle_dump_shortcut()'s own doc comment for why this exists.
  */

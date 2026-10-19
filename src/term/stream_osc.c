@@ -385,7 +385,7 @@ void gc_stream_osc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s)
         break;
     }
     case GHOSTTY_OSC_COMMAND_REPORT_PWD: {
-        /* OSC 7 — handled above in osc_dispatch_manual(); the library
+        /* OSC 7 — handled above in osc_dispatch_manual(). The library
          * classifies the command but exposes none of its URI data, same
          * limitation as the color-operation tier.
          */

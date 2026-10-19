@@ -257,8 +257,8 @@ main(void)
             snprintf(other_path, sizeof(other_path), "%s/unrelated.txt", dir);
 
             /* File doesn't need to exist yet -- only its parent directory
-             * does (watch_open watches the directory, not the file itself;
-             * see its own doc comment on why).
+             * does (watch_open watches the directory, not the file itself.
+             * See its own doc comment on why).
              */
             int watch_fd = ghostcon_config_watch_open(watched_path);
             CHECK(watch_fd >= 0, "config_watch_open succeeds");

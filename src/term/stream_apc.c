@@ -8,9 +8,11 @@
  * Split out of stream.c per PLAN.md "Phase 2".
  *
  * The state machine accumulates the opaque payload and confirms its ST
- * terminator; this module hands the completed payload to the image decoders
- * and applies both decoders' shared "advance past the placement via real
- * linefeed, then land at its right edge" cursor behavior.
+ * terminator.
+ *
+ * This module hands the completed payload to the image decoders and applies
+ * both decoders' shared "advance past the placement via real linefeed, then
+ * land at its right edge" cursor behavior.
  */
 
 void

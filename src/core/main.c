@@ -21,7 +21,7 @@
  * No TOML config yet (PLAN.md's own step list defers this past Phase 1's
  * early items — ghost-ptyserv already set this precedent).
  *
- * VT number and DRM node come from argv; the canary fd (if a supervisor is
+ * VT number and DRM node come from argv. The canary fd (if a supervisor is
  * running this) comes from GHOSTCON_CANARY_FD.
  *
  * Usage: ghostcon-core <vtnum> [drm_node] [registry_socket]
@@ -206,7 +206,7 @@ typedef struct
 
     /* Per-acquire-cycle: the display backend (KMS/GBM/EGL/GLES + DRM
      * master) inside it is fully torn down on release and rebuilt on
-     * reacquire; the ghostcon_display_t handle itself persists.
+     * reacquire. The ghostcon_display_t handle itself persists.
      */
     ghostcon_display_t *disp;
     /* input joined this category, not the long-lived one above, after a
@@ -393,7 +393,7 @@ static void release_display(app_t *app)
      * below for why a late drop once hung VT-switching whole).
      *
      * Deliberately does NOT close the display backend's internal DRM fd
-     * itself (measured 70-80ms+ synchronously; see display.c's release for
+     * itself (measured 70-80ms+ synchronously. See display.c's release for
      * why the fd stays open-but-unmarked-until-reacquire).
      *
      * Idempotent: no-op if nothing is acquired.
@@ -423,8 +423,9 @@ static bool acquire_display(app_t *app)
     /* Opens the DRM node, takes master (with retry), initializes
      * KMS/GBM/EGL/GLES, replays the font atlas into the fresh GPU texture
      * (forced -- a freshly-created GLES context has an empty texture
-     * regardless of CPU-side atlas dirty state; see gles.h), and uploads
-     * cursor sprites.
+     * regardless of CPU-side atlas dirty state.
+     *
+     * See gles.h), and uploads cursor sprites.
      *
      * Returns dimensions via out params.
      */
@@ -575,8 +576,10 @@ static void vtctl_pre_ack(char event, void *userdata)
  * `force` rebuilds even if new_size == app->font_size --config hot-reload
  * needs this for a font_family/font_variant-only edit, where the size
  * genuinely didn't change but the atlas still needs to be recreated against
- * the new font; the zoom shortcut always passes false, since a zoom
- * keypress by definition means the size changed.
+ * the new font.
+ *
+ * The zoom shortcut always passes false, since a zoom keypress by
+ * definition means the size changed.
  *
  * Returns true if it actually did something (caller should render); false
  * for a no-op (size unchanged and not forced, or invalid) or a failed
@@ -934,8 +937,9 @@ int main(int argc, char **argv)
      *
      * A later reacquire at a different resolution just keeps this grid —
      * proper live resize (ghostcon_screen_resize + SIGWINCH to the shell)
-     * is a follow-up, not built here; see PLAN.md's own phasing notes on
-     * this being provisional.
+     * is a follow-up, not built here.
+     *
+     * See PLAN.md's own phasing notes on this being provisional.
      */
     uint16_t cols = 80, rows = 24;
     if (ghostcon_display_is_acquired(app.disp))
@@ -1349,11 +1353,12 @@ int main(int argc, char **argv)
             /* Ctrl+=/Ctrl+Minus zoom shortcut -- same reasoning as above,
              * plus it needs core/main.c's own apply_font_size() since
              * core/input.c has no atlas/font ownership. input.c reports
-             * DIRECTION only (+-1 per press, "one zoom tick"); the actual
-             * magnitude is app.zoom_step, config-driven (default 2pt -- see
-             * core/input.c's handle_zoom_shortcut() doc comment for why 1pt
-             * wasn't enough) and reloadable via ghostcon.toml like
-             * everything else in this block.
+             * DIRECTION only (+-1 per press, "one zoom tick").
+             *
+             * The actual magnitude is app.zoom_step, config-driven (default
+             * 2pt -- see core/input.c's handle_zoom_shortcut() doc comment
+             * for why 1pt wasn't enough) and reloadable via ghostcon.toml
+             * like everything else in this block.
              *
              * ZOOM_MIN/MAX_FONT_SIZE keep it away from nonsensical extremes
              * (a 0/negative size, or one large enough to plausibly not fit

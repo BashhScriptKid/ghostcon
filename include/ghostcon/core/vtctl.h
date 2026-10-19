@@ -33,15 +33,17 @@
  * never acks VT_RELDISP reproduces kmscon's "VT switching does not work"
  * failure mode, and the kernel cannot force the ack.
  *
- * The answer is not a perfect handshake; it is the supervisor canary
- * detecting and recovering from that stall (a separate module). This
- * module's own responsibility is to never do dangerous work inside the
+ * The answer is not a perfect handshake. It is the supervisor canary
+ * detecting and recovering from that stall (a separate module).
+ *
+ * This module's own responsibility is to never do dangerous work inside the
  * signal handler.
  *
  * ioctl() and drmSetMaster() are not async-signal-safe, so the handler only
- * writes a byte to a self-pipe. The real work happens in
- * ghostcon_vtctl_process_pending(), which the main loop calls after polling
- * ghostcon_vtctl_signal_fd() readable.
+ * writes a byte to a self-pipe.
+ *
+ * The real work happens in ghostcon_vtctl_process_pending(), which the main
+ * loop calls after polling ghostcon_vtctl_signal_fd() readable.
  *
  * SIGUSR1 and SIGUSR2 are reserved for this handshake. No other ghostcon
  * component may install handlers for them.

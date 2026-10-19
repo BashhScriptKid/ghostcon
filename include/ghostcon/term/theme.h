@@ -5,11 +5,12 @@
 /* Named theme presets
  *
  * A small, curated set (not an attempt at Ghostty's full catalog of
- * hundreds -- that's mostly data entry with little design value; add more
+ * hundreds -- that's mostly data entry with little design value. Add more
  * here later if a specific one is wanted).
  *
- * Each preset sets the palette's 16 ANSI colors plus fg/bg/cursor defaults;
- * the 216-color cube and grayscale ramp (232-255) are left untouched
+ * Each preset sets the palette's 16 ANSI colors plus fg/bg/cursor defaults.
+ *
+ * The 216-color cube and grayscale ramp (232-255) are left untouched
  * --those are derived/computed, not part of any theme's identity, matching
  * how every terminal emulator's theme format works.
  *

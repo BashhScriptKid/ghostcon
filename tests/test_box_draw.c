@@ -95,7 +95,7 @@ int main(void)
     /* U+2579 BOX DRAWINGS HEAVY UP (╹) -- single arm reaching the top edge,
      * no down arm reaching the bottom edge.
      *
-     * Found live: a TUI border used this as a terminator cap; it fell
+     * Found live: a TUI border used this as a terminator cap. It fell
      * through to the font atlas and showed as a short mark disconnected
      * from the solid line above it.
      */

@@ -67,8 +67,10 @@ typedef struct
  * whose codepoint is in the ligature-trigger charset, shapes each one
  * through the atlas's primary font, and -- only for runs where shaping
  * preserved a 1:1 glyph-per-input-codepoint mapping (i.e. no
- * reordering/merging; the common case for this trigger charset under a real
- * font) -- writes one entry per cell whose shaped glyph differs from
+ * reordering/merging.
+ *
+ * The common case for this trigger charset under a real font) -- writes one
+ * entry per cell whose shaped glyph differs from
  * ghostcon_atlas_plain_glyph_index() for that cell's own codepoint.
  *
  * A run that shapes to a different glyph COUNT than its input (an actual

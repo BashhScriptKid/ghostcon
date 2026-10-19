@@ -278,8 +278,9 @@ static void scenario_hang_and_respawn(void)
      *
      * Found live: the user saw one appear in their own terminal
      * mid-session. scenario_startup_timeout_fallback already disables this
-     * for its own wall_broadcast() call; this scenario was just missing the
-     * same line.
+     * for its own wall_broadcast() call.
+     *
+     * This scenario was just missing the same line.
      */
     setenv("GHOSTCON_DISABLE_WALL", "1", 1);
 

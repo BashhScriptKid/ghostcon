@@ -190,7 +190,7 @@ void ghostcon_gles_set_gamma_correct(ghostcon_gles_t *gles, bool enabled);
  * extensions present AND the FBO completed) -- decided once at creation
  * time, not something that changes later.
  *
- * False doesn't mean anything is broken; it just means rendering fell back
+ * False doesn't mean anything is broken. It just means rendering fell back
  * to the plain path, silently, same as an unrecognized antialiasing value
  * falling back to grayscale.
  *

@@ -37,8 +37,9 @@ void ghostcon_palette_set_cursor(ghostcon_palette_t *pal, GhosttyColorRgb c);
  * The installed libghostty-vt's OSC C API only exposes window-title text
  * extraction (verified against both the distro package and a from-source
  * master build with -Demit-lib-vt=true) — everything else, including
- * color-spec parsing, is ours to do; see term/stream.c's
- * osc_dispatch_manual().
+ * color-spec parsing, is ours to do.
+ *
+ * See term/stream.c's osc_dispatch_manual().
  */
 
 /* Parses a color-spec string into `out`. Returns false (leaving `out`

@@ -6,8 +6,9 @@
  * Uses the real ghost-ptyserv/supervisor binaries with
  * tests/fake_renderer.c standing in for ghostcon-core, so no real
  * DRM/KMS/VT hardware is needed. supervisor's own state machine is already
- * covered in detail by test_supervisor.c; this test only exercises
- * undead-head's restart-on-crash behavior.
+ * covered in detail by test_supervisor.c.
+ *
+ * This test only exercises undead-head's restart-on-crash behavior.
  */
 
 #define _DEFAULT_SOURCE
@@ -248,8 +249,10 @@ int main(void)
 
     /* Kill ghost-ptyserv -- undead-head restarts ONLY ghost-ptyserv, not
      * the whole tree (an already-connected renderer has no ongoing
-     * dependency on it; see undead_head/main.c's ghost_ptyserv_pid branch
-     * and its doc comment).
+     * dependency on it.
+     *
+     * See undead_head/main.c's ghost_ptyserv_pid branch and its doc
+     * comment).
      *
      * The supervisor must NOT be touched -- if it were, this pid would
      * change too.

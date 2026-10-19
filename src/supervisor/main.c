@@ -317,9 +317,10 @@ static void wall_broadcast(int vtnum, const char *reason)
     time_t now = time(NULL);
 
     /* Test-only override -- a real rate limit test waiting out the actual
-     * 60s window would be needlessly slow; this exercises the exact same
-     * rate-limit logic against a much shorter window instead of changing
-     * what ships.
+     * 60s window would be needlessly slow.
+     *
+     * This exercises the exact same rate-limit logic against a much shorter
+     * window instead of changing what ships.
      *
      * Defaults to the real constant when unset.
      */
@@ -524,8 +525,9 @@ int main(int argc, char **argv)
     /* drm_node is a mutable buffer (not a plain pointer into argv/getenv
      * storage) so a config hot-reload can update it in place -- only takes
      * effect on the NEXT spawn_renderer() call, since an already-running
-     * ghostcon-core has an already-open EGL/GBM context on the OLD device;
-     * see PLAN.md's "General config hot-reload" section for why that's an
+     * ghostcon-core has an already-open EGL/GBM context on the OLD device.
+     *
+     * See PLAN.md's "General config hot-reload" section for why that's an
      * accepted limitation, not a bug. argv always wins over the file, at
      * startup AND on every reload --drm_node_from_argv tracks that so the
      * reload handler below knows not to clobber an explicit override.

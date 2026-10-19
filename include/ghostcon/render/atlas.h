@@ -27,7 +27,9 @@
  * coverage mask to tint with the cell's foreground color, so they can't
  * share the mask atlas's format or the shader path that consumes it.
  * ghostcon_glyph_t.is_color says which atlas a given glyph's UV rect lives
- * in; see ghostcon_atlas_color_bitmap() below and gles.c's
+ * in.
+ *
+ * See ghostcon_atlas_color_bitmap() below and gles.c's
  * u_atlas_color/v_is_color_glyph.
  */
 
@@ -48,9 +50,10 @@ typedef struct ghostcon_atlas ghostcon_atlas_t;
 /* font_family: NULL selects fontconfig's default monospace match.
  *
  * font_variant: NULL or empty selects fontconfig's default style for the
- * family. Otherwise it is matched against FC_STYLE (for example "Bold",
- * "Light", "Medium Italic"); run `fc-list <family>` to see what a family
- * offers.
+ * family.
+ *
+ * Otherwise it is matched against FC_STYLE (for example "Bold", "Light",
+ * "Medium Italic"). Run `fc-list <family>` to see what a family offers.
  *
  * antialiasing:
  *
@@ -66,12 +69,13 @@ typedef struct ghostcon_atlas ghostcon_atlas_t;
  * Unrecognized values fall back to "grayscale"; they are not errors.
  *
  * subpixel_order: used only by "cleartype". NULL or "rgb" matches the
- * common laptop panel; "bgr" is the alternative. It must match the
- * display's physical left-to-right subpixel order, or cleartype adds
- * visible color fringing instead of removing it.
+ * common laptop panel; "bgr" is the alternative.
  *
- * atlas_dim: atlas width and height in pixels. Square and power-of-two
- * is recommended (for example 1024 or 2048).
+ * It must match the display's physical left-to-right subpixel order, or
+ * cleartype adds visible color fringing instead of removing it.
+ *
+ * atlas_dim: atlas width and height in pixels. Square and power-of-two is
+ * recommended (for example 1024 or 2048).
  */
 ghostcon_atlas_t *ghostcon_atlas_create(const char *font_family,
                                          const char *font_variant,

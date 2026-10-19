@@ -172,7 +172,7 @@ main(int argc, char **argv)
     {
         /* Real windowed terminals commonly deliver a SIGWINCH shortly after
          * a program starts (window creation/focus) even when the size
-         * doesn't actually change; this synthetic pty never does.
+         * doesn't actually change. This synthetic pty never does.
          *
          * Test whether that's what triggers a fuller repaint.
          */

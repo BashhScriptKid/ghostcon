@@ -17,10 +17,11 @@
  *   gap a validate-then-open design leaves; Ghostty's readFile() and
  *   validatedFilePath() work the same way.
  *
- * Both file mediums are restricted to /tmp or /dev/shm. That is narrower
- * than the Kitty spec's arbitrary-path t=f: real Kitty and Ghostty gate
- * unrestricted t=f behind an opt-in config flag that is off by default, and
- * ghostcon has no such flag. The two mediums differ:
+ * Both file mediums are restricted to /tmp or /dev/shm.
+ *
+ * That is narrower than the Kitty spec's arbitrary-path t=f: real Kitty and
+ * Ghostty gate unrestricted t=f behind an opt-in config flag that is off by
+ * default, and ghostcon has no such flag. The two mediums differ:
  *
  * - t=t requires the filename to contain Kitty's
  *   "tty-graphics-protocol" convention and deletes the file afterwards.
@@ -35,8 +36,9 @@
  *
  * The module is decoupled from ghostcon_screen_t. The caller passes the
  * cursor position as plain ints, and placements are reported through an
- * accessor instead of being written into the cell grid. Compositing is a
- * renderer concern, not part of the screen model.
+ * accessor instead of being written into the cell grid.
+ *
+ * Compositing is a renderer concern, not part of the screen model.
  *
  * Compare CLAUDE.md's note on erase-only backgrounds being a content tag:
  * the renderer reads a side table in both cases.
@@ -47,8 +49,9 @@
 #include <stdint.h>
 
 /* Same signature as ghostcon_output_fn (term/stream.h) -- duplicated rather
- * than included to avoid a stream.h <-> kitty_graphics.h circular include;
- * the two are structurally compatible function pointer types so no cast is
+ * than included to avoid a stream.h <-> kitty_graphics.h circular include.
+ *
+ * The two are structurally compatible function pointer types so no cast is
  * needed at the call site.
  */
 typedef void (*ghostcon_kitty_output_fn)(void *userdata,

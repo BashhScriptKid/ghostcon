@@ -165,12 +165,14 @@ void ghostcon_sixel_decode(ghostcon_sixel_state_t *st,
      * background.
      *
      * Real terminals fill with the terminal's actual current background
-     * color for P2=0; this module is decoupled from screen state (see this
-     * file's own header doc comment) the same way kitty_graphics.h is, so
-     * there is no background color to reach for here -- opaque black is
-     * used instead, matching what most sixel-producing tools already expect
-     * in practice (they fill their own canvas fully rather than relying on
-     * this corner of the spec).
+     * color for P2=0.
+     *
+     * This module is decoupled from screen state (see this file's own
+     * header doc comment) the same way kitty_graphics.h is, so there is no
+     * background color to reach for here -- opaque black is used instead,
+     * matching what most sixel-producing tools already expect in practice
+     * (they fill their own canvas fully rather than relying on this corner
+     * of the spec).
      */
     int32_t p2 = params_count > 1 ? dcs_params[1] : 0;
     bool transparent_bg = (p2 == 1);

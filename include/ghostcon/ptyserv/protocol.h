@@ -46,7 +46,7 @@
 /* Fixed-size overwrite-oldest ring buffer of PTY output, replayed in full
  * to every newly connected renderer before live forwarding resumes.
  *
- * Not specified in PLAN.md; this default is the ghost-ptyserv port's own
+ * Not specified in PLAN.md. This default is the ghost-ptyserv port's own
  * choice, documented here since nothing else pins it down.
  */
 #define GHOSTCON_PTY_RINGBUF_DEFAULT_SIZE (1u << 20) /* 1 MiB */

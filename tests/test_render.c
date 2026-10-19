@@ -9,7 +9,7 @@
  * was drawn, not just a clear color).
  *
  * Does NOT exercise core/kms.c (real scanout) — that needs a VT switch away
- * from the live desktop session; see PLAN.md's Phase 1 item 2 note for that
+ * from the live desktop session. See PLAN.md's Phase 1 item 2 note for that
  * follow-up.
  */
 

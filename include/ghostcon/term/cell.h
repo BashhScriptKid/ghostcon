@@ -256,7 +256,9 @@ uint8_t ghostcon_unicode_width(uint32_t codepoint);
 
 /* Matches Ghostty's isSymbol() (renderer/cell.zig): Unicode General
  * Category "Symbol" (Sm, Sc, Sk, So), backed by a table generated from the
- * UCD. The table is src/term/cell_symbol_table.gen.c, produced by
+ * UCD.
+ *
+ * The table is src/term/cell_symbol_table.gen.c, produced by
  * tools/gen_symbol_table.py from third_party/UnicodeData.txt.
  *
  * Ghostty uses the same source, just generated at their build time.
@@ -274,8 +276,9 @@ uint8_t ghostcon_unicode_width(uint32_t codepoint);
  *
  * Why this exists: a symbol is correctly one cell wide according to
  * ghostcon_unicode_width() (verified live), but the installed font's glyph
- * can still rasterize wider than a cell. That is common for icon/dingbat
- * glyphs, especially in Nerd Fonts.
+ * can still rasterize wider than a cell.
+ *
+ * That is common for icon/dingbat glyphs, especially in Nerd Fonts.
  *
  * Observed live: a Nerd Font "pull request" icon, several Geometric
  * Shapes/Mathematical Operators circles (U+2299, U+25C9, U+25CE), and the

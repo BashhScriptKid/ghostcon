@@ -1043,10 +1043,11 @@ void ghostcon_gles_end(ghostcon_gles_t *gles)
      * kitty_below_bg / kitty_below_text / kitty_above_text).
      *
      * This used to be one combined bg+glyph batch with images either fully
-     * before or fully after it; that made a z<0 placement permanently
-     * invisible, since "before the batch" meant before its opaque
-     * background fills too, not just before glyphs -- found live via a
-     * controlled two-image z-order test.
+     * before or fully after it.
+     *
+     * That made a z<0 placement permanently invisible, since "before the
+     * batch" meant before its opaque background fills too, not just before
+     * glyphs -- found live via a controlled two-image z-order test.
      */
     draw_layer(gles, gles->bg_verts, gles->bg_vert_count);
     draw_queued_images(gles, false);
