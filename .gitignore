@@ -2,6 +2,10 @@
 build/
 build-release/
 build-san/
+build-*/
+
+# Packaging output (packaging/build-pkg.sh writes here)
+dist/
 
 # Editor/tooling caches
 .cache/
@@ -17,3 +21,9 @@ subprojects/packagecache/
 # tools/fetch_ucd.sh, not committed. src/term/cell_symbol_table.gen.c
 # (its generated output) IS committed.
 third_party/UnicodeData.txt
+
+# Root clangd/ccls DB symlink (points at a build dir)
+compile_commands.json
+
+# Python bytecode caches from tools/format_*.py
+__pycache__/
