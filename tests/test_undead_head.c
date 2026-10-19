@@ -127,6 +127,7 @@ static pid_t pgrep_once(const char *pattern)
      * naturally stops at the first newline, giving the first
      * (lowest/oldest) match.
      */
+    buf[strcspn(buf, "\r\n")] = '\0';
     int pid_i = 0;
     if (!ghostcon_parse_int(buf, &pid_i))
         return -1;

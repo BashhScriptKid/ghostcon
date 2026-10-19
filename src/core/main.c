@@ -361,6 +361,7 @@ static bool is_vt_foreground(int vt_num)
     fclose(f);
     if (!read_ok)
         return true;
+    buf[strcspn(buf, "\r\n")] = '\0';
     int active_vt = 0;
     if (strncmp(buf, "tty", 3) != 0 ||
         !ghostcon_parse_int(buf + 3, &active_vt))

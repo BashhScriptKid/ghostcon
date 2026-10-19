@@ -13,6 +13,8 @@
 #   bugprone-signed-char-misuse           -- byte-oriented code uses char
 #   bugprone-signed-bitwise               -- POLLIN & .revents etc. are fine
 #   bugprone-branch-clone                 -- intentional parallel parser cases
+#   clang-analyzer-optin.*                 -- taint checks treat argv/env as
+#                                            attacker input; too noisy here
 #   clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling
 #                                         -- suggests Annex-K *_s functions
 #   performance-no-int-to-ptr             -- intentional fd/pointer casts
@@ -20,6 +22,7 @@
 Checks: >
   -*,
   clang-analyzer-*,
+  -clang-analyzer-optin.*,
   bugprone-*,
   -bugprone-easily-swappable-parameters,
   -bugprone-narrowing-conversions,

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <ctype.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdbool.h>
@@ -20,14 +19,6 @@
  */
 
 static inline bool
-ghostcon_parse_trailing_ok(const char *end)
-{
-    while (*end != '\0' && isspace((unsigned char)*end))
-        end++;
-    return *end == '\0';
-}
-
-static inline bool
 ghostcon_parse_int(const char *s, int *out)
 {
     if (!s || *s == '\0')
@@ -35,7 +26,7 @@ ghostcon_parse_int(const char *s, int *out)
     errno = 0;
     char *end = NULL;
     long v = strtol(s, &end, 10);
-    if (end == s || errno == ERANGE || !ghostcon_parse_trailing_ok(end))
+    if (end == s || errno == ERANGE || (*end != '\0'))
         return false;
     if (v < INT_MIN || v > INT_MAX)
         return false;
@@ -51,7 +42,7 @@ ghostcon_parse_long(const char *s, long *out)
     errno = 0;
     char *end = NULL;
     long v = strtol(s, &end, 10);
-    if (end == s || errno == ERANGE || !ghostcon_parse_trailing_ok(end))
+    if (end == s || errno == ERANGE || (*end != '\0'))
         return false;
     *out = v;
     return true;
@@ -65,7 +56,7 @@ ghostcon_parse_uint(const char *s, unsigned *out)
     errno = 0;
     char *end = NULL;
     unsigned long v = strtoul(s, &end, 10);
-    if (end == s || errno == ERANGE || !ghostcon_parse_trailing_ok(end))
+    if (end == s || errno == ERANGE || (*end != '\0'))
         return false;
     if (v > UINT_MAX)
         return false;
@@ -81,7 +72,7 @@ ghostcon_parse_ulong(const char *s, unsigned long *out)
     errno = 0;
     char *end = NULL;
     unsigned long v = strtoul(s, &end, 10);
-    if (end == s || errno == ERANGE || !ghostcon_parse_trailing_ok(end))
+    if (end == s || errno == ERANGE || (*end != '\0'))
         return false;
     *out = v;
     return true;
