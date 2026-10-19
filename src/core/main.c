@@ -486,29 +486,28 @@ static bool acquire_display(app_t *app)
     apply_keybindings(app); /* fresh input context otherwise reverts to hardcoded defaults */
     apply_mouse_touchpad_config(app); /* same reasoning -- see its own doc comment */
 
-    /* Re-assert the pty's window size on EVERY acquire, not just once at initial
-     * connect (see the one-shot call right after ghostcon_transport_connect() in
-     * main(), which only covers the very first acquire
+    /* Re-asserts the pty's window size on every acquire, not only at initial
+     * connect.
      *
-     * before this connection even exists on a later reacquire, so that call can't
-     * run again here).
+     * The one-shot call after ghostcon_transport_connect() in main() covers the
+     * first acquire, before this connection exists on a later reacquire, so it
+     * cannot run here.
      *
-     * This makes resize idempotent/self-healing: ghost-ptyserv/pty-ttyN are a
-     * long-lived, persistent pty pair by design (survives ghostcon-core restarts,
-     * for VT-switch/ring-buffer session continuity), so the pty's kernel-tracked
-     * size is mutable shared state that can drift out of sync with app.term's own
-     * correct size if ANYTHING clobbers a resize message in between (found live:
-     * a burst of spurious zoom-out events right after a restart left the pty
-     * stuck at a much-older, smaller font size's dimensions, with nothing to
-     * correct it afterward
+     * This makes resize idempotent and self-healing. ghost-ptyserv/pty-ttyN are a
+     * long-lived pty pair by design; they survive ghostcon-core restarts for
+     * VT-switch and ring-buffer continuity.
      *
-     * a plain resize-as-notification design has no way to recover from that;
-     * resending it here on every reacquire does, at the next VT switch).
+     * The kernel-tracked size is therefore mutable shared state, and it can drift
+     * out of sync with app.term's size if anything clobbers a resize message.
      *
-     * A harmless no-op before the transport is connected yet (ctl_fd still -1,
-     * resize's own "best-effort, not an error" early return)
+     * A plain resize-as-notification design has no way to recover; resending here
+     * does, at the next VT switch.[1]
      *
-     * the existing one-shot call covers that exact case instead.
+     * A harmless no-op before the transport is connected (ctl_fd is still -1, and
+     * resize is best-effort). The one-shot call covers that case.
+     *
+     * [1] Found live: a burst of spurious zoom-out events after a restart left
+     *     the pty stuck at a much older, smaller font size's dimensions.
      */
     ghostcon_transport_resize(&app->transport, app->term.rows, app->term.cols,
                               app->term.cols * app->cell_w, app->term.rows * app->cell_h);

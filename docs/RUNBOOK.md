@@ -126,6 +126,18 @@ boundaries and starts a new lowercase paragraph at semicolons before
 common connectors. It does not mechanically split em dashes: those need
 hand editing, because blind splitting breaks parentheticals.
 
+Long asides: if a parenthetical would run more than a line, or contains
+several clauses, move it to a numbered footnote paragraph instead of
+breaking the sentence:
+
+    ... does not consult the fallback chain[1].
+    *
+    * [1] Ligature shaping only runs against the primary face's own
+    *     hb_font_t.
+
+Leave just the marker inline. Indent footnote continuation lines so they
+group with the marker.
+
 Inline/trailing comments are untouched. License headers, ASCII banners,
 comments inside `#define` continuations, and verbatim code/table blocks
 are skipped. Boxed runs of adjacent one-line comments collapse into one

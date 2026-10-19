@@ -26,8 +26,9 @@
  *
  * their pixels are real source color to sample directly, not a coverage mask to
  * tint with the cell's foreground color, so they can't share the mask atlas's
- * format or the shader path that consumes it. ghostcon_glyph_t.is_color says
- * which atlas a given glyph's UV rect lives in.
+ * format or the shader path that consumes it.
+ *
+ * ghostcon_glyph_t.is_color says which atlas a given glyph's UV rect lives in.
  *
  * See ghostcon_atlas_color_bitmap() below and gles.c's
  * u_atlas_color/v_is_color_glyph.
@@ -35,14 +36,15 @@
 
 typedef struct
 {
-    float    u0, v0, u1, v1;   /* UV rect, normalized -- in the color atlas
-                                   (ghostcon_atlas_color_bitmap()) if is_color,
-                                   otherwise the mask atlas (ghostcon_atlas_bitmap()) */
-    int16_t  width, height;    /* glyph bitmap size, pixels */
+    /* UV rect, normalized. In the color atlas (ghostcon_atlas_color_bitmap()) if
+     * is_color, otherwise in the mask atlas (ghostcon_atlas_bitmap())
+     */
+    float    u0, v0, u1, v1;
+    int16_t  width, height;        /* glyph bitmap size, pixels */
     int16_t  bearing_x, bearing_y; /* pen-to-bitmap-top-left offset, pixels */
-    float    advance;          /* horizontal advance, pixels */
-    bool     is_color;         /* true for a CBDT/CBLC color bitmap glyph --
-                                   see this header's own doc comment above */
+    float    advance;              /* horizontal advance, pixels */
+    bool     is_color;             /* true for a CBDT/CBLC color bitmap glyph --
+                                      see this header's own doc comment above */
 } ghostcon_glyph_t;
 
 typedef struct ghostcon_atlas ghostcon_atlas_t;
@@ -101,19 +103,24 @@ void ghostcon_atlas_destroy(ghostcon_atlas_t *atlas);
 const ghostcon_glyph_t *ghostcon_atlas_glyph(ghostcon_atlas_t *atlas,
                                               uint32_t codepoint);
 
-/* Looks up (rasterizing and packing on first use, same as ghostcon_atlas_glyph()
- * above) a glyph by its raw FreeType glyph index in the atlas's PRIMARY face,
- * rather than by codepoint.
+/* Looks up a glyph by its raw FreeType glyph index in the atlas's PRIMARY
+ * face, rather than by codepoint.
  *
- * Needed for ligature glyphs: a shaped ligature (e.g. the single glyph a font
- * substitutes for "->") has no Unicode codepoint of its own to look up by
+ * Rasterizes and packs on first use[1].
  *
- * HarfBuzz hands back a glyph index instead.
+ * Needed for ligature glyphs: a shaped ligature, for example the single
+ * glyph a font substitutes for "->", has no Unicode codepoint of its own
+ * to look up by. HarfBuzz hands back a glyph index instead.
  *
- * See ghostcon_atlas_shape_run() below and render/ligature.c, the only caller.
- * Does NOT consult the fallback font chain
+ * See ghostcon_atlas_shape_run() below and render/ligature.c, the only
+ * caller.
  *
- * ligature shaping only ever runs against the primary face's own hb_font_t.
+ * Does NOT consult the fallback font chain[2].
+ *
+ * [1] Same as ghostcon_atlas_glyph() above.
+ *
+ * [2] Ligature shaping only ever runs against the primary face's own
+ *     hb_font_t.
  */
 const ghostcon_glyph_t *ghostcon_atlas_glyph_by_index(ghostcon_atlas_t *atlas,
                                                         uint32_t glyph_index);

@@ -48,40 +48,36 @@ static const char *VERT_SRC =
  * storage size, GPU register pressure) unchanged from before.
  */
 /* Luminance-based alpha correction, ported from Ghostty's own cell_text.f.glsl
- * (USE_LINEAR_CORRECTION path). Defaults OFF (config.c's gamma_correct default)
+ * (USE_LINEAR_CORRECTION path). Defaults off
  *
- * keep reading before turning it on.
+ * see config.c's gamma_correct default. Keep reading before enabling it.
  *
- * Ghostty only ever pairs this with USE_LINEAR_BLENDING: an sRGB-format
- * framebuffer where the GPU blends in true linear light and re-encodes to sRGB on
- * write, which naturally renders light-on-dark text thinner than expected
+ * Ghostty pairs this with USE_LINEAR_BLENDING: an sRGB framebuffer where the GPU
+ * blends in true linear light and re-encodes to sRGB on write. That naturally
+ * renders light-on-dark text thinner than expected.
  *
- * the correction exists purely to fatten that back up to look like traditional
- * gamma-incorrect blending (confirmed straight from Ghostty's own config docs:
- * Config.zig's alpha-blending default is "linear-corrected" on Linux, pairing
- * both flags together; "linear" alone, without the correction, is documented
- * there as making light text "much thicker"
+ * The correction fattens it back up to look like traditional gamma-incorrect
+ * blending.[1]
  *
- * so the correction's whole job is undoing a thinning effect that only exists
- * when blending is actually linear).
+ * ghostcon's GBM/EGL surface is a plain, non-sRGB format with standard
+ * fixed-function blending. Structurally that is already Ghostty's `native` mode,
+ * the same "gamma-incorrect blending" the correction exists to reproduce.
  *
- * ghostcon's GBM/EGL surface is a plain (non-sRGB) format with standard
- * fixed-function blending
+ * Applying the curve on top over-corrects. Partial-coverage pixels are pushed
+ * darker to fight a thinning effect that was never present.
  *
- * structurally Ghostty's `native` mode already, the same "gamma-incorrect
- * blending" the correction curve exists to reproduce.
+ * The visible result is thin strokes, mostly partial-coverage AA pixels,
+ * rendering dimmer than thick full-coverage strokes in the same glyph.[2]
  *
- * Applying the curve on top of that (found live: enabled by default for one
- * deploy) over-corrects: partial-coverage pixels get pushed darker to fight a
- * thinning effect that was never present, which reads as thin strokes (built
- * mostly from partial-coverage AA pixels) rendering visibly dimmer than thick
- * ones (built mostly from full-coverage pixels) within the same glyph.
+ * The curve is only useful again if ghostcon-core gains a real linear-blending
+ * framebuffer. That now exists (see u_linear_blending below), though it
+ * mattered far less than expected. See the next doc comment in this file.
  *
- * Only useful again if ghostcon-core ever gains a real linear-blending
- * framebuffer
+ * [1] Ghostty's config docs confirm it: Config.zig defaults
+ *     alpha-blending to "linear-corrected" on Linux, and documents
+ *     "linear" alone as making light text "much thicker".
  *
- * which now exists (see u_linear_blending below), though it turned out to matter
- * far less than expected: see this file's next doc comment for why.
+ * [2] Found live: the curve was enabled by default for one deploy.
  */
 /* Color glyph quads (v_is_color_glyph > 0.5
  *

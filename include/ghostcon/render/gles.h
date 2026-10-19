@@ -154,19 +154,20 @@ void ghostcon_gles_begin(ghostcon_gles_t *gles, bool clear,
                           float bg_r, float bg_g, float bg_b);
 
 /* Appends an opaque solid-color rect to the FOREGROUND layer (cursor block,
- * selection overlay)
+ * selection overlay). Drawn after glyphs, on top of everything.
  *
- * drawn after glyphs, on top of everything.
+ * For cell background fills, use ghostcon_gles_push_bg_rect() below instead.
  *
- * For cell background fills specifically, use ghostcon_gles_push_bg_rect() below
- * instead: backgrounds and glyphs/cursor/selection are now two separate draw
- * calls (not one combined batch), specifically so a Kitty graphics z<0 placement
- * can be sandwiched between them
+ * Backgrounds and glyphs/cursor/selection are two separate draw calls, not one
+ * combined batch, specifically so a Kitty graphics z<0 placement can be
+ * sandwiched between them.[1]
  *
- * see this header's "Arbitrary-texture images" section for why that split exists
- * (real terminals draw z<0 images above cell backgrounds but below glyphs, which
- * a single combined batch can't represent: found live, a z<0 image was always
- * completely hidden under the batch's own opaque background fills).
+ * See this header's "Arbitrary-texture images" section.
+ *
+ * [1] Real terminals draw z<0 images above cell backgrounds but below
+ *     glyphs, which a single combined batch cannot represent. Found live:
+ *     a z<0 image was always hidden under the batch's opaque background
+ *     fills.
  */
 void ghostcon_gles_push_rect(ghostcon_gles_t *gles,
                               float x, float y, float w, float h,

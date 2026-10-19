@@ -1,61 +1,58 @@
-/* supervisor[ttyN]
- *
- * per-VT lifecycle manager.
+/* supervisor[ttyN] -- per-VT lifecycle manager.
  *
  * State machine (PLAN.md "Supervision layer"):
  *
  *   IDLE -> SPAWNING (spawn ghostcon-core, start canary/startup timer)
  *           |- ghostcon-core claims VT (first canary byte) -> ACTIVE
  *           `- timer fires before that -> kill it -> FALLBACK
- *   ACTIVE -> canary timeout (hang) -> kill it -> SPAWNING (retry ghostcon,
- *             NOT fallback -- fallback is only for "never even started")
+ *   ACTIVE -> canary timeout (hang) -> kill it -> SPAWNING (retry
+ *             ghostcon, not fallback: fallback is only for "never even
+ *             started")
  *   ACTIVE -> ghostcon-core exits cleanly (POLLHUP) -> SPAWNING
- *   FALLBACK -> SIGHUP ("user requests ghostcon") -> kill fallback -> SPAWNING
+ *   FALLBACK -> SIGHUP ("user requests ghostcon") -> kill fallback ->
+ *               SPAWNING
  *
- * The canary is deliberately dumb (PLAN.md "Philosophy"): silence past a deadline
- * = treat as dead, full stop, no attempt to diagnose why.
+ * The canary is deliberately dumb (PLAN.md "Philosophy"): silence past a
+ * deadline means dead, full stop. It does not diagnose why.
  *
- * The startup race timer and the ongoing canary are the SAME mechanism (one
- * poll(canary_fd, POLLIN|POLLHUP, deadline) call)
+ * The startup race timer and the ongoing canary are the same mechanism:
+ * one poll(canary_fd, POLLIN|POLLHUP, deadline) call. Only the meaning of
+ * "timeout" differs by state, fall back vs retry.
  *
- * the only difference is what "timeout" means for the current state (fall back
- * vs. retry).
+ * Environment overrides (no TOML config yet, same as ghost-ptyserv):
  *
- * Env var overrides (no TOML config yet, same precedent as ghost-ptyserv):
- *   GHOSTCON_CORE_BIN        - path to the renderer binary (default
- *                              "ghostcon-core"; tests substitute a stand-in)
- *   GHOSTCON_CANARY_DEADLINE_MS - default 4000
- *   GHOSTCON_RUN_DIR         - recovery file directory (default
- *                              "/run/ghostcon")
- *   GHOSTCON_DISABLE_WALL    - if set, skip the wall(1) broadcast (tests
- *                              must not spam real logged-in users)
- *   GHOSTCON_DISABLE_KMSCON_FALLBACK - if set, skip straight to the
- *                              agetty tier (tests only)
- *   GHOSTCON_DRM_NODE        - DRM node to render on (default
- *                              "/dev/dri/card1", this machine's actual
- *                              GPU; overridden by the [drm_node] argv
- *                              below if given). In principle settable
- *                              via `pkexec env GHOSTCON_DRM_NODE=... CMD`
- *                              since a plain `VAR=val pkexec CMD` prefix
- *                              doesn't survive pkexec's environment
- *                              reset -- but in practice `pkexec env ...`
- *                              didn't reliably show its auth prompt at
- *                              all when tried live, so don't depend on
- *                              this path working; fix the default
- *                              instead if it's ever wrong again.
+ *   GHOSTCON_CORE_BIN
+ *       Renderer binary. Default "ghostcon-core"; tests substitute a
+ *       stand-in.
+ *   GHOSTCON_CANARY_DEADLINE_MS
+ *       Silence deadline in milliseconds. Default 4000.
+ *   GHOSTCON_RUN_DIR
+ *       Recovery-file directory. Default "/run/ghostcon".
+ *   GHOSTCON_DISABLE_WALL
+ *       If set, skip the wall(1) broadcast so tests do not spam logged-in
+ *       users.
+ *   GHOSTCON_DISABLE_KMSCON_FALLBACK
+ *       If set, skip straight to the agetty tier (tests only).
+ *   GHOSTCON_DRM_NODE
+ *       DRM node. Default "/dev/dri/card1", this machine's actual GPU; the
+ *       [drm_node] argv overrides it. Settable with
+ *       `pkexec env GHOSTCON_DRM_NODE=... CMD`, since a plain
+ *       `VAR=val pkexec CMD` prefix does not survive pkexec's environment
+ *       reset. In practice `pkexec env ...` did not reliably show its auth
+ *       prompt when tried live, so do not depend on that path.
  *
- * Usage: supervisor <vtnum> [registry_socket] [drm_node] (registry_socket first
- * since that's what undead-head actually has to pass through --drm_node is a
- * supervisor-local hardware detail undead-head doesn't need to know about.
+ * Usage: supervisor <vtnum> [registry_socket] [drm_node].
  *
- * Internally reordered to ghostcon-core's own <vtnum> [drm_node]
- * [registry_socket] argv when spawning it
+ * registry_socket comes first because undead-head must pass it through.
+ * drm_node is a supervisor-local hardware detail undead-head does not need
+ * to know.[1]
  *
- * see spawn_renderer.)
+ * GHOSTCON_CORE_BIN does not fall back to a bare name plus PATH lookup. See
+ * undead_head/main.c's file comment: this runs under pkexec, where PATH is
+ * not trustworthy.
  *
- * GHOSTCON_CORE_BIN's default resolution does NOT fall back to a bare name
- * + PATH lookup -- see undead_head/main.c's file comment (same reasoning
- * applies here: this runs under pkexec, PATH isn't trustworthy).
+ * [1] When spawning ghostcon-core the arguments are reordered to its own
+ *     <vtnum> [drm_node] [registry_socket] form; see spawn_renderer().
  */
 
 #define _DEFAULT_SOURCE
