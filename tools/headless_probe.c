@@ -25,6 +25,7 @@
 
 #include "ghostcon/core/egl.h"
 #include "ghostcon/core/parse.h"
+#include "ghostcon/core/render_node.h"
 #include "ghostcon/render/atlas.h"
 #include "ghostcon/render/gles.h"
 #include "ghostcon/render/machine.h"
@@ -44,7 +45,6 @@
 #include <unistd.h>
 
 #define ATLAS_DIM 1024
-#define DRM_RENDER_NODE "/dev/dri/renderD128"
 
 int
 main(int argc, char **argv)
@@ -217,9 +217,10 @@ main(int argc, char **argv)
         ghostcon_screen_mark_dirty(&term.screen, y);
 
     ghostcon_egl_t egl;
-    if (!ghostcon_egl_init(&egl, DRM_RENDER_NODE, vw, vh))
+    const char *node = ghostcon_render_node();
+    if (!ghostcon_egl_init(&egl, node, vw, vh))
     {
-        fprintf(stderr, "FAIL: egl_init on %s\n", DRM_RENDER_NODE);
+        fprintf(stderr, "FAIL: egl_init on %s\n", node);
         return 1;
     }
     if (!ghostcon_egl_make_current(&egl))

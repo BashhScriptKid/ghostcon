@@ -12,6 +12,13 @@
  * actually differ from the background (i.e. something was drawn, not just a clear
  * color).
  *
+ * The node defaults to /dev/dri/renderD128 and is overridable with
+ * GHOSTCON_DRM_RENDER_NODE (core/render_node.h).
+ *
+ * When no render node is present -- the common case on a headless CI runner --
+ * the test SKIPs (exit 77) rather than failing, so a GPU-less machine can still
+ * run the rest of the suite.
+ *
  * Does NOT exercise core/kms.c (real scanout)
  *
  * that needs a VT switch away from the live desktop session. See PLAN.md's Phase
@@ -19,26 +26,35 @@
  */
 
 #include "ghostcon/core/egl.h"
-#include "ghostcon/render/atlas.h"
 #include "ghostcon/core/parse.h"
+#include "ghostcon/core/render_node.h"
+#include "ghostcon/render/atlas.h"
 #include "ghostcon/render/gles.h"
 #include "ghostcon/render/machine.h"
 #include "ghostcon/term/term.h"
 
 #include <GLES2/gl2.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #define COLS 20
 #define ROWS 4
 #define FONT_SIZE 16
 #define ATLAS_DIM 512
-#define DRM_RENDER_NODE "/dev/dri/renderD128"
 
 int
 main(void)
 {
+    const char *node = ghostcon_render_node();
+    if (access(node, R_OK | W_OK) != 0)
+    {
+        printf("SKIP: render node %s unavailable (%s)\n", node, strerror(errno));
+        return 77;
+    }
+
     ghostcon_atlas_t *atlas = ghostcon_atlas_create(NULL, NULL, NULL, NULL, FONT_SIZE, ATLAS_DIM);
     if (!atlas)
     {
@@ -58,7 +74,7 @@ main(void)
     uint32_t vh = (uint32_t)(cell_h * ROWS);
 
     ghostcon_egl_t egl;
-    if (!ghostcon_egl_init(&egl, DRM_RENDER_NODE, vw, vh))
+    if (!ghostcon_egl_init(&egl, node, vw, vh))
     {
         fprintf(stderr, "FAIL: ghostcon_egl_init\n");
         return 1;
@@ -68,7 +84,7 @@ main(void)
         fprintf(stderr, "FAIL: ghostcon_egl_make_current\n");
         return 1;
     }
-    printf("PASS: EGL/GBM context on %s, viewport %ux%u\n", DRM_RENDER_NODE, vw, vh);
+    printf("PASS: EGL/GBM context on %s, viewport %ux%u\n", node, vw, vh);
 
     ghostcon_gles_t *gles = ghostcon_gles_create(vw, vh, true);
     if (!gles)

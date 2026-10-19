@@ -50,7 +50,8 @@ ninja -C build
 
 ## Test
 
-The default suite is fully headless — no display, VT, or DRM master needed:
+The default suite is fully headless — no display, VT, or DRM master needed
+(`test_render` renders through a DRM render node, and SKIPs if none is present):
 
 ```sh
 meson test -C build

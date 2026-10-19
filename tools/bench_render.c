@@ -24,6 +24,7 @@
 
 #include "ghostcon/core/egl.h"
 #include "ghostcon/core/parse.h"
+#include "ghostcon/core/render_node.h"
 #include "ghostcon/render/atlas.h"
 #include "ghostcon/render/gles.h"
 #include "ghostcon/render/machine.h"
@@ -37,7 +38,6 @@
 #include <time.h>
 
 #define ATLAS_DIM 1024
-#define DRM_RENDER_NODE "/dev/dri/renderD128"
 #define WARMUP_FRAMES 10
 /* Enough scrollback that bouncing scroll_view() back and forth for the whole
  * benchmark run never runs out of history to scroll into --each "frame" scrolls
@@ -112,9 +112,10 @@ int main(int argc, char **argv)
     uint32_t vh = (uint32_t)(cell_h * rows);
 
     ghostcon_egl_t egl;
-    if (!ghostcon_egl_init(&egl, DRM_RENDER_NODE, vw, vh))
+    const char *node = ghostcon_render_node();
+    if (!ghostcon_egl_init(&egl, node, vw, vh))
     {
-        fprintf(stderr, "FAIL: ghostcon_egl_init on %s\n", DRM_RENDER_NODE);
+        fprintf(stderr, "FAIL: ghostcon_egl_init on %s\n", node);
         return 1;
     }
     if (!ghostcon_egl_make_current(&egl))

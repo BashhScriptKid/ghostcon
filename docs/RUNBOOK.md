@@ -8,7 +8,7 @@ After **every** change, the minimum verification is:
 
 ```sh
 ninja -C build-release
-meson test -C build-release          # currently 21 tests
+meson test -C build-release          # currently 22 tests
 ```
 
 ---
@@ -170,7 +170,7 @@ performance, portability, minus the noisy checks documented there).
 
 ### Tests
 
-`meson test -C build-release` must stay green (currently 21 tests).
+`meson test -C build-release` must stay green (currently 22 tests).
 
 ## 1. Where things live now (post-refactor map)
 
@@ -378,6 +378,24 @@ build-release/src/headless_probe out.ppm 1920 1080 16 500 -- htop
 build-release/src/ghostcon_dump 80 24 saved.raw      # style-oriented dump
 build-release/src/gc-inspect saved.raw               # tag-aware cell dump
 ```
+
+Every headless GLES path (`test_render`, `headless_probe`, `bench_render`)
+takes its DRM node from `GHOSTCON_DRM_RENDER_NODE` (default
+`/dev/dri/renderD128`; see `include/ghostcon/core/render_node.h`). When no
+render node is present, `test_render` SKIPs (exit 77) instead of failing, so a
+GPU-less CI runner can still run the rest of the suite.
+
+To exercise the render path with no GPU at all, back the node with a virtual
+DRM device (load `vkms`) and force Mesa's software rasterizer:
+
+```sh
+sudo modprobe vkms
+GALLIUM_DRIVER=llvmpipe meson test -C build-release test_render
+```
+
+`test_vtctl` (`tests/test_vtctl.c`) covers `vtctl.c`'s pure handshake
+transition -- the release-before-ack ordering -- with no `/dev/ttyN`. The
+ioctl/signal side of `vtctl.c` still needs a real VT (a QEMU guest works).
 
 Only the acquire/release path touches real DRM master and VT signals. To
 exercise that, deploy and switch VTs on the physical console:
