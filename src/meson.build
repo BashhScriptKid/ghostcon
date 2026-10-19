@@ -48,6 +48,11 @@ term_lib = static_library('ghostcon-term',
     term_srcs,
     include_directories: include_directories('../include'),
     dependencies: [dep_ghostty_vt, dep_libpng],
+    # With -Dbuild_fuzzers=true the whole terminal core is compiled with
+    # libFuzzer's coverage instrumentation (fuzzer-no-link adds the counters
+    # but not the runtime/main, which the harness links in). Without this the
+    # fuzzer would only ever "see" branches inside tools/fuzz_term.c itself.
+    c_args: get_option('build_fuzzers') ? ['-fsanitize=fuzzer-no-link'] : [],
     install: false,
 )
 
@@ -96,6 +101,30 @@ if not meson.is_subproject()
         dependencies: [dep_ghostty_vt],
     )
     test('test_term', test_exe)
+
+    # libFuzzer harness (tools/fuzz_term.c) -- hardening plan #5.
+    #
+    # Off by default: libFuzzer is a clang feature, so this is deliberately
+    # kept out of the normal (GCC-buildable) build. Configure a dedicated
+    # directory with sanitizers so the terminal core itself is instrumented,
+    # not just the harness:
+    #
+    #   meson setup build-fuzz -Dbuild_fuzzers=true -Db_sanitize=address,undefined
+    #   ninja -C build-fuzz src/fuzz_term
+    #   ./build-fuzz/src/fuzz_term -max_len=4096 -max_total_time=120
+    #
+    # Seed corpus is optional -- libFuzzer mutates outward from an empty one;
+    # tools/corpus/*.seq make reasonable seeds if copied into a corpus dir.
+    if get_option('build_fuzzers')
+        executable('fuzz_term',
+            '../tools/fuzz_term.c',
+            include_directories: include_directories('../include'),
+            link_with: term_lib,
+            dependencies: [dep_ghostty_vt, dep_libpng],
+            c_args: ['-fsanitize=fuzzer,address,undefined', '-g', '-O1'],
+            link_args: ['-fsanitize=fuzzer,address,undefined'],
+        )
+    endif
 
     conformance_exe = executable('test_conformance',
         '../tests/test_conformance.c',

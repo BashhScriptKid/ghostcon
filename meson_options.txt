@@ -1,2 +1,4 @@
 option('install_systemd_unit', type: 'boolean', value: true,
     description: 'Install packaging/ghostcon.service into the systemd system unit directory. Disable if a distro packager supplies their own unit.')
+option('build_fuzzers', type: 'boolean', value: false,
+    description: 'Build the libFuzzer harness (tools/fuzz_term.c). Requires clang; intended to be combined with -Db_sanitize=address,undefined.')

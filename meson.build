@@ -10,6 +10,11 @@ project('ghostcon', 'c',
 
 # Dependencies
 cc = meson.get_compiler('c')
+# libFuzzer is a clang feature -- reject the combination up front rather
+# than letting GCC fail later on an unrecognized -fsanitize=fuzzer.
+if get_option('build_fuzzers') and cc.get_id() != 'clang'
+    error('build_fuzzers=true requires clang: libFuzzer is not a GCC feature.')
+endif
 # libm -- render/machine.c's symbol-glyph fit-to-cell scaling uses
 # floorf(). Was previously an implicit link (glibc's libm ends up
 # pulled in transitively through some other dependency in a plain
