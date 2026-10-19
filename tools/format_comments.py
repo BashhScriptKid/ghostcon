@@ -21,7 +21,7 @@ in one paragraph become individual bullet paragraphs.
 import glob, re, sys, textwrap
 
 WIDTH = 76
-MAX_PARA_LINES = 3
+MAX_PARA_LINES = 4
 SKIP_MARKERS = (
     "Copyright", "Permission is hereby granted", "SPDX-License-Identifier",
     "THE SOFTWARE IS PROVIDED", "MERCHANTABILITY",

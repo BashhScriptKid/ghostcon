@@ -3,53 +3,52 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* VT lifecycle — VT_PROCESS acquire/release handshake
+/* VT lifecycle: the VT_PROCESS acquire/release handshake.
  *
- * UNTESTED AT RUNTIME as of this writing (see PLAN.md's Phase 1 item 3
- * note): /dev/ttyN is root-only on this machine, and exercising the
- * acquire/release signals for real requires an actual chvt away from and
- * back to the live desktop session — both deferred to a joint session with
- * core/kms.c, since this module's whole job is telling kms.c when to
- * grab/drop DRM master.
+ * Status: untested at runtime as of this writing (see PLAN.md's Phase 1
+ * item 3 note). /dev/ttyN is root-only here, and exercising the signals
+ * requires a real chvt away from and back to the desktop.
  *
- * Follows kmscon's proven kernel-level pattern (reference: its
- * src/uterm/vt_real.c) — PLAN.md's own reading-guide pointer: 1. Open
- * /dev/ttyN with O_RDWR | O_NOCTTY. 2. ioctl(KDSETMODE, KD_GRAPHICS). 2b.
+ * That was deferred to a joint session with core/kms.c, since this module's
+ * job is telling kms.c when to grab or drop DRM master.
  *
- * If the inherited console keyboard mode is one that makes the kernel drop
- * Ctrl+Alt+Fn (K_OFF/K_RAW/K_MEDIUMRAW), override it to K_UNICODE —
- * otherwise the kernel's own switch handling this handshake rides on never
- * runs (see vtctl.c's kbd_mode_blocks_vt_switch()). 3. ioctl(VT_SETMODE, {
- * VT_PROCESS, acqsig=SIGUSR1, relsig=SIGUSR2 }). 4.
+ * The sequence follows kmscon's pattern (src/uterm/vt_real.c):
  *
- * On SIGUSR2 (release): caller must drmDropMaster(), then this module acks
- * via ioctl(VT_RELDISP, 1). 5. On SIGUSR1 (acquire): this module acks via
- * ioctl(VT_RELDISP, VT_ACKACQ), then caller must drmSetMaster().
+ * 1. Open /dev/ttyN with O_RDWR | O_NOCTTY.
  *
- * PLAN.md flags this as the highest-risk module: a wedged event loop that
- * never acks VT_RELDISP is exactly kmscon's "switching doesn't work"
- * failure mode, and the kernel has no way to force it.
+ * 2. ioctl(KDSETMODE, KD_GRAPHICS).
  *
- * The fix isn't "make the handshake code perfect" — it's "make sure the
- * supervisor's canary can detect and recover from this specific stall"
- * (PLAN.md's supervision layer, a separate module).
+ *    If the inherited keyboard mode would stop the kernel from handling
+ *    Ctrl+Alt+Fn (K_OFF, K_RAW, K_MEDIUMRAW), first override it to
+ *    K_UNICODE. Otherwise the kernel's switch handling, which this
+ *    handshake relies on, never runs; see kbd_mode_blocks_vt_switch().
  *
- * This module's own job is just: never do unsafe work in the signal handler
- * itself.
+ * 3. ioctl(VT_SETMODE, { VT_PROCESS, acqsig=SIGUSR1, relsig=SIGUSR2 }).
+ * 4. On SIGUSR2 (release): the caller drops DRM master; this module then
+ *    acks with ioctl(VT_RELDISP, 1).
+ * 5. On SIGUSR1 (acquire): this module acks with
+ *    ioctl(VT_RELDISP, VT_ACKACQ); the caller then takes DRM master.
  *
- * Signal handlers can't safely call ioctl()/drmSetMaster() (not
- * async-signal-safe), so the handler only writes a byte to a self-pipe —
- * the actual ioctl/drmSetMaster/drmDropMaster work happens in
- * ghostcon_vtctl_process_pending(), called from the main loop after polling
+ * PLAN.md calls this the highest-risk module. A wedged event loop that
+ * never acks VT_RELDISP reproduces kmscon's "VT switching does not work"
+ * failure mode, and the kernel cannot force the ack.
+ *
+ * The answer is not a perfect handshake; it is the supervisor canary
+ * detecting and recovering from that stall (a separate module). This
+ * module's own responsibility is to never do dangerous work inside the
+ * signal handler.
+ *
+ * ioctl() and drmSetMaster() are not async-signal-safe, so the handler only
+ * writes a byte to a self-pipe. The real work happens in
+ * ghostcon_vtctl_process_pending(), which the main loop calls after polling
  * ghostcon_vtctl_signal_fd() readable.
  *
- * SIGUSR1/SIGUSR2 are reserved for this handshake — no other ghostcon
- * component should install handlers for them.
+ * SIGUSR1 and SIGUSR2 are reserved for this handshake. No other ghostcon
+ * component may install handlers for them.
  *
- * Only one ghostcon_vtctl_t may be open per process (one process = one VT,
- * per PLAN.md's architecture; signal handlers have no way to carry
- * per-instance context, so this module keeps one static instance pointer
- * internally and ghostcon_vtctl_open() fails if called twice).
+ * Only one instance may be open per process (one process per VT). Signal
+ * handlers cannot carry instance context, so the module keeps a single
+ * static pointer and ghostcon_vtctl_open() fails on a second call.
  */
 
 typedef enum

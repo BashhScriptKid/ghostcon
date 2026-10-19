@@ -197,67 +197,51 @@ typedef struct
 
 /* Drains all pending libinput events.
  *
- * Keyboard key events are encoded (see ghostcon_input_encode_key) and
- * written directly to `transport` — no keybind interception yet, see the
- * file-level comment — except for two small fixed sets of shortcuts:
- * -scrollback (Shift+Up/Down/PageUp/PageDown, mirroring kmscon's
- * grab-scroll/grab-page defaults), applied directly to `screen` via
- * ghostcon_screen_scroll_view() instead of being forwarded to the pty.
+ * Keyboard events are encoded (see ghostcon_input_encode_key()) and written
+ * to `transport`, except for two fixed shortcut sets:
  *
- * - zoom (Ctrl+=/Ctrl+Minus, plus Ctrl+Keypad+/Ctrl+Keypad- aliases), which
- *   this function can't apply itself (it has no font/atlas ownership --
- *   that lives in core/main.c's app_t) -- instead it accumulates the net
- *   requested change into *out_zoom_delta (each press is +-1; caller starts
- *   it at 0 and applies the final value, e.g. via a helper that rebuilds
- *   the glyph atlas at the new size).
+ * Scrolling: Shift+Up/Down/PageUp/PageDown (kmscon's grab-scroll /
+ * grab-page defaults) calls ghostcon_screen_scroll_view() instead of
+ * forwarding anything to the pty.
  *
- * Pointer events (motion, buttons, wheel -- mice AND touchpads alike, see
- * core/input.c's handle_pointer_event() doc comment for why libinput makes
- * that automatic) are converted to a terminal column/ row using
- * `cell_w`/`cell_h` and encoded via term/mouse.c's ghostcon_mouse_encode()
- * per `screen`'s currently negotiated protocol, written to `transport` the
- * same way keyboard bytes are (0 bytes encoded — tracking off, or this
- * event type isn't reported in the current mode — is silently not sent, not
- * an error).
+ * Zoom: Ctrl+=/Ctrl+Minus, plus Ctrl+Keypad+/Ctrl+Keypad-, cannot be
+ * applied here because this layer does not own the font or atlas. Each
+ * press adds +1 or -1 to *out_zoom_delta; the caller starts it at zero and
+ * applies the result, for example by rebuilding the glyph atlas.
  *
- * The absolute pointer pixel position (independent of whether any app
- * requested mouse reporting -- the visible cursor sprite always tracks it)
- * is reported via `*out_pointer`.
+ * Pointer events (motion, buttons, wheel; mice and touchpads alike) are
+ * converted to a terminal column/row and encoded with
+ * ghostcon_mouse_encode() using `screen`'s current protocol. They are
+ * written to `transport` like key bytes.
  *
- * Returns false only on a transport write failure or fatal libinput error;
- * individual malformed/unmappable events are skipped, not fatal.
+ * An event that encodes to zero bytes (tracking off, or an unreported event
+ * type) is dropped silently.
  *
- * Caller should check screen's dirty region after this call (a scrollback
- * shortcut marks it dirty without producing any pty output to trigger the
- * caller's usual render-on-new-data path).
+ * `*out_pointer` receives the absolute pixel position whether or not an
+ * application requested mouse reporting, because the cursor sprite always
+ * tracks it.
  *
- * `active` gates everything EXCEPT draining the queue and keeping XKB
- * modifier tracking correct -- found live: libinput's udev backend reads
- * raw evdev events directly, completely independent of which VT is actually
- * the kernel's current foreground one (same reasoning
- * is_vt_switch_combo()'s own doc comment already covers for Ctrl+Alt+Fn
- * specifically) -- so a ghostcon-core instance whose VT_PROCESS release
- * signal was ever missed (leaving app->display_acquired stuck true) would
- * otherwise keep acting on every keystroke typed ANYWHERE on the physical
- * keyboard, including zoom/scroll shortcuts and raw key forwarding to its
- * own pty, even while a completely different VT is what's actually visible.
+ * Returns false only for a transport write failure or a fatal libinput
+ * error. Malformed or unmappable events are skipped.
  *
- * Callers should pass `active = false` whenever a direct kernel check (e.g.
+ * The caller should check the screen's dirty region afterwards, because a
+ * scrollback shortcut dirties it without producing pty output.
  *
- * /sys/class/tty/tty0/active) disagrees with this process's own tracked
- * VT-ownership state, as a defensive safety net for exactly that
- * missed-signal case -- NOT as the primary mechanism for "don't process
- * input while inactive" (that's already handled by not having an open
- * ghostcon_input_t at all outside an acquire/release cycle; see
- * core/main.c's app_t doc comment on `input`).
+ * `active` gates everything except draining the queue and keeping XKB
+ * modifier state correct. libinput's udev backend reads raw evdev events
+ * independently of which VT is foreground, so a process whose VT_PROCESS
+ * release was missed would otherwise react to keys typed on any VT.
  *
- * When false: keyboard events still update XKB modifier state (so
- * Ctrl/Shift tracking doesn't desync for whenever this DOES become active
- * again) and are still drained from the queue (avoiding the backlog-buildup
- * problem this same mechanism exists to prevent elsewhere), but no key
- * bytes are forwarded to `transport`, no shortcuts fire, and pointer events
- * are skipped entirely (out_pointer stays at its already-tracked position,
- * moved=false).
+ * Callers should pass active=false when a kernel check (for example
+ * /sys/class/tty/tty0/active) disagrees with their own ownership state.
+ *
+ * This is a safety net for a missed signal, not the normal mechanism: no
+ * input context exists while the VT is inactive (see app_t's `input`
+ * comment in core/main.c).
+ *
+ * With active=false, key events still update XKB modifiers and are drained,
+ * but nothing is forwarded, no shortcut fires, and pointer events are
+ * skipped (out_pointer is unchanged and moved=false).
  */
 /* out_dump_requested: set to true (never cleared -- caller starts it at
  * false, same convention as *out_zoom_delta) when Ctrl+Alt+D was pressed

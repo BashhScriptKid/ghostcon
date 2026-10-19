@@ -1,43 +1,45 @@
 #ifndef GHOSTCON_TERM_KITTY_GRAPHICS_H
 #define GHOSTCON_TERM_KITTY_GRAPHICS_H
 
-/* Kitty graphics protocol (APC _G...ST) -- transmission, placement, and
- * deletion of images. All four transmission mediums are supported:
+/* Kitty graphics protocol (APC _G...ST): image transmission, placement, and
+ * deletion.
  *
- * - t=d (direct): image bytes embedded in the escape sequence itself. - t=s
- *   (shared-memory): via POSIX shm_open -- see read_shm_segment() in
- *   kitty_graphics.c. Read-only, never O_CREAT (can only read a segment the
- *   client already created), and always shm_unlink()s it afterward, success
- *   or failure. - t=t (temporary-file) and t=f (plain file): both go
- *   through read_local_file() in kitty_graphics.c, which opens the
- *   client-supplied path FIRST and only resolves/validates its real path
- *   (via /proc/self/fd, reflecting the actual open inode) AFTER --closing
- *   the TOCTOU/symlink-swap gap a naive validate-then-open would leave,
- *   matching Ghostty's own readFile()/ validatedFilePath() (itself a port
- *   of Kitty's reference terminal). Both are restricted to /tmp or
- *   /dev/shm; NOT the genuinely-arbitrary-path t=f the Kitty spec itself
- *   defines (real Kitty/Ghostty instead gate unrestricted t=f behind an
- *   explicit opt-in config flag, off by default -- ghostcon has no such
- *   flag, so t=f stays bounded the same way t=t is rather than being wide
- *   open with nothing gating it). They differ in two ways: t=t additionally
- *   requires the filename to contain Kitty's own "tty-graphics-protocol"
- *   naming convention and always deletes the file afterward (ownership of a
- *   *temporary* file's cleanup passes to the terminal, same posture as
- *   t=s's shm_unlink()); t=f skips the filename check and never deletes
- *   anything, since it's treated as a read-only cache the client expects to
- *   still exist afterward (e.g. re-displaying the same pre-rendered image
- *   again later) rather than a one-shot handoff.
+ * Supported transmission mediums:
  *
- * Raw pixel formats (f=24 RGB, f=32 RGBA) and PNG (f=100, decoded via
- * libpng) are both supported regardless of medium.
+ * - t=d (direct): bytes embedded in the escape sequence.
+ * - t=s (shared memory): POSIX shm_open, read-only (never O_CREAT), and
+ *   always shm_unlink()ed afterwards, success or failure. See
+ *   read_shm_segment() in kitty_graphics.c.
+ * - t=t (temporary file) and t=f (plain file): both go through
+ *   read_local_file(). That opens the client path first, then resolves
+ *   and validates the real path through /proc/self/fd, so the inode that
+ *   was opened is the one checked. This closes the TOCTOU/symlink-swap
+ *   gap a validate-then-open design leaves; Ghostty's readFile() and
+ *   validatedFilePath() work the same way.
  *
- * This module is intentionally decoupled from ghostcon_screen_t: it
- * receives the cursor position as plain ints from the caller rather than
- * reaching into screen state itself, and reports placements back through an
- * accessor rather than writing into the cell grid -- image compositing is a
- * renderer-side concern, not a screen-model one (see CLAUDE.md's note on
- * why erase-only backgrounds are a content tag, not a cell rewrite; the
- * same "renderer reads a side table" shape applies here).
+ * Both file mediums are restricted to /tmp or /dev/shm. That is narrower
+ * than the Kitty spec's arbitrary-path t=f: real Kitty and Ghostty gate
+ * unrestricted t=f behind an opt-in config flag that is off by default, and
+ * ghostcon has no such flag. The two mediums differ:
+ *
+ * - t=t requires the filename to contain Kitty's
+ *   "tty-graphics-protocol" convention and deletes the file afterwards.
+ *   Ownership of a temporary file's cleanup passes to the terminal, as
+ *   with t=s's shm_unlink().
+ * - t=f skips the filename check and never deletes anything. It is a
+ *   read-only cache the client expects to keep, for example to display
+ *   the same image again later.
+ *
+ * Raw formats (f=24 RGB, f=32 RGBA) and PNG (f=100, decoded with libpng)
+ * work on every medium.
+ *
+ * The module is decoupled from ghostcon_screen_t. The caller passes the
+ * cursor position as plain ints, and placements are reported through an
+ * accessor instead of being written into the cell grid. Compositing is a
+ * renderer concern, not part of the screen model.
+ *
+ * Compare CLAUDE.md's note on erase-only backgrounds being a content tag:
+ * the renderer reads a side table in both cases.
  */
 
 #include <stdbool.h>

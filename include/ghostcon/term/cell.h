@@ -255,35 +255,37 @@ ghostcon_cell_make(uint32_t codepoint)
 uint8_t ghostcon_unicode_width(uint32_t codepoint);
 
 /* Matches Ghostty's isSymbol() (renderer/cell.zig): Unicode General
- * Category "Symbol" (Sm/Sc/Sk/So), sourced from a real UCD-generated table
- * (src/term/cell_symbol_table.gen.c, produced by tools/gen_symbol_table.py
- * from third_party/UnicodeData.txt -- same approach Ghostty itself uses,
- * just codegen'd ahead of time here instead of at their build time).
+ * Category "Symbol" (Sm, Sc, Sk, So), backed by a table generated from the
+ * UCD. The table is src/term/cell_symbol_table.gen.c, produced by
+ * tools/gen_symbol_table.py from third_party/UnicodeData.txt.
  *
- * Two hand-added carve-outs sit on top of the generated data for reasons
- * the UCD can't express: Box Drawing/Block Elements (U+2500-259F) are
- * excluded even though they're genuinely category So, because those are
- * rendered procedurally by render/box_draw.c; the Private Use Area
- * (U+E000-F8FF, where Nerd Font icons live) is included even though it's
- * category Co (not Symbol), because those glyphs need the same treatment in
- * practice.
+ * Ghostty uses the same source, just generated at their build time.
  *
- * See ghostcon_cell_is_symbol()'s doc comment in cell.c for the exact
- * logic.
+ * Two carve-outs override the generated data, because the UCD cannot
+ * express them:
  *
- * This exists because a "symbol" character is correctly single-width per
- * ghostcon_unicode_width() (matching the reference terminal exactly
- * --confirmed live), but the actual installed font's glyph for it can
- * rasterize physically wider than one cell (common for icon/dingbat-style
- * glyphs, especially in Nerd Fonts) -- found live: a Nerd Font's "pull
- * request" icon and several Geometric Shapes/Mathematical-Operators circle
- * glyphs (U+2299, U+25C9, U+25CE, and the actual git-pull-request octicon
- * U+F407) all measured wider than cell_w at the configured font size.
+ * - Box Drawing and Block Elements (U+2500-259F) are excluded despite
+ *   being category So: render/box_draw.c draws them procedurally.
+ * - The Private Use Area (U+E000-F8FF, where Nerd Font icons live) is
+ *   included despite being category Co: those glyphs need the same
+ *   treatment in practice.
  *
- * Used by render/machine.c to decide which glyphs need the context-aware
- * fit-to-cell(s) treatment (see ghostcon_cell_is_graphics_element() below
- * and machine.c's symbol_constraint_width()) instead of being drawn at
- * native size like ordinary text.
+ * See ghostcon_cell_is_symbol() in cell.c for the exact logic.
+ *
+ * Why this exists: a symbol is correctly one cell wide according to
+ * ghostcon_unicode_width() (verified live), but the installed font's glyph
+ * can still rasterize wider than a cell. That is common for icon/dingbat
+ * glyphs, especially in Nerd Fonts.
+ *
+ * Observed live: a Nerd Font "pull request" icon, several Geometric
+ * Shapes/Mathematical Operators circles (U+2299, U+25C9, U+25CE), and the
+ * git-pull-request octicon (U+F407) all exceeded cell_w at the configured
+ * font size.
+ *
+ * render/machine.c uses this to choose the context-aware fit-to-cell
+ * treatment (see ghostcon_cell_is_graphics_element() below and machine.c's
+ * symbol_constraint_width()) instead of drawing those glyphs at native size
+ * like ordinary text.
  */
 bool ghostcon_cell_is_symbol(uint32_t codepoint);
 

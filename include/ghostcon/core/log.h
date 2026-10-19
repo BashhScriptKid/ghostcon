@@ -5,38 +5,43 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Domain-tagged debug logging (PLAN.md refactor 3.1)
+/* Domain-tagged debug logging (PLAN.md refactor 3.1).
  *
- * Header-only, no library dependency: emits to stderr, which journald
- * captures for the ghostcon.service unit via its stdio forwarding — the
- * same channel diag.c already relies on for backtrace dumps. term/ links
- * this freely (unlike ghostcon_diag_log_warning(), which would drag
- * libsystemd into ghostcon_dump/test_* links).
+ * Header-only and dependency-free.
  *
- * Channels are enabled via GHOSTCON_LOG (a comma-separated domain list;
- * "all" is a wildcard). Unset/empty = every GC_LOG site silent, so normal
- * operation logs no more than before this file existed.
+ * Output goes to stderr, which journald captures for ghostcon.service
+ * through stdio forwarding, the same channel diag.c uses for backtraces.
+ * term/ can include this without linking libsystemd, unlike
+ * ghostcon_diag_log_warning(), which would pull it into ghostcon_dump and
+ * the test binaries.
  *
- * Always-on channel remains journald warnings (ghostcon_diag_log_warning)
- * -- nothing here replaces that.
+ * GHOSTCON_LOG is a comma-separated domain list; "all" is a wildcard. When
+ * it is unset or empty, every GC_LOG site is silent, so normal operation
+ * logs nothing new.
  *
- * GHOSTCON_LOG=input,selection ghostcon-core 4   # two domains
- * GHOSTCON_LOG=vt,drm          ghostcon-core 4   # VT + KMS
- * GHOSTCON_LOG=stream          ghostcon-core 4   # escape parser
- * GHOSTCON_LOG=all             ghostcon-core 4   # everything
+ * Examples:
  *
- * Domain is a bare identifier used verbatim as the tag: GC_LOG(drm, "master
- * retry %d", i) -> "gc(drm): master retry 2"
+ *   GHOSTCON_LOG=input,selection ghostcon-core 4
+ *   GHOSTCON_LOG=vt,drm              ghostcon-core 4
+ *   GHOSTCON_LOG=stream              ghostcon-core 4
+ *   GHOSTCON_LOG=all                 ghostcon-core 4
+ *
+ * The domain becomes the tag verbatim:
+ *
+ *   GC_LOG(drm, "master retry %d", i)  ->  gc(drm): master retry 2
+ *
+ * Always-on warnings still go through ghostcon_diag_log_warning().
  *
  * Domains in use:
- * vt       VT acquire/release lifecycle (core/main.c)
- * drm      DRM-master retry loop, KMS failures (core/display.c)
- * cursor   hardware-cursor sprite/state commits (core/display.c)
- * input    libinput open/close, dispatch errors (core/main.c)
- * selection click-drag selection transitions (core/ui.c)
- * config   TOML hot-reload decisions (core/main.c)
- * pty      transport connect/read lifecycle (core/main.c)
- * stream   escape-sequence unknown-old/override points (term/)
+ *
+ *   vt         VT acquire/release lifecycle (core/main.c)
+ *   drm        DRM-master retry loop, KMS failures (core/display.c)
+ *   cursor     hardware-cursor sprite/state commits (core/display.c)
+ *   input      libinput open/close, dispatch errors (core/main.c)
+ *   selection  click-drag selection transitions (core/ui.c)
+ *   config     TOML hot-reload decisions (core/main.c)
+ *   pty        transport connect/read lifecycle (core/main.c)
+ *   stream     unhandled/overridden escape sequences (term/)
  */
 
 /* Pure token matcher: does `spec` (comma-separated, NULL/empty = no)

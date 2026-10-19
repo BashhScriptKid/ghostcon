@@ -45,25 +45,33 @@ typedef struct
 
 typedef struct ghostcon_atlas ghostcon_atlas_t;
 
-/* font_family may be NULL to use fontconfig's default monospace match.
- * font_variant may be NULL/empty to use fontconfig's default style for that
- * family -- otherwise matched against FC_STYLE (e.g.
+/* font_family: NULL selects fontconfig's default monospace match.
  *
- * "Bold", "Light", "Medium Italic"; run `fc-list <family>` to see what a
- * given family actually offers). antialiasing may be NULL/"grayscale"
- * (FreeType's normal rasterization target, the only mode that existed
- * before this parameter did), "subpixel" (FT_LOAD_TARGET_LCD, but NOT true
- * RGB-subpixel-blended rendering -- the 3 LCD subchannels are averaged down
- * to a plain replicated mask, same as grayscale just with LCD-optimized
- * hinting), "cleartype" (true per-subpixel coverage stored and blended
- * per-channel --see gles.c's FRAG_SRC), or "none" (FT_LOAD_TARGET_MONO, no
- * antialiasing at all); an unrecognized value falls back to "grayscale",
- * not an error. subpixel_order matters only for "cleartype": NULL/"rgb"
- * (the common laptop-panel layout) or "bgr", matching the physical
- * left-to-right subpixel order of the actual display -- get this wrong and
- * cleartype produces visible color fringing instead of removing it.
- * atlas_dim is the atlas bitmap's width/height in pixels (square,
- * power-of-two recommended, e.g. 1024 or 2048).
+ * font_variant: NULL or empty selects fontconfig's default style for the
+ * family. Otherwise it is matched against FC_STYLE (for example "Bold",
+ * "Light", "Medium Italic"); run `fc-list <family>` to see what a family
+ * offers.
+ *
+ * antialiasing:
+ *
+ * - NULL or "grayscale": FreeType's normal rasterization target, the
+ *   only mode that existed before this parameter did.
+ * - "subpixel": FT_LOAD_TARGET_LCD, but not true per-channel subpixel
+ *   blending. The three LCD subchannels are averaged into a replicated
+ *   mask, so the result is grayscale with LCD-optimized hinting.
+ * - "cleartype": true per-subpixel coverage, stored and blended
+ *   per-channel. See gles.c's FRAG_SRC.
+ * - "none": FT_LOAD_TARGET_MONO, no antialiasing at all.
+ *
+ * Unrecognized values fall back to "grayscale"; they are not errors.
+ *
+ * subpixel_order: used only by "cleartype". NULL or "rgb" matches the
+ * common laptop panel; "bgr" is the alternative. It must match the
+ * display's physical left-to-right subpixel order, or cleartype adds
+ * visible color fringing instead of removing it.
+ *
+ * atlas_dim: atlas width and height in pixels. Square and power-of-two
+ * is recommended (for example 1024 or 2048).
  */
 ghostcon_atlas_t *ghostcon_atlas_create(const char *font_family,
                                          const char *font_variant,
