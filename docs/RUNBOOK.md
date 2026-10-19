@@ -115,6 +115,21 @@ comments inside `#define` continuations, and comments already in this
 style are skipped. Boxed runs of adjacent one-line comments collapse
 into one block. `tools/format_comments.py` enforces this.
 
+### Editor / clangd
+
+`.clangd` pins clangd to the repository-root `compile_commands.json`
+(a git-ignored symlink to `build-release/compile_commands.json`), so
+include paths work regardless of the editor's workspace root.
+`.clang-tidy` defines the curated check set (clang-analyzer, bugprone,
+performance, portability, minus the noisy checks documented there).
+
+- clangd and `clang-tidy -p build-release <file>` use the same config.
+- Formatting is deliberately NOT delegated to clang-format: the house
+  rules above are enforced by `tools/format_*.py`, which clang-format
+  cannot express.
+- If the compile database goes stale (new build dir, new dependency),
+  regenerate it with `meson setup`/`ninja` and re-point the symlink.
+
 ### Tests
 
 `meson test -C build-release` must stay green (currently 21 tests).

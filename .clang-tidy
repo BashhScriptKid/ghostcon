@@ -1,0 +1,44 @@
+# clang-tidy configuration (used by both clangd and `clang-tidy -p build-release`).
+#
+# Deliberately conservative for a C11 codebase: static-analysis and
+# bug-finding checks, no naming/style checks (the style rules live in
+# tools/format_*.py and are not statically analyzable).
+#
+# Disabled checks are the ones that are noisy or C++-oriented here:
+#   bugprone-easily-swappable-parameters  -- many (ptr, len) pairs are fine
+#   bugprone-narrowing-conversions        -- deliberate u16/u8 math
+#   bugprone-implicit-widening-of-multiplication-result -- intentional wrapping
+#   bugprone-macro-parentheses            -- macros are intentionally simple
+#   bugprone-reserved-identifier          -- __attribute__, _DEFAULT_SOURCE
+#   bugprone-signed-char-misuse           -- byte-oriented code uses char
+#   bugprone-signed-bitwise               -- POLLIN & .revents etc. are fine
+#   bugprone-branch-clone                 -- intentional parallel parser cases
+#   clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling
+#                                         -- suggests Annex-K *_s functions
+#   performance-no-int-to-ptr             -- intentional fd/pointer casts
+#   misc-include-cleaner                  -- too noisy; includes are curated by hand
+Checks: >
+  -*,
+  clang-analyzer-*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -bugprone-macro-parentheses,
+  -bugprone-reserved-identifier,
+  -bugprone-signed-char-misuse,
+  -bugprone-signed-bitwise,
+  -bugprone-branch-clone,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+  performance-*,
+  -performance-no-int-to-ptr,
+  portability-*,
+  misc-unused-parameters
+
+# Only diagnose headers in this repository (skip system headers and the
+# tomlc99 subproject).
+HeaderFilterRegex: '.*/ghostcon/(include|src|tests|tools)/.*\.h$'
+
+# Report everything; the build is what decides what must be fixed.
+WarningsAsErrors: ''
+FormatStyle: none

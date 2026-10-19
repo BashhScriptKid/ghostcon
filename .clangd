@@ -1,0 +1,24 @@
+# clangd configuration.
+#
+# compile_commands.json is a git-ignored symlink at the repository root
+# (-> build-release/compile_commands.json). Pinning it here means clangd
+# uses the same flags no matter which directory it treats as the
+# workspace root.
+#
+# The actual lint check set lives in .clang-tidy; clangd picks it up
+# automatically. Formatting is NOT left to clangd/clang-format: the
+# house rules (Allman braces, portable-vs-domain return types, wrapped
+# comments) are enforced by tools/format_{braces,signatures,comments}.py,
+# which clang-format cannot express.
+CompileFlags:
+  CompilationDatabase: .
+
+Index:
+  Background: Build
+
+Diagnostics:
+  # Surface clang-tidy findings on save/idle rather than only on demand.
+  # Default (Loose) is fine for a project this size; switch to Strict if
+  # the editor gets sluggish.
+  ClangTidy:
+    FastCheckFilter: Loose
