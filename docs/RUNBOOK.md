@@ -30,6 +30,23 @@ meson test -C build-release          # currently 21 tests
   python3 tools/format_braces.py --check   # exit 1 if reformatting needed
   python3 tools/format_braces.py --apply
   ```
+- **Function-definition return types:** portable types stay on the
+  same line as the name; domain/library types split.
+  ```c
+  static bool load_config(const char *path)
+  ghostcon_display_t *
+  ghostcon_display_create(const char *node, int vt)
+  ```
+  "Portable" = a C builtin scalar or a standard/POSIX scalar typedef
+  (`uint32_t`, `size_t`, `pid_t`, ...), ignoring qualifiers and
+  pointers/arrays (`char *xstrdup(...)` is one line). Anything declared
+  by ghostcon or a third-party dependency, and struct/union/enum tags,
+  splits. Prototypes are left as written.
+  Enforce with:
+  ```sh
+  python3 tools/format_signatures.py --check
+  python3 tools/format_signatures.py --apply
+  ```
 - **Comments: wrapped block style**, first paragraph on the `/*` line,
   continuations prefixed ` * `, blank paragraph separators as ` *`,
   wrapped at 76 columns.

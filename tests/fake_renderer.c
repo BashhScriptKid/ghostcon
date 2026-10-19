@@ -72,8 +72,7 @@ now_ms(void)
     return ts.tv_sec * 1000L + ts.tv_nsec / 1000000L;
 }
 
-int
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     const char *fd_str = getenv("GHOSTCON_CANARY_FD");
     int canary_fd = fd_str ? atoi(fd_str) : -1;

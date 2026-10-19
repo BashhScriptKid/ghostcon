@@ -46,8 +46,7 @@ symbol_constraint_width(const ghostcon_row_t *row, uint16_t x)
  * 0/default on these cells). When present, this overrides whatever
  * resolve_colors() computed from the cell's (default) style.
  */
-static void
-override_bg_from_content(const ghostcon_screen_t *screen, ghostcon_cell_t cell, float *bg)
+static void override_bg_from_content(const ghostcon_screen_t *screen, ghostcon_cell_t cell, float *bg)
 {
     ghostcon_cell_content_tag_t tag = ghostcon_cell_get_tag(cell);
     GhosttyColorRgb rgb;
@@ -70,9 +69,8 @@ override_bg_from_content(const ghostcon_screen_t *screen, ghostcon_cell_t cell, 
     bg[2] = (float)rgb.b / 255.0f;
 }
 
-static void
-resolve_colors(const ghostcon_screen_t *screen, const ghostcon_style_t *style,
-                float *fg, float *bg)
+static void resolve_colors(const ghostcon_screen_t *screen, const ghostcon_style_t *style,
+                            float *fg, float *bg)
 {
     GhosttyColorRgb fg_rgb, bg_rgb;
 
@@ -106,12 +104,11 @@ resolve_colors(const ghostcon_screen_t *screen, const ghostcon_style_t *style,
     bg[2] = (float)bg_rgb.b / 255.0f;
 }
 
-void
-ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
-                               ghostcon_atlas_t *atlas,
-                               ghostcon_gles_t *gles,
-                               int cell_w, int cell_h,
-                               bool ligatures)
+void ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
+                                    ghostcon_atlas_t *atlas,
+                                    ghostcon_gles_t *gles,
+                                    int cell_w, int cell_h,
+                                    bool ligatures)
 {
     ghostcon_dirty_region_t dirty = ghostcon_screen_get_dirty(screen);
     if (dirty.y_min < 0)
@@ -475,9 +472,8 @@ ghostcon_machine_render_selection(ghostcon_screen_t *screen,
     }
 }
 
-static void
-render_one_placement(ghostcon_gles_t *gles, const ghostcon_kitty_graphics_t *kg,
-                     const ghostcon_kitty_placement_t *p, int cell_w, int cell_h)
+static void render_one_placement(ghostcon_gles_t *gles, const ghostcon_kitty_graphics_t *kg,
+                                 const ghostcon_kitty_placement_t *p, int cell_w, int cell_h)
 {
     const ghostcon_kitty_image_t *img = ghostcon_kitty_graphics_find_image(kg, p->image_id);
     if (!img)
@@ -529,8 +525,7 @@ render_one_placement(ghostcon_gles_t *gles, const ghostcon_kitty_graphics_t *kg,
  * test page) but wrong the moment a scene has multiple negative-z or
  * multiple positive-z images.
  */
-static int
-placement_z_cmp(const void *a, const void *b)
+static int placement_z_cmp(const void *a, const void *b)
 {
     const ghostcon_kitty_placement_t *pa = *(const ghostcon_kitty_placement_t *const *)a;
     const ghostcon_kitty_placement_t *pb = *(const ghostcon_kitty_placement_t *const *)b;
@@ -541,10 +536,9 @@ placement_z_cmp(const void *a, const void *b)
     return 0;
 }
 
-void
-ghostcon_machine_render_images(ghostcon_screen_t *screen,
-                               ghostcon_gles_t *gles,
-                               int cell_w, int cell_h)
+void ghostcon_machine_render_images(ghostcon_screen_t *screen,
+                                    ghostcon_gles_t *gles,
+                                    int cell_w, int cell_h)
 {
     if (screen->view_offset > 0)
         return;

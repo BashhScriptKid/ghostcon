@@ -57,8 +57,7 @@ csi_param_count(ghostcon_stream_t *st, uint8_t minc, uint8_t maxc)
  * single-threaded render/input loop -- clamp to the largest count that can
  * still change anything observable.
  */
-static inline int
-clamp_loop_count(int n, int max_useful)
+static inline int clamp_loop_count(int n, int max_useful)
 {
     if (n > max_useful) return max_useful;
     if (n < 0) return 0;
@@ -67,8 +66,7 @@ clamp_loop_count(int n, int max_useful)
 
 /* Output channel helper */
 
-static inline void
-stream_output(ghostcon_stream_t *st, const char *s)
+static inline void stream_output(ghostcon_stream_t *st, const char *s)
 {
     if (st->output_fn)
         st->output_fn(st->output_userdata, (const uint8_t *)s, strlen(s));

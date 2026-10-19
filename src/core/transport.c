@@ -31,8 +31,7 @@ connect_unix(const char *path)
     return fd;
 }
 
-static bool
-write_all(int fd, const char *buf, size_t n)
+static bool write_all(int fd, const char *buf, size_t n)
 {
     while (n > 0)
     {
@@ -49,8 +48,7 @@ write_all(int fd, const char *buf, size_t n)
     return true;
 }
 
-static void
-dirname_inplace(char *path)
+static void dirname_inplace(char *path)
 {
     char *slash = strrchr(path, '/');
     if (slash)
@@ -59,9 +57,8 @@ dirname_inplace(char *path)
         path[0] = '\0';
 }
 
-bool
-ghostcon_transport_connect(ghostcon_transport_t *t,
-                            const char *registry_socket_path, int vtnum)
+bool ghostcon_transport_connect(ghostcon_transport_t *t,
+                                 const char *registry_socket_path, int vtnum)
 {
     t->fd = -1;
     t->ctl_fd = -1;
@@ -170,8 +167,7 @@ ghostcon_transport_connect(ghostcon_transport_t *t,
     return true;
 }
 
-void
-ghostcon_transport_close(ghostcon_transport_t *t)
+void ghostcon_transport_close(ghostcon_transport_t *t)
 {
     if (t->fd >= 0)
     {
@@ -185,27 +181,23 @@ ghostcon_transport_close(ghostcon_transport_t *t)
     }
 }
 
-int
-ghostcon_transport_fd(const ghostcon_transport_t *t)
+int ghostcon_transport_fd(const ghostcon_transport_t *t)
 {
     return t->fd;
 }
 
-ssize_t
-ghostcon_transport_read(ghostcon_transport_t *t, uint8_t *buf, size_t len)
+ssize_t ghostcon_transport_read(ghostcon_transport_t *t, uint8_t *buf, size_t len)
 {
     return read(t->fd, buf, len);
 }
 
-ssize_t
-ghostcon_transport_write(ghostcon_transport_t *t, const uint8_t *buf, size_t len)
+ssize_t ghostcon_transport_write(ghostcon_transport_t *t, const uint8_t *buf, size_t len)
 {
     return write(t->fd, buf, len);
 }
 
-bool
-ghostcon_transport_resize(ghostcon_transport_t *t, int rows, int cols,
-                          int xpixel, int ypixel)
+bool ghostcon_transport_resize(ghostcon_transport_t *t, int rows, int cols,
+                               int xpixel, int ypixel)
 {
     if (t->ctl_fd < 0)
         return true; /* no control connection -- best-effort, not an error */
@@ -218,8 +210,7 @@ ghostcon_transport_resize(ghostcon_transport_t *t, int rows, int cols,
     return ok;
 }
 
-bool
-ghostcon_transport_request_dump(ghostcon_transport_t *t)
+bool ghostcon_transport_request_dump(ghostcon_transport_t *t)
 {
     if (t->ctl_fd < 0)
         return true; /* no control connection -- best-effort, not an error */
@@ -231,8 +222,7 @@ ghostcon_transport_request_dump(ghostcon_transport_t *t)
     return write_all(t->ctl_fd, msg, msg_len);
 }
 
-bool
-ghostcon_transport_read_ctl(ghostcon_transport_t *t, bool *out_clear)
+bool ghostcon_transport_read_ctl(ghostcon_transport_t *t, bool *out_clear)
 {
     *out_clear = false;
     if (t->ctl_fd < 0)

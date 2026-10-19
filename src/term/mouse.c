@@ -18,12 +18,11 @@ button_base_code(ghostcon_mouse_button_t button)
     }
 }
 
-size_t
-ghostcon_mouse_encode(const ghostcon_screen_t *screen,
-                       ghostcon_mouse_button_t button,
-                       ghostcon_mouse_action_t action,
-                       GhosttyMods mods, int col, int row,
-                       char *buf, size_t buf_len)
+size_t ghostcon_mouse_encode(const ghostcon_screen_t *screen,
+                              ghostcon_mouse_button_t button,
+                              ghostcon_mouse_action_t action,
+                              GhosttyMods mods, int col, int row,
+                              char *buf, size_t buf_len)
 {
     if (!screen->mouse_tracking)
         return 0;

@@ -57,8 +57,7 @@ ghostcon_config_defaults(ghostcon_config_t *cfg)
     cfg->touchpad_sensitivity = 0.0f;
 }
 
-static void
-load_string(toml_table_t *tab, const char *key, char *out, size_t out_len)
+static void load_string(toml_table_t *tab, const char *key, char *out, size_t out_len)
 {
     toml_datum_t d = toml_string_in(tab, key);
     if (!d.ok)
@@ -67,32 +66,28 @@ load_string(toml_table_t *tab, const char *key, char *out, size_t out_len)
     free(d.u.s);
 }
 
-static void
-load_int(toml_table_t *tab, const char *key, int *out)
+static void load_int(toml_table_t *tab, const char *key, int *out)
 {
     toml_datum_t d = toml_int_in(tab, key);
     if (d.ok)
         *out = (int)d.u.i;
 }
 
-static void
-load_bool(toml_table_t *tab, const char *key, bool *out)
+static void load_bool(toml_table_t *tab, const char *key, bool *out)
 {
     toml_datum_t d = toml_bool_in(tab, key);
     if (d.ok)
         *out = d.u.b;
 }
 
-static void
-load_double(toml_table_t *tab, const char *key, float *out)
+static void load_double(toml_table_t *tab, const char *key, float *out)
 {
     toml_datum_t d = toml_double_in(tab, key);
     if (d.ok)
         *out = (float)d.u.d;
 }
 
-bool
-ghostcon_config_load(const char *path, ghostcon_config_t *cfg)
+bool ghostcon_config_load(const char *path, ghostcon_config_t *cfg)
 {
     ghostcon_config_defaults(cfg);
 
@@ -186,9 +181,8 @@ ghostcon_config_load(const char *path, ghostcon_config_t *cfg)
     return true;
 }
 
-void
-ghostcon_config_export_env(const ghostcon_config_t *cfg, const char *config_path,
-                            bool overwrite)
+void ghostcon_config_export_env(const ghostcon_config_t *cfg, const char *config_path,
+                                 bool overwrite)
 {
     int ow = overwrite ? 1 : 0;
     char buf[32];
@@ -238,8 +232,7 @@ ghostcon_config_export_env(const ghostcon_config_t *cfg, const char *config_path
     setenv("GHOSTCON_ZOOM_STEP", buf, ow);
 }
 
-int
-ghostcon_config_watch_open(const char *path)
+int ghostcon_config_watch_open(const char *path)
 {
     char dir[512];
     snprintf(dir, sizeof(dir), "%s", path);
@@ -268,8 +261,7 @@ ghostcon_config_watch_open(const char *path)
     return fd;
 }
 
-bool
-ghostcon_config_watch_check(int inotify_fd, const char *path)
+bool ghostcon_config_watch_check(int inotify_fd, const char *path)
 {
     const char *base = strrchr(path, '/');
     base = base ? base + 1 : path;

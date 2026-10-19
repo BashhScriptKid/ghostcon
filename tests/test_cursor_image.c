@@ -35,9 +35,8 @@ static void put_u16(uint8_t *p, uint16_t v)
  * independently here so the decoder test doesn't just validate against its
  * own encoder's output.
  */
-static void
-write_synthetic_bmp(const char *path, uint32_t argb00, uint32_t argb10,
-                     uint32_t argb01, uint32_t argb11)
+static void write_synthetic_bmp(const char *path, uint32_t argb00, uint32_t argb10,
+                                 uint32_t argb01, uint32_t argb11)
 {
     uint8_t buf[14 + 40 + 2 * 2 * 4];
     memset(buf, 0, sizeof(buf));
@@ -78,9 +77,8 @@ write_synthetic_bmp(const char *path, uint32_t argb00, uint32_t argb10,
 /* Hand-constructs a minimal valid Xcursor file: one TOC entry pointing at
  * one 2x2 image chunk.
  */
-static void
-write_synthetic_xcursor(const char *path, uint32_t hot_x, uint32_t hot_y,
-                         uint32_t argb00, uint32_t argb10, uint32_t argb01, uint32_t argb11)
+static void write_synthetic_xcursor(const char *path, uint32_t hot_x, uint32_t hot_y,
+                                     uint32_t argb00, uint32_t argb10, uint32_t argb01, uint32_t argb11)
 {
     uint8_t buf[16 /* file header */ + 12 /* toc entry */ + 36 /* image header */ + 2 * 2 * 4];
     memset(buf, 0, sizeof(buf));
@@ -127,8 +125,7 @@ write_synthetic_xcursor(const char *path, uint32_t hot_x, uint32_t hot_y,
     }
 }
 
-int
-main(void)
+int main(void)
 {
     char dir_template[] = "/tmp/ghostcon-test-cursor-XXXXXX";
     char *dir = mkdtemp(dir_template);

@@ -28,10 +28,9 @@ ghostcon_ui_compute_cursor_state(ghostcon_screen_t *screen,
     return GC_CURSOR_STATE_DEFAULT;
 }
 
-bool
-ghostcon_ui_update_selection(ghostcon_screen_t *screen,
-                             const ghostcon_input_pointer_t *pointer,
-                             int cell_w, int cell_h)
+bool ghostcon_ui_update_selection(ghostcon_screen_t *screen,
+                                  const ghostcon_input_pointer_t *pointer,
+                                  int cell_w, int cell_h)
 {
     if (!screen || !pointer || cell_w <= 0 || cell_h <= 0)
         return false;
@@ -71,9 +70,8 @@ ghostcon_ui_update_selection(ghostcon_screen_t *screen,
     return need_render;
 }
 
-int
-ghostcon_ui_compute_zoom(int current_font_size, int zoom_delta, int zoom_step,
-                         int min_font_size, int max_font_size)
+int ghostcon_ui_compute_zoom(int current_font_size, int zoom_delta, int zoom_step,
+                             int min_font_size, int max_font_size)
 {
     if (zoom_delta == 0)
         return current_font_size;
@@ -87,8 +85,7 @@ ghostcon_ui_compute_zoom(int current_font_size, int zoom_delta, int zoom_step,
     return new_size;
 }
 
-void
-ghostcon_ui_extract_command_token(const char *title, char *out, size_t out_len)
+void ghostcon_ui_extract_command_token(const char *title, char *out, size_t out_len)
 {
     if (!out || out_len == 0)
         return;
@@ -114,8 +111,7 @@ ghostcon_ui_extract_command_token(const char *title, char *out, size_t out_len)
     out[n] = '\0';
 }
 
-void
-ghostcon_ui_build_comm_name(int vt_num, const char *token, char *out)
+void ghostcon_ui_build_comm_name(int vt_num, const char *token, char *out)
 {
     if (!out)
         return;

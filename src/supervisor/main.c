@@ -118,8 +118,7 @@ typedef enum
  */
 static int g_sighup_pipe[2] = { -1, -1 };
 
-static void
-sighup_handler(int signum)
+static void sighup_handler(int signum)
 {
     (void)signum;
     char c = 'H';
@@ -127,8 +126,7 @@ sighup_handler(int signum)
     (void)unused;
 }
 
-static void
-drain_sighup_pipe(void)
+static void drain_sighup_pipe(void)
 {
     char buf[64];
     while (read(g_sighup_pipe[0], buf, sizeof(buf)) > 0)
@@ -137,8 +135,7 @@ drain_sighup_pipe(void)
 
 /* Renderer (ghostcon-core) spawn/kill with a canary socketpair */
 
-static pid_t
-spawn_renderer(int vtnum, const char *registry_socket, const char *drm_node, int *out_canary_fd)
+static pid_t spawn_renderer(int vtnum, const char *registry_socket, const char *drm_node, int *out_canary_fd)
 {
     int sv[2];
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) != 0)
@@ -190,8 +187,7 @@ spawn_renderer(int vtnum, const char *registry_socket, const char *drm_node, int
     return pid;
 }
 
-static void
-kill_and_reap(pid_t pid, int canary_fd)
+static void kill_and_reap(pid_t pid, int canary_fd)
 {
     if (canary_fd >= 0)
         close(canary_fd);
@@ -227,8 +223,7 @@ kill_and_reap(pid_t pid, int canary_fd)
  * same registry socket the renderer itself would use, not a persistent
  * connection.
  */
-static pid_t
-query_pty_child_pid(const char *registry_socket, int vtnum)
+static pid_t query_pty_child_pid(const char *registry_socket, int vtnum)
 {
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0)
@@ -281,8 +276,7 @@ query_pty_child_pid(const char *registry_socket, int vtnum)
     return (pid_t)pid;
 }
 
-static void
-write_recovery_file(int vtnum, pid_t pty_child_pid, const char *reason)
+static void write_recovery_file(int vtnum, pid_t pty_child_pid, const char *reason)
 {
     const char *run_dir = getenv("GHOSTCON_RUN_DIR");
     if (!run_dir || !*run_dir)
@@ -306,8 +300,7 @@ write_recovery_file(int vtnum, pid_t pty_child_pid, const char *reason)
     fclose(f);
 }
 
-static void
-wall_broadcast(int vtnum, const char *reason)
+static void wall_broadcast(int vtnum, const char *reason)
 {
     if (getenv("GHOSTCON_DISABLE_WALL"))
         return;
@@ -360,8 +353,7 @@ wall_broadcast(int vtnum, const char *reason)
 
 /* Fallback tiers */
 
-static pid_t
-spawn_kmscon_fallback(int vtnum)
+static pid_t spawn_kmscon_fallback(int vtnum)
 {
     /* Test-only: force straight to the agetty tier for determinism --real
      * kmscon behavior against a bogus test VT number is unverified and not
@@ -393,8 +385,7 @@ spawn_kmscon_fallback(int vtnum)
     return pid;
 }
 
-static pid_t
-spawn_agetty_fallback(int vtnum)
+static pid_t spawn_agetty_fallback(int vtnum)
 {
     if (access("/sbin/agetty", X_OK) != 0 && access("/usr/bin/agetty", X_OK) != 0)
         return -1;
@@ -423,9 +414,8 @@ spawn_agetty_fallback(int vtnum)
  * declaration in main() for why -- and never overrides an explicit argv[3],
  * at reload same as at startup.
  */
-static void
-apply_config_reload(const char *config_path, int vtnum, bool drm_node_from_argv,
-                     char *drm_node_buf, size_t drm_node_buf_len, int *canary_deadline_ms)
+static void apply_config_reload(const char *config_path, int vtnum, bool drm_node_from_argv,
+                                 char *drm_node_buf, size_t drm_node_buf_len, int *canary_deadline_ms)
 {
     ghostcon_config_t new_cfg;
     if (!ghostcon_config_load(config_path, &new_cfg))
@@ -453,10 +443,9 @@ apply_config_reload(const char *config_path, int vtnum, bool drm_node_from_argv,
  * Instead: a config-only wakeup applies the reload and polls again rather
  * than returning.
  */
-static int
-poll_state_fd(int state_fd, int timeout_ms, int config_watch_fd, const char *config_path,
-              int vtnum, bool drm_node_from_argv, char *drm_node_buf, size_t drm_node_buf_len,
-              int *canary_deadline_ms, short *out_revents)
+static int poll_state_fd(int state_fd, int timeout_ms, int config_watch_fd, const char *config_path,
+                         int vtnum, bool drm_node_from_argv, char *drm_node_buf, size_t drm_node_buf_len,
+                         int *canary_deadline_ms, short *out_revents)
 {
     for (;;)
     {
@@ -487,8 +476,7 @@ poll_state_fd(int state_fd, int timeout_ms, int config_watch_fd, const char *con
 
 /* main */
 
-int
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     if (argc < 2)
     {

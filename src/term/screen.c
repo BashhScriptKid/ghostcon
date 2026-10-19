@@ -51,8 +51,7 @@ erase_fill_cell(ghostcon_screen_t *s)
 }
 
 /* Mark a cell's row as dirty */
-static inline void
-mark_dirty(ghostcon_screen_t *s, int16_t y)
+static inline void mark_dirty(ghostcon_screen_t *s, int16_t y)
 {
     s->rows[row_idx(s, y)].dirty = true;
     if (s->dirty.y_min < 0 || y < s->dirty.y_min)
@@ -62,8 +61,7 @@ mark_dirty(ghostcon_screen_t *s, int16_t y)
 }
 
 /* Push a line into scrollback history */
-static void
-push_history(ghostcon_screen_t *s, ghostcon_row_t *row)
+static void push_history(ghostcon_screen_t *s, ghostcon_row_t *row)
 {
     if (s->history_cap == 0)
     {
@@ -85,10 +83,9 @@ push_history(ghostcon_screen_t *s, ghostcon_row_t *row)
 
 /* Lifecycle */
 
-bool
-ghostcon_screen_init(ghostcon_screen_t *s,
-                     uint16_t cols, uint16_t rows,
-                     uint16_t scrollback_cap)
+bool ghostcon_screen_init(ghostcon_screen_t *s,
+                          uint16_t cols, uint16_t rows,
+                          uint16_t scrollback_cap)
 {
     memset(s, 0, sizeof(*s));
 
@@ -209,8 +206,7 @@ fail:
     return false;
 }
 
-void
-ghostcon_screen_deinit(ghostcon_screen_t *s)
+void ghostcon_screen_deinit(ghostcon_screen_t *s)
 {
     if (s->rows)
     {
@@ -252,9 +248,8 @@ ghostcon_screen_active_sixel_state(ghostcon_screen_t *s)
     return s->alt_screen_active ? &s->sixel_alt : &s->sixel;
 }
 
-bool
-ghostcon_screen_resize(ghostcon_screen_t *s,
-                       uint16_t new_cols, uint16_t new_rows)
+bool ghostcon_screen_resize(ghostcon_screen_t *s,
+                            uint16_t new_cols, uint16_t new_rows)
 {
     /* Row layout (both rows_visible's ring geometry and every row's width)
      * is about to change -- a view_offset computed against the old layout
@@ -325,8 +320,7 @@ ghostcon_screen_resize(ghostcon_screen_t *s,
     return true;
 }
 
-void
-ghostcon_screen_reset(ghostcon_screen_t *s)
+void ghostcon_screen_reset(ghostcon_screen_t *s)
 {
     /* Drop out of the alternate screen if active -- RIS is a hard reset,
      * not a graceful exit, so the saved main-screen content is simply
@@ -452,8 +446,7 @@ ghostcon_screen_reset(ghostcon_screen_t *s)
  * wrap; clamping both bounds unconditionally (not just the "expected" one)
  * closes the reachable-from-the-other-side gap regardless.
  */
-void
-ghostcon_screen_cursor_up(ghostcon_screen_t *s, uint16_t n)
+void ghostcon_screen_cursor_up(ghostcon_screen_t *s, uint16_t n)
 {
     int32_t min = s->origin_mode ? s->scroll_region.top : 0;
     int32_t y = (int32_t)s->cursor.y - (int32_t)n;
@@ -462,8 +455,7 @@ ghostcon_screen_cursor_up(ghostcon_screen_t *s, uint16_t n)
     s->cursor.y = (int16_t)y;
 }
 
-void
-ghostcon_screen_cursor_down(ghostcon_screen_t *s, uint16_t n)
+void ghostcon_screen_cursor_down(ghostcon_screen_t *s, uint16_t n)
 {
     int32_t max = s->origin_mode ? s->scroll_region.bottom : (int32_t)s->rows_visible - 1;
     int32_t y = (int32_t)s->cursor.y + (int32_t)n;
@@ -472,8 +464,7 @@ ghostcon_screen_cursor_down(ghostcon_screen_t *s, uint16_t n)
     s->cursor.y = (int16_t)y;
 }
 
-void
-ghostcon_screen_cursor_left(ghostcon_screen_t *s, uint16_t n)
+void ghostcon_screen_cursor_left(ghostcon_screen_t *s, uint16_t n)
 {
     int32_t x = (int32_t)s->cursor.x - (int32_t)n;
     if (x < 0) x = 0;
@@ -481,8 +472,7 @@ ghostcon_screen_cursor_left(ghostcon_screen_t *s, uint16_t n)
     s->cursor.x = (int16_t)x;
 }
 
-void
-ghostcon_screen_cursor_right(ghostcon_screen_t *s, uint16_t n)
+void ghostcon_screen_cursor_right(ghostcon_screen_t *s, uint16_t n)
 {
     int32_t x = (int32_t)s->cursor.x + (int32_t)n;
     if (x >= (int32_t)s->cols) x = (int32_t)s->cols - 1;
@@ -490,8 +480,7 @@ ghostcon_screen_cursor_right(ghostcon_screen_t *s, uint16_t n)
     s->cursor.x = (int16_t)x;
 }
 
-void
-ghostcon_screen_cursor_set(ghostcon_screen_t *s, int16_t x, int16_t y)
+void ghostcon_screen_cursor_set(ghostcon_screen_t *s, int16_t x, int16_t y)
 {
     if (s->origin_mode)
     {
@@ -507,8 +496,7 @@ ghostcon_screen_cursor_set(ghostcon_screen_t *s, int16_t x, int16_t y)
     s->cursor.pending_wrap = false;
 }
 
-void
-ghostcon_screen_cursor_horizontal_abs(ghostcon_screen_t *s, int16_t x)
+void ghostcon_screen_cursor_horizontal_abs(ghostcon_screen_t *s, int16_t x)
 {
     if (s->origin_mode)
         x += s->margin_region.left;
@@ -517,8 +505,7 @@ ghostcon_screen_cursor_horizontal_abs(ghostcon_screen_t *s, int16_t x)
     s->cursor.x = x;
 }
 
-void
-ghostcon_screen_cursor_vertical_abs(ghostcon_screen_t *s, int16_t y)
+void ghostcon_screen_cursor_vertical_abs(ghostcon_screen_t *s, int16_t y)
 {
     /* VPA (CSI Ps d): row absolute, column unchanged. With origin mode the
      * row is relative to the scroll region and clamped to it (mirrors
@@ -536,8 +523,7 @@ ghostcon_screen_cursor_vertical_abs(ghostcon_screen_t *s, int16_t y)
     s->cursor.pending_wrap = false;
 }
 
-void
-ghostcon_screen_cursor_next_line(ghostcon_screen_t *s)
+void ghostcon_screen_cursor_next_line(ghostcon_screen_t *s)
 {
     /* Only scroll the region if the cursor was actually AT its bottom edge
      * before moving (mirrors soft_wrap()'s `==` check) -- a cursor sitting
@@ -566,8 +552,7 @@ ghostcon_screen_cursor_next_line(ghostcon_screen_t *s)
     s->cursor.pending_wrap = false;
 }
 
-void
-ghostcon_screen_cursor_prev_line(ghostcon_screen_t *s)
+void ghostcon_screen_cursor_prev_line(ghostcon_screen_t *s)
 {
     s->cursor.x = s->margin_region.left;
     s->cursor.y--;
@@ -575,20 +560,17 @@ ghostcon_screen_cursor_prev_line(ghostcon_screen_t *s)
         s->cursor.y = s->scroll_region.top;
 }
 
-void
-ghostcon_screen_cursor_scroll_up(ghostcon_screen_t *s)
+void ghostcon_screen_cursor_scroll_up(ghostcon_screen_t *s)
 {
     ghostcon_screen_scroll_up(s, 1);
 }
 
-void
-ghostcon_screen_cursor_scroll_down(ghostcon_screen_t *s)
+void ghostcon_screen_cursor_scroll_down(ghostcon_screen_t *s)
 {
     ghostcon_screen_scroll_down(s, 1);
 }
 
-void
-ghostcon_screen_cursor_save(ghostcon_screen_t *s)
+void ghostcon_screen_cursor_save(ghostcon_screen_t *s)
 {
     s->saved_cursor.x = s->cursor.x;
     s->saved_cursor.y = s->cursor.y;
@@ -598,8 +580,7 @@ ghostcon_screen_cursor_save(ghostcon_screen_t *s)
     s->cursor_saved = true;
 }
 
-void
-ghostcon_screen_cursor_restore(ghostcon_screen_t *s)
+void ghostcon_screen_cursor_restore(ghostcon_screen_t *s)
 {
     if (!s->cursor_saved) return;
     s->cursor.x = s->saved_cursor.x;
@@ -615,8 +596,7 @@ ghostcon_screen_cursor_restore(ghostcon_screen_t *s)
  * Ghostty's Terminal.printCell). Clears stale wide spacers left behind when
  * a cell's wide state changes.
  */
-static void
-print_cell(ghostcon_screen_t *s, uint32_t cp, ghostcon_cell_wide_t wide)
+static void print_cell(ghostcon_screen_t *s, uint32_t cp, ghostcon_cell_wide_t wide)
 {
     ghostcon_cell_t *cell = cell_at(s, s->cursor.x, s->cursor.y);
 
@@ -668,8 +648,7 @@ print_cell(ghostcon_screen_t *s, uint32_t cp, ghostcon_cell_wide_t wide)
 /* Soft wrap: move the cursor to the start of the next line, marking the row
  * as wrapped (mirrors Ghostty's printWrap).
  */
-static void
-soft_wrap(ghostcon_screen_t *s)
+static void soft_wrap(ghostcon_screen_t *s)
 {
     bool mark_wrap = (s->cursor.x == (int16_t)s->cols - 1);
     if (mark_wrap)
@@ -690,8 +669,7 @@ soft_wrap(ghostcon_screen_t *s)
         s->rows[row_idx(s, s->cursor.y)].wrap_continuation = true;
 }
 
-void
-ghostcon_screen_put_char(ghostcon_screen_t *s, uint32_t codepoint)
+void ghostcon_screen_put_char(ghostcon_screen_t *s, uint32_t codepoint)
 {
     /* Our right margin depends where our cursor is now (Ghostty's
      * right_limit): if the cursor was placed past the margin by an
@@ -799,23 +777,20 @@ ghostcon_screen_put_char(ghostcon_screen_t *s, uint32_t codepoint)
     s->cursor.x++;
 }
 
-void
-ghostcon_screen_put_text(ghostcon_screen_t *s,
-                         const uint32_t *codepoints, size_t len)
+void ghostcon_screen_put_text(ghostcon_screen_t *s,
+                              const uint32_t *codepoints, size_t len)
 {
     for (size_t i = 0; i < len; i++)
         ghostcon_screen_put_char(s, codepoints[i]);
 }
 
-void
-ghostcon_screen_carriage_return(ghostcon_screen_t *s)
+void ghostcon_screen_carriage_return(ghostcon_screen_t *s)
 {
     s->cursor.x = s->margin_region.left;
     s->cursor.pending_wrap = false;
 }
 
-void
-ghostcon_screen_linefeed(ghostcon_screen_t *s)
+void ghostcon_screen_linefeed(ghostcon_screen_t *s)
 {
     s->cursor.pending_wrap = false;
     if (s->cursor.y == s->scroll_region.bottom)
@@ -828,8 +803,7 @@ ghostcon_screen_linefeed(ghostcon_screen_t *s)
     }
 }
 
-void
-ghostcon_screen_reverse_index(ghostcon_screen_t *s)
+void ghostcon_screen_reverse_index(ghostcon_screen_t *s)
 {
     if (s->cursor.y == s->scroll_region.top)
     {
@@ -853,8 +827,7 @@ ghostcon_screen_reverse_index(ghostcon_screen_t *s)
     }
 }
 
-void
-ghostcon_screen_tab(ghostcon_screen_t *s)
+void ghostcon_screen_tab(ghostcon_screen_t *s)
 {
     /* Move to next tab stop, or to margin right if none */
     int16_t start = s->cursor.x + 1;
@@ -870,8 +843,7 @@ ghostcon_screen_tab(ghostcon_screen_t *s)
     s->cursor.x = s->margin_region.right;
 }
 
-void
-ghostcon_screen_tab_back(ghostcon_screen_t *s)
+void ghostcon_screen_tab_back(ghostcon_screen_t *s)
 {
     int16_t start = s->cursor.x - 1;
     for (int16_t i = start; i >= 0; i--)
@@ -887,8 +859,7 @@ ghostcon_screen_tab_back(ghostcon_screen_t *s)
 
 /* Erase operations */
 
-void
-ghostcon_screen_erase_display(ghostcon_screen_t *s, int mode)
+void ghostcon_screen_erase_display(ghostcon_screen_t *s, int mode)
 {
     int16_t top, bottom;
 
@@ -1023,8 +994,7 @@ ghostcon_screen_erase_display(ghostcon_screen_t *s, int mode)
     }
 }
 
-void
-ghostcon_screen_erase_display_protected(ghostcon_screen_t *s, int mode)
+void ghostcon_screen_erase_display_protected(ghostcon_screen_t *s, int mode)
 {
     int16_t top, bottom;
 
@@ -1084,8 +1054,7 @@ ghostcon_screen_erase_display_protected(ghostcon_screen_t *s, int mode)
     }
 }
 
-void
-ghostcon_screen_erase_line(ghostcon_screen_t *s, int mode)
+void ghostcon_screen_erase_line(ghostcon_screen_t *s, int mode)
 {
     ghostcon_row_t *r = &s->rows[row_idx(s, s->cursor.y)];
     uint16_t left, end;
@@ -1120,8 +1089,7 @@ ghostcon_screen_erase_line(ghostcon_screen_t *s, int mode)
     mark_dirty(s, s->cursor.y);
 }
 
-void
-ghostcon_screen_erase_line_protected(ghostcon_screen_t *s, int mode)
+void ghostcon_screen_erase_line_protected(ghostcon_screen_t *s, int mode)
 {
     ghostcon_row_t *r = &s->rows[row_idx(s, s->cursor.y)];
     uint16_t left, end;
@@ -1149,8 +1117,7 @@ ghostcon_screen_erase_line_protected(ghostcon_screen_t *s, int mode)
     mark_dirty(s, s->cursor.y);
 }
 
-void
-ghostcon_screen_save_mode(ghostcon_screen_t *s, int mode)
+void ghostcon_screen_save_mode(ghostcon_screen_t *s, int mode)
 {
     switch (mode)
     {
@@ -1164,8 +1131,7 @@ ghostcon_screen_save_mode(ghostcon_screen_t *s, int mode)
     }
 }
 
-void
-ghostcon_screen_restore_mode(ghostcon_screen_t *s, int mode)
+void ghostcon_screen_restore_mode(ghostcon_screen_t *s, int mode)
 {
     switch (mode)
     {
@@ -1179,8 +1145,7 @@ ghostcon_screen_restore_mode(ghostcon_screen_t *s, int mode)
     }
 }
 
-void
-ghostcon_screen_erase_chars(ghostcon_screen_t *s, uint16_t n)
+void ghostcon_screen_erase_chars(ghostcon_screen_t *s, uint16_t n)
 {
     ghostcon_row_t *r = &s->rows[row_idx(s, s->cursor.y)];
     uint16_t end = s->cursor.x + n;
@@ -1189,8 +1154,7 @@ ghostcon_screen_erase_chars(ghostcon_screen_t *s, uint16_t n)
     mark_dirty(s, s->cursor.y);
 }
 
-void
-ghostcon_screen_insert_chars(ghostcon_screen_t *s, uint16_t n)
+void ghostcon_screen_insert_chars(ghostcon_screen_t *s, uint16_t n)
 {
     if (n == 0) return;
     int16_t right = s->margin_region.right;
@@ -1229,8 +1193,7 @@ ghostcon_screen_insert_chars(ghostcon_screen_t *s, uint16_t n)
     mark_dirty(s, s->cursor.y);
 }
 
-void
-ghostcon_screen_delete_chars(ghostcon_screen_t *s, uint16_t n)
+void ghostcon_screen_delete_chars(ghostcon_screen_t *s, uint16_t n)
 {
     if (n == 0) return;
     int16_t right = s->margin_region.right;
@@ -1267,8 +1230,7 @@ ghostcon_screen_delete_chars(ghostcon_screen_t *s, uint16_t n)
 
 /* Insert/Delete lines */
 
-void
-ghostcon_screen_insert_lines(ghostcon_screen_t *s, uint16_t n)
+void ghostcon_screen_insert_lines(ghostcon_screen_t *s, uint16_t n)
 {
     if (n == 0) return;
     int32_t top = s->cursor.y;
@@ -1311,8 +1273,7 @@ ghostcon_screen_insert_lines(ghostcon_screen_t *s, uint16_t n)
     }
 }
 
-void
-ghostcon_screen_delete_lines(ghostcon_screen_t *s, uint16_t n)
+void ghostcon_screen_delete_lines(ghostcon_screen_t *s, uint16_t n)
 {
     if (n == 0) return;
     int32_t top = s->cursor.y;
@@ -1350,8 +1311,7 @@ ghostcon_screen_delete_lines(ghostcon_screen_t *s, uint16_t n)
 
 /* Scrolling */
 
-void
-ghostcon_screen_scroll_up(ghostcon_screen_t *s, uint16_t n)
+void ghostcon_screen_scroll_up(ghostcon_screen_t *s, uint16_t n)
 {
     int16_t top = s->scroll_region.top;
     int16_t bottom = s->scroll_region.bottom;
@@ -1407,8 +1367,7 @@ ghostcon_screen_scroll_up(ghostcon_screen_t *s, uint16_t n)
     }
 }
 
-void
-ghostcon_screen_scroll_down(ghostcon_screen_t *s, uint16_t n)
+void ghostcon_screen_scroll_down(ghostcon_screen_t *s, uint16_t n)
 {
     int16_t top = s->scroll_region.top;
     int16_t bottom = s->scroll_region.bottom;
@@ -1444,9 +1403,8 @@ ghostcon_screen_scroll_down(ghostcon_screen_t *s, uint16_t n)
     }
 }
 
-void
-ghostcon_screen_set_scroll_region(ghostcon_screen_t *s,
-                                  int16_t top, int16_t bottom)
+void ghostcon_screen_set_scroll_region(ghostcon_screen_t *s,
+                                       int16_t top, int16_t bottom)
 {
     if (top < 0 || bottom < 0)
     {
@@ -1489,9 +1447,8 @@ ghostcon_screen_set_scroll_region(ghostcon_screen_t *s,
     s->cursor.pending_wrap = false;
 }
 
-void
-ghostcon_screen_set_margin_region(ghostcon_screen_t *s,
-                                  int16_t left, int16_t right)
+void ghostcon_screen_set_margin_region(ghostcon_screen_t *s,
+                                       int16_t left, int16_t right)
 {
     if (left < 0 || right < 0)
     {
@@ -1511,8 +1468,7 @@ ghostcon_screen_set_margin_region(ghostcon_screen_t *s,
 
 /* Alternate screen */
 
-void
-ghostcon_screen_alt_screen_enter(ghostcon_screen_t *s)
+void ghostcon_screen_alt_screen_enter(ghostcon_screen_t *s)
 {
     if (s->alt_screen_active)
         return;
@@ -1552,8 +1508,7 @@ ghostcon_screen_alt_screen_enter(ghostcon_screen_t *s)
     s->dirty.y_max = (int16_t)(s->rows_visible - 1);
 }
 
-void
-ghostcon_screen_alt_screen_exit(ghostcon_screen_t *s)
+void ghostcon_screen_alt_screen_exit(ghostcon_screen_t *s)
 {
     if (!s->alt_screen_active)
         return;
@@ -1590,8 +1545,7 @@ ghostcon_screen_alt_screen_exit(ghostcon_screen_t *s)
 
 /* Tab stops */
 
-void
-ghostcon_screen_tab_clear(ghostcon_screen_t *s, int mode)
+void ghostcon_screen_tab_clear(ghostcon_screen_t *s, int mode)
 {
     /* mode 0 = clear at cursor, mode 3 = clear all */
     if (mode == 3)
@@ -1605,8 +1559,7 @@ ghostcon_screen_tab_clear(ghostcon_screen_t *s, int mode)
     }
 }
 
-void
-ghostcon_screen_tab_set(ghostcon_screen_t *s)
+void ghostcon_screen_tab_set(ghostcon_screen_t *s)
 {
     if (s->cursor.x < (int16_t)s->tabstops.cols)
         s->tabstops.stops[s->cursor.x] = true;
@@ -1637,8 +1590,7 @@ ghostcon_screen_apply_sgr_attribute(const ghostcon_style_t *base,
 
 /* Damage tracking */
 
-void
-ghostcon_screen_mark_dirty(ghostcon_screen_t *s, uint16_t y)
+void ghostcon_screen_mark_dirty(ghostcon_screen_t *s, uint16_t y)
 {
     s->rows[row_idx(s, (int16_t)y)].dirty = true;
     if (s->dirty.y_min < 0 || (int16_t)y < s->dirty.y_min)
@@ -1647,8 +1599,7 @@ ghostcon_screen_mark_dirty(ghostcon_screen_t *s, uint16_t y)
         s->dirty.y_max = (int16_t)y;
 }
 
-void
-ghostcon_screen_clear_dirty(ghostcon_screen_t *s)
+void ghostcon_screen_clear_dirty(ghostcon_screen_t *s)
 {
     s->dirty.y_min = -1;
     s->dirty.y_max = -1;
@@ -1706,8 +1657,7 @@ ghostcon_screen_row(ghostcon_screen_t *s, uint16_t y)
     return &s->rows[row_idx(s, (int16_t)y)];
 }
 
-void
-ghostcon_screen_scroll_view(ghostcon_screen_t *s, int delta)
+void ghostcon_screen_scroll_view(ghostcon_screen_t *s, int delta)
 {
     int new_offset = (int)s->view_offset + delta;
     if (new_offset < 0)

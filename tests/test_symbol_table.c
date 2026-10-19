@@ -24,8 +24,7 @@ is_symbol_category(const char *cat)
            strcmp(cat, "Sk") == 0 || strcmp(cat, "So") == 0;
 }
 
-static bool
-expected_is_symbol(uint32_t cp, bool ucd_symbol)
+static bool expected_is_symbol(uint32_t cp, bool ucd_symbol)
 {
     if (cp >= 0x2500 && cp <= 0x259F) return false; /* box draw/block elements */
     if (cp >= 0xE000 && cp <= 0xF8FF) return true;  /* PUA (Nerd Font icons) */

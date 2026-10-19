@@ -88,20 +88,17 @@ ghostcon_cell_get_tag(ghostcon_cell_t c)
     return (ghostcon_cell_content_tag_t)((c.raw >> GC_CELL_TAG_SHIFT) & 0x3);
 }
 
-static inline void
-ghostcon_cell_set_tag(ghostcon_cell_t *c, ghostcon_cell_content_tag_t tag)
+static inline void ghostcon_cell_set_tag(ghostcon_cell_t *c, ghostcon_cell_content_tag_t tag)
 {
     c->raw = (c->raw & ~GC_CELL_TAG_MASK) | ((uint64_t)tag << GC_CELL_TAG_SHIFT);
 }
 
-static inline uint32_t
-ghostcon_cell_get_codepoint(ghostcon_cell_t c)
+static inline uint32_t ghostcon_cell_get_codepoint(ghostcon_cell_t c)
 {
     return (uint32_t)((c.raw >> GC_CELL_CONTENT_SHIFT) & 0x1FFFFF);
 }
 
-static inline void
-ghostcon_cell_set_codepoint(ghostcon_cell_t *c, uint32_t cp)
+static inline void ghostcon_cell_set_codepoint(ghostcon_cell_t *c, uint32_t cp)
 {
     c->raw = (c->raw & ~GC_CELL_CONTENT_MASK) |
              ((uint64_t)(cp & 0x1FFFFF) << GC_CELL_CONTENT_SHIFT);
@@ -119,8 +116,7 @@ ghostcon_cell_get_rgb(ghostcon_cell_t c)
     };
 }
 
-static inline void
-ghostcon_cell_set_rgb(ghostcon_cell_t *c, ghostcon_rgb_t rgb)
+static inline void ghostcon_cell_set_rgb(ghostcon_cell_t *c, ghostcon_rgb_t rgb)
 {
     uint32_t v = ((uint32_t)rgb.r << 16) | ((uint32_t)rgb.g << 8) | rgb.b;
     c->raw = (c->raw & ~GC_CELL_CONTENT_MASK) |
@@ -128,14 +124,12 @@ ghostcon_cell_set_rgb(ghostcon_cell_t *c, ghostcon_rgb_t rgb)
 }
 
 /* Content as palette index (only valid when tag == BG_COLOR_PALETTE) */
-static inline uint8_t
-ghostcon_cell_get_palette_idx(ghostcon_cell_t c)
+static inline uint8_t ghostcon_cell_get_palette_idx(ghostcon_cell_t c)
 {
     return (uint8_t)((c.raw >> GC_CELL_CONTENT_SHIFT) & 0xFF);
 }
 
-static inline void
-ghostcon_cell_set_palette_idx(ghostcon_cell_t *c, uint8_t idx)
+static inline void ghostcon_cell_set_palette_idx(ghostcon_cell_t *c, uint8_t idx)
 {
     c->raw = (c->raw & ~GC_CELL_CONTENT_MASK) |
              ((uint64_t)idx << GC_CELL_CONTENT_SHIFT);
@@ -147,8 +141,7 @@ ghostcon_cell_get_style(ghostcon_cell_t c)
     return (ghostcon_style_id_t)((c.raw >> GC_CELL_STYLE_SHIFT) & 0x7FFF);
 }
 
-static inline void
-ghostcon_cell_set_style(ghostcon_cell_t *c, ghostcon_style_id_t id)
+static inline void ghostcon_cell_set_style(ghostcon_cell_t *c, ghostcon_style_id_t id)
 {
     c->raw = (c->raw & ~GC_CELL_STYLE_MASK) |
              ((uint64_t)(id & 0x7FFF) << GC_CELL_STYLE_SHIFT);
@@ -160,21 +153,18 @@ ghostcon_cell_get_wide(ghostcon_cell_t c)
     return (ghostcon_cell_wide_t)((c.raw >> GC_CELL_WIDE_SHIFT) & 0x3);
 }
 
-static inline void
-ghostcon_cell_set_wide(ghostcon_cell_t *c, ghostcon_cell_wide_t w)
+static inline void ghostcon_cell_set_wide(ghostcon_cell_t *c, ghostcon_cell_wide_t w)
 {
     c->raw = (c->raw & ~GC_CELL_WIDE_MASK) |
              ((uint64_t)w << GC_CELL_WIDE_SHIFT);
 }
 
-static inline bool
-ghostcon_cell_get_protected(ghostcon_cell_t c)
+static inline bool ghostcon_cell_get_protected(ghostcon_cell_t c)
 {
     return (bool)((c.raw >> GC_CELL_PROTECTED_SHIFT) & 0x1);
 }
 
-static inline void
-ghostcon_cell_set_protected(ghostcon_cell_t *c, bool v)
+static inline void ghostcon_cell_set_protected(ghostcon_cell_t *c, bool v)
 {
     c->raw = (c->raw & ~GC_CELL_PROTECTED_MASK) |
              ((uint64_t)(v ? 1 : 0) << GC_CELL_PROTECTED_SHIFT);
@@ -186,15 +176,13 @@ ghostcon_cell_get_hyperlink_id(ghostcon_cell_t c)
     return (ghostcon_style_id_t)((c.raw >> GC_CELL_HYPERLINK_ID_SHIFT) & 0x7FFF);
 }
 
-static inline void
-ghostcon_cell_set_hyperlink_id(ghostcon_cell_t *c, ghostcon_style_id_t id)
+static inline void ghostcon_cell_set_hyperlink_id(ghostcon_cell_t *c, ghostcon_style_id_t id)
 {
     c->raw = (c->raw & ~GC_CELL_HYPERLINK_ID_MASK) |
              ((uint64_t)(id & 0x7FFF) << GC_CELL_HYPERLINK_ID_SHIFT);
 }
 
-static inline bool
-ghostcon_cell_get_hyperlink(ghostcon_cell_t c)
+static inline bool ghostcon_cell_get_hyperlink(ghostcon_cell_t c)
 {
     return ghostcon_cell_get_hyperlink_id(c) != 0;
 }
@@ -205,8 +193,7 @@ ghostcon_cell_get_semantic(ghostcon_cell_t c)
     return (ghostcon_cell_semantic_t)((c.raw >> GC_CELL_SEMANTIC_SHIFT) & 0x3);
 }
 
-static inline void
-ghostcon_cell_set_semantic(ghostcon_cell_t *c, ghostcon_cell_semantic_t s)
+static inline void ghostcon_cell_set_semantic(ghostcon_cell_t *c, ghostcon_cell_semantic_t s)
 {
     c->raw = (c->raw & ~GC_CELL_SEMANTIC_MASK) |
              ((uint64_t)s << GC_CELL_SEMANTIC_SHIFT);
@@ -244,14 +231,16 @@ static inline uint8_t ghostcon_cell_grid_width(ghostcon_cell_t c)
 }
 
 /* Initialize a zero cell */
-static inline ghostcon_cell_t ghostcon_cell_make_empty(void)
+static inline ghostcon_cell_t
+ghostcon_cell_make_empty(void)
 {
     ghostcon_cell_t c = { .raw = 0 };
     return c;
 }
 
 /* Initialize a cell with a codepoint */
-static inline ghostcon_cell_t ghostcon_cell_make(uint32_t codepoint)
+static inline ghostcon_cell_t
+ghostcon_cell_make(uint32_t codepoint)
 {
     ghostcon_cell_t c = { .raw = 0 };
     ghostcon_cell_set_tag(&c, GHOSTCON_CELL_CODEPOINT);

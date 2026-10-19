@@ -237,8 +237,7 @@ typedef struct
  * load/reload (the backend re-resolves and re-uploads the sprites itself,
  * including lazily on the next acquire if the plane doesn't exist yet).
  */
-static void
-push_cursor_config(app_t *app)
+static void push_cursor_config(app_t *app)
 {
     ghostcon_display_cursor_config_t cfg = {
         .base_scale = app->cursor_base_scale,
@@ -262,8 +261,7 @@ push_cursor_config(app_t *app)
  * --its own built-in defaults on first open, or the last-known-good parse
  * on a reload).
  */
-static void
-apply_keybindings(app_t *app)
+static void apply_keybindings(app_t *app)
 {
     if (!app->input)
         return;
@@ -285,8 +283,7 @@ apply_keybindings(app_t *app)
  * reload" convention as apply_keybindings() right above, for
  * [mouse]/[touchpad] instead.
  */
-static void
-apply_mouse_touchpad_config(app_t *app)
+static void apply_mouse_touchpad_config(app_t *app)
 {
     if (!app->input)
         return;
@@ -310,8 +307,7 @@ apply_mouse_touchpad_config(app_t *app)
  * derived, not part of any theme's identity or something OSC 4 would
  * plausibly have customized, so touching them here is harmless).
  */
-static void
-apply_theme_config(app_t *app)
+static void apply_theme_config(app_t *app)
 {
     ghostcon_palette_t *pal = &app->term.screen.palette;
     ghostcon_palette_init(pal);
@@ -354,8 +350,7 @@ apply_theme_config(app_t *app)
  * reason, that's not grounds to silently stop responding to input in the
  * normal case.
  */
-static bool
-is_vt_foreground(int vt_num)
+static bool is_vt_foreground(int vt_num)
 {
     FILE *f = fopen("/sys/class/tty/tty0/active", "r");
     if (!f)
@@ -371,8 +366,7 @@ is_vt_foreground(int vt_num)
     return active_vt == vt_num;
 }
 
-static void
-release_display(app_t *app)
+static void release_display(app_t *app)
 {
     if (!ghostcon_display_is_acquired(app->disp))
         return;
@@ -404,8 +398,7 @@ release_display(app_t *app)
     ghostcon_selection_clear(&app->term.screen.selection);
 }
 
-static bool
-acquire_display(app_t *app)
+static bool acquire_display(app_t *app)
 {
     /* Opens the DRM node, takes master (with retry), initializes
      * KMS/GBM/EGL/GLES, replays the font atlas into the fresh GPU texture
@@ -466,8 +459,7 @@ acquire_display(app_t *app)
  * got no response at all; OSC color queries (ESC]4;n;?ESC\ and friends)
  * need this same path.
  */
-static void
-term_output_callback(void *userdata, const uint8_t *data, size_t len)
+static void term_output_callback(void *userdata, const uint8_t *data, size_t len)
 {
     app_t *app = userdata;
     ghostcon_transport_write(&app->transport, data, len);
@@ -479,8 +471,7 @@ term_output_callback(void *userdata, const uint8_t *data, size_t len)
  * debugging pain that originally motivated this project (see PLAN.md's
  * "Process identity" section).
  */
-static void
-term_title_callback(void *userdata, const char *title)
+static void term_title_callback(void *userdata, const char *title)
 {
     app_t *app = userdata;
 
@@ -519,8 +510,7 @@ term_title_callback(void *userdata, const char *title)
  * existing diag path rather than silently discarded, so a notification an
  * application sent is at least visible somewhere.
  */
-static void
-term_notify_callback(void *userdata, const char *message)
+static void term_notify_callback(void *userdata, const char *message)
 {
     app_t *app = userdata;
     ghostcon_diag_log_warning("vt %d: notification: %s", app->vt_num, message);
@@ -537,8 +527,7 @@ term_notify_callback(void *userdata, const char *message)
  * if nothing's acquired), so calling it here and then again from the normal
  * post-process_pending bookkeeping below is safe, not a double-teardown.
  */
-static void
-vtctl_pre_ack(char event, void *userdata)
+static void vtctl_pre_ack(char event, void *userdata)
 {
     if (event == 'R')
         release_display((app_t *)userdata);
@@ -559,8 +548,7 @@ vtctl_pre_ack(char event, void *userdata)
  * unchanged and not forced, or invalid) or a failed rebuild (logged, old
  * atlas left in place).
  */
-static bool
-apply_font_size(app_t *app, int new_size, bool force)
+static bool apply_font_size(app_t *app, int new_size, bool force)
 {
     if (new_size <= 0)
         return false;
@@ -628,8 +616,7 @@ apply_font_size(app_t *app, int new_size, bool force)
     return true;
 }
 
-static bool
-apply_config_reload(app_t *app)
+static bool apply_config_reload(app_t *app)
 {
     ghostcon_config_t new_cfg;
     if (!ghostcon_config_load(app->config_path, &new_cfg))
@@ -736,8 +723,7 @@ apply_config_reload(app_t *app)
     return need_render;
 }
 
-int
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     if (argc < 2)
     {

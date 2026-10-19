@@ -56,8 +56,7 @@ osc_split_fields(char *buf, uint16_t len, char **fields, int max_fields)
  * some other terminal's app silently vanish instead of being stored as-is,
  * which is more surprising than useful.
  */
-static bool
-osc52_is_valid_base64(const char *s)
+static bool osc52_is_valid_base64(const char *s)
 {
     if (s[0] == '\0')
         return false;
@@ -72,8 +71,7 @@ osc52_is_valid_base64(const char *s)
     return true;
 }
 
-static int
-uri_hex_nibble(char c)
+static int uri_hex_nibble(char c)
 {
     if (c >= '0' && c <= '9') return c - '0';
     if (c >= 'a' && c <= 'f') return c - 'a' + 10;
@@ -91,8 +89,7 @@ uri_hex_nibble(char c)
  * rejecting the whole sequence, matching OSC 7's "best effort, advisory"
  * spirit.
  */
-static void
-osc7_decode_pwd(const char *arg, char *out, size_t out_len)
+static void osc7_decode_pwd(const char *arg, char *out, size_t out_len)
 {
     const char *path = arg;
     if (strncmp(arg, "file://", 7) == 0)
@@ -120,8 +117,7 @@ osc7_decode_pwd(const char *arg, char *out, size_t out_len)
     out[oi] = '\0';
 }
 
-static void
-osc_write_response(ghostcon_stream_t *st, const char *body)
+static void osc_write_response(ghostcon_stream_t *st, const char *body)
 {
     if (!st->output_fn)
         return;
@@ -139,8 +135,7 @@ osc_write_response(ghostcon_stream_t *st, const char *body)
  * ghostty_osc-based path (window title, and the discard-and-log fallback
  * for truly unrecognized sequences).
  */
-static bool
-osc_dispatch_manual(ghostcon_stream_t *st, ghostcon_screen_t *s)
+static bool osc_dispatch_manual(ghostcon_stream_t *st, ghostcon_screen_t *s)
 {
     /* Work on a local copy, not st->buf directly: osc_split_fields()
      * mutates in place (';' -> '\0'), and if this OSC number turns out not
@@ -337,8 +332,7 @@ osc_dispatch_manual(ghostcon_stream_t *st, ghostcon_screen_t *s)
 
 /* OSC dispatch */
 
-void
-gc_stream_osc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s)
+void gc_stream_osc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s)
 {
     if (osc_dispatch_manual(st, s))
         return;

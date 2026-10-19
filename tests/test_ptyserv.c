@@ -44,8 +44,7 @@ connect_unix(const char *path)
 /* Reads from fd until `needle` appears in the accumulated buffer or the
  * deadline (in milliseconds from now) expires. Returns true on match.
  */
-static bool
-wait_for_substring(int fd, const char *needle, int timeout_ms)
+static bool wait_for_substring(int fd, const char *needle, int timeout_ms)
 {
     char acc[8192];
     size_t acc_len = 0;
@@ -68,8 +67,7 @@ wait_for_substring(int fd, const char *needle, int timeout_ms)
     }
 }
 
-int
-main(void)
+int main(void)
 {
     const char *ptyserv_bin = getenv("GHOSTCON_PTYSERV_BIN");
     if (!ptyserv_bin)

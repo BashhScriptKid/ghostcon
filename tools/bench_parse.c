@@ -54,8 +54,7 @@ now_ms(void)
  * glyph variety, not a degenerate single-repeated-byte case). Returns bytes
  * written.
  */
-static size_t
-build_one_screen(char *out, size_t out_cap, uint16_t cols, uint16_t rows, int screen_idx)
+static size_t build_one_screen(char *out, size_t out_cap, uint16_t cols, uint16_t rows, int screen_idx)
 {
     size_t off = 0;
     off += (size_t)snprintf(out + off, out_cap - off, "\x1b[H");
@@ -70,8 +69,7 @@ build_one_screen(char *out, size_t out_cap, uint16_t cols, uint16_t rows, int sc
     return off;
 }
 
-int
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     uint16_t cols = argc > 1 ? (uint16_t)atoi(argv[1]) : 128;
     uint16_t rows = argc > 2 ? (uint16_t)atoi(argv[2]) : 32;

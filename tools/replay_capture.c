@@ -43,8 +43,7 @@ row_to_text(ghostcon_screen_t *screen, uint16_t y, char *out, uint16_t cols)
     out[cols] = '\0';
 }
 
-int
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     if (argc < 2)
     {

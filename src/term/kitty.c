@@ -8,8 +8,7 @@ ghostcon_kitty_push(ghostcon_kitty_state_t *k, uint8_t f)
     k->stack.flags[k->stack.idx] = f;
 }
 
-void
-ghostcon_kitty_pop(ghostcon_kitty_state_t *k, uint8_t n)
+void ghostcon_kitty_pop(ghostcon_kitty_state_t *k, uint8_t n)
 {
     /* If n >= depth, reset entire stack */
     if (n >= GC_KITTY_STACK_DEPTH)
@@ -29,10 +28,9 @@ ghostcon_kitty_pop(ghostcon_kitty_state_t *k, uint8_t n)
     }
 }
 
-void
-ghostcon_kitty_set_mode(ghostcon_kitty_state_t *k,
-                        ghostcon_kitty_set_mode_t mode,
-                        uint8_t f)
+void ghostcon_kitty_set_mode(ghostcon_kitty_state_t *k,
+                             ghostcon_kitty_set_mode_t mode,
+                             uint8_t f)
 {
     switch (mode)
     {

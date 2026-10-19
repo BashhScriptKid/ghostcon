@@ -24,8 +24,7 @@ struct ghostcon_hyperlink_set {
     uint16_t            count;
 };
 
-static uint32_t
-hash_uri(const char *uri)
+static uint32_t hash_uri(const char *uri)
 {
     uint32_t h = 2166136261u;
     for (const unsigned char *p = (const unsigned char *)uri; *p; p++)
@@ -58,8 +57,7 @@ ghostcon_hyperlink_set_create(uint16_t capacity)
     return set;
 }
 
-void
-ghostcon_hyperlink_set_destroy(ghostcon_hyperlink_set_t *set)
+void ghostcon_hyperlink_set_destroy(ghostcon_hyperlink_set_t *set)
 {
     if (!set)
         return;
@@ -67,8 +65,7 @@ ghostcon_hyperlink_set_destroy(ghostcon_hyperlink_set_t *set)
     free(set);
 }
 
-static int16_t
-find_entry(const ghostcon_hyperlink_set_t *set, const char *uri)
+static int16_t find_entry(const ghostcon_hyperlink_set_t *set, const char *uri)
 {
     if (set->capacity == 0)
         return -1;
@@ -88,8 +85,7 @@ find_entry(const ghostcon_hyperlink_set_t *set, const char *uri)
     return -1;
 }
 
-static bool
-grow_table(ghostcon_hyperlink_set_t *set, uint16_t new_capacity)
+static bool grow_table(ghostcon_hyperlink_set_t *set, uint16_t new_capacity)
 {
     hyperlink_entry_t *old = set->entries;
     uint16_t old_cap = set->capacity;
@@ -180,8 +176,7 @@ ghostcon_hyperlink_set_add(ghostcon_hyperlink_set_t *set, const char *uri)
     return GC_HYPERLINK_ID_NONE; /* shouldn't happen */
 }
 
-void
-ghostcon_hyperlink_set_ref(ghostcon_hyperlink_set_t *set, ghostcon_style_id_t id)
+void ghostcon_hyperlink_set_ref(ghostcon_hyperlink_set_t *set, ghostcon_style_id_t id)
 {
     if (id == GC_HYPERLINK_ID_NONE)
         return;
@@ -195,8 +190,7 @@ ghostcon_hyperlink_set_ref(ghostcon_hyperlink_set_t *set, ghostcon_style_id_t id
     }
 }
 
-void
-ghostcon_hyperlink_set_unref(ghostcon_hyperlink_set_t *set, ghostcon_style_id_t id)
+void ghostcon_hyperlink_set_unref(ghostcon_hyperlink_set_t *set, ghostcon_style_id_t id)
 {
     if (id == GC_HYPERLINK_ID_NONE)
         return;
@@ -216,8 +210,7 @@ ghostcon_hyperlink_set_unref(ghostcon_hyperlink_set_t *set, ghostcon_style_id_t 
     }
 }
 
-const char *
-ghostcon_hyperlink_set_get(const ghostcon_hyperlink_set_t *set, ghostcon_style_id_t id)
+const char *ghostcon_hyperlink_set_get(const ghostcon_hyperlink_set_t *set, ghostcon_style_id_t id)
 {
     if (id == GC_HYPERLINK_ID_NONE)
         return NULL;

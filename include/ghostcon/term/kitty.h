@@ -42,8 +42,7 @@ typedef struct
 } ghostcon_kitty_state_t;
 
 /* Initialize kitty state (all flags disabled) */
-static inline void
-ghostcon_kitty_init(ghostcon_kitty_state_t *k)
+static inline void ghostcon_kitty_init(ghostcon_kitty_state_t *k)
 {
     for (int i = 0; i < GC_KITTY_STACK_DEPTH; i++)
         k->stack.flags[i] = 0;
@@ -62,15 +61,13 @@ void ghostcon_kitty_set_mode(ghostcon_kitty_state_t *k,
                              uint8_t f);
 
 /* Get current flags (top of stack) */
-static inline uint8_t
-ghostcon_kitty_current(const ghostcon_kitty_state_t *k)
+static inline uint8_t ghostcon_kitty_current(const ghostcon_kitty_state_t *k)
 {
     return k->stack.flags[k->stack.idx];
 }
 
 /* Check if protocol is active (current flags != 0) */
-static inline bool
-ghostcon_kitty_is_active(const ghostcon_kitty_state_t *k)
+static inline bool ghostcon_kitty_is_active(const ghostcon_kitty_state_t *k)
 {
     return ghostcon_kitty_current(k) != 0;
 }

@@ -22,8 +22,7 @@ const GhosttyColorRgb GC_ANSI_COLORS[16] = {
     {255, 255, 255}, /* bright white */
 };
 
-void
-ghostcon_palette_init(ghostcon_palette_t *pal)
+void ghostcon_palette_init(ghostcon_palette_t *pal)
 {
     /* ANSI 0-15 */
     for (int i = 0; i < 16; i++)
@@ -51,14 +50,12 @@ ghostcon_palette_init(ghostcon_palette_t *pal)
     pal->cursor_color = (GhosttyColorRgb){170, 170, 170};
 }
 
-void
-ghostcon_palette_set(ghostcon_palette_t *pal, int idx, GhosttyColorRgb rgb)
+void ghostcon_palette_set(ghostcon_palette_t *pal, int idx, GhosttyColorRgb rgb)
 {
     pal->table[idx] = rgb;
 }
 
-void
-ghostcon_palette_reset(ghostcon_palette_t *pal, uint8_t idx)
+void ghostcon_palette_reset(ghostcon_palette_t *pal, uint8_t idx)
 {
     if (idx < 16)
         pal->table[idx] = GC_ANSI_COLORS[idx];
@@ -101,8 +98,7 @@ void ghostcon_palette_set_cursor(ghostcon_palette_t *pal, GhosttyColorRgb c)
     pal->cursor_color = c;
 }
 
-static int
-hex_nibble(char c)
+static int hex_nibble(char c)
 {
     if (c >= '0' && c <= '9') return c - '0';
     if (c >= 'a' && c <= 'f') return c - 'a' + 10;
@@ -121,8 +117,7 @@ hex_nibble(char c)
  * count==2 being an exact, no-op case) is both correct and what real
  * terminals conventionally do.
  */
-static bool
-parse_hex_component(const char *s, int count, uint8_t *out)
+static bool parse_hex_component(const char *s, int count, uint8_t *out)
 {
     int val = 0;
     for (int i = 0; i < count; i++)
@@ -144,8 +139,7 @@ parse_hex_component(const char *s, int count, uint8_t *out)
     return true;
 }
 
-bool
-ghostcon_color_parse_spec(const char *spec, GhosttyColorRgb *out)
+bool ghostcon_color_parse_spec(const char *spec, GhosttyColorRgb *out)
 {
     size_t len = strlen(spec);
 
@@ -193,8 +187,7 @@ ghostcon_color_parse_spec(const char *spec, GhosttyColorRgb *out)
     return false; /* named X11 colors unsupported -- see header comment */
 }
 
-void
-ghostcon_color_format_spec(GhosttyColorRgb c, char *out, size_t out_len)
+void ghostcon_color_format_spec(GhosttyColorRgb c, char *out, size_t out_len)
 {
     snprintf(out, out_len, "rgb:%02x%02x/%02x%02x/%02x%02x",
               c.r, c.r, c.g, c.g, c.b, c.b);

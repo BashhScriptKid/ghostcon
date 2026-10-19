@@ -51,8 +51,7 @@ now_ms(void)
     return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1e6;
 }
 
-int
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     const char *drm_node = argc > 1 ? argv[1] : "/dev/dri/card1";
     int frames = argc > 2 ? atoi(argv[2]) : 300;

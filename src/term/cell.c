@@ -97,8 +97,7 @@ static const gc_width_range_t gc_wide[] = {
     {0x1FAF0,0x1FAF8}, {0x20000,0x2FFFD}, {0x30000,0x3FFFD},
 };
 
-uint8_t
-ghostcon_unicode_width(uint32_t cp)
+uint8_t ghostcon_unicode_width(uint32_t cp)
 {
     /* Control characters (excluding space) have no display width */
     if (cp == 0) return 0;
@@ -162,8 +161,7 @@ ghostcon_unicode_width(uint32_t cp)
  *   generated table -- but is added back here since those glyphs need the
  *   same fit-to-cell treatment in practice.
  */
-bool
-ghostcon_cell_is_symbol(uint32_t cp)
+bool ghostcon_cell_is_symbol(uint32_t cp)
 {
     if (cp >= 0x2500 && cp <= 0x259F)
     {
@@ -193,8 +191,7 @@ ghostcon_cell_is_symbol(uint32_t cp)
     return false;
 }
 
-bool
-ghostcon_cell_is_graphics_element(uint32_t cp)
+bool ghostcon_cell_is_graphics_element(uint32_t cp)
 {
     return (cp >= 0x1FB00 && cp <= 0x1FBFF) ||
            (cp >= 0x1CC00 && cp <= 0x1CEBF) ||

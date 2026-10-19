@@ -44,8 +44,7 @@ connect_unix(const char *path)
     return fd;
 }
 
-static bool
-registry_reachable(const char *registry_sock, int timeout_ms)
+static bool registry_reachable(const char *registry_sock, int timeout_ms)
 {
     struct timespec start, now;
     clock_gettime(CLOCK_MONOTONIC, &start);
@@ -86,8 +85,7 @@ registry_reachable(const char *registry_sock, int timeout_ms)
  * the very first attempt, instead of retrying until the real process
  * appeared.
  */
-static pid_t
-pgrep_once(const char *pattern)
+static pid_t pgrep_once(const char *pattern)
 {
     int pipefd[2];
     if (pipe(pipefd) != 0)
@@ -135,8 +133,7 @@ pgrep_once(const char *pattern)
  * times out). Used to detect "the old process died and a new one with a
  * different pid took its place".
  */
-static pid_t
-pgrep_wait_ne(const char *pattern, pid_t exclude, int timeout_ms)
+static pid_t pgrep_wait_ne(const char *pattern, pid_t exclude, int timeout_ms)
 {
     struct timespec start, now;
     clock_gettime(CLOCK_MONOTONIC, &start);
@@ -158,8 +155,7 @@ pgrep_wait_ne(const char *pattern, pid_t exclude, int timeout_ms)
 /* Finds the PID of a running process whose full argv matches `pattern` (via
  * pgrep -f), waiting up to timeout_ms for it to appear.
  */
-static pid_t
-pgrep_wait(const char *pattern, int timeout_ms)
+static pid_t pgrep_wait(const char *pattern, int timeout_ms)
 {
     struct timespec start, now;
     clock_gettime(CLOCK_MONOTONIC, &start);
@@ -177,8 +173,7 @@ pgrep_wait(const char *pattern, int timeout_ms)
     }
 }
 
-int
-main(void)
+int main(void)
 {
     setvbuf(stdout, NULL, _IOLBF, 0);
 

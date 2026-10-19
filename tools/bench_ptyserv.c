@@ -46,8 +46,7 @@ now_ms(void)
     return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1e6;
 }
 
-static int
-connect_unix(const char *path)
+static int connect_unix(const char *path)
 {
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0)
@@ -64,8 +63,7 @@ connect_unix(const char *path)
     return fd;
 }
 
-int
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     int megabytes = argc > 1 ? atoi(argv[1]) : 64;
     if (megabytes <= 0)

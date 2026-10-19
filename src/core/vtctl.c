@@ -38,8 +38,7 @@ struct ghostcon_vtctl {
  * than implementing it itself (unlike kmscon's --no-switchvt), so it needs
  * the switch key to keep working.
  */
-static bool
-kbd_mode_blocks_vt_switch(int mode)
+static bool kbd_mode_blocks_vt_switch(int mode)
 {
     return mode == K_OFF || mode == K_RAW || mode == K_MEDIUMRAW;
 }
@@ -50,8 +49,7 @@ kbd_mode_blocks_vt_switch(int mode)
  */
 static ghostcon_vtctl_t *g_instance;
 
-static void
-signal_handler(int signum)
+static void signal_handler(int signum)
 {
     if (!g_instance)
         return;
@@ -64,8 +62,7 @@ signal_handler(int signum)
     (void)unused;
 }
 
-static bool
-currently_active(int fd, int vt_num, bool *out_active)
+static bool currently_active(int fd, int vt_num, bool *out_active)
 {
     struct vt_stat st;
     if (ioctl(fd, VT_GETSTATE, &st) != 0)
@@ -192,8 +189,7 @@ fail:
     return NULL;
 }
 
-void
-ghostcon_vtctl_close(ghostcon_vtctl_t *vt)
+void ghostcon_vtctl_close(ghostcon_vtctl_t *vt)
 {
     if (!vt)
         return;
@@ -233,16 +229,14 @@ ghostcon_vtctl_state(const ghostcon_vtctl_t *vt)
     return vt->state;
 }
 
-int
-ghostcon_vtctl_signal_fd(const ghostcon_vtctl_t *vt)
+int ghostcon_vtctl_signal_fd(const ghostcon_vtctl_t *vt)
 {
     return vt->pipe_fds[0];
 }
 
-void
-ghostcon_vtctl_process_pending(ghostcon_vtctl_t *vt,
-                               ghostcon_vtctl_pre_ack_fn pre_ack,
-                               void *userdata)
+void ghostcon_vtctl_process_pending(ghostcon_vtctl_t *vt,
+                                    ghostcon_vtctl_pre_ack_fn pre_ack,
+                                    void *userdata)
 {
     char buf[64];
     ssize_t n;

@@ -10,9 +10,8 @@ ghostcon_selection_clear(ghostcon_selection_t *sel)
     sel->kind = GC_SEL_NONE;
 }
 
-void
-ghostcon_selection_start(ghostcon_selection_t *sel, int16_t x, int16_t y,
-                         ghostcon_sel_kind_t kind, uint16_t cols)
+void ghostcon_selection_start(ghostcon_selection_t *sel, int16_t x, int16_t y,
+                              ghostcon_sel_kind_t kind, uint16_t cols)
 {
     sel->x1 = x; sel->y1 = y;
     sel->x2 = x; sel->y2 = y;
@@ -22,23 +21,20 @@ ghostcon_selection_start(ghostcon_selection_t *sel, int16_t x, int16_t y,
     sel->pending = true;
 }
 
-void
-ghostcon_selection_update(ghostcon_selection_t *sel, int16_t x, int16_t y)
+void ghostcon_selection_update(ghostcon_selection_t *sel, int16_t x, int16_t y)
 {
     if (!sel->pending) return;
     sel->x2 = x;
     sel->y2 = y;
 }
 
-void
-ghostcon_selection_finish(ghostcon_selection_t *sel)
+void ghostcon_selection_finish(ghostcon_selection_t *sel)
 {
     sel->pending = false;
 }
 
-bool
-ghostcon_selection_row_range(const ghostcon_selection_t *sel, int16_t y, int16_t cols,
-                              int16_t *out_xstart, int16_t *out_xend)
+bool ghostcon_selection_row_range(const ghostcon_selection_t *sel, int16_t y, int16_t cols,
+                                   int16_t *out_xstart, int16_t *out_xend)
 {
     if (!sel->active) return false;
 
@@ -86,8 +82,7 @@ ghostcon_selection_row_range(const ghostcon_selection_t *sel, int16_t y, int16_t
     return true;
 }
 
-bool
-ghostcon_selection_contains(const ghostcon_selection_t *sel, int16_t x, int16_t y)
+bool ghostcon_selection_contains(const ghostcon_selection_t *sel, int16_t x, int16_t y)
 {
     int16_t xstart, xend;
     if (!ghostcon_selection_row_range(sel, y, sel->cols, &xstart, &xend))
@@ -100,8 +95,7 @@ ghostcon_selection_contains(const ghostcon_selection_t *sel, int16_t x, int16_t 
  * Returns bytes written (1-4), or 0 if `out_len` is too small to fit the
  * encoded codepoint.
  */
-static size_t
-utf8_encode(uint32_t cp, char *out, size_t out_len)
+static size_t utf8_encode(uint32_t cp, char *out, size_t out_len)
 {
     if (cp < 0x80)
     {
@@ -135,8 +129,7 @@ utf8_encode(uint32_t cp, char *out, size_t out_len)
     }
 }
 
-size_t
-ghostcon_selection_extract_text(ghostcon_screen_t *screen, char *out, size_t out_len)
+size_t ghostcon_selection_extract_text(ghostcon_screen_t *screen, char *out, size_t out_len)
 {
     const ghostcon_selection_t *sel = &screen->selection;
     if (!sel->active || out_len == 0) return 0;

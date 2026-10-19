@@ -28,8 +28,7 @@ screen_with(bool tracking, uint16_t protocol, bool sgr)
     return s;
 }
 
-int
-main(void)
+int main(void)
 {
     char buf[32];
     size_t n;

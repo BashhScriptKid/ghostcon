@@ -34,8 +34,7 @@ struct ghostcon_style_set {
     uint16_t       count;
 };
 
-static uint32_t
-hash_style(const ghostcon_style_t *s)
+static uint32_t hash_style(const ghostcon_style_t *s)
 {
     /* Simple FNV-1a hash over the style bytes */
     uint32_t h = 2166136261u;
@@ -70,8 +69,7 @@ ghostcon_style_set_create(uint16_t capacity)
     return set;
 }
 
-void
-ghostcon_style_set_destroy(ghostcon_style_set_t *set)
+void ghostcon_style_set_destroy(ghostcon_style_set_t *set)
 {
     if (!set)
         return;
@@ -80,8 +78,7 @@ ghostcon_style_set_destroy(ghostcon_style_set_t *set)
 }
 
 /* Find an entry by style, return index or -1 if not found */
-static int16_t
-find_entry(const ghostcon_style_set_t *set, const ghostcon_style_t *style)
+static int16_t find_entry(const ghostcon_style_set_t *set, const ghostcon_style_t *style)
 {
     if (set->capacity == 0)
         return -1;
@@ -102,8 +99,7 @@ find_entry(const ghostcon_style_set_t *set, const ghostcon_style_t *style)
 }
 
 /* Grow the table to new_capacity */
-static bool
-grow_table(ghostcon_style_set_t *set, uint16_t new_capacity)
+static bool grow_table(ghostcon_style_set_t *set, uint16_t new_capacity)
 {
     style_entry_t *old = set->entries;
     uint16_t old_cap = set->capacity;
@@ -202,8 +198,7 @@ ghostcon_style_set_add(ghostcon_style_set_t *set, const ghostcon_style_t *style)
     return GC_STYLE_DEFAULT_ID; /* shouldn't happen */
 }
 
-void
-ghostcon_style_set_ref(ghostcon_style_set_t *set, ghostcon_style_id_t id)
+void ghostcon_style_set_ref(ghostcon_style_set_t *set, ghostcon_style_id_t id)
 {
     if (id == GC_STYLE_DEFAULT_ID)
         return;
@@ -218,8 +213,7 @@ ghostcon_style_set_ref(ghostcon_style_set_t *set, ghostcon_style_id_t id)
     }
 }
 
-void
-ghostcon_style_set_unref(ghostcon_style_set_t *set, ghostcon_style_id_t id)
+void ghostcon_style_set_unref(ghostcon_style_set_t *set, ghostcon_style_id_t id)
 {
     if (id == GC_STYLE_DEFAULT_ID)
         return;

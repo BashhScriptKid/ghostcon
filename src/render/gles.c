@@ -522,8 +522,7 @@ fail:
     return NULL;
 }
 
-void
-ghostcon_gles_destroy(ghostcon_gles_t *gles)
+void ghostcon_gles_destroy(ghostcon_gles_t *gles)
 {
     if (!gles)
         return;
@@ -549,16 +548,14 @@ ghostcon_gles_destroy(ghostcon_gles_t *gles)
     free(gles);
 }
 
-void
-ghostcon_gles_resize(ghostcon_gles_t *gles, uint32_t w, uint32_t h)
+void ghostcon_gles_resize(ghostcon_gles_t *gles, uint32_t w, uint32_t h)
 {
     gles->viewport_w = w;
     gles->viewport_h = h;
     glViewport(0, 0, (GLsizei)w, (GLsizei)h);
 }
 
-void
-ghostcon_gles_sync_atlas(ghostcon_gles_t *gles, ghostcon_atlas_t *atlas, bool force)
+void ghostcon_gles_sync_atlas(ghostcon_gles_t *gles, ghostcon_atlas_t *atlas, bool force)
 {
     uint32_t dim = ghostcon_atlas_dim(atlas);
 
@@ -594,14 +591,12 @@ ghostcon_gles_sync_atlas(ghostcon_gles_t *gles, ghostcon_atlas_t *atlas, bool fo
  * cleared background would come out double-gamma-encoded, same class of bug
  * as an un-linearized shader output.
  */
-static float
-linearize_channel(float v)
+static float linearize_channel(float v)
 {
     return v <= 0.04045f ? v / 12.92f : powf((v + 0.055f) / 1.055f, 2.4f);
 }
 
-void
-ghostcon_gles_begin(ghostcon_gles_t *gles, bool clear, float bg_r, float bg_g, float bg_b)
+void ghostcon_gles_begin(ghostcon_gles_t *gles, bool clear, float bg_r, float bg_g, float bg_b)
 {
     gles->vert_count = 0;
     gles->bg_vert_count = 0;
@@ -622,8 +617,7 @@ ghostcon_gles_begin(ghostcon_gles_t *gles, bool clear, float bg_r, float bg_g, f
     }
 }
 
-static void
-push_vertex(ghostcon_gles_t *gles, ghostcon_vertex_t v, bool bg)
+static void push_vertex(ghostcon_gles_t *gles, ghostcon_vertex_t v, bool bg)
 {
     ghostcon_vertex_t **arr = bg ? &gles->bg_verts : &gles->verts;
     size_t *count = bg ? &gles->bg_vert_count : &gles->vert_count;
@@ -639,13 +633,12 @@ push_vertex(ghostcon_gles_t *gles, ghostcon_vertex_t v, bool bg)
     (*arr)[(*count)++] = v;
 }
 
-static void
-push_quad(ghostcon_gles_t *gles,
-          float x, float y, float w, float h,
-          float u0, float v0, float u1, float v1,
-          float r, float g, float b, float a,
-          float bg_r, float bg_g, float bg_b,
-          float is_glyph, float is_color_glyph, bool bg)
+static void push_quad(ghostcon_gles_t *gles,
+                      float x, float y, float w, float h,
+                      float u0, float v0, float u1, float v1,
+                      float r, float g, float b, float a,
+                      float bg_r, float bg_g, float bg_b,
+                      float is_glyph, float is_color_glyph, bool bg)
 {
     ghostcon_vertex_t tl = { x,     y,     u0, v0, r, g, b, a, bg_r, bg_g, bg_b, is_glyph, is_color_glyph };
     ghostcon_vertex_t tr = { x + w, y,     u1, v0, r, g, b, a, bg_r, bg_g, bg_b, is_glyph, is_color_glyph };
@@ -660,10 +653,9 @@ push_quad(ghostcon_gles_t *gles,
     push_vertex(gles, br, bg);
 }
 
-void
-ghostcon_gles_push_rect(ghostcon_gles_t *gles,
-                         float x, float y, float w, float h,
-                         float r, float g, float b, float a)
+void ghostcon_gles_push_rect(ghostcon_gles_t *gles,
+                              float x, float y, float w, float h,
+                              float r, float g, float b, float a)
 {
     /* atlas.c reserves an opaque 2x2 block at the atlas origin for exactly
      * this — sampling (0,0) always yields mask=(1,1,1). bg == fg here so
@@ -675,33 +667,29 @@ ghostcon_gles_push_rect(ghostcon_gles_t *gles,
     push_quad(gles, x, y, w, h, 0.0f, 0.0f, 0.0f, 0.0f, r, g, b, a, r, g, b, 0.0f, 0.0f, false);
 }
 
-void
-ghostcon_gles_push_bg_rect(ghostcon_gles_t *gles,
-                           float x, float y, float w, float h,
-                           float r, float g, float b, float a)
+void ghostcon_gles_push_bg_rect(ghostcon_gles_t *gles,
+                                float x, float y, float w, float h,
+                                float r, float g, float b, float a)
 {
     push_quad(gles, x, y, w, h, 0.0f, 0.0f, 0.0f, 0.0f, r, g, b, a, r, g, b, 0.0f, 0.0f, true);
 }
 
-void
-ghostcon_gles_push_glyph(ghostcon_gles_t *gles,
-                          float x, float y, float w, float h,
-                          const ghostcon_glyph_t *glyph,
-                          float r, float g, float b, float a,
-                          float bg_r, float bg_g, float bg_b)
+void ghostcon_gles_push_glyph(ghostcon_gles_t *gles,
+                               float x, float y, float w, float h,
+                               const ghostcon_glyph_t *glyph,
+                               float r, float g, float b, float a,
+                               float bg_r, float bg_g, float bg_b)
 {
     push_quad(gles, x, y, w, h, glyph->u0, glyph->v0, glyph->u1, glyph->v1,
               r, g, b, a, bg_r, bg_g, bg_b, 1.0f, glyph->is_color ? 1.0f : 0.0f, false);
 }
 
-void
-ghostcon_gles_set_gamma_correct(ghostcon_gles_t *gles, bool enabled)
+void ghostcon_gles_set_gamma_correct(ghostcon_gles_t *gles, bool enabled)
 {
     gles->gamma_correct = enabled;
 }
 
-bool
-ghostcon_gles_linear_blending_active(const ghostcon_gles_t *gles)
+bool ghostcon_gles_linear_blending_active(const ghostcon_gles_t *gles)
 {
     return gles->linear_blending;
 }
@@ -730,8 +718,7 @@ ghostcon_gles_image_create(const uint8_t *pixels, int width, int height, int bpp
     return img;
 }
 
-void
-ghostcon_gles_image_destroy(ghostcon_gles_image_t *img)
+void ghostcon_gles_image_destroy(ghostcon_gles_image_t *img)
 {
     if (!img)
         return;
@@ -739,11 +726,10 @@ ghostcon_gles_image_destroy(ghostcon_gles_image_t *img)
     free(img);
 }
 
-static void
-draw_image_internal(ghostcon_gles_t *gles, ghostcon_gles_image_t *img,
-                    float x, float y, float w, float h,
-                    float src_x, float src_y, float src_w, float src_h,
-                    float alpha)
+static void draw_image_internal(ghostcon_gles_t *gles, ghostcon_gles_image_t *img,
+                                float x, float y, float w, float h,
+                                float src_x, float src_y, float src_w, float src_h,
+                                float alpha)
 {
     if (!gles->img_program || !img)
         return;
@@ -915,11 +901,10 @@ ghostcon_gles_sixel_tex_get(ghostcon_gles_t *gles,
     return tex;
 }
 
-void
-ghostcon_gles_queue_image(ghostcon_gles_t *gles, ghostcon_gles_image_t *img,
-                          float x, float y, float w, float h,
-                          float src_x, float src_y, float src_w, float src_h,
-                          float alpha, bool above_text)
+void ghostcon_gles_queue_image(ghostcon_gles_t *gles, ghostcon_gles_image_t *img,
+                               float x, float y, float w, float h,
+                               float src_x, float src_y, float src_w, float src_h,
+                               float alpha, bool above_text)
 {
     if (gles->queued_count >= gles->queued_cap)
     {
@@ -936,8 +921,7 @@ ghostcon_gles_queue_image(ghostcon_gles_t *gles, ghostcon_gles_image_t *img,
  * both layers below since they use the identical shader/ program/uniforms,
  * only the vertex data differs.
  */
-static void
-draw_layer(ghostcon_gles_t *gles, const ghostcon_vertex_t *src, size_t count)
+static void draw_layer(ghostcon_gles_t *gles, const ghostcon_vertex_t *src, size_t count)
 {
     if (count == 0)
         return;
@@ -990,8 +974,7 @@ draw_layer(ghostcon_gles_t *gles, const ghostcon_vertex_t *src, size_t count)
  * sorted placements by (z, image_id) before queuing, see its own doc
  * comment on why array/insertion order alone isn't correct).
  */
-static void
-draw_queued_images(ghostcon_gles_t *gles, bool above_text)
+static void draw_queued_images(ghostcon_gles_t *gles, bool above_text)
 {
     for (size_t i = 0; i < gles->queued_count; i++)
     {
@@ -1003,8 +986,7 @@ draw_queued_images(ghostcon_gles_t *gles, bool above_text)
     }
 }
 
-void
-ghostcon_gles_end(ghostcon_gles_t *gles)
+void ghostcon_gles_end(ghostcon_gles_t *gles)
 {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -1065,8 +1047,7 @@ ghostcon_gles_end(ghostcon_gles_t *gles)
     }
 }
 
-bool
-ghostcon_gles_screenshot_ppm(ghostcon_gles_t *gles, const char *path)
+bool ghostcon_gles_screenshot_ppm(ghostcon_gles_t *gles, const char *path)
 {
     uint32_t w = gles->viewport_w, h = gles->viewport_h;
     uint8_t *pixels = malloc((size_t)w * h * 4);

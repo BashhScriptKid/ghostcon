@@ -28,16 +28,14 @@ static const char     *gc_test_fail_msg = NULL;
 static int             gc_test_fail_line = 0;
 
 /* Register a test (called via TEST macro) */
-static inline void
-gc_test_register(const char *name, gc_test_fn fn)
+static inline void gc_test_register(const char *name, gc_test_fn fn)
 {
     if (gc_test_count < GC_TEST_MAX)
         gc_test_registry[gc_test_count++] = (gc_test_entry_t){name, fn};
 }
 
 /* Test runner: run all registered tests */
-static inline int
-gc_test_run_all(void)
+static inline int gc_test_run_all(void)
 {
     printf("--- conformance test suite ---\n\n");
     for (int i = 0; i < gc_test_count; i++)
@@ -212,8 +210,7 @@ typedef struct
     size_t len;
 } gc_test_output_t;
 
-static void
-gc_test_output_fn(void *userdata, const uint8_t *data, size_t len)
+static void gc_test_output_fn(void *userdata, const uint8_t *data, size_t len)
 {
     gc_test_output_t *out = (gc_test_output_t *)userdata;
     size_t remaining = GC_TEST_OUTPUT_BUF_SIZE - out->len;

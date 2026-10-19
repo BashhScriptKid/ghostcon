@@ -14,20 +14,17 @@ rd_u32le(const uint8_t *p)
     return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
 }
 
-static uint16_t
-rd_u16le(const uint8_t *p)
+static uint16_t rd_u16le(const uint8_t *p)
 {
     return (uint16_t)(p[0] | (p[1] << 8));
 }
 
-static int32_t
-rd_i32le(const uint8_t *p)
+static int32_t rd_i32le(const uint8_t *p)
 {
     return (int32_t)rd_u32le(p);
 }
 
-static void
-wr_u32le(uint8_t *p, uint32_t v)
+static void wr_u32le(uint8_t *p, uint32_t v)
 {
     p[0] = (uint8_t)(v & 0xff);
     p[1] = (uint8_t)((v >> 8) & 0xff);
@@ -35,8 +32,7 @@ wr_u32le(uint8_t *p, uint32_t v)
     p[3] = (uint8_t)((v >> 24) & 0xff);
 }
 
-static void
-wr_u16le(uint8_t *p, uint16_t v)
+static void wr_u16le(uint8_t *p, uint16_t v)
 {
     p[0] = (uint8_t)(v & 0xff);
     p[1] = (uint8_t)((v >> 8) & 0xff);
@@ -44,8 +40,7 @@ wr_u16le(uint8_t *p, uint16_t v)
 
 /* Reads the whole file into a malloc'd buffer. NULL on failure.
    *out_len is the file size. Shared by both decoders below. */
-static uint8_t *
-read_whole_file(const char *path, size_t *out_len)
+static uint8_t *read_whole_file(const char *path, size_t *out_len)
 {
     FILE *f = fopen(path, "rb");
     if (!f)
@@ -160,8 +155,7 @@ ghostcon_cursor_load_bmp(const char *path, uint32_t *out_w, uint32_t *out_h)
     return pixels;
 }
 
-bool
-ghostcon_cursor_write_bmp(const char *path, const uint32_t *pixels, uint32_t w, uint32_t h)
+bool ghostcon_cursor_write_bmp(const char *path, const uint32_t *pixels, uint32_t w, uint32_t h)
 {
     if (w == 0 || h == 0)
         return false;
@@ -318,10 +312,9 @@ decode_xcursor_buf(const uint8_t *buf, size_t len,
     return pixels;
 }
 
-uint32_t *
-ghostcon_cursor_load_xcursor(const char *theme_dir, const char *name,
-                              uint32_t *out_w, uint32_t *out_h,
-                              uint32_t *out_hot_x, uint32_t *out_hot_y)
+uint32_t *ghostcon_cursor_load_xcursor(const char *theme_dir, const char *name,
+                                        uint32_t *out_w, uint32_t *out_h,
+                                        uint32_t *out_hot_x, uint32_t *out_hot_y)
 {
     char path[1024];
 
@@ -345,10 +338,9 @@ ghostcon_cursor_load_xcursor(const char *theme_dir, const char *name,
     return pixels;
 }
 
-uint32_t *
-ghostcon_cursor_crop_to_content(const uint32_t *src, uint32_t src_w, uint32_t src_h,
-                                 uint32_t *out_w, uint32_t *out_h,
-                                 uint32_t *hot_x, uint32_t *hot_y)
+uint32_t *ghostcon_cursor_crop_to_content(const uint32_t *src, uint32_t src_w, uint32_t src_h,
+                                           uint32_t *out_w, uint32_t *out_h,
+                                           uint32_t *hot_x, uint32_t *hot_y)
 {
     if (!src || src_w == 0 || src_h == 0)
         return NULL;
@@ -396,9 +388,8 @@ ghostcon_cursor_crop_to_content(const uint32_t *src, uint32_t src_w, uint32_t sr
     return dst;
 }
 
-uint32_t *
-ghostcon_cursor_scale(const uint32_t *src, uint32_t src_w, uint32_t src_h,
-                       uint32_t dst_w, uint32_t dst_h)
+uint32_t *ghostcon_cursor_scale(const uint32_t *src, uint32_t src_w, uint32_t src_h,
+                                 uint32_t dst_w, uint32_t dst_h)
 {
     if (!src || src_w == 0 || src_h == 0 || dst_w == 0 || dst_h == 0)
         return NULL;

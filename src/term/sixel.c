@@ -9,8 +9,7 @@ ghostcon_sixel_state_init(ghostcon_sixel_state_t *st)
     memset(st, 0, sizeof *st);
 }
 
-void
-ghostcon_sixel_state_deinit(ghostcon_sixel_state_t *st)
+void ghostcon_sixel_state_deinit(ghostcon_sixel_state_t *st)
 {
     for (int i = 0; i < GHOSTCON_SIXEL_MAX_PLACEMENTS; i++)
         free(st->placements[i].pixels);
@@ -62,9 +61,8 @@ typedef struct
  * (img2sixel) do the same. HLS is supported anyway since it's part of the
  * spec and some encoders can use it.
  */
-static void
-parse_color_intro(const char **p, const char *end, color_reg_t *regs,
-                  int *current_reg)
+static void parse_color_intro(const char **p, const char *end, color_reg_t *regs,
+                              int *current_reg)
 {
     const char *s = *p;
     long vals[5];
@@ -147,13 +145,12 @@ parse_color_intro(const char **p, const char *end, color_reg_t *regs,
     }
 }
 
-void
-ghostcon_sixel_decode(ghostcon_sixel_state_t *st,
-                      const int32_t *dcs_params, size_t params_count,
-                      const char *body, size_t body_len,
-                      int32_t cursor_col, int32_t cursor_row,
-                      int32_t cell_w, int32_t cell_h,
-                      ghostcon_sixel_cursor_move_t *out_move)
+void ghostcon_sixel_decode(ghostcon_sixel_state_t *st,
+                           const int32_t *dcs_params, size_t params_count,
+                           const char *body, size_t body_len,
+                           int32_t cursor_col, int32_t cursor_row,
+                           int32_t cell_w, int32_t cell_h,
+                           ghostcon_sixel_cursor_move_t *out_move)
 {
     if (out_move)
         memset(out_move, 0, sizeof *out_move);

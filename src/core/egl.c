@@ -128,9 +128,8 @@ fail_display:
     return false;
 }
 
-bool
-ghostcon_egl_init(ghostcon_egl_t *egl, const char *drm_path,
-                   uint32_t width, uint32_t height)
+bool ghostcon_egl_init(ghostcon_egl_t *egl, const char *drm_path,
+                        uint32_t width, uint32_t height)
 {
     memset(egl, 0, sizeof(*egl));
     egl->owns_gbm = true;
@@ -160,10 +159,9 @@ ghostcon_egl_init(ghostcon_egl_t *egl, const char *drm_path,
     return true;
 }
 
-bool
-ghostcon_egl_init_with_gbm(ghostcon_egl_t *egl, struct gbm_device *gbm_dev,
-                            struct gbm_surface *gbm_surf,
-                            uint32_t width, uint32_t height)
+bool ghostcon_egl_init_with_gbm(ghostcon_egl_t *egl, struct gbm_device *gbm_dev,
+                                 struct gbm_surface *gbm_surf,
+                                 uint32_t width, uint32_t height)
 {
     memset(egl, 0, sizeof(*egl));
     egl->drm_fd = -1;
@@ -178,8 +176,7 @@ ghostcon_egl_init_with_gbm(ghostcon_egl_t *egl, struct gbm_device *gbm_dev,
     return true;
 }
 
-void
-ghostcon_egl_deinit(ghostcon_egl_t *egl)
+void ghostcon_egl_deinit(ghostcon_egl_t *egl)
 {
     if (egl->display != EGL_NO_DISPLAY)
     {
@@ -202,14 +199,12 @@ ghostcon_egl_deinit(ghostcon_egl_t *egl)
     memset(egl, 0, sizeof(*egl));
 }
 
-bool
-ghostcon_egl_make_current(ghostcon_egl_t *egl)
+bool ghostcon_egl_make_current(ghostcon_egl_t *egl)
 {
     return eglMakeCurrent(egl->display, egl->surface, egl->surface, egl->context);
 }
 
-bool
-ghostcon_egl_swap(ghostcon_egl_t *egl)
+bool ghostcon_egl_swap(ghostcon_egl_t *egl)
 {
     return eglSwapBuffers(egl->display, egl->surface);
 }

@@ -16,40 +16,35 @@ ghostcon_stream_init(ghostcon_stream_t *st)
     return true;
 }
 
-void
-ghostcon_stream_deinit(ghostcon_stream_t *st)
+void ghostcon_stream_deinit(ghostcon_stream_t *st)
 {
     if (st->buf && st->buf != st->local_buf)
         free(st->buf);
     memset(st, 0, sizeof(*st));
 }
 
-void
-ghostcon_stream_set_output(ghostcon_stream_t *st,
-                           ghostcon_output_fn fn, void *userdata)
+void ghostcon_stream_set_output(ghostcon_stream_t *st,
+                                ghostcon_output_fn fn, void *userdata)
 {
     st->output_fn = fn;
     st->output_userdata = userdata;
 }
 
-void
-ghostcon_stream_set_title(ghostcon_stream_t *st,
-                          ghostcon_title_fn fn, void *userdata)
+void ghostcon_stream_set_title(ghostcon_stream_t *st,
+                               ghostcon_title_fn fn, void *userdata)
 {
     st->title_fn = fn;
     st->title_userdata = userdata;
 }
 
-void
-ghostcon_stream_set_notify(ghostcon_stream_t *st,
-                           ghostcon_notify_fn fn, void *userdata)
+void ghostcon_stream_set_notify(ghostcon_stream_t *st,
+                                ghostcon_notify_fn fn, void *userdata)
 {
     st->notify_fn = fn;
     st->notify_userdata = userdata;
 }
 
-void
-ghostcon_stream_set_cell_size(ghostcon_stream_t *st, int32_t cell_w, int32_t cell_h)
+void ghostcon_stream_set_cell_size(ghostcon_stream_t *st, int32_t cell_w, int32_t cell_h)
 {
     st->cell_w = cell_w;
     st->cell_h = cell_h;
@@ -114,8 +109,7 @@ static const uint8_t utf8_transitions[108] = {
  * the byte was consumed (false only on mid-sequence reject, in which case
  * the caller must retry the same byte).
  */
-static inline bool
-utf8_next(ghostcon_stream_t *st, uint8_t byte, uint32_t *cp)
+static inline bool utf8_next(ghostcon_stream_t *st, uint8_t byte, uint32_t *cp)
 {
     const uint8_t cls = utf8_char_classes[byte];
     const uint8_t initial_state = st->utf8_state;
@@ -152,8 +146,7 @@ utf8_next(ghostcon_stream_t *st, uint8_t byte, uint32_t *cp)
 }
 
 /* Execute a C0 control character (mirrors Ghostty's stream.execute). */
-static void
-stream_execute_c0(ghostcon_stream_t *st, ghostcon_screen_t *s, uint8_t c)
+static void stream_execute_c0(ghostcon_stream_t *st, ghostcon_screen_t *s, uint8_t c)
 {
     (void)st;
     switch (c)
@@ -174,8 +167,7 @@ stream_execute_c0(ghostcon_stream_t *st, ghostcon_screen_t *s, uint8_t c)
 /* Route a decoded codepoint: ESC to escape state, C0 to execute, DEL
  * ignored, everything else printed.
  */
-static void
-stream_handle_codepoint(ghostcon_stream_t *st, ghostcon_screen_t *s, uint32_t cp)
+static void stream_handle_codepoint(ghostcon_stream_t *st, ghostcon_screen_t *s, uint32_t cp)
 {
     if (cp == 0x1B)
     {
@@ -191,8 +183,7 @@ stream_handle_codepoint(ghostcon_stream_t *st, ghostcon_screen_t *s, uint32_t cp
     ghostcon_screen_put_char(s, cp);
 }
 
-void
-ghostcon_stream_reset(ghostcon_stream_t *st)
+void ghostcon_stream_reset(ghostcon_stream_t *st)
 {
     st->state = GC_STREAM_GROUND;
     st->intermediates_idx = 0;
@@ -211,10 +202,9 @@ ghostcon_stream_reset(ghostcon_stream_t *st)
 
 /* Main state machine — per-byte processing */
 
-void
-ghostcon_stream_process_byte(ghostcon_stream_t *st,
-                             uint8_t c,
-                             ghostcon_screen_t *s)
+void ghostcon_stream_process_byte(ghostcon_stream_t *st,
+                                  uint8_t c,
+                                  ghostcon_screen_t *s)
 {
     /* 8-bit C1 controls (0x80-0x9F). In ground state these bytes are UTF-8
      * continuation/lead bytes and are handled by the UTF-8 decoder
@@ -756,10 +746,9 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
     }
 }
 
-void
-ghostcon_stream_process(ghostcon_stream_t *st,
-                        const uint8_t *data, size_t len,
-                        ghostcon_screen_t *s)
+void ghostcon_stream_process(ghostcon_stream_t *st,
+                             const uint8_t *data, size_t len,
+                             ghostcon_screen_t *s)
 {
     for (size_t i = 0; i < len; i++)
         ghostcon_stream_process_byte(st, data[i], s);

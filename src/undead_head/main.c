@@ -102,8 +102,7 @@ apply_restart_backoff(time_t *last_death, int *backoff, const char *what)
  * back to the bare name (PATH lookup) only if /proc/self/exe itself is
  * unavailable.
  */
-static void
-resolve_sibling_path(char *out, size_t out_len, const char *name)
+static void resolve_sibling_path(char *out, size_t out_len, const char *name)
 {
     char self_path[4096];
     ssize_t n = readlink("/proc/self/exe", self_path, sizeof(self_path) - 1);
@@ -126,8 +125,7 @@ resolve_sibling_path(char *out, size_t out_len, const char *name)
 
 static volatile sig_atomic_t g_shutdown_requested = 0;
 
-static void
-term_handler(int signum)
+static void term_handler(int signum)
 {
     (void)signum;
     g_shutdown_requested = 1;
@@ -144,8 +142,7 @@ term_handler(int signum)
  */
 static int g_chld_pipe[2] = { -1, -1 };
 
-static void
-chld_signal_handler(int signum)
+static void chld_signal_handler(int signum)
 {
     (void)signum;
     char c = 'C';
@@ -153,8 +150,7 @@ chld_signal_handler(int signum)
     (void)unused;
 }
 
-static pid_t
-fork_ghost_ptyserv(const char *registry_socket, const int *vts, int n_vts)
+static pid_t fork_ghost_ptyserv(const char *registry_socket, const int *vts, int n_vts)
 {
     pid_t pid = fork();
     if (pid < 0)
@@ -193,8 +189,7 @@ fork_ghost_ptyserv(const char *registry_socket, const int *vts, int n_vts)
     return pid;
 }
 
-static pid_t
-fork_supervisor(int vtnum, const char *registry_socket)
+static pid_t fork_supervisor(int vtnum, const char *registry_socket)
 {
     pid_t pid = fork();
     if (pid < 0)
@@ -233,8 +228,7 @@ fork_supervisor(int vtnum, const char *registry_socket)
     return pid;
 }
 
-static void
-kill_group(pid_t pid)
+static void kill_group(pid_t pid)
 {
     if (pid <= 0)
         return;
@@ -254,8 +248,7 @@ kill_group(pid_t pid)
     kill(-pid, SIGTERM);
 }
 
-int
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     if (argc < 3)
     {

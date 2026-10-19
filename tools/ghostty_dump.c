@@ -61,8 +61,7 @@ dump_cell(GhosttyTerminal term, uint16_t x, uint16_t y)
            x, y, cp, wide, prot, styled);
 }
 
-int
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     if (argc != 4)
     {

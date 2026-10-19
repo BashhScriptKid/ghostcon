@@ -41,15 +41,13 @@
 static struct termios g_orig_termios;
 static bool g_termios_saved = false;
 
-static void
-restore_termios(void)
+static void restore_termios(void)
 {
     if (g_termios_saved)
         tcsetattr(STDIN_FILENO, TCSANOW, &g_orig_termios);
 }
 
-static void
-disable_echo(void)
+static void disable_echo(void)
 {
     if (!isatty(STDIN_FILENO))
         return;
@@ -62,8 +60,7 @@ disable_echo(void)
     tcsetattr(STDIN_FILENO, TCSANOW, &raw);
 }
 
-static void
-banner(const char *title, const char *desc)
+static void banner(const char *title, const char *desc)
 {
     printf(ESC "[2J" ESC "[H");
     printf(ESC "[1;97;44m %s " ESC "[0m\r\n", title);
@@ -82,8 +79,7 @@ banner(const char *title, const char *desc)
     fflush(stdout);
 }
 
-static void
-wait_enter(void)
+static void wait_enter(void)
 {
     printf("\r\n" ESC "[90m-- done, press Enter to continue --" ESC "[0m");
     fflush(stdout);
@@ -100,8 +96,7 @@ wait_enter(void)
  * with plain log lines that scroll normally, so the spinner line keeps
  * moving down the screen as it's rewritten.
  */
-static void
-page_cr_redraw(void)
+static void page_cr_redraw(void)
 {
     banner("cr_redraw", "Bare \\r progress-line redraw interleaved with scrolling log lines.");
     static const char spin[] = "|/-\\";
@@ -130,8 +125,7 @@ page_cr_redraw(void)
  * rows (a fixed status/input area), redrawn via CNL (CSI E) on every tick
  * while unrelated content scrolls in the region above.
  */
-static void
-page_scroll_status_bar(void)
+static void page_scroll_status_bar(void)
 {
     banner("scroll_status_bar", "Scroll region excludes bottom 2 rows; status area redrawn via CNL each tick.");
     printf(ESC "[1;22r");   /* reserve the last 2 of 24 rows */
@@ -162,8 +156,7 @@ page_scroll_status_bar(void)
 /* A large (>4KB, so it spans multiple pty reads) diff wrapped in mode 2026
  * -- should present atomically, no visible tearing.
  */
-static void
-page_sync_output(void)
+static void page_sync_output(void)
 {
     banner("sync_output", "Large (>4KB) screen diff wrapped in CSI ?2026h ... ?2026l.");
     for (int rep = 0; rep < 3; rep++)
@@ -185,8 +178,7 @@ page_sync_output(void)
 /* Repeated ?1049h/l (vim/htop/less convention) -- cursor position on the
  * main screen must survive the round-trip.
  */
-static void
-page_alt_screen(void)
+static void page_alt_screen(void)
 {
     banner("alt_screen", "Repeated ?1049h/l alt-screen enter/exit; cursor position must be preserved.");
     printf("main screen text before\r\n");
@@ -207,8 +199,7 @@ page_alt_screen(void)
     printf(" <- cursor should be right here on the main screen\r\n");
 }
 
-static void
-page_insert_delete_lines(void)
+static void page_insert_delete_lines(void)
 {
     banner("insert_delete_lines", "IL (CSI L) / DL (CSI M) exercised directly.");
     printf(ESC "[H");
@@ -228,8 +219,7 @@ page_insert_delete_lines(void)
     printf(ESC "[12;1H");
 }
 
-static void
-page_insert_delete_chars(void)
+static void page_insert_delete_chars(void)
 {
     banner("insert_delete_chars", "ICH (CSI @) / DCH (CSI P) exercised directly.");
     printf(ESC "[H" "0123456789ABCDEFGHIJ\r\n");
@@ -240,8 +230,7 @@ page_insert_delete_chars(void)
     printf(ESC "[2;5H" ESC "[5P");           /* delete 5 chars at col 5 */
 }
 
-static void
-page_erase_modes(void)
+static void page_erase_modes(void)
 {
     banner("erase_modes", "EL (CSI K) and ED (CSI J) -- all param modes, including scrollback erase.");
     printf(ESC "[H");
@@ -264,8 +253,7 @@ page_erase_modes(void)
     printf(ESC "[H" ESC "[2J" "scrollback erased (ED 3) -- scroll up should show nothing above\r\n");
 }
 
-static void
-page_cursor_save_restore(void)
+static void page_cursor_save_restore(void)
 {
     banner("cursor_save_restore", "Bare ESC 7 / ESC 8 (DECSC/DECRC), distinct from the ?1048/?1049 variants.");
     printf(ESC "[H" "line one\r\nline two: ");
@@ -277,8 +265,7 @@ page_cursor_save_restore(void)
     printf("<- cursor restored here");
 }
 
-static void
-page_dectcem_toggle(void)
+static void page_dectcem_toggle(void)
 {
     banner("dectcem_toggle", "Rapid cursor show/hide (?25h/l), common while a spinner animates.");
     printf(ESC "[H" "watch the cursor: ");
@@ -295,8 +282,7 @@ page_dectcem_toggle(void)
     printf("\r\ndone\r\n");
 }
 
-static void
-page_wide_chars(void)
+static void page_wide_chars(void)
 {
     banner("wide_chars", "CJK/emoji double-width cells mixed with normal text.");
     printf(ESC "[H");
@@ -304,8 +290,7 @@ page_wide_chars(void)
     printf("second row: \xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e mixed with ASCII abc123\r\n");
 }
 
-static void
-page_scrollback(void)
+static void page_scrollback(void)
 {
     banner("scrollback", "Push enough lines to exercise history push/scroll-up repeatedly.");
     for (int i = 0; i < 200; i++)
@@ -313,8 +298,7 @@ page_scrollback(void)
     fflush(stdout);
 }
 
-static void
-page_origin_mode(void)
+static void page_origin_mode(void)
 {
     banner("origin_mode", "DECOM (?6h/l) on/off cursor-positioning boundary checks.");
     printf(ESC "[5;20r");   /* scroll region rows 5-20 */
@@ -327,8 +311,7 @@ page_origin_mode(void)
     printf(ESC "[H" "origin-mode off, home is real row 1 now\r\n");
 }
 
-static void
-page_hyperlinks(void)
+static void page_hyperlinks(void)
 {
     banner("hyperlinks", "OSC 8 hyperlinks.");
     printf(ESC "[H");
@@ -336,8 +319,7 @@ page_hyperlinks(void)
     printf("plain text after the link\r\n");
 }
 
-static void
-page_mouse_reporting(void)
+static void page_mouse_reporting(void)
 {
     banner("mouse_reporting", "Enable/disable each mouse mode (no synthetic events -- move the mouse if you want to check reports).");
     const int modes[] = { 1000, 1002, 1003 };
@@ -351,8 +333,7 @@ page_mouse_reporting(void)
     }
 }
 
-static void
-page_osc_title_color(void)
+static void page_osc_title_color(void)
 {
     banner("osc_title_color", "OSC 0/2 window title, OSC 4/10/11 palette set/query.");
     printf(ESC "]0;tui_torture demo title" ESC "\\");
@@ -363,8 +344,7 @@ page_osc_title_color(void)
     printf("queried fg/bg color (OSC 10/11 -- reply goes back to this pty, not visible here)\r\n");
 }
 
-static void
-page_kitty_keyboard(void)
+static void page_kitty_keyboard(void)
 {
     banner("kitty_keyboard", "CSI > u push / = u set / ? u query / < u pop.");
     printf(ESC "[>1u");
@@ -377,8 +357,7 @@ page_kitty_keyboard(void)
     printf("popped kitty flags\r\n");
 }
 
-static void
-page_sgr_styles(void)
+static void page_sgr_styles(void)
 {
     banner("sgr_styles", "Bold/italic/underline/strikethrough/dim, 256-color, truecolor.");
     printf(ESC "[1mbold" ESC "[0m ");
@@ -393,8 +372,7 @@ page_sgr_styles(void)
     printf(ESC "[48;2;0;100;255mtruecolor bg" ESC "[0m\r\n");
 }
 
-static void
-page_tabs(void)
+static void page_tabs(void)
 {
     banner("tabs", "HT (\\t), HTS (ESC H), TBC (CSI g).");
     printf(ESC "[H" "a\tb\tc\td\r\n");
@@ -406,8 +384,7 @@ page_tabs(void)
     printf(ESC "[3g");          /* TBC 3: clear all tab stops */
 }
 
-static void
-page_margins_declrm(void)
+static void page_margins_declrm(void)
 {
     banner("margins_declrm", "DECSLRM left/right margins (mode 69).");
     printf(ESC "[?69h");        /* enable left/right margin mode */
@@ -423,8 +400,7 @@ page_margins_declrm(void)
 /* Fires several mechanisms nested/back-to-back -- real bugs often only
  * surface from combinations, not any single feature in isolation.
  */
-static void
-page_combined_stress(void)
+static void page_combined_stress(void)
 {
     banner("combined_stress", "Sync-output wrapping a scroll-region status-bar redraw wrapping alt-screen dips.");
     printf(ESC "[1;20r");
@@ -495,8 +471,7 @@ list_pages(void)
         printf("%-20s %s\n", pages[i].name, pages[i].desc);
 }
 
-static void
-run_page(const page_t *p, bool interactive)
+static void run_page(const page_t *p, bool interactive)
 {
     p->fn();
     if (interactive)
@@ -505,8 +480,7 @@ run_page(const page_t *p, bool interactive)
         fflush(stdout);
 }
 
-int
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     if (argc > 1 && (strcmp(argv[1], "--list") == 0 || strcmp(argv[1], "-l") == 0))
     {

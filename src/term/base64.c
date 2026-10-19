@@ -3,8 +3,7 @@
 static const char B64_ALPHABET[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-size_t
-ghostcon_base64_encode(const uint8_t *data, size_t len, char *out, size_t out_len)
+size_t ghostcon_base64_encode(const uint8_t *data, size_t len, char *out, size_t out_len)
 {
     size_t need = ((len + 2) / 3) * 4;
     if (out_len < need + 1)
@@ -41,8 +40,7 @@ ghostcon_base64_encode(const uint8_t *data, size_t len, char *out, size_t out_le
     return oi;
 }
 
-static int
-b64_val(char c)
+static int b64_val(char c)
 {
     if (c >= 'A' && c <= 'Z') return c - 'A';
     if (c >= 'a' && c <= 'z') return c - 'a' + 26;
@@ -52,8 +50,7 @@ b64_val(char c)
     return -1; /* invalid/whitespace/padding -- caller skips */
 }
 
-size_t
-ghostcon_base64_decode(const char *in, uint8_t *out, size_t out_len)
+size_t ghostcon_base64_decode(const char *in, uint8_t *out, size_t out_len)
 {
     size_t oi = 0;
     uint32_t acc = 0;

@@ -23,16 +23,14 @@ ghostcon_row_init(uint16_t cols)
     return row;
 }
 
-void
-ghostcon_row_deinit(ghostcon_row_t *row)
+void ghostcon_row_deinit(ghostcon_row_t *row)
 {
     free(row->cells);
     row->cells = NULL;
     row->cols = 0;
 }
 
-bool
-ghostcon_row_resize(ghostcon_row_t *row, uint16_t new_cols)
+bool ghostcon_row_resize(ghostcon_row_t *row, uint16_t new_cols)
 {
     if (new_cols == row->cols)
         return true;
@@ -54,8 +52,7 @@ ghostcon_row_resize(ghostcon_row_t *row, uint16_t new_cols)
     return true;
 }
 
-void
-ghostcon_row_fill_range(ghostcon_row_t *row, uint16_t left, uint16_t end, ghostcon_cell_t fill)
+void ghostcon_row_fill_range(ghostcon_row_t *row, uint16_t left, uint16_t end, ghostcon_cell_t fill)
 {
     if (left >= row->cols || end > row->cols || left >= end)
         return;
@@ -74,14 +71,12 @@ ghostcon_row_fill_range(ghostcon_row_t *row, uint16_t left, uint16_t end, ghostc
     }
 }
 
-void
-ghostcon_row_clear_range(ghostcon_row_t *row, uint16_t left, uint16_t end)
+void ghostcon_row_clear_range(ghostcon_row_t *row, uint16_t left, uint16_t end)
 {
     ghostcon_row_fill_range(row, left, end, (ghostcon_cell_t){0});
 }
 
-void
-ghostcon_row_fill(ghostcon_row_t *row, ghostcon_cell_t fill)
+void ghostcon_row_fill(ghostcon_row_t *row, ghostcon_cell_t fill)
 {
     ghostcon_row_fill_range(row, 0, row->cols, fill);
 
@@ -94,14 +89,12 @@ ghostcon_row_fill(ghostcon_row_t *row, ghostcon_cell_t fill)
     row->wrap_continuation = false;
 }
 
-void
-ghostcon_row_clear(ghostcon_row_t *row)
+void ghostcon_row_clear(ghostcon_row_t *row)
 {
     ghostcon_row_fill(row, (ghostcon_cell_t){0});
 }
 
-void
-ghostcon_row_fill_range_unprotected(ghostcon_row_t *row, uint16_t left, uint16_t end, ghostcon_cell_t fill)
+void ghostcon_row_fill_range_unprotected(ghostcon_row_t *row, uint16_t left, uint16_t end, ghostcon_cell_t fill)
 {
     if (left >= row->cols || end > row->cols || left >= end)
         return;
@@ -114,8 +107,7 @@ ghostcon_row_fill_range_unprotected(ghostcon_row_t *row, uint16_t left, uint16_t
     row->dirty = true;
 }
 
-void
-ghostcon_row_clear_range_unprotected(ghostcon_row_t *row, uint16_t left, uint16_t end)
+void ghostcon_row_clear_range_unprotected(ghostcon_row_t *row, uint16_t left, uint16_t end)
 {
     ghostcon_row_fill_range_unprotected(row, left, end, (ghostcon_cell_t){0});
 }

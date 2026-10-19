@@ -14,25 +14,22 @@
  */
 static const char ligature_trigger_chars[] = "!#$%&*+-./:<=>?@^|~";
 
-static bool
-is_ligature_trigger(uint32_t cp)
+static bool is_ligature_trigger(uint32_t cp)
 {
     if (cp == 0 || cp > 0x7F)
         return false;
     return memchr(ligature_trigger_chars, (int)cp, sizeof(ligature_trigger_chars) - 1) != NULL;
 }
 
-static uint32_t
-cell_codepoint_or_zero(ghostcon_cell_t cell)
+static uint32_t cell_codepoint_or_zero(ghostcon_cell_t cell)
 {
     ghostcon_cell_content_tag_t tag = ghostcon_cell_get_tag(cell);
     return (tag == GHOSTCON_CELL_CODEPOINT || tag == GHOSTCON_CELL_CODEPOINT_GRAPHEME)
         ? ghostcon_cell_get_codepoint(cell) : 0;
 }
 
-int
-ghostcon_ligature_scan_row(const ghostcon_row_t *row, ghostcon_atlas_t *atlas,
-                            ghostcon_ligature_glyph_t *out_glyphs, int max_glyphs)
+int ghostcon_ligature_scan_row(const ghostcon_row_t *row, ghostcon_atlas_t *atlas,
+                                ghostcon_ligature_glyph_t *out_glyphs, int max_glyphs)
 {
     int n_out = 0;
     uint16_t x = 0;

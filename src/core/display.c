@@ -42,10 +42,9 @@ struct ghostcon_display {
     ghostcon_cursor_state_t cursor_state;
 };
 
-static void
-load_cursor_state(ghostcon_display_t *disp, ghostcon_cursor_state_t state,
-                  const char *override_path, const char *hot_pos_str,
-                  const char **theme_names, size_t n_theme_names, int cell_h)
+static void load_cursor_state(ghostcon_display_t *disp, ghostcon_cursor_state_t state,
+                              const char *override_path, const char *hot_pos_str,
+                              const char **theme_names, size_t n_theme_names, int cell_h)
 {
     uint32_t w = 0, h = 0, hot_x = 0, hot_y = 0;
     uint32_t *pixels = NULL;
@@ -136,8 +135,7 @@ load_cursor_state(ghostcon_display_t *disp, ghostcon_cursor_state_t state,
     free(pixels);
 }
 
-void
-ghostcon_display_reload_cursor(ghostcon_display_t *disp, int cell_h)
+void ghostcon_display_reload_cursor(ghostcon_display_t *disp, int cell_h)
 {
     if (!disp || !disp->acquired)
         return;
@@ -155,10 +153,9 @@ ghostcon_display_reload_cursor(ghostcon_display_t *disp, int cell_h)
     GC_LOG(cursor, "reloaded sprites for cell_h=%d", cell_h);
 }
 
-void
-ghostcon_display_configure_cursor(ghostcon_display_t *disp,
-                                  const ghostcon_display_cursor_config_t *cfg,
-                                  int cell_h)
+void ghostcon_display_configure_cursor(ghostcon_display_t *disp,
+                                       const ghostcon_display_cursor_config_t *cfg,
+                                       int cell_h)
 {
     if (!disp || !cfg)
         return;
@@ -185,8 +182,7 @@ ghostcon_display_create(const char *drm_node, int vt_num, bool gamma_correct)
     return disp;
 }
 
-void
-ghostcon_display_destroy(ghostcon_display_t *disp)
+void ghostcon_display_destroy(ghostcon_display_t *disp)
 {
     if (!disp)
         return;
@@ -200,33 +196,28 @@ ghostcon_display_destroy(ghostcon_display_t *disp)
     free(disp);
 }
 
-bool
-ghostcon_display_is_acquired(const ghostcon_display_t *disp)
+bool ghostcon_display_is_acquired(const ghostcon_display_t *disp)
 {
     return disp && disp->acquired;
 }
 
-uint32_t
-ghostcon_display_width(const ghostcon_display_t *disp)
+uint32_t ghostcon_display_width(const ghostcon_display_t *disp)
 {
     return disp && disp->acquired ? disp->kms.width : 0;
 }
 
-uint32_t
-ghostcon_display_height(const ghostcon_display_t *disp)
+uint32_t ghostcon_display_height(const ghostcon_display_t *disp)
 {
     return disp && disp->acquired ? disp->kms.height : 0;
 }
 
-void
-ghostcon_display_move_cursor(ghostcon_display_t *disp, int x, int y)
+void ghostcon_display_move_cursor(ghostcon_display_t *disp, int x, int y)
 {
     if (disp && disp->acquired)
         ghostcon_kms_move_cursor(&disp->kms, x, y);
 }
 
-void
-ghostcon_display_set_cursor_state(ghostcon_display_t *disp, ghostcon_cursor_state_t state)
+void ghostcon_display_set_cursor_state(ghostcon_display_t *disp, ghostcon_cursor_state_t state)
 {
     if (!disp || !disp->acquired)
         return;
@@ -246,8 +237,7 @@ ghostcon_display_get_cursor_state(const ghostcon_display_t *disp)
     return disp ? disp->cursor_state : GC_CURSOR_STATE_DEFAULT;
 }
 
-void
-ghostcon_display_set_gamma_correct(ghostcon_display_t *disp, bool gamma_correct)
+void ghostcon_display_set_gamma_correct(ghostcon_display_t *disp, bool gamma_correct)
 {
     if (!disp)
         return;
@@ -256,15 +246,13 @@ ghostcon_display_set_gamma_correct(ghostcon_display_t *disp, bool gamma_correct)
         ghostcon_gles_set_gamma_correct(disp->gles, gamma_correct);
 }
 
-void
-ghostcon_display_sync_atlas(ghostcon_display_t *disp, ghostcon_atlas_t *atlas, bool force)
+void ghostcon_display_sync_atlas(ghostcon_display_t *disp, ghostcon_atlas_t *atlas, bool force)
 {
     if (disp && disp->gles && atlas)
         ghostcon_gles_sync_atlas(disp->gles, atlas, force);
 }
 
-void
-ghostcon_display_release(ghostcon_display_t *disp)
+void ghostcon_display_release(ghostcon_display_t *disp)
 {
     if (!disp || !disp->acquired)
         return;
@@ -288,9 +276,8 @@ ghostcon_display_release(ghostcon_display_t *disp)
     ghostcon_diag_log_warning("vt %d: display released", disp->vt_num);
 }
 
-bool
-ghostcon_display_acquire(ghostcon_display_t *disp, int cell_h, ghostcon_atlas_t *atlas,
-                         uint32_t *out_width, uint32_t *out_height)
+bool ghostcon_display_acquire(ghostcon_display_t *disp, int cell_h, ghostcon_atlas_t *atlas,
+                              uint32_t *out_width, uint32_t *out_height)
 {
     if (!disp)
         return false;
@@ -384,10 +371,9 @@ fail:
     return false;
 }
 
-bool
-ghostcon_display_render_frame(ghostcon_display_t *disp, ghostcon_screen_t *screen,
-                              ghostcon_atlas_t *atlas, int cell_w, int cell_h,
-                              bool ligatures, bool screenshot_requested)
+bool ghostcon_display_render_frame(ghostcon_display_t *disp, ghostcon_screen_t *screen,
+                                   ghostcon_atlas_t *atlas, int cell_w, int cell_h,
+                                   bool ligatures, bool screenshot_requested)
 {
     if (!disp || !disp->acquired || !disp->gles || !screen || !atlas)
         return false;

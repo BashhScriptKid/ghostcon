@@ -19,8 +19,7 @@ fill_rect(uint8_t *alpha, int cell_w, int cell_h,
 
 /* Block Elements, U+2580-259F */
 
-static bool
-render_block_element(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
+static bool render_block_element(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
 {
     if (cp == 0x2580)
     { /* upper half block */
@@ -92,8 +91,7 @@ render_block_element(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
  * existing characters.
  */
 
-static bool
-render_sextant(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
+static bool render_sextant(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
 {
     if (cp < 0x1fb00 || cp > 0x1fb3b)
         return false;
@@ -225,8 +223,7 @@ render_box_line(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
  * plain rectangle-fill primitives.
  */
 
-static bool
-render_rounded_corner(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
+static bool render_rounded_corner(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
 {
     /* sx/sy: which side of center this corner's arms extend toward. */
     int sx, sy;
@@ -282,8 +279,7 @@ render_rounded_corner(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
 
 /* ------------------------------------------------------------------ */
 
-bool
-ghostcon_box_draw_render(uint32_t codepoint, int cell_w, int cell_h, uint8_t *alpha)
+bool ghostcon_box_draw_render(uint32_t codepoint, int cell_w, int cell_h, uint8_t *alpha)
 {
     memset(alpha, 0, (size_t)cell_w * (size_t)cell_h);
 

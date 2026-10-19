@@ -47,8 +47,7 @@ wait_for_substring(ghostcon_transport_t *t, const char *needle, int timeout_ms)
     }
 }
 
-int
-main(void)
+int main(void)
 {
     const char *ptyserv_bin = getenv("GHOSTCON_PTYSERV_BIN");
     if (!ptyserv_bin)

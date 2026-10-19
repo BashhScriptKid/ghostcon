@@ -30,8 +30,7 @@ static const int FATAL_SIGNALS[] = { SIGSEGV, SIGABRT, SIGFPE, SIGILL, SIGBUS };
  * malloc, writes raw fd) and is what still gets the full trace out even if
  * the journald send above it fails or backtrace_symbols() itself faults.
  */
-static void
-crash_handler(int signum)
+static void crash_handler(int signum)
 {
     void *frames[GHOSTCON_DIAG_MAX_FRAMES];
     int n = backtrace(frames, GHOSTCON_DIAG_MAX_FRAMES);
@@ -73,8 +72,7 @@ crash_handler(int signum)
     raise(signum);
 }
 
-void
-ghostcon_diag_init(const char *component, int vt_num)
+void ghostcon_diag_init(const char *component, int vt_num)
 {
     g_component = component;
     g_vt_num = vt_num;
@@ -92,8 +90,7 @@ ghostcon_diag_init(const char *component, int vt_num)
         sigaction(FATAL_SIGNALS[i], &sa, NULL);
 }
 
-void
-ghostcon_diag_log_warning(const char *fmt, ...)
+void ghostcon_diag_log_warning(const char *fmt, ...)
 {
     char msg[1024];
     va_list ap;

@@ -44,8 +44,7 @@ check_parse(const char *spec, bool expect_ok, uint8_t r, uint8_t g, uint8_t b, c
 static char g_output_buf[512];
 static size_t g_output_len;
 
-static void
-capture_output(void *userdata, const uint8_t *data, size_t len)
+static void capture_output(void *userdata, const uint8_t *data, size_t len)
 {
     (void)userdata;
     size_t n = len;
@@ -58,16 +57,14 @@ capture_output(void *userdata, const uint8_t *data, size_t len)
 static char g_title_buf[256];
 static bool g_title_called;
 
-static void
-capture_title(void *userdata, const char *title)
+static void capture_title(void *userdata, const char *title)
 {
     (void)userdata;
     g_title_called = true;
     snprintf(g_title_buf, sizeof(g_title_buf), "%s", title);
 }
 
-int
-main(void)
+int main(void)
 {
     /* --- color-spec parser, in isolation --- */
     check_parse("#f00", true, 0xff, 0x00, 0x00, "#RGB short red");

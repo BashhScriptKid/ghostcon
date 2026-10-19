@@ -25,8 +25,7 @@ rgb_eq(GhosttyColorRgb a, GhosttyColorRgb b)
     return a.r == b.r && a.g == b.g && a.b == b.b;
 }
 
-int
-main(void)
+int main(void)
 {
     const char *presets[] = {
         "base16-dark", "base16-light", "solarized-dark", "solarized-light",

@@ -66,8 +66,7 @@ spawn_supervisor_with_registry(int *out_stderr_fd, const char *registry_socket)
  * this placeholder path is a deliberate no-op destination, not a real
  * socket anything connects to.
  */
-static pid_t
-spawn_supervisor(int *out_stderr_fd)
+static pid_t spawn_supervisor(int *out_stderr_fd)
 {
     return spawn_supervisor_with_registry(out_stderr_fd, "/tmp/ghostcon-test-supervisor-unused.sock");
 }
@@ -75,8 +74,7 @@ spawn_supervisor(int *out_stderr_fd)
 /* Reads supervisor's stderr until `needle` appears or the deadline expires.
  * Returns true on match.
  */
-static bool
-wait_for_log(int fd, const char *needle, int timeout_ms)
+static bool wait_for_log(int fd, const char *needle, int timeout_ms)
 {
     char acc[8192];
     size_t acc_len = 0;
@@ -127,9 +125,8 @@ wait_for_log(int fd, const char *needle, int timeout_ms)
  * captured alongside the needle (e.g. a trailing pid via sscanf), and the
  * next call won't re-match the same occurrence.
  */
-static bool
-wait_for_log_seq(int fd, char *buf, size_t buf_cap, size_t *len,
-                 size_t *search_from, const char *needle, int timeout_ms)
+static bool wait_for_log_seq(int fd, char *buf, size_t buf_cap, size_t *len,
+                             size_t *search_from, const char *needle, int timeout_ms)
 {
     struct timespec deadline;
     clock_gettime(CLOCK_MONOTONIC, &deadline);
@@ -164,8 +161,7 @@ wait_for_log_seq(int fd, char *buf, size_t buf_cap, size_t *len,
     }
 }
 
-static int
-connect_unix(const char *path)
+static int connect_unix(const char *path)
 {
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0)
@@ -187,8 +183,7 @@ connect_unix(const char *path)
  * scenario_hang_preserves_session below, which has to observe a REAL pty
  * child surviving a hang, not just the canary protocol.
  */
-static pid_t
-spawn_ghost_ptyserv(const char *registry_socket, int vtnum)
+static pid_t spawn_ghost_ptyserv(const char *registry_socket, int vtnum)
 {
     const char *bin = getenv("GHOSTCON_PTYSERV_BIN");
     if (!bin)
@@ -220,8 +215,7 @@ spawn_ghost_ptyserv(const char *registry_socket, int vtnum)
     return -1;
 }
 
-static void
-kill_supervisor_tree(pid_t pid)
+static void kill_supervisor_tree(pid_t pid)
 {
     if (pid <= 0)
         return;
@@ -233,8 +227,7 @@ kill_supervisor_tree(pid_t pid)
 
 static int failures = 0;
 
-static void
-scenario_healthy(void)
+static void scenario_healthy(void)
 {
     setenv("GHOSTCON_CANARY_DEADLINE_MS", "300", 1);
     unsetenv("FAKE_RENDERER_HANG_AFTER_MS");
@@ -264,8 +257,7 @@ scenario_healthy(void)
     close(stderr_fd);
 }
 
-static void
-scenario_hang_and_respawn(void)
+static void scenario_hang_and_respawn(void)
 {
     setenv("GHOSTCON_CANARY_DEADLINE_MS", "300", 1);
     setenv("FAKE_RENDERER_HANG_AFTER_MS", "150", 1);
@@ -307,8 +299,7 @@ scenario_hang_and_respawn(void)
     close(stderr_fd);
 }
 
-static void
-scenario_clean_exit_respawn(void)
+static void scenario_clean_exit_respawn(void)
 {
     setenv("GHOSTCON_CANARY_DEADLINE_MS", "300", 1);
     unsetenv("FAKE_RENDERER_HANG_AFTER_MS");
@@ -341,8 +332,7 @@ scenario_clean_exit_respawn(void)
     close(stderr_fd);
 }
 
-static void
-scenario_startup_timeout_fallback(void)
+static void scenario_startup_timeout_fallback(void)
 {
     char run_dir[] = "/tmp/ghostcon-test-supervisor-rundir-XXXXXX";
     if (!mkdtemp(run_dir))
@@ -439,8 +429,7 @@ cleanup:
  * ring-buffer replay actually contains output from BEFORE the hang --
  * proving session continuity, not just "a shell appeared."
  */
-static void
-scenario_hang_preserves_session(void)
+static void scenario_hang_preserves_session(void)
 {
     int pid1 = -1; /* real pty child pid, set once the first instance
                        reports it -- declared up here (not at its
@@ -679,8 +668,7 @@ cleanup_rundir:
  * path skips the rate-limit bookkeeping entirely, so it can never be used
  * to test the limiter itself).
  */
-static void
-scenario_wall_rate_limit(void)
+static void scenario_wall_rate_limit(void)
 {
     setenv("GHOSTCON_CANARY_DEADLINE_MS", "200", 1);
     setenv("FAKE_RENDERER_HANG_AFTER_MS", "100", 1);
@@ -766,8 +754,7 @@ cleanup:
     setenv("GHOSTCON_DISABLE_WALL", "1", 1); /* restore the default every other scenario expects */
 }
 
-int
-main(void)
+int main(void)
 {
     const char *supervisor_bin = getenv("SUPERVISOR_BIN");
     const char *renderer_bin = getenv("GHOSTCON_CORE_BIN");

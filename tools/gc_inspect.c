@@ -54,8 +54,7 @@ tag_name(ghostcon_cell_content_tag_t tag)
     return "?";
 }
 
-static const char *
-wide_name(ghostcon_cell_wide_t wide)
+static const char *wide_name(ghostcon_cell_wide_t wide)
 {
     switch (wide)
     {
@@ -67,8 +66,7 @@ wide_name(ghostcon_cell_wide_t wide)
     return "?";
 }
 
-static const char *
-semantic_name(ghostcon_cell_semantic_t sem)
+static const char *semantic_name(ghostcon_cell_semantic_t sem)
 {
     switch (sem)
     {
@@ -79,8 +77,7 @@ semantic_name(ghostcon_cell_semantic_t sem)
     return "?";
 }
 
-static const char *
-cursor_style_name(ghostcon_cursor_style_t style)
+static const char *cursor_style_name(ghostcon_cursor_style_t style)
 {
     switch (style)
     {
@@ -99,8 +96,7 @@ cursor_style_name(ghostcon_cursor_style_t style)
  * field, escaping anything non-printable as \xNN so one cell always
  * occupies exactly one output line.
  */
-static void
-print_char_field(uint32_t cp)
+static void print_char_field(uint32_t cp)
 {
     if (cp == 0 || cp < 0x20 || cp == 0x7F)
     {
@@ -139,8 +135,7 @@ print_char_field(uint32_t cp)
     printf("'%s'", buf);
 }
 
-static void
-dump_cells(ghostcon_screen_t *s)
+static void dump_cells(ghostcon_screen_t *s)
 {
     printf("grid: %ux%u scrollback=%u view_offset=%u alt_screen=%d\n",
            s->cols, s->rows_visible, s->history_count, s->view_offset,
@@ -217,8 +212,7 @@ dump_cells(ghostcon_screen_t *s)
     }
 }
 
-static bool
-feed_file(ghostcon_term_t *term, const char *path)
+static bool feed_file(ghostcon_term_t *term, const char *path)
 {
     FILE *f = strcmp(path, "-") == 0 ? stdin : fopen(path, "rb");
     if (!f)
@@ -240,16 +234,14 @@ feed_file(ghostcon_term_t *term, const char *path)
     return ok;
 }
 
-static void
-usage(const char *argv0)
+static void usage(const char *argv0)
 {
     fprintf(stderr,
         "usage: %s [--cols N] [--rows N] [--scrollback N] "
         "[--offset N] [--dump-cells] <file.raw|->\n", argv0);
 }
 
-int
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     uint16_t cols = 80, rows = 24, scrollback = 2000;
     int offset = 0;

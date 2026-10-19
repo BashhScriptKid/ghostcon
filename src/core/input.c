@@ -191,14 +191,13 @@ ghostcon_input_evdev_to_ghostty_key(uint32_t evdev_code)
 
 /* Pure per-event encode step */
 
-size_t
-ghostcon_input_encode_key(GhosttyKeyEncoder encoder,
-                           GhosttyKeyAction action,
-                           uint32_t evdev_code,
-                           GhosttyMods mods,
-                           const char *utf8, size_t utf8_len,
-                           uint32_t unshifted_codepoint,
-                           char *out, size_t out_len)
+size_t ghostcon_input_encode_key(GhosttyKeyEncoder encoder,
+                                  GhosttyKeyAction action,
+                                  uint32_t evdev_code,
+                                  GhosttyMods mods,
+                                  const char *utf8, size_t utf8_len,
+                                  uint32_t unshifted_codepoint,
+                                  char *out, size_t out_len)
 {
     GhosttyKeyEvent event;
     if (ghostty_key_event_new(NULL, &event) != GHOSTTY_SUCCESS)
@@ -351,8 +350,7 @@ device_is_touchpad(struct libinput_device *dev)
  * of mice have no accel config at all, and natural-scroll only applies to
  * devices with a scroll method in the first place.
  */
-static void
-apply_device_config(ghostcon_input_t *input, struct libinput_device *dev)
+static void apply_device_config(ghostcon_input_t *input, struct libinput_device *dev)
 {
     bool touchpad = device_is_touchpad(dev);
     bool enable = touchpad ? input->touchpad_enable : input->mouse_enable;
@@ -375,15 +373,13 @@ apply_device_config(ghostcon_input_t *input, struct libinput_device *dev)
     }
 }
 
-static int
-open_restricted(const char *path, int flags, void *user_data)
+static int open_restricted(const char *path, int flags, void *user_data)
 {
     (void)user_data;
     return open(path, flags);
 }
 
-static void
-close_restricted(int fd, void *user_data)
+static void close_restricted(int fd, void *user_data)
 {
     (void)user_data;
     close(fd);
@@ -511,8 +507,7 @@ fail:
     return NULL;
 }
 
-void
-ghostcon_input_close(ghostcon_input_t *input)
+void ghostcon_input_close(ghostcon_input_t *input)
 {
     if (!input)
         return;
@@ -537,20 +532,17 @@ ghostcon_input_close(ghostcon_input_t *input)
     free(input);
 }
 
-int
-ghostcon_input_fd(const ghostcon_input_t *input)
+int ghostcon_input_fd(const ghostcon_input_t *input)
 {
     return libinput_get_fd(input->li);
 }
 
-int
-ghostcon_input_repeat_fd(const ghostcon_input_t *input)
+int ghostcon_input_repeat_fd(const ghostcon_input_t *input)
 {
     return input->repeat_fd;
 }
 
-bool
-ghostcon_input_repeat_fire(ghostcon_input_t *input, ghostcon_transport_t *transport)
+bool ghostcon_input_repeat_fire(ghostcon_input_t *input, ghostcon_transport_t *transport)
 {
     uint64_t expirations;
     ssize_t r = read(input->repeat_fd, &expirations, sizeof(expirations));
@@ -565,8 +557,7 @@ ghostcon_input_repeat_fire(ghostcon_input_t *input, ghostcon_transport_t *transp
     return w == (ssize_t)input->repeat_len;
 }
 
-void
-ghostcon_input_sync_modes(ghostcon_input_t *input, const ghostcon_screen_t *screen)
+void ghostcon_input_sync_modes(ghostcon_input_t *input, const ghostcon_screen_t *screen)
 {
     uint8_t app_cursor = screen->application_cursor;
     ghostty_key_encoder_setopt(input->encoder,
@@ -594,10 +585,9 @@ ghostcon_input_sync_modes(ghostcon_input_t *input, const ghostcon_screen_t *scre
                                 &kitty_flags);
 }
 
-void
-ghostcon_input_set_clipboard_bindings(ghostcon_input_t *input,
-                                       GhosttyMods copy_mods, uint32_t copy_evdev,
-                                       GhosttyMods paste_mods, uint32_t paste_evdev)
+void ghostcon_input_set_clipboard_bindings(ghostcon_input_t *input,
+                                            GhosttyMods copy_mods, uint32_t copy_evdev,
+                                            GhosttyMods paste_mods, uint32_t paste_evdev)
 {
     input->copy_mods = copy_mods;
     input->copy_evdev = copy_evdev;
@@ -605,9 +595,8 @@ ghostcon_input_set_clipboard_bindings(ghostcon_input_t *input,
     input->paste_evdev = paste_evdev;
 }
 
-void
-ghostcon_input_set_mouse_config(ghostcon_input_t *input, bool enable,
-                                 float scroll_speed, float sensitivity)
+void ghostcon_input_set_mouse_config(ghostcon_input_t *input, bool enable,
+                                      float scroll_speed, float sensitivity)
 {
     input->mouse_enable = enable;
     input->mouse_scroll_speed = scroll_speed;
@@ -619,10 +608,9 @@ ghostcon_input_set_mouse_config(ghostcon_input_t *input, bool enable,
     }
 }
 
-void
-ghostcon_input_set_touchpad_config(ghostcon_input_t *input, bool enable,
-                                    float scroll_speed, bool tap_to_click,
-                                    bool natural_scroll, float sensitivity)
+void ghostcon_input_set_touchpad_config(ghostcon_input_t *input, bool enable,
+                                         float scroll_speed, bool tap_to_click,
+                                         bool natural_scroll, float sensitivity)
 {
     input->touchpad_enable = enable;
     input->touchpad_scroll_speed = scroll_speed;
@@ -650,8 +638,7 @@ static const struct
     { "semicolon", KEY_SEMICOLON },
 };
 
-bool
-ghostcon_parse_keybinding(const char *spec, GhosttyMods *out_mods, uint32_t *out_evdev_code)
+bool ghostcon_parse_keybinding(const char *spec, GhosttyMods *out_mods, uint32_t *out_evdev_code)
 {
     if (!spec || !*spec)
         return false;
@@ -770,8 +757,7 @@ current_mods(struct xkb_state *state)
  * point) still runs regardless, so modifier tracking stays correct even
  * though the keystroke itself is swallowed here.
  */
-static bool
-is_vt_switch_combo(uint32_t evdev_code, GhosttyMods mods)
+static bool is_vt_switch_combo(uint32_t evdev_code, GhosttyMods mods)
 {
     if (!(mods & GHOSTTY_MODS_CTRL) || !(mods & GHOSTTY_MODS_ALT))
         return false;
@@ -795,9 +781,8 @@ is_vt_switch_combo(uint32_t evdev_code, GhosttyMods mods)
  * distinguish press/release since nothing forwards on release either once
  * true is returned here).
  */
-static bool
-handle_scroll_shortcut(ghostcon_screen_t *screen, uint32_t evdev_code,
-                        GhosttyMods mods, GhosttyKeyAction action)
+static bool handle_scroll_shortcut(ghostcon_screen_t *screen, uint32_t evdev_code,
+                                    GhosttyMods mods, GhosttyKeyAction action)
 {
     if (mods != GHOSTTY_MODS_SHIFT || action != GHOSTTY_KEY_ACTION_PRESS)
         return false;
@@ -824,9 +809,8 @@ handle_scroll_shortcut(ghostcon_screen_t *screen, uint32_t evdev_code,
  * access and shouldn't need any just for this. Press-only, same reasoning
  * as handle_scroll_shortcut.
  */
-static bool
-handle_zoom_shortcut(int *zoom_delta, uint32_t evdev_code, GhosttyMods mods,
-                      GhosttyKeyAction action)
+static bool handle_zoom_shortcut(int *zoom_delta, uint32_t evdev_code, GhosttyMods mods,
+                                  GhosttyKeyAction action)
 {
     if (mods != GHOSTTY_MODS_CTRL || action != GHOSTTY_KEY_ACTION_PRESS)
         return false;
@@ -855,9 +839,8 @@ handle_zoom_shortcut(int *zoom_delta, uint32_t evdev_code, GhosttyMods mods,
  * visible, for a direct diff against tools/ghostty_dump.c's reference
  * output, instead of guessing at a reproduction offline.
  */
-static bool
-handle_dump_shortcut(bool *dump_requested, uint32_t evdev_code, GhosttyMods mods,
-                      GhosttyKeyAction action)
+static bool handle_dump_shortcut(bool *dump_requested, uint32_t evdev_code, GhosttyMods mods,
+                                  GhosttyKeyAction action)
 {
     if (!(mods & GHOSTTY_MODS_CTRL) || !(mods & GHOSTTY_MODS_ALT))
         return false;
@@ -874,10 +857,9 @@ handle_dump_shortcut(bool *dump_requested, uint32_t evdev_code, GhosttyMods mods
 static void copy_selection_to_clipboard(ghostcon_screen_t *screen);
 static void paste_clipboard_to_pty(ghostcon_screen_t *screen, ghostcon_transport_t *transport);
 
-static bool
-handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
-                       ghostcon_transport_t *transport, ghostcon_screen_t *screen,
-                       int *zoom_delta, bool *dump_requested, bool active)
+static bool handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
+                                   ghostcon_transport_t *transport, ghostcon_screen_t *screen,
+                                   int *zoom_delta, bool *dump_requested, bool active)
 {
     struct libinput_event_keyboard *kbev = libinput_event_get_keyboard_event(ev);
     uint32_t evdev_code = libinput_event_keyboard_get_key(kbev);
@@ -1036,8 +1018,7 @@ handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
  * for anything else (side/extra buttons, etc.) -- not handled in this pass,
  * event is a silent no-op rather than an error.
  */
-static bool
-evdev_button_to_mouse(uint32_t code, ghostcon_mouse_button_t *out)
+static bool evdev_button_to_mouse(uint32_t code, ghostcon_mouse_button_t *out)
 {
     switch (code)
     {
@@ -1053,10 +1034,9 @@ evdev_button_to_mouse(uint32_t code, ghostcon_mouse_button_t *out)
  * screen's negotiated protocol) using input's current pointer_x/y. Returns
  * false only on a transport write failure.
  */
-static bool
-send_mouse_report(ghostcon_input_t *input, ghostcon_transport_t *transport,
-                   ghostcon_screen_t *screen, int cell_w, int cell_h,
-                   ghostcon_mouse_button_t button, ghostcon_mouse_action_t action)
+static bool send_mouse_report(ghostcon_input_t *input, ghostcon_transport_t *transport,
+                               ghostcon_screen_t *screen, int cell_w, int cell_h,
+                               ghostcon_mouse_button_t button, ghostcon_mouse_action_t action)
 {
     int col = cell_w > 0 ? input->pointer_x / cell_w : 0;
     int row = cell_h > 0 ? input->pointer_y / cell_h : 0;
@@ -1078,8 +1058,7 @@ send_mouse_report(ghostcon_input_t *input, ghostcon_transport_t *transport,
  * is held and the app hasn't set XTSHIFTESCAPE (mouse_shift_capture) to ask
  * for shift-clicks too.
  */
-static bool
-should_intercept_for_selection(const ghostcon_screen_t *screen, GhosttyMods mods)
+static bool should_intercept_for_selection(const ghostcon_screen_t *screen, GhosttyMods mods)
 {
     if (!screen->mouse_tracking)
         return true;
@@ -1096,8 +1075,7 @@ should_intercept_for_selection(const ghostcon_screen_t *screen, GhosttyMods mods
  * ~3072 raw bytes once encoded), not sizeof(screen->clipboard) itself --
  * using the full 4096 there would silently truncate.
  */
-static void
-copy_selection_to_clipboard(ghostcon_screen_t *screen)
+static void copy_selection_to_clipboard(ghostcon_screen_t *screen)
 {
     char text[3072];
     size_t n = ghostcon_selection_extract_text(screen, text, sizeof(text));
@@ -1113,8 +1091,7 @@ copy_selection_to_clipboard(ghostcon_screen_t *screen)
  * have no way to tell pasted text apart from typed keystrokes. Shared by
  * the configurable paste shortcut and middle-click paste.
  */
-static void
-paste_clipboard_to_pty(ghostcon_screen_t *screen, ghostcon_transport_t *transport)
+static void paste_clipboard_to_pty(ghostcon_screen_t *screen, ghostcon_transport_t *transport)
 {
     uint8_t decoded[sizeof(screen->clipboard)];
     size_t n = ghostcon_base64_decode(screen->clipboard, decoded, sizeof(decoded));
@@ -1142,11 +1119,10 @@ paste_clipboard_to_pty(ghostcon_screen_t *screen, ghostcon_transport_t *transpor
  * already-open libinput context ghostcon_input_open() uses for keyboard.
  * Returns false only on a transport write failure.
  */
-static bool
-handle_pointer_event(ghostcon_input_t *input, struct libinput_event *ev,
-                      enum libinput_event_type type, ghostcon_transport_t *transport,
-                      ghostcon_screen_t *screen, int cell_w, int cell_h,
-                      ghostcon_input_pointer_t *out_pointer)
+static bool handle_pointer_event(ghostcon_input_t *input, struct libinput_event *ev,
+                                  enum libinput_event_type type, ghostcon_transport_t *transport,
+                                  ghostcon_screen_t *screen, int cell_w, int cell_h,
+                                  ghostcon_input_pointer_t *out_pointer)
 {
     struct libinput_event_pointer *p = libinput_event_get_pointer_event(ev);
 
@@ -1286,11 +1262,10 @@ handle_pointer_event(ghostcon_input_t *input, struct libinput_event *ev,
     return send_mouse_report(input, transport, screen, cell_w, cell_h, held, GC_MOUSE_MOTION);
 }
 
-bool
-ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport,
-                         ghostcon_screen_t *screen, int cell_w, int cell_h,
-                         int *out_zoom_delta, ghostcon_input_pointer_t *out_pointer,
-                         bool *out_dump_requested, bool active)
+bool ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport,
+                              ghostcon_screen_t *screen, int cell_w, int cell_h,
+                              int *out_zoom_delta, ghostcon_input_pointer_t *out_pointer,
+                              bool *out_dump_requested, bool active)
 {
     out_pointer->x = input->pointer_x;
     out_pointer->y = input->pointer_y;

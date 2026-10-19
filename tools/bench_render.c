@@ -58,8 +58,7 @@ now_ms(void)
  * all-one-glyph case that wouldn't stress the atlas/GLES paths
  * realistically.
  */
-static void
-fill_scrollback(ghostcon_term_t *term, uint16_t cols)
+static void fill_scrollback(ghostcon_term_t *term, uint16_t cols)
 {
     char *line = malloc((size_t)cols * 32 + 64);
     for (int i = 0; i < SCROLLBACK_LINES; i++)
@@ -81,8 +80,7 @@ fill_scrollback(ghostcon_term_t *term, uint16_t cols)
     free(line);
 }
 
-int
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     uint16_t cols = argc > 1 ? (uint16_t)atoi(argv[1]) : 128;
     uint16_t rows = argc > 2 ? (uint16_t)atoi(argv[2]) : 32;

@@ -13,9 +13,8 @@
 
 static int failures = 0;
 
-static void
-check_encode(const char *name, const char *out, size_t n,
-             const char *expected, size_t expected_len)
+static void check_encode(const char *name, const char *out, size_t n,
+                         const char *expected, size_t expected_len)
 {
     if (n != expected_len || memcmp(out, expected, expected_len) != 0)
     {
@@ -32,8 +31,7 @@ check_encode(const char *name, const char *out, size_t n,
     printf("PASS: encode %s\n", name);
 }
 
-static void
-check_mapping(uint32_t evdev_code, GhosttyKey expected, const char *name)
+static void check_mapping(uint32_t evdev_code, GhosttyKey expected, const char *name)
 {
     GhosttyKey got = ghostcon_input_evdev_to_ghostty_key(evdev_code);
     if (got != expected)
@@ -45,8 +43,7 @@ check_mapping(uint32_t evdev_code, GhosttyKey expected, const char *name)
     printf("PASS: mapping %s\n", name);
 }
 
-int
-main(void)
+int main(void)
 {
     check_mapping(KEY_A, GHOSTTY_KEY_A, "KEY_A");
     check_mapping(KEY_UP, GHOSTTY_KEY_ARROW_UP, "KEY_UP");

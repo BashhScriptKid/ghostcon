@@ -45,15 +45,13 @@
 static struct termios g_orig_termios;
 static bool g_termios_saved = false;
 
-static void
-restore_termios(void)
+static void restore_termios(void)
 {
     if (g_termios_saved)
         tcsetattr(STDIN_FILENO, TCSANOW, &g_orig_termios);
 }
 
-static void
-disable_echo(void)
+static void disable_echo(void)
 {
     if (!isatty(STDIN_FILENO))
         return;
@@ -66,8 +64,7 @@ disable_echo(void)
     tcsetattr(STDIN_FILENO, TCSANOW, &raw);
 }
 
-static void
-banner(const char *title, const char *desc)
+static void banner(const char *title, const char *desc)
 {
     printf(ESC "[2J" ESC "[H");
     printf(ESC "[1;97;44m %s " ESC "[0m\r\n", title);
@@ -89,8 +86,7 @@ banner(const char *title, const char *desc)
 static int g_cell_w = 10; /* fallback if the pty doesn't report pixel size */
 static int g_cell_h = 20; /* fallback if the pty doesn't report pixel size */
 
-static void
-query_cell_size(void)
+static void query_cell_size(void)
 {
     struct winsize ws;
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_row > 0 && ws.ws_ypixel > 0)
@@ -110,8 +106,7 @@ query_cell_size(void)
 /* Prints enough newlines to move the cursor past an image height_px pixels
  * tall.
  */
-static void
-advance_past_image(int height_px)
+static void advance_past_image(int height_px)
 {
     int rows = (height_px + g_cell_h - 1) / g_cell_h;
     if (rows < 1)
@@ -146,8 +141,7 @@ advance_past_image(int height_px)
  * generous than protocol-correct spacing, unlike everywhere else in this
  * file that computes exact clearance.
  */
-static void
-advance_past_image_horizontal(int width_px)
+static void advance_past_image_horizontal(int width_px)
 {
     int cols = (width_px + g_cell_w - 1) / g_cell_w;
     if (cols < 1)
@@ -157,8 +151,7 @@ advance_past_image_horizontal(int width_px)
         putchar(' ');
 }
 
-static void
-wait_enter(void)
+static void wait_enter(void)
 {
     printf("\r\n" ESC "[90m-- done, press Enter to continue --" ESC "[0m");
     fflush(stdout);
@@ -173,8 +166,7 @@ wait_enter(void)
 static const char b64_table[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-static char *
-b64_encode(const uint8_t *data, size_t len, size_t *out_len)
+static char *b64_encode(const uint8_t *data, size_t len, size_t *out_len)
 {
     size_t olen = ((len + 2) / 3) * 4;
     char *out = malloc(olen + 1);
@@ -220,8 +212,7 @@ typedef struct
     size_t len, cap;
 } buf_t;
 
-static void
-buf_append(buf_t *b, const void *p, size_t n)
+static void buf_append(buf_t *b, const void *p, size_t n)
 {
     if (b->len + n > b->cap)
     {
@@ -232,15 +223,13 @@ buf_append(buf_t *b, const void *p, size_t n)
     b->len += n;
 }
 
-static void
-buf_u32be(buf_t *b, uint32_t v)
+static void buf_u32be(buf_t *b, uint32_t v)
 {
     uint8_t be[4] = { (uint8_t)(v >> 24), (uint8_t)(v >> 16), (uint8_t)(v >> 8), (uint8_t)v };
     buf_append(b, be, 4);
 }
 
-static uint32_t
-crc32_of(const uint8_t *buf, size_t len)
+static uint32_t crc32_of(const uint8_t *buf, size_t len)
 {
     static uint32_t table[256];
     static bool init = false;
@@ -261,8 +250,7 @@ crc32_of(const uint8_t *buf, size_t len)
     return crc ^ 0xFFFFFFFFu;
 }
 
-static uint32_t
-adler32_of(const uint8_t *data, size_t len)
+static uint32_t adler32_of(const uint8_t *data, size_t len)
 {
     uint32_t a = 1, b = 0;
     for (size_t i = 0; i < len; i++)
@@ -273,8 +261,7 @@ adler32_of(const uint8_t *data, size_t len)
     return (b << 16) | a;
 }
 
-static void
-png_chunk(buf_t *out, const char *type, const uint8_t *data, uint32_t len)
+static void png_chunk(buf_t *out, const char *type, const uint8_t *data, uint32_t len)
 {
     buf_u32be(out, len);
     size_t start = out->len;
@@ -286,8 +273,7 @@ png_chunk(buf_t *out, const char *type, const uint8_t *data, uint32_t len)
 }
 
 /* pixels is w*h*(rgba?4:3) bytes, row-major, no padding. */
-static uint8_t *
-build_png(int w, int h, bool rgba, const uint8_t *pixels, size_t *out_len)
+static uint8_t *build_png(int w, int h, bool rgba, const uint8_t *pixels, size_t *out_len)
 {
     int bpp = rgba ? 4 : 3;
     size_t raw_len = (size_t)(bpp * w + 1) * (size_t)h;
@@ -351,10 +337,9 @@ build_png(int w, int h, bool rgba, const uint8_t *pixels, size_t *out_len)
 
 /* Synthetic pixel patterns */
 
-static void
-gen_checkerboard(uint8_t *px, int w, int h, int bpp, int cell,
-                  uint8_t r1, uint8_t g1, uint8_t b1,
-                  uint8_t r2, uint8_t g2, uint8_t b2)
+static void gen_checkerboard(uint8_t *px, int w, int h, int bpp, int cell,
+                              uint8_t r1, uint8_t g1, uint8_t b1,
+                              uint8_t r2, uint8_t g2, uint8_t b2)
 {
     for (int y = 0; y < h; y++)
     {
@@ -371,8 +356,7 @@ gen_checkerboard(uint8_t *px, int w, int h, int bpp, int cell,
     }
 }
 
-static void
-gen_gradient(uint8_t *px, int w, int h, int bpp)
+static void gen_gradient(uint8_t *px, int w, int h, int bpp)
 {
     int wd = w > 1 ? w - 1 : 1;
     int hd = h > 1 ? h - 1 : 1;
@@ -390,8 +374,7 @@ gen_gradient(uint8_t *px, int w, int h, int bpp)
     }
 }
 
-static void
-gen_alpha_ramp(uint8_t *px, int w, int h)
+static void gen_alpha_ramp(uint8_t *px, int w, int h)
 {
     int wd = w > 1 ? w - 1 : 1;
     for (int y = 0; y < h; y++)
@@ -441,8 +424,7 @@ kitty_send(const char *keys, const uint8_t *payload, size_t len)
 
 /* Sixel (DCS q ... ST) */
 
-static void
-emit_sixel_run(const uint8_t *bits, int width)
+static void emit_sixel_run(const uint8_t *bits, int width)
 {
     int i = 0;
     while (i < width)
@@ -462,9 +444,8 @@ emit_sixel_run(const uint8_t *bits, int width)
 }
 
 /* idx is a w*h array of palette indices (row-major). */
-static void
-sixel_send(int width, int height, const uint8_t *idx,
-           const uint8_t palette[][3], int ncolors)
+static void sixel_send(int width, int height, const uint8_t *idx,
+                       const uint8_t palette[][3], int ncolors)
 {
     printf(ESC "Pq" "\"1;1;%d;%d", width, height);
     for (int c = 0; c < ncolors; c++)
@@ -513,8 +494,7 @@ sixel_send(int width, int height, const uint8_t *idx,
 
 /* Pages */
 
-static void
-page_kitty_basic_rgb(void)
+static void page_kitty_basic_rgb(void)
 {
     banner("kitty_basic_rgb", "Kitty graphics: raw RGB (f=24), immediate transmit+display (a=T).");
     int w = 64, h = 64, bpp = 3;
@@ -528,8 +508,7 @@ page_kitty_basic_rgb(void)
     printf("\r\n  raw RGB checkerboard, 64x64, id=1\r\n");
 }
 
-static void
-page_kitty_shm(void)
+static void page_kitty_shm(void)
 {
     banner("kitty_shm", "Kitty graphics: shared-memory (t=s) transmission -- payload is a POSIX shm segment name, not pixel bytes.");
     int w = 48, h = 48, bpp = 3;
@@ -589,8 +568,7 @@ page_kitty_shm(void)
     printf("\r\n  shm-transmitted RGB checkerboard, 48x48, id=8, segment %s\r\n", shm_name);
 }
 
-static void
-page_kitty_temp_file(void)
+static void page_kitty_temp_file(void)
 {
     banner("kitty_temp_file", "Kitty graphics: temporary-file (t=t) transmission -- payload is a /tmp path, deleted by ghostcon after reading.");
     int w = 48, h = 48, bpp = 3;
@@ -642,8 +620,7 @@ page_kitty_temp_file(void)
     printf("\r\n  temp-file-transmitted RGB checkerboard, 48x48, id=9, path %s\r\n", path);
 }
 
-static void
-page_kitty_cache_file(void)
+static void page_kitty_cache_file(void)
 {
     banner("kitty_cache_file", "Kitty graphics: plain file (t=f) transmission -- treated as a read-only cache, not deleted by ghostcon after reading.");
     int w = 48, h = 48, bpp = 3;
@@ -708,8 +685,7 @@ page_kitty_cache_file(void)
      */
 }
 
-static void
-page_kitty_rgba_alpha(void)
+static void page_kitty_rgba_alpha(void)
 {
     banner("kitty_rgba_alpha", "Kitty graphics: RGBA (f=32) with a left-to-right alpha ramp over text.");
     printf("background text to show transparency through -----------------\r\n");
@@ -725,8 +701,7 @@ page_kitty_rgba_alpha(void)
     printf("\r\n  RGBA alpha ramp (opaque->transparent, left to right), 96x48, id=2\r\n");
 }
 
-static void
-page_kitty_chunked_large(void)
+static void page_kitty_chunked_large(void)
 {
     banner("kitty_chunked_large", "Kitty graphics: image large enough to force >4KB base64 chunking (m=1/m=0).");
     int w = 256, h = 256, bpp = 3;
@@ -740,8 +715,7 @@ page_kitty_chunked_large(void)
     printf("\r\n  256x256 gradient sent as multiple m=1 chunks, id=3\r\n");
 }
 
-static void
-page_kitty_png(void)
+static void page_kitty_png(void)
 {
     banner("kitty_png", "Kitty graphics: f=100 (PNG payload), decoded server-side via libpng.");
     int w = 48, h = 48, bpp = 4;
@@ -758,8 +732,7 @@ page_kitty_png(void)
     printf("\r\n  48x48 checkerboard, sent as a real PNG (f=100), %zu bytes, id=7\r\n", png_len);
 }
 
-static void
-page_kitty_placement_crop(void)
+static void page_kitty_placement_crop(void)
 {
     banner("kitty_placement_crop", "Kitty graphics: transmit once (a=t), then multiple placements (a=p): full, cropped, cell-scaled.");
     int w = 128, h = 128, bpp = 3;
@@ -779,8 +752,7 @@ page_kitty_placement_crop(void)
     printf("\r\n  placements of id=4: full (p=1), top-left 64x64 crop (p=2), 10x5-cell scaled (p=3)\r\n");
 }
 
-static void
-page_kitty_zindex(void)
+static void page_kitty_zindex(void)
 {
     banner("kitty_zindex", "Kitty graphics: overlapping placements with different z (behind vs in front of text).");
     int w = 40, h = 20, bpp = 3;
@@ -802,8 +774,7 @@ page_kitty_zindex(void)
     printf("\r\n  z=-1 image (blue, id=5) behind text, z=1 image (red, id=6) in front\r\n");
 }
 
-static void
-page_kitty_delete(void)
+static void page_kitty_delete(void)
 {
     banner("kitty_delete", "Kitty graphics: transmit+display several images, then delete one by id (a=d,d=i).");
     int w = 32, h = 32, bpp = 3;
@@ -825,8 +796,7 @@ page_kitty_delete(void)
     printf("\r\n  id=11 deleted -- middle image should now be gone\r\n");
 }
 
-static void
-page_iterm_inline_png(void)
+static void page_iterm_inline_png(void)
 {
     banner("iterm_inline_png", "iTerm2 inline images: OSC 1337 File= carrying a real PNG (stored-DEFLATE, no zlib dep).");
     int w = 48, h = 48, bpp = 3;
@@ -844,8 +814,7 @@ page_iterm_inline_png(void)
     printf("\r\n  48x48 gradient PNG, %zu bytes\r\n", png_len);
 }
 
-static void
-page_iterm_size_variants(void)
+static void page_iterm_size_variants(void)
 {
     banner("iterm_size_variants", "iTerm2 inline images: same PNG requested at different cell/pixel size hints.");
     int w = 32, h = 32, bpp = 4;
@@ -866,8 +835,7 @@ page_iterm_size_variants(void)
     printf("\r\n  same 32x32 RGBA checkerboard: 8x4-cell hint, then auto/stretched\r\n");
 }
 
-static void
-page_sixel_basic(void)
+static void page_sixel_basic(void)
 {
     banner("sixel_basic", "Sixel (DCS q): small 4-color palette checkerboard.");
     int w = 60, h = 36;
@@ -884,8 +852,7 @@ page_sixel_basic(void)
     printf("\r\n  60x36 4-color sixel checkerboard\r\n");
 }
 
-static void
-page_sixel_bands(void)
+static void page_sixel_bands(void)
 {
     banner("sixel_bands", "Sixel: taller image spanning multiple 6-row sixel bands, horizontal color bands.");
     int w = 80, h = 60;
@@ -903,8 +870,7 @@ page_sixel_bands(void)
     printf("\r\n  80x60 sixel, 6 horizontal color bands crossing multiple sixel bands\r\n");
 }
 
-static void
-page_combined_stress(void)
+static void page_combined_stress(void)
 {
     banner("combined_stress", "All three protocols back-to-back, interleaved with normal scrolling text.");
     for (int i = 0; i < 3; i++)
@@ -980,8 +946,7 @@ list_pages(void)
         printf("%-20s %s\n", pages[i].name, pages[i].desc);
 }
 
-static void
-run_page(const page_t *p, bool interactive)
+static void run_page(const page_t *p, bool interactive)
 {
     p->fn();
     if (interactive)
@@ -990,8 +955,7 @@ run_page(const page_t *p, bool interactive)
         fflush(stdout);
 }
 
-int
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     if (argc > 1 && (strcmp(argv[1], "--list") == 0 || strcmp(argv[1], "-l") == 0))
     {

@@ -57,8 +57,7 @@ utf8_encode(uint32_t cp, char *buf)
     }
 }
 
-static void
-print_cp(uint32_t cp, const char *label)
+static void print_cp(uint32_t cp, const char *label)
 {
     char utf8[5] = {0};
     /* U+D800-DFFF are UTF-16 surrogates -- not valid Unicode scalar values,
@@ -116,8 +115,7 @@ static const probe_entry_t curated[] = {
     { 0x4E2D, "CJK ideograph (category Lo, not Symbol)" },
 };
 
-static void
-print_boundaries(void)
+static void print_boundaries(void)
 {
     printf("--- generated-table range boundaries ---\n");
     for (size_t i = 0; i < ghostcon_generated_symbol_ranges_count; i++)
@@ -140,8 +138,7 @@ print_boundaries(void)
     print_cp(0xF900, "after PUA carve-out");
 }
 
-int
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     if (argc > 1 && strcmp(argv[1], "--boundaries") == 0)
     {

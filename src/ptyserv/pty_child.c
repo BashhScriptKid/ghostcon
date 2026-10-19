@@ -64,8 +64,7 @@ typedef struct
     size_t len;  /* valid bytes, <= cap */
 } ringbuf_t;
 
-static void
-ringbuf_init(ringbuf_t *rb, size_t cap)
+static void ringbuf_init(ringbuf_t *rb, size_t cap)
 {
     rb->data = malloc(cap);
     rb->cap = cap;
@@ -73,8 +72,7 @@ ringbuf_init(ringbuf_t *rb, size_t cap)
     rb->len = 0;
 }
 
-static void
-ringbuf_append(ringbuf_t *rb, const uint8_t *buf, size_t n)
+static void ringbuf_append(ringbuf_t *rb, const uint8_t *buf, size_t n)
 {
     if (n >= rb->cap)
     {
@@ -98,8 +96,7 @@ ringbuf_append(ringbuf_t *rb, const uint8_t *buf, size_t n)
 
 /* I/O helpers */
 
-static bool
-write_all(int fd, const uint8_t *buf, size_t n)
+static bool write_all(int fd, const uint8_t *buf, size_t n)
 {
     while (n > 0)
     {
@@ -116,8 +113,7 @@ write_all(int fd, const uint8_t *buf, size_t n)
     return true;
 }
 
-static bool
-ringbuf_replay(ringbuf_t *rb, int fd)
+static bool ringbuf_replay(ringbuf_t *rb, int fd)
 {
     if (rb->len == 0)
         return true;
@@ -137,8 +133,7 @@ ringbuf_replay(ringbuf_t *rb, int fd)
 
 /* Session spawn (agetty/login, or a raw shell for tests) */
 
-static pid_t
-spawn_session(const char *shell, int *out_master_fd)
+static pid_t spawn_session(const char *shell, int *out_master_fd)
 {
     int master_fd;
     pid_t child = forkpty(&master_fd, NULL, NULL, NULL);
@@ -237,8 +232,7 @@ spawn_session(const char *shell, int *out_master_fd)
 
 /* Unix socket server */
 
-static int
-listen_unix(const char *path)
+static int listen_unix(const char *path)
 {
     unlink(path);
 
@@ -273,16 +267,14 @@ listen_unix(const char *path)
 
 static int g_chld_pipe[2] = { -1, -1 };
 
-static long
-monotonic_ms(void)
+static long monotonic_ms(void)
 {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 
-static void
-chld_signal_handler(int signum)
+static void chld_signal_handler(int signum)
 {
     (void)signum;
     char c = 'C';
@@ -290,8 +282,7 @@ chld_signal_handler(int signum)
     (void)unused;
 }
 
-int
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     if (argc < 3)
     {

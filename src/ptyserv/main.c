@@ -58,8 +58,7 @@ static char g_registry_dir[GHOSTCON_PTYSERV_LINE_MAX];
  * covered by that earlier fix). Falls back to the bare name only if
  * /proc/self/exe itself is unavailable.
  */
-static void
-resolve_sibling_path(char *out, size_t out_len, const char *name)
+static void resolve_sibling_path(char *out, size_t out_len, const char *name)
 {
     char self_path[4096];
     ssize_t n = readlink("/proc/self/exe", self_path, sizeof(self_path) - 1);
@@ -90,8 +89,7 @@ resolve_sibling_path(char *out, size_t out_len, const char *name)
  * was already connected, so a bare liveness probe would kick out a real,
  * working renderer connection.
  */
-static void
-pid_file_path(char *out, size_t out_len, int vtnum)
+static void pid_file_path(char *out, size_t out_len, int vtnum)
 {
     snprintf(out, out_len, "%s/pty-tty%d.pid", g_registry_dir, vtnum);
 }
@@ -102,8 +100,7 @@ pid_file_path(char *out, size_t out_len, int vtnum)
  * edge case: a long-dead entry's pid could have since been recycled by an
  * unrelated process).
  */
-static pid_t
-read_live_pid_file(const char *path)
+static pid_t read_live_pid_file(const char *path)
 {
     FILE *fp = fopen(path, "r");
     if (!fp)
@@ -137,8 +134,7 @@ read_live_pid_file(const char *path)
 /* Writes `pid` to `path` via a temp-file-then-rename, so a reader never
  * observes a partially-written pid.
  */
-static void
-write_pid_file(const char *path, pid_t pid)
+static void write_pid_file(const char *path, pid_t pid)
 {
     char tmp_path[GHOSTCON_PTYSERV_LINE_MAX + 40]; /* headroom over the
         largest `path` a caller passes (see spawn_pty_child's pid_path) */
@@ -163,8 +159,7 @@ find_vt(int vtnum)
     return NULL;
 }
 
-static bool
-spawn_pty_child(int vtnum)
+static bool spawn_pty_child(int vtnum)
 {
     vt_entry_t *e = &g_vts[g_nvts];
     e->vtnum = vtnum;
@@ -214,8 +209,7 @@ spawn_pty_child(int vtnum)
     return true;
 }
 
-static int
-listen_unix(const char *path)
+static int listen_unix(const char *path)
 {
     unlink(path);
 
@@ -241,8 +235,7 @@ listen_unix(const char *path)
     return fd;
 }
 
-static void
-handle_client(int client_fd)
+static void handle_client(int client_fd)
 {
     char line[GHOSTCON_PTYSERV_LINE_MAX];
     ssize_t r = read(client_fd, line, sizeof(line) - 1);
@@ -281,8 +274,7 @@ handle_client(int client_fd)
     close(client_fd);
 }
 
-int
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     if (argc < 3)
     {

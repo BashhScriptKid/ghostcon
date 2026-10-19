@@ -38,8 +38,7 @@ get_property_id(int fd, uint32_t obj_id, uint32_t obj_type,
     return found;
 }
 
-static bool
-plane_is_type(int fd, uint32_t plane_id, uint64_t want_type)
+static bool plane_is_type(int fd, uint32_t plane_id, uint64_t want_type)
 {
     uint32_t type_prop_id;
     if (!get_property_id(fd, plane_id, DRM_MODE_OBJECT_PLANE, "type", &type_prop_id))
@@ -65,10 +64,9 @@ plane_is_type(int fd, uint32_t plane_id, uint64_t want_type)
 
 /* Resource discovery */
 
-static bool
-find_connector_and_mode(int fd, drmModeRes *res,
-                         uint32_t *out_connector_id, drmModeModeInfo *out_mode,
-                         uint32_t *out_encoder_id)
+static bool find_connector_and_mode(int fd, drmModeRes *res,
+                                     uint32_t *out_connector_id, drmModeModeInfo *out_mode,
+                                     uint32_t *out_encoder_id)
 {
     for (int i = 0; i < res->count_connectors; i++)
     {
@@ -97,9 +95,8 @@ find_connector_and_mode(int fd, drmModeRes *res,
     return false;
 }
 
-static bool
-find_crtc(int fd, drmModeRes *res, uint32_t encoder_id, uint32_t *out_crtc_id,
-          int *out_crtc_index)
+static bool find_crtc(int fd, drmModeRes *res, uint32_t encoder_id, uint32_t *out_crtc_id,
+                      int *out_crtc_index)
 {
     if (encoder_id)
     {
@@ -135,8 +132,7 @@ find_crtc(int fd, drmModeRes *res, uint32_t encoder_id, uint32_t *out_crtc_id,
     return false;
 }
 
-static bool
-find_plane_of_type(int fd, int crtc_index, uint64_t want_type, uint32_t *out_plane_id)
+static bool find_plane_of_type(int fd, int crtc_index, uint64_t want_type, uint32_t *out_plane_id)
 {
     drmModePlaneRes *planes = drmModeGetPlaneResources(fd);
     if (!planes)
@@ -273,10 +269,9 @@ draw_cursor_ibeam(uint8_t *pixels, uint32_t canvas_w, uint32_t canvas_h,
  * cursor; scaling adds complexity for a case that shouldn't come up in
  * practice).
  */
-static void
-blit_cursor_image(uint8_t *dst_pixels, uint32_t canvas_w, uint32_t canvas_h, uint32_t stride,
-                   const uint32_t *src, uint32_t src_w, uint32_t src_h,
-                   uint32_t *out_off_x, uint32_t *out_off_y)
+static void blit_cursor_image(uint8_t *dst_pixels, uint32_t canvas_w, uint32_t canvas_h, uint32_t stride,
+                               const uint32_t *src, uint32_t src_w, uint32_t src_h,
+                               uint32_t *out_off_x, uint32_t *out_off_y)
 {
     memset(dst_pixels, 0, (size_t)stride * canvas_h);
 
@@ -299,8 +294,7 @@ blit_cursor_image(uint8_t *dst_pixels, uint32_t canvas_w, uint32_t canvas_h, uin
  * ghostcon_kms_set_cursor_image() (recreating at a new image) and
  * ghostcon_kms_deinit() (destroying all states' images).
  */
-static void
-destroy_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t state)
+static void destroy_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t state)
 {
     if (kms->cursor_fb_id[state])
     {
@@ -317,11 +311,10 @@ destroy_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t state)
     }
 }
 
-bool
-ghostcon_kms_set_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t state,
-                               const uint32_t *pixels, uint32_t w, uint32_t h,
-                               uint32_t hot_x, uint32_t hot_y,
-                               unsigned int fallback_font_height)
+bool ghostcon_kms_set_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t state,
+                                    const uint32_t *pixels, uint32_t w, uint32_t h,
+                                    uint32_t hot_x, uint32_t hot_y,
+                                    unsigned int fallback_font_height)
 {
     if (!kms->cursor_plane_id)
         return true; /* no cursor plane -- not an error */
@@ -446,8 +439,7 @@ ghostcon_kms_set_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t state
 
 /* Init / deinit */
 
-bool
-ghostcon_kms_init(ghostcon_kms_t *kms, int drm_fd)
+bool ghostcon_kms_init(ghostcon_kms_t *kms, int drm_fd)
 {
     memset(kms, 0, sizeof(*kms));
     kms->fd = drm_fd;
@@ -565,8 +557,7 @@ ghostcon_kms_init(ghostcon_kms_t *kms, int drm_fd)
     return true;
 }
 
-void
-ghostcon_kms_deinit(ghostcon_kms_t *kms)
+void ghostcon_kms_deinit(ghostcon_kms_t *kms)
 {
     if (kms->current_bo)
         gbm_surface_release_buffer(kms->gbm_surf, kms->current_bo);
@@ -599,8 +590,7 @@ ghostcon_kms_deinit(ghostcon_kms_t *kms)
     memset(kms, 0, sizeof(*kms));
 }
 
-bool
-ghostcon_kms_create_scanout_surface(ghostcon_kms_t *kms)
+bool ghostcon_kms_create_scanout_surface(ghostcon_kms_t *kms)
 {
     kms->gbm_surf = gbm_surface_create(kms->gbm_dev, kms->width, kms->height,
                                         GBM_FORMAT_XRGB8888,
@@ -615,8 +605,7 @@ ghostcon_kms_create_scanout_surface(ghostcon_kms_t *kms)
 
 /* Framebuffer creation from a locked GBM buffer object */
 
-static bool
-fb_id_for_bo(int fd, struct gbm_bo *bo, uint32_t *out_fb_id)
+static bool fb_id_for_bo(int fd, struct gbm_bo *bo, uint32_t *out_fb_id)
 {
     uint32_t handles[4] = { gbm_bo_get_handle(bo).u32, 0, 0, 0 };
     uint32_t strides[4] = { gbm_bo_get_stride(bo), 0, 0, 0 };
@@ -650,8 +639,7 @@ fb_id_for_bo(int fd, struct gbm_bo *bo, uint32_t *out_fb_id)
  * Only needed once per modeset (acquire/reacquire), not per frame -- plane
  * state sticks around exactly like the cursor sprite problem it's fixing.
  */
-static void
-disable_other_planes(ghostcon_kms_t *kms, drmModeAtomicReq *req)
+static void disable_other_planes(ghostcon_kms_t *kms, drmModeAtomicReq *req)
 {
     drmModePlaneRes *planes = drmModeGetPlaneResources(kms->fd);
     if (!planes)
@@ -693,8 +681,7 @@ disable_other_planes(ghostcon_kms_t *kms, drmModeAtomicReq *req)
     drmModeFreePlaneResources(planes);
 }
 
-static bool
-commit_frame(ghostcon_kms_t *kms, uint32_t fb_id, bool is_modeset, bool blocking)
+static bool commit_frame(ghostcon_kms_t *kms, uint32_t fb_id, bool is_modeset, bool blocking)
 {
     drmModeAtomicReq *req = drmModeAtomicAlloc();
     if (!req)
@@ -759,17 +746,15 @@ commit_frame(ghostcon_kms_t *kms, uint32_t fb_id, bool is_modeset, bool blocking
     return true;
 }
 
-static void
-page_flip_handler(int fd, unsigned int frame, unsigned int sec, unsigned int usec,
-                   void *data)
+static void page_flip_handler(int fd, unsigned int frame, unsigned int sec, unsigned int usec,
+                               void *data)
 {
     (void)fd; (void)frame; (void)sec; (void)usec;
     bool *pending = data;
     *pending = false;
 }
 
-static bool
-wait_for_flip(ghostcon_kms_t *kms)
+static bool wait_for_flip(ghostcon_kms_t *kms)
 {
     drmEventContext ev = {
         .version = DRM_EVENT_CONTEXT_VERSION,
@@ -787,8 +772,7 @@ wait_for_flip(ghostcon_kms_t *kms)
     return true;
 }
 
-bool
-ghostcon_kms_modeset(ghostcon_kms_t *kms)
+bool ghostcon_kms_modeset(ghostcon_kms_t *kms)
 {
     struct gbm_bo *bo = gbm_surface_lock_front_buffer(kms->gbm_surf);
     if (!bo)
@@ -824,8 +808,7 @@ ghostcon_kms_modeset(ghostcon_kms_t *kms)
  * CRTC_w_h (not just position) -- needed on the very first enable, and
  * whenever the active state's FB has changed.
  */
-static bool
-commit_cursor(ghostcon_kms_t *kms, int x, int y, bool force_full)
+static bool commit_cursor(ghostcon_kms_t *kms, int x, int y, bool force_full)
 {
     ghostcon_cursor_state_t state = kms->cursor_active_state;
     if (!kms->cursor_plane_id || !kms->cursor_fb_id[state])
@@ -921,16 +904,14 @@ commit_cursor(ghostcon_kms_t *kms, int x, int y, bool force_full)
     return true;
 }
 
-bool
-ghostcon_kms_move_cursor(ghostcon_kms_t *kms, int x, int y)
+bool ghostcon_kms_move_cursor(ghostcon_kms_t *kms, int x, int y)
 {
     kms->cursor_last_x = x;
     kms->cursor_last_y = y;
     return commit_cursor(kms, x, y, /*force_full=*/false);
 }
 
-bool
-ghostcon_kms_set_cursor_state(ghostcon_kms_t *kms, ghostcon_cursor_state_t state)
+bool ghostcon_kms_set_cursor_state(ghostcon_kms_t *kms, ghostcon_cursor_state_t state)
 {
     if (state == kms->cursor_active_state)
         return true; /* already active -- no redundant commit */
@@ -942,8 +923,7 @@ ghostcon_kms_set_cursor_state(ghostcon_kms_t *kms, ghostcon_cursor_state_t state
     return commit_cursor(kms, kms->cursor_last_x, kms->cursor_last_y, /*force_full=*/true);
 }
 
-bool
-ghostcon_kms_page_flip(ghostcon_kms_t *kms)
+bool ghostcon_kms_page_flip(ghostcon_kms_t *kms)
 {
     /* Best-effort pacing only, NOT a correctness gate — see below for why a
      * timeout here must never leave a committed buffer untracked.

@@ -75,8 +75,7 @@ gc_stream_dcs_buf_grow(ghostcon_stream_t *st)
     return true;
 }
 
-void
-gc_stream_dcs_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s)
+void gc_stream_dcs_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s)
 {
     if (st->dcs_final != 'q')
         return; /* only sixel is implemented; every other DCS command

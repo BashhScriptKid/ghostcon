@@ -294,8 +294,7 @@ fail:
     return NULL;
 }
 
-void
-ghostcon_atlas_destroy(ghostcon_atlas_t *atlas)
+void ghostcon_atlas_destroy(ghostcon_atlas_t *atlas)
 {
     if (!atlas)
         return;
@@ -434,8 +433,7 @@ pack_bitmap_rgba(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t codepoint
  * whatever strike this picks and the cell's actual size, so no separate
  * scaling logic is needed here.
  */
-static int
-best_fixed_size_index(FT_Face face, int target_px)
+static int best_fixed_size_index(FT_Face face, int target_px)
 {
     int best = 0;
     int best_diff = INT_MAX;
@@ -785,9 +783,8 @@ ghostcon_atlas_glyph_by_index(ghostcon_atlas_t *atlas, uint32_t glyph_index)
     return load_glyph_into_slot(atlas, slot, key, atlas->face, (FT_UInt)glyph_index);
 }
 
-int
-ghostcon_atlas_shape_run(ghostcon_atlas_t *atlas, const uint32_t *codepoints, int count,
-                          uint32_t *out_glyph_indices, float *out_advances, int max_out)
+int ghostcon_atlas_shape_run(ghostcon_atlas_t *atlas, const uint32_t *codepoints, int count,
+                              uint32_t *out_glyph_indices, float *out_advances, int max_out)
 {
     if (!atlas->hb_font)
         return -1;
@@ -824,63 +821,53 @@ ghostcon_atlas_shape_run(ghostcon_atlas_t *atlas, const uint32_t *codepoints, in
     return (int)glyph_count;
 }
 
-uint32_t
-ghostcon_atlas_plain_glyph_index(ghostcon_atlas_t *atlas, uint32_t codepoint)
+uint32_t ghostcon_atlas_plain_glyph_index(ghostcon_atlas_t *atlas, uint32_t codepoint)
 {
     return (uint32_t)FT_Get_Char_Index(atlas->face, codepoint);
 }
 
-const uint8_t *
-ghostcon_atlas_bitmap(const ghostcon_atlas_t *atlas)
+const uint8_t *ghostcon_atlas_bitmap(const ghostcon_atlas_t *atlas)
 {
     return atlas->bitmap;
 }
 
-uint32_t
-ghostcon_atlas_dim(const ghostcon_atlas_t *atlas)
+uint32_t ghostcon_atlas_dim(const ghostcon_atlas_t *atlas)
 {
     return atlas->dim;
 }
 
-bool
-ghostcon_atlas_dirty(const ghostcon_atlas_t *atlas)
+bool ghostcon_atlas_dirty(const ghostcon_atlas_t *atlas)
 {
     return atlas->dirty;
 }
 
-void
-ghostcon_atlas_clear_dirty(ghostcon_atlas_t *atlas)
+void ghostcon_atlas_clear_dirty(ghostcon_atlas_t *atlas)
 {
     atlas->dirty = false;
 }
 
-const uint8_t *
-ghostcon_atlas_color_bitmap(const ghostcon_atlas_t *atlas)
+const uint8_t *ghostcon_atlas_color_bitmap(const ghostcon_atlas_t *atlas)
 {
     return atlas->color_bitmap;
 }
 
-bool
-ghostcon_atlas_color_dirty(const ghostcon_atlas_t *atlas)
+bool ghostcon_atlas_color_dirty(const ghostcon_atlas_t *atlas)
 {
     return atlas->color_dirty;
 }
 
-void
-ghostcon_atlas_color_clear_dirty(ghostcon_atlas_t *atlas)
+void ghostcon_atlas_color_clear_dirty(ghostcon_atlas_t *atlas)
 {
     atlas->color_dirty = false;
 }
 
-void
-ghostcon_atlas_cell_size(const ghostcon_atlas_t *atlas, int *cell_w, int *cell_h)
+void ghostcon_atlas_cell_size(const ghostcon_atlas_t *atlas, int *cell_w, int *cell_h)
 {
     *cell_w = atlas->cell_w;
     *cell_h = atlas->cell_h;
 }
 
-int
-ghostcon_atlas_ascent(const ghostcon_atlas_t *atlas)
+int ghostcon_atlas_ascent(const ghostcon_atlas_t *atlas)
 {
     return atlas->ascent;
 }

@@ -14,8 +14,7 @@
 
 static int failures = 0;
 
-static void
-check(const char *name, bool cond)
+static void check(const char *name, bool cond)
 {
     if (!cond)
     {
@@ -24,8 +23,7 @@ check(const char *name, bool cond)
     }
 }
 
-static bool
-rect_all(const uint8_t *alpha, int x0, int y0, int x1, int y1, uint8_t expect)
+static bool rect_all(const uint8_t *alpha, int x0, int y0, int x1, int y1, uint8_t expect)
 {
     for (int y = y0; y < y1; y++)
         for (int x = x0; x < x1; x++)
@@ -34,8 +32,7 @@ rect_all(const uint8_t *alpha, int x0, int y0, int x1, int y1, uint8_t expect)
     return true;
 }
 
-int
-main(void)
+int main(void)
 {
     uint8_t alpha[CELL_W * CELL_H];
 
