@@ -1,0 +1,45 @@
+# Maintainer: BashhScriptKid <mohdnoorhafizat@gmail.com>
+#
+# Builds ghostcon from the local working tree (not a tarball/VCS fetch) --
+# run via packaging/build-pkg.sh, which stages the tree and invokes
+# makepkg from here. See that script for why: `source=()` below means
+# makepkg does no downloading, it just uses $srcdir/ghostcon staged by
+# the wrapper script's prepare() step.
+
+pkgname=ghostcon
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Virtual console renderer bringing Ghostty-level terminal emulation to the DRM/KMS console layer"
+arch=('x86_64')
+url="https://github.com/BashhScriptKid/ghostcon"
+license=('GPL-2.0-or-later')
+depends=(
+    ghostty        # libghostty-vt.so
+    libdrm
+    mesa           # libgbm
+    libglvnd       # libEGL, libGLESv2
+    libinput
+    systemd-libs   # libsystemd, libudev
+    libxkbcommon
+    fontconfig
+    freetype2
+    harfbuzz
+    libpng
+)
+makedepends=('meson' 'ninja')
+source=()
+sha256sums=()
+
+build() {
+    cd "$srcdir/ghostcon"
+    arch-meson . build-pkg \
+        --libexecdir=libexec \
+        -D install_systemd_unit=true
+    ninja -C build-pkg
+}
+
+package() {
+    cd "$srcdir/ghostcon"
+    DESTDIR="$pkgdir" ninja -C build-pkg install
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
