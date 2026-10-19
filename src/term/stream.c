@@ -247,6 +247,7 @@ void ghostcon_stream_process_byte(ghostcon_stream_t *st,
         case 0x98: /* SOS */ st->state = GC_STREAM_SOS_PM_APC_STRING; st->apc_introducer = 'X'; st->apc_len = 0; st->apc_overflow = false; return;
         case 0x9E: /* PM */ st->state = GC_STREAM_SOS_PM_APC_STRING; st->apc_introducer = '^'; st->apc_len = 0; st->apc_overflow = false; return;
         case 0x9F: /* APC */ st->state = GC_STREAM_SOS_PM_APC_STRING; st->apc_introducer = '_'; st->apc_len = 0; st->apc_overflow = false; return;
+        default: break; /* unmapped C1 byte: fall through to the state machine */
         }
     }
 

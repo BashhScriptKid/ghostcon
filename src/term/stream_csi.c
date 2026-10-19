@@ -311,6 +311,7 @@ static void handle_csi_cursor_style(ghostcon_stream_t *st, ghostcon_screen_t *s)
     case 4: s->cursor.cursor_style = GC_CURSOR_UNDERLINE; break;
     case 5: s->cursor.cursor_style = GC_CURSOR_BAR_BLINK; break;
     case 6: s->cursor.cursor_style = GC_CURSOR_BAR; break;
+    default: break; /* out-of-range DECSCUSR values are ignored */
     }
 }
 
@@ -518,6 +519,7 @@ static void handle_csi_set_mode(ghostcon_stream_t *st, ghostcon_screen_t *s)
         case 4:  s->insert_mode = true; break;                    /* IRM */
         case 2004: s->bracketed_paste = true; break;
         case 2026: mark_sync_output_start(s); break;
+        default: break; /* unrecognized mode numbers are ignored */
         }
     }
 }
@@ -532,6 +534,7 @@ static void handle_csi_reset_mode(ghostcon_stream_t *st, ghostcon_screen_t *s)
         case 4:  s->insert_mode = false; break;
         case 2004: s->bracketed_paste = false; break;
         case 2026: s->synchronized_output = false; break;
+        default: break; /* unrecognized mode numbers are ignored */
         }
     }
 }
@@ -563,6 +566,7 @@ static void handle_csi_dec_set(ghostcon_stream_t *st, ghostcon_screen_t *s)
         case 1047: ghostcon_screen_alt_screen_enter(s); break;     /* alt screen */
         case 1048: ghostcon_screen_cursor_save(s); break;         /* save cursor */
         case 1049: ghostcon_screen_cursor_save(s); ghostcon_screen_alt_screen_enter(s); break; /* alt screen + save cursor */
+        default: break; /* unrecognized DEC private modes are ignored */
         }
     }
 }
@@ -598,6 +602,7 @@ static void handle_csi_dec_reset(ghostcon_stream_t *st, ghostcon_screen_t *s)
         case 1047: ghostcon_screen_alt_screen_exit(s); break;      /* alt screen */
         case 1048: ghostcon_screen_cursor_restore(s); break;      /* restore cursor */
         case 1049: ghostcon_screen_alt_screen_exit(s); ghostcon_screen_cursor_restore(s); break; /* alt screen + restore cursor */
+        default: break; /* unrecognized DEC private modes are ignored */
         }
     }
 }
