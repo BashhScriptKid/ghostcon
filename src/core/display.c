@@ -67,6 +67,7 @@ static void load_cursor_state(ghostcon_display_t *disp, ghostcon_cursor_state_t 
     if (hot_pos_str && *hot_pos_str)
     {
         unsigned int cfg_hot_x, cfg_hot_y;
+        // NOLINTNEXTLINE(bugprone-unchecked-string-to-number-conversion) -- return count checked
         if (sscanf(hot_pos_str, "%u,%u", &cfg_hot_x, &cfg_hot_y) == 2)
         {
             hot_x = cfg_hot_x;

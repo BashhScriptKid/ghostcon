@@ -34,6 +34,7 @@
 #define _DEFAULT_SOURCE /* forkpty() is a glibc extension, hidden under -std=c11 without this */
 
 #include "ghostcon/ptyserv/protocol.h"
+#include "ghostcon/core/parse.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -290,7 +291,12 @@ int main(int argc, char **argv)
         return 2;
     }
 
-    int vtnum = atoi(argv[1]);
+    int vtnum = 0;
+    if (!ghostcon_parse_int(argv[1], &vtnum))
+    {
+        fprintf(stderr, "pty-ttyN: invalid vt number '%s'\n", argv[1]);
+        return 2;
+    }
     const char *socket_path = argv[2];
     const char *shell = argc > 3 ? argv[3] : getenv("SHELL");
     if (!shell || !*shell)

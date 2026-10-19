@@ -34,6 +34,7 @@
 #include "ghostcon/core/display.h"
 #include "ghostcon/core/input.h"
 #include "ghostcon/core/log.h"
+#include "ghostcon/core/parse.h"
 #include "ghostcon/core/transport.h"
 #include "ghostcon/core/ui.h"
 #include "ghostcon/core/vtctl.h"
@@ -361,7 +362,8 @@ static bool is_vt_foreground(int vt_num)
     if (!read_ok)
         return true;
     int active_vt = 0;
-    if (sscanf(buf, "tty%d", &active_vt) != 1)
+    if (strncmp(buf, "tty", 3) != 0 ||
+        !ghostcon_parse_int(buf + 3, &active_vt))
         return true;
     return active_vt == vt_num;
 }
@@ -734,24 +736,34 @@ int main(int argc, char **argv)
     app_t app = {0};
     app.argv0 = argv[0];
     app.argv0_len = strlen(argv[0]);
-    app.vt_num = atoi(argv[1]);
+    if (!ghostcon_parse_int(argv[1], &app.vt_num))
+    {
+        fprintf(stderr, "ghostcon-core: invalid vt number '%s'\n", argv[1]);
+        return 2;
+    }
     app.drm_node = argc > 2 ? argv[2] : DEFAULT_DRM_NODE;
     const char *registry_socket = argc > 3 ? argv[3] : GHOSTCON_PTYSERV_SOCKET_PATH;
 
     const char *canary_fd_str = getenv("GHOSTCON_CANARY_FD");
-    app.canary_fd = canary_fd_str ? atoi(canary_fd_str) : -1;
+    app.canary_fd = -1;
+    if (canary_fd_str)
+        (void)ghostcon_parse_int(canary_fd_str, &app.canary_fd);
 
     const char *clear_on_logout_str = getenv("GHOSTCON_CLEAR_ON_LOGOUT");
     app.clear_on_logout = (clear_on_logout_str && strcmp(clear_on_logout_str, "0") == 0)
                                ? false : CLEAR_ON_LOGOUT_DEFAULT;
 
     const char *font_size_str = getenv("GHOSTCON_FONT_SIZE");
-    app.font_size = font_size_str ? atoi(font_size_str) : FONT_SIZE;
+    app.font_size = FONT_SIZE;
+    if (font_size_str)
+        (void)ghostcon_parse_int(font_size_str, &app.font_size);
     if (app.font_size <= 0)
         app.font_size = FONT_SIZE; /* malformed/nonsensical env value -- fall back rather than pass 0/negative to atlas_create */
 
     const char *zoom_step_str = getenv("GHOSTCON_ZOOM_STEP");
-    app.zoom_step = zoom_step_str ? atoi(zoom_step_str) : ZOOM_STEP_DEFAULT;
+    app.zoom_step = ZOOM_STEP_DEFAULT;
+    if (zoom_step_str)
+        (void)ghostcon_parse_int(zoom_step_str, &app.zoom_step);
     if (app.zoom_step <= 0)
         app.zoom_step = ZOOM_STEP_DEFAULT; /* malformed/nonsensical env value */
 

@@ -71,6 +71,7 @@
 #include <unistd.h>
 
 #include "ghostcon/config/config.h"
+#include "ghostcon/core/parse.h"
 #include "ghostcon/ptyserv/protocol.h"
 
 #define DEFAULT_DRM_NODE "/dev/dri/card1" /* mirrors core/main.c's own default -- see its comment */
@@ -317,7 +318,7 @@ static void wall_broadcast(int vtnum, const char *reason)
     long rate_limit_secs = WALL_RATE_LIMIT_SECS;
     const char *rate_override = getenv("GHOSTCON_WALL_RATE_LIMIT_SECS");
     if (rate_override)
-        rate_limit_secs = atol(rate_override);
+        (void)ghostcon_parse_long(rate_override, &rate_limit_secs);
 
     if (now - last_broadcast[class_idx] < rate_limit_secs)
         return;
@@ -483,7 +484,12 @@ int main(int argc, char **argv)
         fprintf(stderr, "usage: %s <vtnum> [registry_socket] [drm_node]\n", argv[0]);
         return 2;
     }
-    int vtnum = atoi(argv[1]);
+    int vtnum = 0;
+    if (!ghostcon_parse_int(argv[1], &vtnum))
+    {
+        fprintf(stderr, "supervisor: invalid vt number '%s'\n", argv[1]);
+        return 2;
+    }
     /* Always resolved to a concrete value (never NULL) before being handed
      * to spawn_renderer -- see spawn_renderer's own comment on why a
      * positional gap here would be a real bug, not just untidy.
@@ -525,7 +531,9 @@ int main(int argc, char **argv)
     const char *drm_node = drm_node_buf;
 
     const char *deadline_str = getenv("GHOSTCON_CANARY_DEADLINE_MS");
-    int canary_deadline_ms = deadline_str ? atoi(deadline_str) : DEFAULT_CANARY_DEADLINE_MS;
+    int canary_deadline_ms = DEFAULT_CANARY_DEADLINE_MS;
+    if (deadline_str)
+        (void)ghostcon_parse_int(deadline_str, &canary_deadline_ms);
 
     /* Hot-reload: GHOSTCON_CONFIG_PATH is exported unconditionally by
      * undead-head (see config.h's doc comment) regardless of whether THIS

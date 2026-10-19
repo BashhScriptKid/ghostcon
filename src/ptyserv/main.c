@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 
 #include "ghostcon/ptyserv/protocol.h"
+#include "ghostcon/core/parse.h"
 
 #include <errno.h>
 #include <libgen.h>
@@ -106,6 +107,7 @@ static pid_t read_live_pid_file(const char *path)
     if (!fp)
         return -1;
     long pid_val = 0;
+    // NOLINTNEXTLINE(bugprone-unchecked-string-to-number-conversion) -- conversion count checked below
     int ok = fscanf(fp, "%ld", &pid_val);
     fclose(fp);
     if (ok != 1 || pid_val <= 0)
@@ -316,7 +318,12 @@ int main(int argc, char **argv)
 
     for (int i = 2; i < argc && g_nvts < MAX_VTS; i++)
     {
-        int vtnum = atoi(argv[i]);
+        int vtnum = 0;
+        if (!ghostcon_parse_int(argv[i], &vtnum))
+        {
+            fprintf(stderr, "ghost-ptyserv: invalid vt number '%s'\n", argv[i]);
+            return 1;
+        }
         if (!spawn_pty_child(vtnum))
         {
             fprintf(stderr, "ghost-ptyserv: failed to spawn pty child for vt %d\n",

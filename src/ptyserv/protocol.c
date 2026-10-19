@@ -16,6 +16,7 @@ ghostcon_ptyserv_format_get(char *buf, size_t buf_len, int vtnum)
 bool ghostcon_ptyserv_parse_get(const char *line, int *vtnum)
 {
     int v;
+    // NOLINTNEXTLINE(bugprone-unchecked-string-to-number-conversion) -- return count checked
     if (sscanf(line, "GET %d", &v) != 1)
         return false;
     *vtnum = v;
@@ -35,6 +36,7 @@ bool ghostcon_ptyserv_parse_ok(const char *line, int *pid, char *socket_path)
 {
     int p;
     char path[GHOSTCON_PTYSERV_LINE_MAX];
+    // NOLINTNEXTLINE(bugprone-unchecked-string-to-number-conversion) -- return count checked
     if (sscanf(line, "OK pid=%d socket=%255s", &p, path) != 2)
         return false;
     *pid = p;
@@ -56,6 +58,7 @@ bool ghostcon_ptyserv_parse_resize(const char *line, int *rows, int *cols,
                                    int *xpixel, int *ypixel)
 {
     int r, c, xp = 0, yp = 0;
+    // NOLINTNEXTLINE(bugprone-unchecked-string-to-number-conversion) -- return count checked below
     int n = sscanf(line, "RESIZE %d %d %d %d", &r, &c, &xp, &yp);
     if (n != 2 && n != 4)
         return false;

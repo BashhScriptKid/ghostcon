@@ -42,6 +42,7 @@
 #define _DEFAULT_SOURCE
 
 #include "ghostcon/config/config.h"
+#include "ghostcon/core/parse.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -281,7 +282,14 @@ int main(int argc, char **argv)
     int vts[MAX_VTS];
     int n_vts = 0;
     for (int i = 2; i < argc && n_vts < MAX_VTS; i++)
-        vts[n_vts++] = atoi(argv[i]);
+    {
+        if (!ghostcon_parse_int(argv[i], &vts[n_vts]))
+        {
+            fprintf(stderr, "undead-head: invalid vt number '%s'\n", argv[i]);
+            return 2;
+        }
+        n_vts++;
+    }
 
     /* Deliberately NOT SA_RESTART: the reaper loop below spends most of its
      * time blocked in poll(), and the shutdown flag this handler sets is
