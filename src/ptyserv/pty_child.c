@@ -317,7 +317,38 @@ static void chld_signal_handler(int signum)
     (void)unused;
 }
 
-int main(int argc, char **argv)
+/* Mutable state for one pty-ttyN session: fds, the shell child, the replay
+ * ring buffer, and the respawn/hangup backoff timers. */
+typedef struct
+{
+    int         vtnum;
+    const char *socket_path;
+    const char *shell;
+
+    int     master_fd;
+    pid_t   child;
+    int     listen_fd;
+    int     ctl_listen_fd;
+    int     ctl_fd;
+    int     renderer_fd;
+
+    ringbuf_t rb;
+    uint8_t   buf[4096];
+
+    time_t last_death;
+    int    backoff;
+    bool   awaiting_respawn;
+    time_t respawn_after;
+
+    bool master_quiet;
+    long master_quiet_ms;
+    long master_quiet_until_ms;
+} pty_child_t;
+
+/* Parses arguments and brings up the process, PTY session, and sockets.
+ * Returns 0 on success, 2 for a usage/argument error, 1 for any other
+ * failure. */
+static int pty_child_setup(pty_child_t *pc, int argc, char **argv)
 {
     if (argc < 3)
     {
@@ -325,44 +356,39 @@ int main(int argc, char **argv)
         return 2;
     }
 
-    int vtnum = 0;
-    if (!ghostcon_parse_int(argv[1], &vtnum))
+    if (!ghostcon_parse_int(argv[1], &pc->vtnum))
     {
         fprintf(stderr, "pty-ttyN: invalid vt number '%s'\n", argv[1]);
         return 2;
     }
-    const char *socket_path = argv[2];
-    const char *shell = argc > 3 ? argv[3] : getenv("SHELL");
-    if (!shell || !*shell)
-        shell = "/bin/sh";
+    pc->socket_path = argv[2];
+    pc->shell = argc > 3 ? argv[3] : getenv("SHELL");
+    if (!pc->shell || !*pc->shell)
+        pc->shell = "/bin/sh";
 
     /* Own process group, matching every other group leader in this tree
      * (supervisor/main.c, undead_head/main.c's fork_ghost_ptyserv/
-     * fork_supervisor)
-     *
-     * otherwise this inherits ghost-ptyserv's group, and ghost-ptyserv dying
-     * takes this (and the live shell session inside it) down as collateral damage
-     * via undead-head's own kill_group() cleanup, even though this process has no
-     * actual runtime dependency on ghost-ptyserv once spawned (its socket is used
-     * directly by the renderer from then on).
+     * fork_supervisor) -- otherwise this inherits ghost-ptyserv's group, and
+     * ghost-ptyserv dying takes this (and the live shell session inside it) down
+     * as collateral damage via undead-head's own kill_group() cleanup, even
+     * though this process has no actual runtime dependency on ghost-ptyserv once
+     * spawned (its socket is used directly by the renderer from then on).
      */
     setpgid(0, 0);
 
     /* This process (not the forkpty()'d child that execs through
-     * agetty/login/shell
-     *
-     * exec doesn't change PPID, so THIS is the process whose comm the shell's
-     * actual parent-PID lookup lands on) never execs again after this point, so
-     * its `comm` stays whatever the binary was compiled as ("pty-ttyN") unless
-     * renamed here.
+     * agetty/login/shell -- exec doesn't change PPID, so THIS is the process
+     * whose comm the shell's actual parent-PID lookup lands on) never execs again
+     * after this point, so its `comm` stays whatever the binary was compiled as
+     * ("pty-ttyN") unless renamed here.
      *
      * Tools that detect the terminal emulator by walking the process tree up from
      * the shell (fastfetch, neofetch, and similar) stop at the first process name
-     * they don't recognize as a shell/login wrapper --that's this one, so it's
+     * they don't recognize as a shell/login wrapper -- that's this one, so it's
      * what shows up as "Terminal:" if left alone.
      *
      * Renaming it doesn't affect anything that tracks this process by PID or by
-     * its real /proc/ <pid>/exe target (the pidfile-liveness check in
+     * its real /proc/<pid>/exe target (the pidfile-liveness check in
      * ptyserv/main.c and undead-head's cleanup both use those, never the name).
      */
     prctl(PR_SET_NAME, "ghostcon", 0, 0, 0);
@@ -370,34 +396,26 @@ int main(int argc, char **argv)
     signal(SIGPIPE, SIG_IGN);
 
     /* /bin/login calls vhangup() on its controlling TTY as part of its own
-     * password-prompt procedure
+     * password-prompt procedure -- confirmed against kmscon's own src/misc/pty.c,
+     * which has an explicit comment about exactly this: vhangup() causes a
+     * transient hangup condition on the PTY MASTER side even though the child has
+     * NOT actually exited yet (it's mid-procedure, about to reopen its
+     * controlling terminal and continue).
      *
-     * confirmed against kmscon's own src/misc/pty.c, which has an explicit
-     * comment about exactly this: vhangup() causes a transient hangup condition
-     * on the PTY MASTER side even though the child has NOT actually exited yet
-     * (it's mid-procedure, about to reopen its controlling terminal and
-     * continue).
-     *
-     * Treating that as "the child died"
-     *
-     * as an earlier version of this file did, via a blocking waitpid() fired
-     * straight off POLLHUP/ read()<=0 on master_fd
-     *
-     * blocks with nothing to reap until the child eventually exits for some
-     * unrelated reason (e.g. login's own ~60s LOGIN_TIMEOUT), freezing this
-     * single-threaded loop, including the live renderer connection, for the whole
-     * wait.
+     * Treating that as "the child died" -- as an earlier version of this file
+     * did, via a blocking waitpid() fired straight off POLLHUP/read()<=0 on
+     * master_fd -- blocks with nothing to reap until the child eventually exits
+     * for some unrelated reason (e.g. login's own ~60s LOGIN_TIMEOUT), freezing
+     * this single-threaded loop, including the live renderer connection, for the
+     * whole wait.
      *
      * Found live as a "stuck at password" symptom that self-resolved after ~60s.
-     *
      * Fixed by only ever reaping via SIGCHLD (kmscon's own proven approach, via
-     * its sig_child() callback)
-     *
-     * never via read()<=0 on the pty.
+     * its sig_child() callback) -- never via read()<=0 on the pty.
      */
     if (pipe(g_chld_pipe) != 0)
     {
-        fprintf(stderr, "pty-tty%d: pipe: %s\n", vtnum, strerror(errno));
+        fprintf(stderr, "pty-tty%d: pipe: %s\n", pc->vtnum, strerror(errno));
         return 1;
     }
     fcntl(g_chld_pipe[0], F_SETFL, O_NONBLOCK);
@@ -410,61 +428,380 @@ int main(int argc, char **argv)
     sigemptyset(&chld_sa.sa_mask);
     if (sigaction(SIGCHLD, &chld_sa, NULL) != 0)
     {
-        fprintf(stderr, "pty-tty%d: sigaction(SIGCHLD): %s\n", vtnum, strerror(errno));
+        fprintf(stderr, "pty-tty%d: sigaction(SIGCHLD): %s\n", pc->vtnum, strerror(errno));
         return 1;
     }
 
-    int master_fd;
-    pid_t child = spawn_session(shell, &master_fd);
-    if (child < 0)
+    pc->child = spawn_session(pc->shell, &pc->master_fd);
+    if (pc->child < 0)
         return 1;
 
-    int listen_fd = listen_unix(socket_path);
-    if (listen_fd < 0)
+    pc->listen_fd = listen_unix(pc->socket_path);
+    if (pc->listen_fd < 0)
     {
         fprintf(stderr, "pty-tty%d: failed to listen on %s: %s\n",
-                vtnum, socket_path, strerror(errno));
-        kill(child, SIGHUP);
-        waitpid(child, NULL, 0);
+                pc->vtnum, pc->socket_path, strerror(errno));
+        kill(pc->child, SIGHUP);
+        waitpid(pc->child, NULL, 0);
         return 1;
     }
 
-    /* Resize control socket
-     *
-     * see protocol.h's own doc comment on GHOSTCON_PTY_CTL_SOCKET_FMT for why
-     * this is a separate socket rather than an in-band command on the data socket
-     * above.
+    /* Resize control socket -- see protocol.h's own doc comment on
+     * GHOSTCON_PTY_CTL_SOCKET_FMT for why this is a separate socket rather than
+     * an in-band command on the data socket above.
      *
      * Not fatal if this fails to bind: the session still works, just without live
-     * TIOCSWINSZ propagation (the pre-existing behavior, unchanged)
-     *
-     * found live: TUI programs (e.g. a full-screen editor) rendered into a small,
+     * TIOCSWINSZ propagation (the pre-existing behavior, unchanged) -- found
+     * live: TUI programs (e.g. a full-screen editor) rendered into a small,
      * wrong-sized corner because nothing ever called TIOCSWINSZ on this pty's
      * master at all, not even once at startup, so ioctl(TIOCGWINSZ) callers got
      * whatever forkpty()'s bare default happened to be.
      */
     char dir_buf[GHOSTCON_PTYSERV_LINE_MAX];
-    snprintf(dir_buf, sizeof(dir_buf), "%s", socket_path);
+    snprintf(dir_buf, sizeof(dir_buf), "%s", pc->socket_path);
     char ctl_path[GHOSTCON_PTYSERV_LINE_MAX];
-    snprintf(ctl_path, sizeof(ctl_path), GHOSTCON_PTY_CTL_SOCKET_FMT, dirname(dir_buf), vtnum);
-    int ctl_listen_fd = listen_unix(ctl_path);
-    if (ctl_listen_fd < 0)
+    snprintf(ctl_path, sizeof(ctl_path), GHOSTCON_PTY_CTL_SOCKET_FMT,
+             dirname(dir_buf), pc->vtnum);
+    pc->ctl_listen_fd = listen_unix(ctl_path);
+    if (pc->ctl_listen_fd < 0)
         fprintf(stderr, "pty-tty%d: failed to listen on %s: %s (resizes won't propagate)\n",
-                vtnum, ctl_path, strerror(errno));
-    int ctl_fd = -1; /* accepted control connection, if any */
+                pc->vtnum, ctl_path, strerror(errno));
+    pc->ctl_fd = -1;
+    pc->renderer_fd = -1;
 
-    ringbuf_t rb;
-    ringbuf_init(&rb, GHOSTCON_PTY_RINGBUF_DEFAULT_SIZE);
+    ringbuf_init(&pc->rb, GHOSTCON_PTY_RINGBUF_DEFAULT_SIZE);
 
-    int renderer_fd = -1;
-    uint8_t buf[4096];
+    return 0;
+}
+
+static void pty_child_teardown(pty_child_t *pc)
+{
+    free(pc->rb.data);
+    if (pc->renderer_fd >= 0)
+        close(pc->renderer_fd);
+    close(pc->listen_fd);
+    unlink(pc->socket_path);
+    kill(pc->child, SIGHUP);
+    waitpid(pc->child, NULL, 0);
+}
+
+/* Respawns the shell once its backoff deadline passes. Returns false if the
+ * respawn failed and the event loop should give up. */
+static bool pty_child_respawn_if_due(pty_child_t *pc)
+{
+    if (!pc->awaiting_respawn || time(NULL) < pc->respawn_after)
+        return true;
+
+    /* The old master_fd (from the session that just died) is never read again
+     * past this point -- close it before it's overwritten below.
+     *
+     * Left open, the kernel's devpts can't free/reuse that pts number (it
+     * allocates the lowest currently-unused slot), so every respawn permanently
+     * leaked one pts allocation, pushing each new login to a higher pts number
+     * forever (found live: pts/3 -> pts/18 across one boot's worth of
+     * logout/login cycles).
+     */
+    close(pc->master_fd);
+    pc->child = spawn_session(pc->shell, &pc->master_fd);
+    if (pc->child < 0)
+    {
+        fprintf(stderr, "pty-tty%d: failed to respawn session, giving up\n", pc->vtnum);
+        return false;
+    }
+    pc->awaiting_respawn = false;
+    return true;
+}
+
+typedef struct
+{
+    struct pollfd fds[6];
+    int           nfds;
+    int           master_idx;
+    int           listen_idx;
+    int           renderer_idx;
+    int           ctl_listen_idx;
+    int           ctl_idx;
+    int           chld_idx;
+} pty_poll_t;
+
+static void pty_child_fill_poll(pty_child_t *pc, pty_poll_t *p)
+{
+    p->nfds = 0;
+    p->master_idx = -1;
+    p->renderer_idx = -1;
+    p->ctl_listen_idx = -1;
+    p->ctl_idx = -1;
+
+    if (!pc->awaiting_respawn && !pc->master_quiet)
+    {
+        p->master_idx = p->nfds;
+        p->fds[p->nfds++] = (struct pollfd){ .fd = pc->master_fd, .events = POLLIN };
+    }
+    p->listen_idx = p->nfds;
+    p->fds[p->nfds++] = (struct pollfd){ .fd = pc->listen_fd, .events = POLLIN };
+    if (pc->renderer_fd >= 0)
+    {
+        p->renderer_idx = p->nfds;
+        p->fds[p->nfds++] = (struct pollfd){ .fd = pc->renderer_fd, .events = POLLIN };
+    }
+    if (pc->ctl_listen_fd >= 0)
+    {
+        p->ctl_listen_idx = p->nfds;
+        p->fds[p->nfds++] = (struct pollfd){ .fd = pc->ctl_listen_fd, .events = POLLIN };
+    }
+    if (pc->ctl_fd >= 0)
+    {
+        p->ctl_idx = p->nfds;
+        p->fds[p->nfds++] = (struct pollfd){ .fd = pc->ctl_fd, .events = POLLIN };
+    }
+    p->chld_idx = p->nfds;
+    p->fds[p->nfds++] = (struct pollfd){ .fd = g_chld_pipe[0], .events = POLLIN };
+}
+
+static int pty_child_poll_timeout_ms(const pty_child_t *pc)
+{
+    if (pc->awaiting_respawn)
+    {
+        time_t remaining = pc->respawn_after - time(NULL);
+        return remaining > 0 ? (int)(remaining * 1000) : 0;
+    }
+    if (pc->master_quiet)
+    {
+        long remaining = pc->master_quiet_until_ms - monotonic_ms();
+        return remaining > 0 ? (int)remaining : 0;
+    }
+    return -1;
+}
+
+/* SIGCHLD self-pipe: reap the session and schedule a respawn. A byte on the pipe
+ * is only a wakeup
+ *
+ * the actual death is confirmed via waitpid, so a transient master-side hangup
+ * cannot be mistaken for one.
+ */
+static void pty_child_handle_sigchld(pty_child_t *pc)
+{
+    char discard[64];
+    while (read(g_chld_pipe[0], discard, sizeof(discard)) > 0)
+        ; /* drain -- the byte content doesn't matter, only the wakeup */
+
+    pid_t reaped;
+    int status;
+    while ((reaped = waitpid(-1, &status, WNOHANG)) > 0)
+    {
+        if (reaped != pc->child)
+            continue; /* not our session (shouldn't happen, but not our death either) */
+
+        /* This IS a real death, confirmed by the kernel via SIGCHLD/waitpid --
+         * unlike master_fd's POLLHUP, this signal cannot fire spuriously while
+         * the child is still alive.
+         *
+         * Respawn a fresh session rather than exiting this process and leaving
+         * the VT's PTY with nothing attached at all (found live: "exiting bails
+         * it to blank kernel state").
+         *
+         * The renderer stays connected throughout and just sees the new login
+         * prompt appear as ordinary output.
+         */
+
+        /* Tell the renderer this session's screen owner is gone, over the
+         * control socket (same connection RESIZE arrives on, opposite
+         * direction). ghostcon-core decides whether to act on it
+         * (GHOSTCON_CLEAR_ON_LOGOUT).
+         *
+         * Best-effort: no ctl connection or a failed write just means the old
+         * screen lingers under the new login prompt, same as today's behavior.
+         */
+        if (pc->ctl_fd >= 0)
+        {
+            char clear_msg[16];
+            size_t clear_len = ghostcon_ptyserv_format_clear(clear_msg, sizeof(clear_msg));
+            if (clear_len > 0)
+                write_all(pc->ctl_fd, (const uint8_t *)clear_msg, clear_len);
+        }
+
+        pc->master_quiet = false;
+        pc->master_quiet_ms = 0;
+        time_t now = time(NULL);
+        if (pc->last_death != 0 && (now - pc->last_death) >= 10)
+            pc->backoff = 0; /* previous session ran long enough to trust it worked */
+        pc->last_death = now;
+        if (pc->backoff > 0)
+            fprintf(stderr, "pty-tty%d: session died again quickly, backing off %ds\n",
+                    pc->vtnum, pc->backoff);
+        pc->awaiting_respawn = true;
+        pc->respawn_after = now + pc->backoff;
+
+        pc->backoff = (pc->backoff == 0) ? 1 : pc->backoff * 2;
+        if (pc->backoff > 30)
+            pc->backoff = 30;
+    }
+}
+
+/* Forward PTY output to the renderer. Returns true when the caller should skip
+ * the rest of this poll iteration (the master just read EOF/hangup and a quiet
+ * period was started). */
+static bool pty_child_handle_master(pty_child_t *pc)
+{
+    ssize_t r = read(pc->master_fd, pc->buf, sizeof(pc->buf));
+    if (r <= 0)
+    {
+        /* NOT necessarily death -- see the vhangup() comment in
+         * pty_child_setup(). The child's actual death is detected exclusively
+         * via the SIGCHLD self-pipe handled above.
+         *
+         * This branch just backs off polling master_fd briefly so a persistent
+         * (but transient) hangup condition doesn't busy-spin the loop, then
+         * retries.
+         */
+        pc->master_quiet = true;
+        pc->master_quiet_ms = (pc->master_quiet_ms == 0) ? 20 : pc->master_quiet_ms * 2;
+        if (pc->master_quiet_ms > 500)
+            pc->master_quiet_ms = 500;
+        pc->master_quiet_until_ms = monotonic_ms() + pc->master_quiet_ms;
+        return true;
+    }
+    pc->master_quiet_ms = 0; /* master healthy again -- forget any prior backoff */
+    ringbuf_append(&pc->rb, pc->buf, (size_t)r);
+    if (pc->renderer_fd >= 0 && !write_all(pc->renderer_fd, pc->buf, (size_t)r))
+    {
+        close(pc->renderer_fd);
+        pc->renderer_fd = -1;
+    }
+    return false;
+}
+
+static void pty_child_handle_listen(pty_child_t *pc)
+{
+    int new_fd = accept(pc->listen_fd, NULL, NULL);
+    if (new_fd < 0)
+        return;
+
+    /* Only one renderer at a time -- a new connection (e.g. supervisor
+     * restarted a hung renderer) replaces the old. */
+    if (pc->renderer_fd >= 0)
+        close(pc->renderer_fd);
+    pc->renderer_fd = new_fd;
+    if (!ringbuf_replay(&pc->rb, pc->renderer_fd))
+    {
+        close(pc->renderer_fd);
+        pc->renderer_fd = -1;
+    }
+}
+
+static void pty_child_handle_renderer(pty_child_t *pc)
+{
+    ssize_t r = read(pc->renderer_fd, pc->buf, sizeof(pc->buf));
+    if (r <= 0)
+    {
+        close(pc->renderer_fd);
+        pc->renderer_fd = -1;
+        return;
+    }
+    if (pc->awaiting_respawn)
+    {
+        /* Nowhere to deliver this while a respawn is pending (master_fd is stale,
+         * the old session already died) -- drop it rather than write to a dead
+         * fd.
+         *
+         * Genuine improvement over the old behavior, not a regression: previously
+         * this same input just sat unread in the renderer socket's kernel buffer
+         * for the entire blocking sleep() and got delivered late/out of context
+         * anyway once the shell existed again.
+         */
+        return;
+    }
+    write_all(pc->master_fd, pc->buf, (size_t)r);
+}
+
+static void pty_child_handle_ctl_listen(pty_child_t *pc)
+{
+    int new_fd = accept(pc->ctl_listen_fd, NULL, NULL);
+    if (new_fd < 0)
+        return;
+
+    /* Only one control connection at a time, same rationale as the data
+     * socket's renderer_fd above. */
+    if (pc->ctl_fd >= 0)
+        close(pc->ctl_fd);
+    pc->ctl_fd = new_fd;
+}
+
+static void pty_child_handle_ctl(pty_child_t *pc)
+{
+    char line[GHOSTCON_PTYSERV_LINE_MAX];
+    ssize_t r = read(pc->ctl_fd, line, sizeof(line) - 1);
+    if (r <= 0)
+    {
+        close(pc->ctl_fd);
+        pc->ctl_fd = -1;
+        return;
+    }
+
+    line[r] = '\0';
+    int rows, cols, xpixel, ypixel;
+    if (ghostcon_ptyserv_parse_resize(line, &rows, &cols, &xpixel, &ypixel) &&
+        rows > 0 && cols > 0)
+    {
+        /* The kernel automatically sends SIGWINCH to this pty's foreground
+         * process group when TIOCSWINSZ actually changes the size -- no manual
+         * kill() needed, and guessing the right process group to target manually
+         * would be less correct than letting the kernel's own foreground-group
+         * tracking handle it (matters once job control is in play: the foreground
+         * group isn't always just `child`).
+         */
+        struct winsize ws;
+        memset(&ws, 0, sizeof(ws));
+        ws.ws_row = (unsigned short)rows;
+        ws.ws_col = (unsigned short)cols;
+        /* ws_xpixel/ws_ypixel: total terminal pixel size, so any client that
+         * queries TIOCGWINSZ (e.g. a Kitty-graphics-aware program computing exact
+         * rows/cols an image will occupy) gets ghostcon's real cell size instead
+         * of guessing -- previously always 0, a real coverage gap found via
+         * image_protocol_bench needing to fall back to a hardcoded guess that
+         * only coincidentally matched ghostcon's actual cell size some of the
+         * time.
+         */
+        if (xpixel > 0 && ypixel > 0)
+        {
+            ws.ws_xpixel = (unsigned short)xpixel;
+            ws.ws_ypixel = (unsigned short)ypixel;
+        }
+        ioctl(pc->master_fd, TIOCSWINSZ, &ws);
+    }
+    if (ghostcon_ptyserv_parse_dump(line))
+    {
+        /* Real raw bytes leading up to right now (up to
+         * GHOSTCON_PTY_RINGBUF_DEFAULT_SIZE's worth), not a synthetic
+         * reproduction -- pairs with core/main.c's Ctrl+Alt+D live screen-state
+         * dump so both can be replayed/diffed against tools/ghostty_dump.c for
+         * the exact same moment.
+         */
+        char dump_path[64];
+        snprintf(dump_path, sizeof(dump_path),
+                 "/tmp/ghostcon-vt%d-rawbytes.bin", pc->vtnum);
+        int dump_fd = open(dump_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        if (dump_fd >= 0)
+        {
+            ringbuf_replay(&pc->rb, dump_fd);
+            close(dump_fd);
+        }
+    }
+}
+
+int main(int argc, char **argv)
+{
+    pty_child_t pc = {0};
+    int rc = pty_child_setup(&pc, argc, argv);
+    if (rc != 0)
+        return rc;
 
     /* Respawn backoff, same reasoning as undead-head's own restart loop (PLAN.md
      * Phase 1 item 7): a session that keeps dying instantly (e.g. agetty missing,
      * or misconfigured) must not spin tightly forever respawning.
      *
      * Non-blocking: a plain sleep() here was tried first and found live to be a
-     * real bug, not just an implementation detail --this is a SINGLE-THREADED
+     * real bug, not just an implementation detail -- this is a SINGLE-THREADED
      * event loop that also services the renderer connection (every keystroke the
      * user types), so a blocking sleep() (up to 30s, per the cap below) froze the
      * entire session, not just the respawn: keystrokes typed during that window
@@ -472,31 +809,24 @@ int main(int argc, char **argv)
      * forwarded to the (not-yet-existing) new shell, then all flushed at once the
      * moment the sleep ended, indistinguishable from the terminal being frozen
      * and abruptly "catching up." Found via a live repro where a typed password
-     * appeared to vanish, then showed up in plaintext ~57s later
-     *
-     * this pty-ttyN process had accumulated a non-trivial backoff value across
-     * many quick failed-login deaths earlier in the same debugging session, since
-     * it (correctly, per the ghost-ptyserv reliability fix) persists across
+     * appeared to vanish, then showed up in plaintext ~57s later -- this pty-ttyN
+     * process had accumulated a non-trivial backoff value across many quick
+     * failed-login deaths earlier in the same debugging session, since it
+     * (correctly, per the ghost-ptyserv reliability fix) persists across
      * everything except its own shell dying.
      *
      * Fixed by tracking a respawn deadline instead of blocking: master_fd is left
      * out of the pollfd set while a respawn is pending (it's stale/at-EOF
-     * anyway), and poll()'s own timeout parameter
+     * anyway), and poll()'s own timeout parameter -- not sleep() -- is what makes
+     * the loop wait, so listen_fd/renderer_fd stay fully serviced the whole time.
      *
-     * not sleep() --is what makes the loop wait, so listen_fd/renderer_fd stay
-     * fully serviced the whole time.
-     */
-    time_t last_death = 0;
-    int backoff = 0;
-    bool awaiting_respawn = false;
-    time_t respawn_after = 0;
-
-    /* Cooldown for a transient hangup on master_fd (e.g. login's own vhangup(),
-     * see the big comment above) that is NOT an actual child death: poll() is
+     * Cooldown for a transient hangup on master_fd (e.g. login's own vhangup(),
+     * see pty_child_setup()) that is NOT an actual child death: poll() is
      * level-triggered, so if we kept master_fd in the set while the condition
      * persists, POLLHUP would fire again on every single iteration and this loop
      * would busy-spin at 100% CPU (kmscon avoids this the same way, just via
-     * edge-triggered epoll instead --EV_ET isn't available through plain poll()).
+     * edge-triggered epoll instead -- EV_ET isn't available through plain
+     * poll()).
      *
      * Instead, briefly stop polling master_fd and retry after a short delay.
      *
@@ -504,90 +834,23 @@ int main(int argc, char **argv)
      * doubling to a 500ms cap, reset on the next successful read) rather than a
      * flat 1s: a flat whole-second cooldown was tried first and found live to add
      * a noticeable, user-visible lag to every login even though the freeze itself
-     * was fixed
-     *
-     * most hangups are much shorter than 1s in practice (the
+     * was fixed -- most hangups are much shorter than 1s in practice (the
      * vhangup()-then-reopen sequence is typically near-instant), so starting
      * short and only backing off if it's still not done keeps the common case
      * snappy while still bounding worst-case CPU spin the same way the flat
      * version did.
      */
-    bool master_quiet = false;
-    long master_quiet_ms = 0;
-    long master_quiet_until_ms = 0;
-
     for (;;)
     {
-        if (awaiting_respawn && time(NULL) >= respawn_after)
-        {
-            /* The old master_fd (from the session that just died) is never read
-             * again past this point
-             *
-             * close it before it's overwritten below.
-             *
-             * Left open, the kernel's devpts can't free/reuse that pts number (it
-             * allocates the lowest currently-unused slot), so every respawn
-             * permanently leaked one pts allocation, pushing each new login to a
-             * higher pts number forever (found live: pts/3 -> pts/18 across one
-             * boot's worth of logout/login cycles).
-             */
-            close(master_fd);
-            child = spawn_session(shell, &master_fd);
-            if (child < 0)
-            {
-                fprintf(stderr, "pty-tty%d: failed to respawn session, giving up\n", vtnum);
-                break;
-            }
-            awaiting_respawn = false;
-        }
-        if (master_quiet && monotonic_ms() >= master_quiet_until_ms)
-            master_quiet = false;
+        if (!pty_child_respawn_if_due(&pc))
+            break;
+        if (pc.master_quiet && monotonic_ms() >= pc.master_quiet_until_ms)
+            pc.master_quiet = false;
 
-        struct pollfd fds[6];
-        int nfds = 0;
+        pty_poll_t p;
+        pty_child_fill_poll(&pc, &p);
 
-        int master_idx = -1;
-        if (!awaiting_respawn && !master_quiet)
-        {
-            master_idx = nfds;
-            fds[nfds++] = (struct pollfd){ .fd = master_fd, .events = POLLIN };
-        }
-        int listen_idx = nfds;
-        fds[nfds++] = (struct pollfd){ .fd = listen_fd, .events = POLLIN };
-        int renderer_idx = -1;
-        if (renderer_fd >= 0)
-        {
-            renderer_idx = nfds;
-            fds[nfds++] = (struct pollfd){ .fd = renderer_fd, .events = POLLIN };
-        }
-        int ctl_listen_idx = -1;
-        if (ctl_listen_fd >= 0)
-        {
-            ctl_listen_idx = nfds;
-            fds[nfds++] = (struct pollfd){ .fd = ctl_listen_fd, .events = POLLIN };
-        }
-        int ctl_idx = -1;
-        if (ctl_fd >= 0)
-        {
-            ctl_idx = nfds;
-            fds[nfds++] = (struct pollfd){ .fd = ctl_fd, .events = POLLIN };
-        }
-        int chld_idx = nfds;
-        fds[nfds++] = (struct pollfd){ .fd = g_chld_pipe[0], .events = POLLIN };
-
-        int poll_timeout_ms = -1;
-        if (awaiting_respawn)
-        {
-            time_t remaining = respawn_after - time(NULL);
-            poll_timeout_ms = remaining > 0 ? (int)(remaining * 1000) : 0;
-        }
-        else if (master_quiet)
-        {
-            long remaining = master_quiet_until_ms - monotonic_ms();
-            poll_timeout_ms = remaining > 0 ? (int)remaining : 0;
-        }
-
-        int rv = poll(fds, (nfds_t)nfds, poll_timeout_ms);
+        int rv = poll(p.fds, (nfds_t)p.nfds, pty_child_poll_timeout_ms(&pc));
         if (rv < 0)
         {
             if (errno == EINTR)
@@ -595,238 +858,30 @@ int main(int argc, char **argv)
             break;
         }
 
-        if (chld_idx >= 0 && (fds[chld_idx].revents & POLLIN))
+        if (p.chld_idx >= 0 && (p.fds[p.chld_idx].revents & POLLIN))
+            pty_child_handle_sigchld(&pc);
+
+        if (p.master_idx >= 0 &&
+            (p.fds[p.master_idx].revents & (POLLIN | POLLHUP | POLLERR)))
         {
-            char discard[64];
-            while (read(g_chld_pipe[0], discard, sizeof(discard)) > 0)
-                ; /* drain -- the byte content doesn't matter, only the wakeup */
-
-            pid_t reaped;
-            int status;
-            while ((reaped = waitpid(-1, &status, WNOHANG)) > 0)
-            {
-                if (reaped != child)
-                    continue; /* not our session (shouldn't happen, but not our death either) */
-
-                /* This IS a real death, confirmed by the kernel via
-                 * SIGCHLD/waitpid
-                 *
-                 * unlike master_fd's POLLHUP, this signal cannot fire spuriously
-                 * while the child is still alive.
-                 *
-                 * Respawn a fresh session rather than exiting this process and
-                 * leaving the VT's PTY with nothing attached at all (found live:
-                 * "exiting bails it to blank kernel state").
-                 *
-                 * The renderer stays connected throughout. It'll just see the new
-                 * login prompt appear as ordinary output.
-                 */
-                /* Tell the renderer this session's screen owner is gone, over the
-                 * control socket (same connection RESIZE arrives on, opposite
-                 * direction)
-                 *
-                 * ghostcon-core decides whether to act on it
-                 * (GHOSTCON_CLEAR_ON_LOGOUT).
-                 *
-                 * Best-effort: no ctl connection or a failed write just means the
-                 * old screen lingers under the new login prompt, same as today's
-                 * behavior.
-                 */
-                if (ctl_fd >= 0)
-                {
-                    char clear_msg[16];
-                    size_t clear_len = ghostcon_ptyserv_format_clear(clear_msg, sizeof(clear_msg));
-                    if (clear_len > 0)
-                        write_all(ctl_fd, (const uint8_t *)clear_msg, clear_len);
-                }
-
-                master_quiet = false;
-                master_quiet_ms = 0;
-                time_t now = time(NULL);
-                if (last_death != 0 && (now - last_death) >= 10)
-                    backoff = 0; /* previous session ran long enough to trust it worked */
-                last_death = now;
-                if (backoff > 0)
-                    fprintf(stderr, "pty-tty%d: session died again quickly, backing off %ds\n",
-                            vtnum, backoff);
-                awaiting_respawn = true;
-                respawn_after = now + backoff;
-
-                backoff = (backoff == 0) ? 1 : backoff * 2;
-                if (backoff > 30)
-                    backoff = 30;
-            }
-        }
-
-        if (master_idx >= 0 && (fds[master_idx].revents & (POLLIN | POLLHUP | POLLERR)))
-        {
-            ssize_t r = read(master_fd, buf, sizeof(buf));
-            if (r <= 0)
-            {
-                /* NOT necessarily death
-                 *
-                 * see the vhangup() comment above main().
-                 *
-                 * The child's actual death is detected exclusively via the
-                 * SIGCHLD self-pipe handled above.
-                 *
-                 * This branch just backs off polling master_fd briefly so a
-                 * persistent (but transient) hangup condition doesn't busy-spin
-                 * the loop, then retries.
-                 */
-                master_quiet = true;
-                master_quiet_ms = (master_quiet_ms == 0) ? 20 : master_quiet_ms * 2;
-                if (master_quiet_ms > 500)
-                    master_quiet_ms = 500;
-                master_quiet_until_ms = monotonic_ms() + master_quiet_ms;
+            if (pty_child_handle_master(&pc))
                 continue;
-            }
-            master_quiet_ms = 0; /* master healthy again -- forget any prior backoff */
-            ringbuf_append(&rb, buf, (size_t)r);
-            if (renderer_fd >= 0 && !write_all(renderer_fd, buf, (size_t)r))
-            {
-                close(renderer_fd);
-                renderer_fd = -1;
-            }
         }
 
-        if (fds[listen_idx].revents & POLLIN)
-        {
-            int new_fd = accept(listen_fd, NULL, NULL);
-            if (new_fd >= 0)
-            {
-                /* Only one renderer at a time
-                 *
-                 * a new connection (e.g. supervisor restarted a hung renderer)
-                 * replaces the old.
-                 */
-                if (renderer_fd >= 0)
-                    close(renderer_fd);
-                renderer_fd = new_fd;
-                if (!ringbuf_replay(&rb, renderer_fd))
-                {
-                    close(renderer_fd);
-                    renderer_fd = -1;
-                }
-            }
-        }
+        if (p.listen_idx >= 0 && (p.fds[p.listen_idx].revents & POLLIN))
+            pty_child_handle_listen(&pc);
 
-        if (renderer_idx >= 0 &&
-            (fds[renderer_idx].revents & (POLLIN | POLLHUP | POLLERR)))
-        {
-            ssize_t r = read(renderer_fd, buf, sizeof(buf));
-            if (r <= 0)
-            {
-                close(renderer_fd);
-                renderer_fd = -1;
-            }
-            else if (!awaiting_respawn)
-            {
-                /* Nowhere to deliver this while a respawn is pending (master_fd
-                 * is stale, the old session already died) --drop it rather than
-                 * write to a dead fd.
-                 *
-                 * Genuine improvement over the old behavior, not a regression:
-                 * previously this same input just sat unread in the renderer
-                 * socket's kernel buffer for the entire blocking sleep() and got
-                 * delivered late/out of context anyway once the shell existed
-                 * again.
-                 */
-                write_all(master_fd, buf, (size_t)r);
-            }
-        }
+        if (p.renderer_idx >= 0 &&
+            (p.fds[p.renderer_idx].revents & (POLLIN | POLLHUP | POLLERR)))
+            pty_child_handle_renderer(&pc);
 
-        if (ctl_listen_idx >= 0 && (fds[ctl_listen_idx].revents & POLLIN))
-        {
-            int new_fd = accept(ctl_listen_fd, NULL, NULL);
-            if (new_fd >= 0)
-            {
-                /* Only one control connection at a time, same rationale as
-                 * the data socket's renderer_fd above.
-                 */
-                if (ctl_fd >= 0)
-                    close(ctl_fd);
-                ctl_fd = new_fd;
-            }
-        }
+        if (p.ctl_listen_idx >= 0 && (p.fds[p.ctl_listen_idx].revents & POLLIN))
+            pty_child_handle_ctl_listen(&pc);
 
-        if (ctl_idx >= 0 && (fds[ctl_idx].revents & (POLLIN | POLLHUP | POLLERR)))
-        {
-            char line[GHOSTCON_PTYSERV_LINE_MAX];
-            ssize_t r = read(ctl_fd, line, sizeof(line) - 1);
-            if (r <= 0)
-            {
-                close(ctl_fd);
-                ctl_fd = -1;
-            }
-            else
-            {
-                line[r] = '\0';
-                int rows, cols, xpixel, ypixel;
-                if (ghostcon_ptyserv_parse_resize(line, &rows, &cols, &xpixel, &ypixel) &&
-                    rows > 0 && cols > 0)
-                {
-                    /* The kernel automatically sends SIGWINCH to this pty's
-                     * foreground process group when TIOCSWINSZ actually changes
-                     * the size
-                     *
-                     * no manual kill() needed, and guessing the right process
-                     * group to target manually would be less correct than letting
-                     * the kernel's own foreground-group tracking handle it
-                     * (matters once job control is in play: the foreground group
-                     * isn't always just `child`).
-                     */
-                    struct winsize ws;
-                    memset(&ws, 0, sizeof(ws));
-                    ws.ws_row = (unsigned short)rows;
-                    ws.ws_col = (unsigned short)cols;
-                    /* ws_xpixel/ws_ypixel: total terminal pixel size, so any
-                     * client that queries TIOCGWINSZ (e.g. a Kitty-graphics-aware
-                     * program computing exact rows/cols an image will occupy)
-                     * gets ghostcon's real cell size instead of guessing
-                     *
-                     * previously always 0, a real coverage gap found via
-                     * image_protocol_bench needing to fall back to a hardcoded
-                     * guess that only coincidentally matched ghostcon's actual
-                     * cell size some of the time.
-                     */
-                    if (xpixel > 0 && ypixel > 0)
-                    {
-                        ws.ws_xpixel = (unsigned short)xpixel;
-                        ws.ws_ypixel = (unsigned short)ypixel;
-                    }
-                    ioctl(master_fd, TIOCSWINSZ, &ws);
-                }
-                if (ghostcon_ptyserv_parse_dump(line))
-                {
-                    /* Real raw bytes leading up to right now (up to
-                     * GHOSTCON_PTY_RINGBUF_DEFAULT_SIZE's worth), not a synthetic
-                     * reproduction
-                     *
-                     * pairs with core/main.c's Ctrl+Alt+D live screen-state dump
-                     * so both can be replayed/diffed against tools/ghostty_dump.c
-                     * for the exact same moment.
-                     */
-                    char dump_path[64];
-                    snprintf(dump_path, sizeof(dump_path),
-                             "/tmp/ghostcon-vt%d-rawbytes.bin", vtnum);
-                    int dump_fd = open(dump_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-                    if (dump_fd >= 0)
-                    {
-                        ringbuf_replay(&rb, dump_fd);
-                        close(dump_fd);
-                    }
-                }
-            }
-        }
+        if (p.ctl_idx >= 0 && (p.fds[p.ctl_idx].revents & (POLLIN | POLLHUP | POLLERR)))
+            pty_child_handle_ctl(&pc);
     }
 
-    free(rb.data);
-    if (renderer_fd >= 0)
-        close(renderer_fd);
-    close(listen_fd);
-    unlink(socket_path);
-    kill(child, SIGHUP);
-    waitpid(child, NULL, 0);
+    pty_child_teardown(&pc);
     return 0;
 }

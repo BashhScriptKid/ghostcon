@@ -282,6 +282,7 @@ Phases 1–4 above are implemented, each as a reviewable commit:
 | Hotspot 2 parser states | `src/term/stream.c`: `ghostcon_stream_process_byte` (cx 119 / cog 575) split into 15 `stream_state_*` handlers, a `stream_handle_c1` guard, and a thin dispatch switch → cx 17 / cog 32 | full suite + ASan/UBSan + fuzzer smoke |
 | Hotspot 3 sixel split | `src/term/sixel.c`: `ghostcon_sixel_decode` (cx 47 / cog 204) split into `sixel_measure`, `sixel_paint`, and `sixel_set_column` → cx 8 / cog 9; added `tests/test_sixel.c` (the decode path had no unit coverage) | `test_sixel` (unit) |
 | Hotspot 4 OSC dispatch | `src/term/stream_osc.c`: `osc_dispatch_manual` (cx 46 / cog 160) split into a number-keyed `osc_dispatch_table` of `osc_handle_*` functions → cx 4 / cog 5 | `test_osc` + full suite |
+| Hotspot 5 pty loop | `src/ptyserv/pty_child.c`: `main` (cx 50 / cog 134) split into a `pty_child_t` state struct plus `pty_child_setup`/`pty_child_teardown` and per-event `pty_child_handle_*` helpers → cx 13 / cog 26 | full suite + ASan/UBSan |
 
 Current test count: **23/23** (`meson test -C build-release`).
 Live-service deploys use `build-release` + `meson install` + restart, per
