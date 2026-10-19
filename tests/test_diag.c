@@ -16,6 +16,7 @@
 #include "test_process.h"
 
 #include <signal.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -103,7 +104,9 @@ recurse_and_abort(int depth)
         return;
     }
     recurse_and_abort(depth - 1);
-    __asm__ volatile("");
+    /* Compiler barrier: prevents sibling-call optimization so the
+       recursive frames remain in the backtrace. */
+    atomic_signal_fence(memory_order_seq_cst);
 }
 #pragma GCC diagnostic pop
 
