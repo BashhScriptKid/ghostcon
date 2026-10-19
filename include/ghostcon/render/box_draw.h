@@ -13,9 +13,7 @@
  * padding the font happens to use around that glyph
  *
  * invisible for ordinary letters, but a visible seam for shapes meant to connect
- * seamlessly (found live: a TUI splash logo built from these characters rendered
- * as a visible checkerboard of gaps, while ordinary text in the same frame was
- * crisp).
+ * seamlessly[1].
  *
  * Ghostty itself never sources these from a font at all
  *
@@ -23,14 +21,21 @@
  * the cell.
  *
  * This is the same idea, reimplemented here in C for ghostcon's own renderer.
+ *
+ * [1] found live: a TUI splash logo built from these characters rendered
+ *     as a visible checkerboard of gaps, while ordinary text in the same frame was
+ *     crisp.
  */
 
 /* Returns true if `codepoint` is one this module handles
  *
  * caller should bypass the font atlas entirely for it.
  *
- * On true, fills `alpha` (cell_w * cell_h bytes, row-major, one 0-255 coverage
- * value per pixel) with the rasterized shape for the given cell size.
+ * On true, fills `alpha`[1] with the rasterized shape for the given cell size.
+ *
+ * [1] cell_w * cell_h bytes, one byte per pixel, 0=transparent, 255=opaque.
+ *     alpha is a coverage mask, not a color source. the renderer tints it
+ *     with the cell's foreground color.
  */
 bool ghostcon_box_draw_render(uint32_t codepoint, int cell_w, int cell_h,
                                uint8_t *alpha);

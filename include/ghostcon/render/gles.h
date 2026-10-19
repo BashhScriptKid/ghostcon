@@ -134,14 +134,13 @@ void ghostcon_gles_sync_atlas(ghostcon_gles_t *gles, ghostcon_atlas_t *atlas, bo
  * region, not just cells changed since the previous call) every frame, not just
  * the first.
  *
- * A tempting-looking optimization
+ * A tempting-looking optimization clear only once, then only redraw what's newly
+ * dirty, relying on render/machine.c's per-cell background quads to repaint just
+ * the changed rows...
  *
- * clear only once, then only redraw what's newly dirty, relying on
- * render/machine.c's per-cell background quads to repaint just the changed rows
- *
- * is WRONG here: core/kms.c's GBM/EGL surface rotates across multiple physical
- * buffers for tear-free presentation, and each buffer has its own independent
- * history of what's been painted onto it.
+ * which is DAMN WRONG here: core/kms.c's GBM/EGL surface rotates across multiple
+ * physical buffers for tear-free presentation, and each buffer has its own
+ * independent history of what's been painted onto it.
  *
  * "Only redraw what changed since the last render() call" implicitly assumes a
  * single continuous buffer; against N rotating buffers, each one only receives
@@ -221,7 +220,7 @@ void ghostcon_gles_set_gamma_correct(ghostcon_gles_t *gles, bool enabled);
  * plain path, silently, same as an unrecognized antialiasing value falling back
  * to grayscale.
  *
- * Purely informational (e.g. startup logging) --nothing else needs to branch on
+ * Purely informational (e.g. startup logging). Nothing else needs to branch on
  * this, the shader already does.
  */
 bool ghostcon_gles_linear_blending_active(const ghostcon_gles_t *gles);

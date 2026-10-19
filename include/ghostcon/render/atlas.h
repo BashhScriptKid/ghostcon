@@ -125,8 +125,7 @@ const ghostcon_glyph_t *ghostcon_atlas_glyph(ghostcon_atlas_t *atlas,
 const ghostcon_glyph_t *ghostcon_atlas_glyph_by_index(ghostcon_atlas_t *atlas,
                                                         uint32_t glyph_index);
 
-/* Shapes `count` codepoints (a candidate ligature-trigger run, e.g. the three
- * codepoints of "->") through HarfBuzz using the atlas's primary font, writing up
+/* Shapes `count` codepoints[1] through HarfBuzz using the atlas's primary font, writing up
  * to max_out resulting glyph indices/advances (pixels) into
  * out_glyph_indices/out_advances.
  *
@@ -139,15 +138,20 @@ const ghostcon_glyph_t *ghostcon_atlas_glyph_by_index(ghostcon_atlas_t *atlas,
  * i.e. return value < count, meaning HarfBuzz actually collapsed multiple input
  * codepoints into fewer output glyphs, not just count independent glyphs that
  * happen to sit adjacently.
+ *
+ * [1] A candidate ligature-trigger run, e.g. the three
+ *     codepoints of "->"
  */
 int ghostcon_atlas_shape_run(ghostcon_atlas_t *atlas, const uint32_t *codepoints, int count,
                               uint32_t *out_glyph_indices, float *out_advances, int max_out);
 
-/* The PRIMARY face's glyph index for `codepoint` with no shaping applied --i.e.
- * what ghostcon_atlas_glyph(atlas, codepoint) would have drawn. render/ligature.c
- * compares this against ghostcon_atlas_shape_run()'s output to tell whether
- * HarfBuzz actually substituted a contextual-alternate/ligature glyph for a given
- * cell, or just handed back the same glyph shaping always would have.
+/* The PRIMARY face's glyph index for `codepoint` with no shaping applied i.e.
+ * what ghostcon_atlas_glyph(atlas, codepoint) would have drawn.
+ *
+ * render/ligature.c compares this against ghostcon_atlas_shape_run()'s output to
+ * tell whether HarfBuzz actually substituted a contextual-alternate/ligature
+ * glyph for a given cell, or just handed back the same glyph shaping always would
+ * have.
  *
  * Returns 0 (FreeType's own "no glyph" sentinel) if the primary face has no
  * outline for codepoint at all.
