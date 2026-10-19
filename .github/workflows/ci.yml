@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly fuzz run (Mondays 04:17 UTC).
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # libghostty-vt ships in Arch's repos (package "ghostty"), not in Ubuntu's,
+  # so every job runs in an Arch container. Keep this list in sync with the
+  # "Requirements" section of README.md.
+  ARCH_PACKAGES: >-
+    base-devel git meson ninja pkgconf python clang ghostty
+    libdrm mesa libglvnd libinput systemd-libs libxkbcommon
+    fontconfig freetype2 harfbuzz libpng
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm --needed $ARCH_PACKAGES
+      - name: Configure
+        run: meson setup build -Dinstall_systemd_unit=false
+      - name: Build
+        run: ninja -C build
+      - name: Test
+        run: meson test -C build --print-errorlogs
+
+  sanitize:
+    name: ASan + UBSan
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm --needed $ARCH_PACKAGES
+      - name: Configure
+        run: meson setup build-san -Db_sanitize=address,undefined -Dinstall_systemd_unit=false
+      - name: Build
+        run: ninja -C build-san
+      - name: Test
+        run: meson test -C build-san --print-errorlogs
+
+  format:
+    name: Style checks
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm --needed python
+      - name: format_comments
+        run: python3 tools/format_comments.py --check
+      - name: format_braces
+        run: python3 tools/format_braces.py --check
+      - name: format_signatures
+        run: python3 tools/format_signatures.py --check
+
+  fuzz:
+    name: Fuzz term parser
+    # Scheduled/dispatch only: a coverage-guided run is minutes, not the
+    # seconds a PR should wait on.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm --needed $ARCH_PACKAGES
+      - name: Configure
+        run: |
+          CC=clang meson setup build-fuzz -Dbuild_fuzzers=true \
+            -Db_sanitize=address,undefined -Db_lundef=false \
+            -Dinstall_systemd_unit=false
+      - name: Build fuzzer
+        run: ninja -C build-fuzz src/fuzz_term
+      - name: Seed corpus from existing sequence files
+        run: |
+          mkdir -p build-fuzz/corpus
+          cp tools/corpus/*.seq build-fuzz/corpus/ 2>/dev/null || true
+      - name: Fuzz
+        run: ./build-fuzz/src/fuzz_term -max_len=4096 -max_total_time=120 build-fuzz/corpus
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crashes
+          path: |
+            crash-*
+            leak-*
+          if-no-files-found: ignore
