@@ -29,8 +29,7 @@
 
 static int failures = 0;
 
-static int scan_line(ghostcon_atlas_t *atlas, const char *text,
-                     ghostcon_ligature_glyph_t *out_glyphs, int max_glyphs)
+static int scan_line(ghostcon_atlas_t *atlas, const char *text, ghostcon_ligature_glyph_t *out_glyphs, int max_glyphs)
 {
     ghostcon_term_t term;
     if (!ghostcon_term_init(&term, COLS, ROWS, 0))

@@ -32,8 +32,7 @@ static uint32_t cell_codepoint_or_zero(ghostcon_cell_t cell)
         ? ghostcon_cell_get_codepoint(cell) : 0;
 }
 
-int ghostcon_ligature_scan_row(const ghostcon_row_t *row, ghostcon_atlas_t *atlas,
-                                ghostcon_ligature_glyph_t *out_glyphs, int max_glyphs)
+int ghostcon_ligature_scan_row(const ghostcon_row_t *row, ghostcon_atlas_t *atlas, ghostcon_ligature_glyph_t *out_glyphs, int max_glyphs)
 {
     int n_out = 0;
     uint16_t x = 0;

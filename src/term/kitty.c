@@ -28,9 +28,7 @@ void ghostcon_kitty_pop(ghostcon_kitty_state_t *k, uint8_t n)
     }
 }
 
-void ghostcon_kitty_set_mode(ghostcon_kitty_state_t *k,
-                             ghostcon_kitty_set_mode_t mode,
-                             uint8_t f)
+void ghostcon_kitty_set_mode(ghostcon_kitty_state_t *k, ghostcon_kitty_set_mode_t mode, uint8_t f)
 {
     switch (mode)
     {

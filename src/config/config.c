@@ -182,8 +182,7 @@ bool ghostcon_config_load(const char *path, ghostcon_config_t *cfg)
     return true;
 }
 
-void ghostcon_config_export_env(const ghostcon_config_t *cfg, const char *config_path,
-                                 bool overwrite)
+void ghostcon_config_export_env(const ghostcon_config_t *cfg, const char *config_path, bool overwrite)
 {
     int ow = overwrite ? 1 : 0;
     char buf[32];

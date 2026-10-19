@@ -10,8 +10,7 @@ ghostcon_selection_clear(ghostcon_selection_t *sel)
     sel->kind = GC_SEL_NONE;
 }
 
-void ghostcon_selection_start(ghostcon_selection_t *sel, int16_t x, int16_t y,
-                              ghostcon_sel_kind_t kind, uint16_t cols)
+void ghostcon_selection_start(ghostcon_selection_t *sel, int16_t x, int16_t y, ghostcon_sel_kind_t kind, uint16_t cols)
 {
     sel->x1 = x; sel->y1 = y;
     sel->x2 = x; sel->y2 = y;
@@ -33,8 +32,7 @@ void ghostcon_selection_finish(ghostcon_selection_t *sel)
     sel->pending = false;
 }
 
-bool ghostcon_selection_row_range(const ghostcon_selection_t *sel, int16_t y, int16_t cols,
-                                   int16_t *out_xstart, int16_t *out_xend)
+bool ghostcon_selection_row_range(const ghostcon_selection_t *sel, int16_t y, int16_t cols, int16_t *out_xstart, int16_t *out_xend)
 {
     if (!sel->active) return false;
 

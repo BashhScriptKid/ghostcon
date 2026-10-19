@@ -320,9 +320,7 @@ decode_xcursor_buf(const uint8_t *buf, size_t len,
     return pixels;
 }
 
-uint32_t *ghostcon_cursor_load_xcursor(const char *theme_dir, const char *name,
-                                        uint32_t *out_w, uint32_t *out_h,
-                                        uint32_t *out_hot_x, uint32_t *out_hot_y)
+uint32_t *ghostcon_cursor_load_xcursor(const char *theme_dir, const char *name, uint32_t *out_w, uint32_t *out_h, uint32_t *out_hot_x, uint32_t *out_hot_y)
 {
     char path[1024];
 
@@ -347,9 +345,7 @@ uint32_t *ghostcon_cursor_load_xcursor(const char *theme_dir, const char *name,
     return pixels;
 }
 
-uint32_t *ghostcon_cursor_crop_to_content(const uint32_t *src, uint32_t src_w, uint32_t src_h,
-                                           uint32_t *out_w, uint32_t *out_h,
-                                           uint32_t *hot_x, uint32_t *hot_y)
+uint32_t *ghostcon_cursor_crop_to_content(const uint32_t *src, uint32_t src_w, uint32_t src_h, uint32_t *out_w, uint32_t *out_h, uint32_t *hot_x, uint32_t *hot_y)
 {
     if (!src || src_w == 0 || src_h == 0)
         return NULL;
@@ -398,8 +394,7 @@ uint32_t *ghostcon_cursor_crop_to_content(const uint32_t *src, uint32_t src_w, u
     return dst;
 }
 
-uint32_t *ghostcon_cursor_scale(const uint32_t *src, uint32_t src_w, uint32_t src_h,
-                                 uint32_t dst_w, uint32_t dst_h)
+uint32_t *ghostcon_cursor_scale(const uint32_t *src, uint32_t src_w, uint32_t src_h, uint32_t dst_w, uint32_t dst_h)
 {
     if (!src || src_w == 0 || src_h == 0 || dst_w == 0 || dst_h == 0)
         return NULL;

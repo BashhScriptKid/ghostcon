@@ -42,9 +42,7 @@ struct ghostcon_display {
     ghostcon_cursor_state_t cursor_state;
 };
 
-static void load_cursor_state(ghostcon_display_t *disp, ghostcon_cursor_state_t state,
-                              const char *override_path, const char *hot_pos_str,
-                              const char **theme_names, size_t n_theme_names, int cell_h)
+static void load_cursor_state(ghostcon_display_t *disp, ghostcon_cursor_state_t state, const char *override_path, const char *hot_pos_str, const char **theme_names, size_t n_theme_names, int cell_h)
 {
     uint32_t w = 0, h = 0, hot_x = 0, hot_y = 0;
     uint32_t *pixels = NULL;
@@ -154,9 +152,7 @@ void ghostcon_display_reload_cursor(ghostcon_display_t *disp, int cell_h)
     GC_LOG(cursor, "reloaded sprites for cell_h=%d", cell_h);
 }
 
-void ghostcon_display_configure_cursor(ghostcon_display_t *disp,
-                                       const ghostcon_display_cursor_config_t *cfg,
-                                       int cell_h)
+void ghostcon_display_configure_cursor(ghostcon_display_t *disp, const ghostcon_display_cursor_config_t *cfg, int cell_h)
 {
     if (!disp || !cfg)
         return;
@@ -277,8 +273,7 @@ void ghostcon_display_release(ghostcon_display_t *disp)
     ghostcon_diag_log_warning("vt %d: display released", disp->vt_num);
 }
 
-bool ghostcon_display_acquire(ghostcon_display_t *disp, int cell_h, ghostcon_atlas_t *atlas,
-                              uint32_t *out_width, uint32_t *out_height)
+bool ghostcon_display_acquire(ghostcon_display_t *disp, int cell_h, ghostcon_atlas_t *atlas, uint32_t *out_width, uint32_t *out_height)
 {
     if (!disp)
         return false;
@@ -372,9 +367,7 @@ fail:
     return false;
 }
 
-bool ghostcon_display_render_frame(ghostcon_display_t *disp, ghostcon_screen_t *screen,
-                                   ghostcon_atlas_t *atlas, int cell_w, int cell_h,
-                                   bool ligatures, bool screenshot_requested)
+bool ghostcon_display_render_frame(ghostcon_display_t *disp, ghostcon_screen_t *screen, ghostcon_atlas_t *atlas, int cell_w, int cell_h, bool ligatures, bool screenshot_requested)
 {
     if (!disp || !disp->acquired || !disp->gles || !screen || !atlas)
         return false;

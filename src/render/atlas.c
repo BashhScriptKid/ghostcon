@@ -163,9 +163,7 @@ slot_find(ghostcon_atlas_t *atlas, uint32_t codepoint, bool *found)
 }
 
 ghostcon_atlas_t *
-ghostcon_atlas_create(const char *font_family, const char *font_variant,
-                       const char *antialiasing, const char *subpixel_order,
-                       int font_size_px, uint32_t atlas_dim)
+ghostcon_atlas_create(const char *font_family, const char *font_variant, const char *antialiasing, const char *subpixel_order, int font_size_px, uint32_t atlas_dim)
 {
     ghostcon_atlas_t *atlas = calloc(1, sizeof(*atlas));
     if (!atlas)
@@ -359,9 +357,7 @@ void ghostcon_atlas_destroy(ghostcon_atlas_t *atlas)
  * machine.c or gles.c).
  */
 static const ghostcon_glyph_t *
-pack_bitmap(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t codepoint,
-            const uint8_t *bitmap, unsigned width, unsigned rows,
-            unsigned pitch, int16_t bearing_x, int16_t bearing_y, float advance)
+pack_bitmap(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t codepoint, const uint8_t *bitmap, unsigned width, unsigned rows, unsigned pitch, int16_t bearing_x, int16_t bearing_y, float advance)
 {
     if (atlas->pen_x + width + GHOSTCON_ATLAS_GLYPH_PADDING > atlas->dim)
     {
@@ -411,9 +407,7 @@ pack_bitmap(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t codepoint,
  * `pitch` is width*4 for a tightly-packed RGBA source.
  */
 static const ghostcon_glyph_t *
-pack_bitmap_rgba(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t codepoint,
-                  const uint8_t *bitmap, unsigned width, unsigned rows,
-                  unsigned pitch, int16_t bearing_x, int16_t bearing_y, float advance)
+pack_bitmap_rgba(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t codepoint, const uint8_t *bitmap, unsigned width, unsigned rows, unsigned pitch, int16_t bearing_x, int16_t bearing_y, float advance)
 {
     if (atlas->color_pen_x + width + GHOSTCON_ATLAS_GLYPH_PADDING > atlas->dim)
     {
@@ -650,8 +644,7 @@ ghostcon_atlas_glyph(ghostcon_atlas_t *atlas, uint32_t codepoint)
  * rendering itself only cares about face+gidx.
  */
 static const ghostcon_glyph_t *
-load_glyph_into_slot(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t slot_key,
-                      FT_Face face, FT_UInt gidx)
+load_glyph_into_slot(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t slot_key, FT_Face face, FT_UInt gidx)
 {
     /* Color bitmap fonts (CBDT/CBLC, e.g. Noto Color Emoji) need a completely
      * different load path from ordinary outline fonts: FT_LOAD_COLOR (so FreeType
@@ -852,8 +845,7 @@ ghostcon_atlas_glyph_by_index(ghostcon_atlas_t *atlas, uint32_t glyph_index)
     return load_glyph_into_slot(atlas, slot, key, atlas->face, (FT_UInt)glyph_index);
 }
 
-int ghostcon_atlas_shape_run(ghostcon_atlas_t *atlas, const uint32_t *codepoints, int count,
-                              uint32_t *out_glyph_indices, float *out_advances, int max_out)
+int ghostcon_atlas_shape_run(ghostcon_atlas_t *atlas, const uint32_t *codepoints, int count, uint32_t *out_glyph_indices, float *out_advances, int max_out)
 {
     if (!atlas->hb_font)
         return -1;

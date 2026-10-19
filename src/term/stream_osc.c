@@ -151,8 +151,7 @@ typedef struct
 } osc_dispatch_entry_t;
 
 /* 4;idx;spec[;idx;spec...] -- set/query palette entries. */
-static bool osc_handle_palette(ghostcon_stream_t *st, ghostcon_screen_t *s,
-                               long num, char **fields, int nfields)
+static bool osc_handle_palette(ghostcon_stream_t *st, ghostcon_screen_t *s, long num, char **fields, int nfields)
 {
     (void)num;
     for (int i = 1; i + 1 < nfields; i += 2)
@@ -180,8 +179,7 @@ static bool osc_handle_palette(ghostcon_stream_t *st, ghostcon_screen_t *s,
 }
 
 /* 10/11/12 -- set/query default foreground, background, or cursor color. */
-static bool osc_handle_default_color(ghostcon_stream_t *st, ghostcon_screen_t *s,
-                                     long num, char **fields, int nfields)
+static bool osc_handle_default_color(ghostcon_stream_t *st, ghostcon_screen_t *s, long num, char **fields, int nfields)
 {
     if (nfields >= 2)
     {
@@ -214,8 +212,7 @@ static bool osc_handle_default_color(ghostcon_stream_t *st, ghostcon_screen_t *s
 }
 
 /* 104[;idx[;idx...]] -- reset palette entries; no args = reset all. */
-static bool osc_handle_palette_reset(ghostcon_stream_t *st, ghostcon_screen_t *s,
-                                     long num, char **fields, int nfields)
+static bool osc_handle_palette_reset(ghostcon_stream_t *st, ghostcon_screen_t *s, long num, char **fields, int nfields)
 {
     (void)st;
     (void)num;
@@ -237,8 +234,7 @@ static bool osc_handle_palette_reset(ghostcon_stream_t *st, ghostcon_screen_t *s
 }
 
 /* 7;file://[host]/path (or a bare path) -- report/set PWD. */
-static bool osc_handle_pwd(ghostcon_stream_t *st, ghostcon_screen_t *s,
-                           long num, char **fields, int nfields)
+static bool osc_handle_pwd(ghostcon_stream_t *st, ghostcon_screen_t *s, long num, char **fields, int nfields)
 {
     (void)st;
     (void)num;
@@ -249,8 +245,7 @@ static bool osc_handle_pwd(ghostcon_stream_t *st, ghostcon_screen_t *s,
 
 /* 133;<letter>[;args...] -- FinalTerm semantic prompts.
  * 633 is VSCode's superset: the same letters plus property reports. */
-static bool osc_handle_semantic(ghostcon_stream_t *st, ghostcon_screen_t *s,
-                                long num, char **fields, int nfields)
+static bool osc_handle_semantic(ghostcon_stream_t *st, ghostcon_screen_t *s, long num, char **fields, int nfields)
 {
     (void)st;
     if (nfields >= 2)
@@ -294,8 +289,7 @@ static bool osc_handle_semantic(ghostcon_stream_t *st, ghostcon_screen_t *s,
 }
 
 /* 8;params;uri -- hyperlink start/end (an empty uri ends the current link). */
-static bool osc_handle_hyperlink(ghostcon_stream_t *st, ghostcon_screen_t *s,
-                                 long num, char **fields, int nfields)
+static bool osc_handle_hyperlink(ghostcon_stream_t *st, ghostcon_screen_t *s, long num, char **fields, int nfields)
 {
     (void)st;
     (void)num;
@@ -317,8 +311,7 @@ static bool osc_handle_hyperlink(ghostcon_stream_t *st, ghostcon_screen_t *s,
  * logs it through core/diag.c, which term/ has no dependency on (see stream.h's
  * notify_fn doc).
  */
-static bool osc_handle_notify(ghostcon_stream_t *st, ghostcon_screen_t *s,
-                              long num, char **fields, int nfields)
+static bool osc_handle_notify(ghostcon_stream_t *st, ghostcon_screen_t *s, long num, char **fields, int nfields)
 {
     (void)s;
     (void)num;
@@ -334,8 +327,7 @@ static bool osc_handle_notify(ghostcon_stream_t *st, ghostcon_screen_t *s,
  * already is base64, so there is nothing to decode. A non-base64 payload is
  * rejected outright rather than stored as garbage.
  */
-static bool osc_handle_clipboard(ghostcon_stream_t *st, ghostcon_screen_t *s,
-                                 long num, char **fields, int nfields)
+static bool osc_handle_clipboard(ghostcon_stream_t *st, ghostcon_screen_t *s, long num, char **fields, int nfields)
 {
     (void)num;
     if (nfields >= 3)

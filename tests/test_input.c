@@ -16,8 +16,7 @@
 
 static int failures = 0;
 
-static void check_encode(const char *name, const char *out, size_t n,
-                         const char *expected, size_t expected_len)
+static void check_encode(const char *name, const char *out, size_t n, const char *expected, size_t expected_len)
 {
     if (n != expected_len || memcmp(out, expected, expected_len) != 0)
     {

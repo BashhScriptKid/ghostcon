@@ -74,8 +74,7 @@ static void override_bg_from_content(const ghostcon_screen_t *screen, ghostcon_c
     bg[2] = (float)rgb.b / 255.0f;
 }
 
-static void resolve_colors(const ghostcon_screen_t *screen, const ghostcon_style_t *style,
-                            float *fg, float *bg)
+static void resolve_colors(const ghostcon_screen_t *screen, const ghostcon_style_t *style, float *fg, float *bg)
 {
     GhosttyColorRgb fg_rgb, bg_rgb;
 
@@ -109,11 +108,7 @@ static void resolve_colors(const ghostcon_screen_t *screen, const ghostcon_style
     bg[2] = (float)bg_rgb.b / 255.0f;
 }
 
-void ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
-                                    ghostcon_atlas_t *atlas,
-                                    ghostcon_gles_t *gles,
-                                    int cell_w, int cell_h,
-                                    bool ligatures)
+void ghostcon_machine_render_dirty(ghostcon_screen_t *screen, ghostcon_atlas_t *atlas, ghostcon_gles_t *gles, int cell_w, int cell_h, bool ligatures)
 {
     ghostcon_dirty_region_t dirty = ghostcon_screen_get_dirty(screen);
     if (dirty.y_min < 0)
@@ -421,9 +416,7 @@ void ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
 #define GC_CURSOR_LINE_THICKNESS 2
 
 void
-ghostcon_machine_render_cursor(ghostcon_screen_t *screen,
-                                ghostcon_gles_t *gles,
-                                int cell_w, int cell_h)
+ghostcon_machine_render_cursor(ghostcon_screen_t *screen, ghostcon_gles_t *gles, int cell_w, int cell_h)
 {
     /* While scrolled back into history (view_offset > 0, see screen.h's own doc
      * comment), the grid coordinates the cursor was last left at are now showing
@@ -481,9 +474,7 @@ ghostcon_machine_render_cursor(ghostcon_screen_t *screen,
 #define GC_SELECTION_ALPHA 0.35f
 
 void
-ghostcon_machine_render_selection(ghostcon_screen_t *screen,
-                                   ghostcon_gles_t *gles,
-                                   int cell_w, int cell_h)
+ghostcon_machine_render_selection(ghostcon_screen_t *screen, ghostcon_gles_t *gles, int cell_w, int cell_h)
 {
     const ghostcon_selection_t *sel = &screen->selection;
     if (!sel->active || screen->view_offset > 0)
@@ -510,8 +501,7 @@ ghostcon_machine_render_selection(ghostcon_screen_t *screen,
     }
 }
 
-static void render_one_placement(ghostcon_gles_t *gles, const ghostcon_kitty_graphics_t *kg,
-                                 const ghostcon_kitty_placement_t *p, int cell_w, int cell_h)
+static void render_one_placement(ghostcon_gles_t *gles, const ghostcon_kitty_graphics_t *kg, const ghostcon_kitty_placement_t *p, int cell_w, int cell_h)
 {
     const ghostcon_kitty_image_t *img = ghostcon_kitty_graphics_find_image(kg, p->image_id);
     if (!img)
@@ -577,9 +567,7 @@ static int placement_z_cmp(const void *a, const void *b)
     return 0;
 }
 
-void ghostcon_machine_render_images(ghostcon_screen_t *screen,
-                                    ghostcon_gles_t *gles,
-                                    int cell_w, int cell_h)
+void ghostcon_machine_render_images(ghostcon_screen_t *screen, ghostcon_gles_t *gles, int cell_w, int cell_h)
 {
     if (screen->view_offset > 0)
         return;

@@ -133,8 +133,7 @@ fail_display:
     return false;
 }
 
-bool ghostcon_egl_init(ghostcon_egl_t *egl, const char *drm_path,
-                        uint32_t width, uint32_t height)
+bool ghostcon_egl_init(ghostcon_egl_t *egl, const char *drm_path, uint32_t width, uint32_t height)
 {
     memset(egl, 0, sizeof(*egl));
     egl->owns_gbm = true;
@@ -164,9 +163,7 @@ bool ghostcon_egl_init(ghostcon_egl_t *egl, const char *drm_path,
     return true;
 }
 
-bool ghostcon_egl_init_with_gbm(ghostcon_egl_t *egl, struct gbm_device *gbm_dev,
-                                 struct gbm_surface *gbm_surf,
-                                 uint32_t width, uint32_t height)
+bool ghostcon_egl_init_with_gbm(ghostcon_egl_t *egl, struct gbm_device *gbm_dev, struct gbm_surface *gbm_surf, uint32_t width, uint32_t height)
 {
     memset(egl, 0, sizeof(*egl));
     egl->drm_fd = -1;

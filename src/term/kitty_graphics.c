@@ -280,8 +280,7 @@ static bool read_full(int fd, uint8_t *buf, size_t len)
  *   unrestricted-filesystem-read mode to gate behind a flag in the first
  *   place.
  */
-static uint8_t *read_local_file(const char *client_path, size_t max_len, size_t *out_len,
-                               bool require_temp_naming, bool delete_after)
+static uint8_t *read_local_file(const char *client_path, size_t max_len, size_t *out_len, bool require_temp_naming, bool delete_after)
 {
     int fd = open(client_path, O_RDONLY);
     if (fd < 0)
@@ -568,9 +567,7 @@ kitty_parse_control(char *control)
 
 /* Acks */
 
-static void kitty_ack(ghostcon_kitty_output_fn output_fn, void *userdata,
-                     int32_t quiet, uint32_t image_id, int64_t placement_id,
-                     const char *status /* "OK" or "error=CODE:message" */)
+static void kitty_ack(ghostcon_kitty_output_fn output_fn, void *userdata, int32_t quiet, uint32_t image_id, int64_t placement_id, const char *status /* "OK" or "error=CODE:message" */)
 {
     if (!output_fn)
         return;
@@ -654,8 +651,7 @@ alloc_image_slot(ghostcon_kitty_graphics_t *kg, uint32_t id)
     return NULL; /* ENOSPC */
 }
 
-static void delete_placements_for_image(ghostcon_kitty_graphics_t *kg, uint32_t image_id,
-                                        int64_t placement_id /* -1 = all placements of this image */)
+static void delete_placements_for_image(ghostcon_kitty_graphics_t *kg, uint32_t image_id, int64_t placement_id /* -1 = all placements of this image */)
 {
     for (int i = 0; i < GHOSTCON_KITTY_MAX_PLACEMENTS; i++)
     {
@@ -728,9 +724,7 @@ void ghostcon_kitty_graphics_deinit(ghostcon_kitty_graphics_t *kg)
  * caller from crop/c=/r= the same way render/machine.c's render_one_placement
  * resolves them for drawing) divided by the renderer's current cell size.
  */
-static void compute_cursor_move(int32_t no_cursor_move, int32_t draw_w_px, int32_t draw_h_px,
-                                int32_t anchor_col, int32_t cell_w, int32_t cell_h,
-                                ghostcon_kitty_cursor_move_t *out_move)
+static void compute_cursor_move(int32_t no_cursor_move, int32_t draw_w_px, int32_t draw_h_px, int32_t anchor_col, int32_t cell_w, int32_t cell_h, ghostcon_kitty_cursor_move_t *out_move)
 {
     if (!out_move)
         return;
@@ -744,12 +738,7 @@ static void compute_cursor_move(int32_t no_cursor_move, int32_t draw_w_px, int32
     out_move->col = anchor_col + cols + 1;
 }
 
-static void handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
-                            const char *payload, size_t payload_len,
-                            bool also_display, int32_t cursor_col, int32_t cursor_row,
-                            int32_t cell_w, int32_t cell_h,
-                            ghostcon_kitty_output_fn output_fn, void *userdata,
-                            ghostcon_kitty_cursor_move_t *out_move)
+static void handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl, const char *payload, size_t payload_len, bool also_display, int32_t cursor_col, int32_t cursor_row, int32_t cell_w, int32_t cell_h, ghostcon_kitty_output_fn output_fn, void *userdata, ghostcon_kitty_cursor_move_t *out_move)
 {
     int32_t quiet = ctl->quiet >= 0 ? ctl->quiet : 0;
 
@@ -1166,11 +1155,7 @@ static void handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t
     kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id, "OK");
 }
 
-static void handle_placement(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
-                             int32_t cursor_col, int32_t cursor_row,
-                             int32_t cell_w, int32_t cell_h,
-                             ghostcon_kitty_output_fn output_fn, void *userdata,
-                             ghostcon_kitty_cursor_move_t *out_move)
+static void handle_placement(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl, int32_t cursor_col, int32_t cursor_row, int32_t cell_w, int32_t cell_h, ghostcon_kitty_output_fn output_fn, void *userdata, ghostcon_kitty_cursor_move_t *out_move)
 {
     int32_t quiet = ctl->quiet >= 0 ? ctl->quiet : 0;
 
@@ -1282,13 +1267,7 @@ ghostcon_kitty_graphics_find_image(const ghostcon_kitty_graphics_t *kg, uint32_t
     return NULL;
 }
 
-void ghostcon_kitty_graphics_handle(ghostcon_kitty_graphics_t *kg,
-                                    const char *body, size_t body_len,
-                                    int32_t cursor_col, int32_t cursor_row,
-                                    int32_t cell_w, int32_t cell_h,
-                                    ghostcon_kitty_output_fn output_fn,
-                                    void *output_userdata,
-                                    ghostcon_kitty_cursor_move_t *out_move)
+void ghostcon_kitty_graphics_handle(ghostcon_kitty_graphics_t *kg, const char *body, size_t body_len, int32_t cursor_col, int32_t cursor_row, int32_t cell_w, int32_t cell_h, ghostcon_kitty_output_fn output_fn, void *output_userdata, ghostcon_kitty_cursor_move_t *out_move)
 {
     if (out_move)
         *out_move = (ghostcon_kitty_cursor_move_t){0};

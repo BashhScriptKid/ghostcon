@@ -69,8 +69,7 @@ typedef struct
  * HLS is supported anyway since it's part of the spec and some encoders can use
  * it.
  */
-static void parse_color_intro(const char **p, const char *end, color_reg_t *regs,
-                              int *current_reg)
+static void parse_color_intro(const char **p, const char *end, color_reg_t *regs, int *current_reg)
 {
     const char *s = *p;
     long vals[5];
@@ -175,8 +174,7 @@ static void parse_color_intro(const char **p, const char *end, color_reg_t *regs
  * clipped the way a real terminal clips to the raster size. max_y_band_end is
  * only the fallback when no raster attribute was sent.
  */
-static void sixel_measure(const char *body, size_t body_len,
-                          int32_t *out_width, int32_t *out_height)
+static void sixel_measure(const char *body, size_t body_len, int32_t *out_width, int32_t *out_height)
 {
     int32_t declared_w = 0, declared_h = 0;
     int32_t max_x = 0, max_y_band_end = 0;
@@ -256,9 +254,7 @@ static void sixel_measure(const char *body, size_t body_len,
 
 /* Sets the six vertical pixels of one column from a sixel character's 6-bit
  * `bits`, clipping to the canvas. */
-static void sixel_set_column(uint8_t *pixels, int32_t width, int32_t height,
-                             int32_t x, int32_t y0, uint8_t bits,
-                             const color_reg_t *reg)
+static void sixel_set_column(uint8_t *pixels, int32_t width, int32_t height, int32_t x, int32_t y0, uint8_t bits, const color_reg_t *reg)
 {
     if (x < 0 || x >= width)
         return;
@@ -284,8 +280,7 @@ static void sixel_set_column(uint8_t *pixels, int32_t width, int32_t height,
  * defines every register it uses before selecting it, so this only matters for a
  * pathological stream that selects a register it never defined.
  */
-static void sixel_paint(const char *body, size_t body_len, uint8_t *pixels,
-                        int32_t width, int32_t height)
+static void sixel_paint(const char *body, size_t body_len, uint8_t *pixels, int32_t width, int32_t height)
 {
     color_reg_t regs[GHOSTCON_SIXEL_COLOR_REGISTERS];
     memset(regs, 0, sizeof regs);
@@ -360,12 +355,7 @@ static void sixel_paint(const char *body, size_t body_len, uint8_t *pixels,
     }
 }
 
-void ghostcon_sixel_decode(ghostcon_sixel_state_t *st,
-                           const int32_t *dcs_params, size_t params_count,
-                           const char *body, size_t body_len,
-                           int32_t cursor_col, int32_t cursor_row,
-                           int32_t cell_w, int32_t cell_h,
-                           ghostcon_sixel_cursor_move_t *out_move)
+void ghostcon_sixel_decode(ghostcon_sixel_state_t *st, const int32_t *dcs_params, size_t params_count, const char *body, size_t body_len, int32_t cursor_col, int32_t cursor_row, int32_t cell_w, int32_t cell_h, ghostcon_sixel_cursor_move_t *out_move)
 {
     if (out_move)
         memset(out_move, 0, sizeof *out_move);

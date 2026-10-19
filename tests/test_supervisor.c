@@ -141,8 +141,7 @@ static bool wait_for_log(int fd, const char *needle, int timeout_ms)
  * alongside the needle (e.g. a trailing pid via sscanf), and the next call won't
  * re-match the same occurrence.
  */
-static bool wait_for_log_seq(int fd, char *buf, size_t buf_cap, size_t *len,
-                             size_t *search_from, const char *needle, int timeout_ms)
+static bool wait_for_log_seq(int fd, char *buf, size_t buf_cap, size_t *len, size_t *search_from, const char *needle, int timeout_ms)
 {
     struct timespec deadline;
     clock_gettime(CLOCK_MONOTONIC, &deadline);

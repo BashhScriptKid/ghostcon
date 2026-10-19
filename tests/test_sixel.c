@@ -27,8 +27,7 @@ pixel_at(const ghostcon_sixel_placement_t *pl, int32_t x, int32_t y)
     return pl->pixels + ((size_t)y * (size_t)pl->width + (size_t)x) * 4;
 }
 
-static bool decode(ghostcon_sixel_state_t *st, const char *body,
-                   const int32_t *params, size_t nparams, ghostcon_sixel_cursor_move_t *mv)
+static bool decode(ghostcon_sixel_state_t *st, const char *body, const int32_t *params, size_t nparams, ghostcon_sixel_cursor_move_t *mv)
 {
     ghostcon_sixel_decode(st, params, nparams, body, strlen(body),
                           2, 3, 10, 20, mv);

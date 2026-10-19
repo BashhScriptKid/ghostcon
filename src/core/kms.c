@@ -64,9 +64,7 @@ static bool plane_is_type(int fd, uint32_t plane_id, uint64_t want_type)
 
 /* Resource discovery */
 
-static bool find_connector_and_mode(int fd, drmModeRes *res,
-                                     uint32_t *out_connector_id, drmModeModeInfo *out_mode,
-                                     uint32_t *out_encoder_id)
+static bool find_connector_and_mode(int fd, drmModeRes *res, uint32_t *out_connector_id, drmModeModeInfo *out_mode, uint32_t *out_encoder_id)
 {
     for (int i = 0; i < res->count_connectors; i++)
     {
@@ -95,8 +93,7 @@ static bool find_connector_and_mode(int fd, drmModeRes *res,
     return false;
 }
 
-static bool find_crtc(int fd, drmModeRes *res, uint32_t encoder_id, uint32_t *out_crtc_id,
-                      int *out_crtc_index)
+static bool find_crtc(int fd, drmModeRes *res, uint32_t encoder_id, uint32_t *out_crtc_id, int *out_crtc_index)
 {
     if (encoder_id)
     {
@@ -282,9 +279,7 @@ draw_cursor_ibeam(uint8_t *pixels, uint32_t canvas_w, uint32_t canvas_h,
  * expected to already be sized sensibly for a cursor; scaling adds complexity for
  * a case that shouldn't come up in practice).
  */
-static void blit_cursor_image(uint8_t *dst_pixels, uint32_t canvas_w, uint32_t canvas_h, uint32_t stride,
-                               const uint32_t *src, uint32_t src_w, uint32_t src_h,
-                               uint32_t *out_off_x, uint32_t *out_off_y)
+static void blit_cursor_image(uint8_t *dst_pixels, uint32_t canvas_w, uint32_t canvas_h, uint32_t stride, const uint32_t *src, uint32_t src_w, uint32_t src_h, uint32_t *out_off_x, uint32_t *out_off_y)
 {
     memset(dst_pixels, 0, (size_t)stride * canvas_h);
 
@@ -325,10 +320,7 @@ static void destroy_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t st
     }
 }
 
-bool ghostcon_kms_set_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t state,
-                                    const uint32_t *pixels, uint32_t w, uint32_t h,
-                                    uint32_t hot_x, uint32_t hot_y,
-                                    unsigned int fallback_font_height)
+bool ghostcon_kms_set_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t state, const uint32_t *pixels, uint32_t w, uint32_t h, uint32_t hot_x, uint32_t hot_y, unsigned int fallback_font_height)
 {
     if (!kms->cursor_plane_id)
         return true; /* no cursor plane -- not an error */
@@ -793,8 +785,7 @@ static bool commit_frame(ghostcon_kms_t *kms, uint32_t fb_id, bool is_modeset, b
     return true;
 }
 
-static void page_flip_handler(int fd, unsigned int frame, unsigned int sec, unsigned int usec,
-                               void *data)
+static void page_flip_handler(int fd, unsigned int frame, unsigned int sec, unsigned int usec, void *data)
 {
     (void)fd; (void)frame; (void)sec; (void)usec;
     bool *pending = data;

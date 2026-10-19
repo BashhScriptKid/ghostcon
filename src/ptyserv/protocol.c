@@ -23,8 +23,7 @@ bool ghostcon_ptyserv_parse_get(const char *line, int *vtnum)
     return true;
 }
 
-size_t ghostcon_ptyserv_format_ok(char *buf, size_t buf_len,
-                                   int pid, const char *socket_path)
+size_t ghostcon_ptyserv_format_ok(char *buf, size_t buf_len, int pid, const char *socket_path)
 {
     int n = snprintf(buf, buf_len, "OK pid=%d socket=%s\n", pid, socket_path);
     if (n < 0 || (size_t)n >= buf_len)
@@ -45,8 +44,7 @@ bool ghostcon_ptyserv_parse_ok(const char *line, int *pid, char *socket_path)
     return true;
 }
 
-size_t ghostcon_ptyserv_format_resize(char *buf, size_t buf_len, int rows, int cols,
-                                      int xpixel, int ypixel)
+size_t ghostcon_ptyserv_format_resize(char *buf, size_t buf_len, int rows, int cols, int xpixel, int ypixel)
 {
     int n = snprintf(buf, buf_len, "RESIZE %d %d %d %d\n", rows, cols, xpixel, ypixel);
     if (n < 0 || (size_t)n >= buf_len)
@@ -54,8 +52,7 @@ size_t ghostcon_ptyserv_format_resize(char *buf, size_t buf_len, int rows, int c
     return (size_t)n;
 }
 
-bool ghostcon_ptyserv_parse_resize(const char *line, int *rows, int *cols,
-                                   int *xpixel, int *ypixel)
+bool ghostcon_ptyserv_parse_resize(const char *line, int *rows, int *cols, int *xpixel, int *ypixel)
 {
     int r, c, xp = 0, yp = 0;
     // NOLINTNEXTLINE(bugprone-unchecked-string-to-number-conversion) -- return count checked below

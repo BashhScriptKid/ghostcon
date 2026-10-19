@@ -23,22 +23,19 @@ void ghostcon_stream_deinit(ghostcon_stream_t *st)
     memset(st, 0, sizeof(*st));
 }
 
-void ghostcon_stream_set_output(ghostcon_stream_t *st,
-                                ghostcon_output_fn fn, void *userdata)
+void ghostcon_stream_set_output(ghostcon_stream_t *st, ghostcon_output_fn fn, void *userdata)
 {
     st->output_fn = fn;
     st->output_userdata = userdata;
 }
 
-void ghostcon_stream_set_title(ghostcon_stream_t *st,
-                               ghostcon_title_fn fn, void *userdata)
+void ghostcon_stream_set_title(ghostcon_stream_t *st, ghostcon_title_fn fn, void *userdata)
 {
     st->title_fn = fn;
     st->title_userdata = userdata;
 }
 
-void ghostcon_stream_set_notify(ghostcon_stream_t *st,
-                                ghostcon_notify_fn fn, void *userdata)
+void ghostcon_stream_set_notify(ghostcon_stream_t *st, ghostcon_notify_fn fn, void *userdata)
 {
     st->notify_fn = fn;
     st->notify_userdata = userdata;
@@ -714,8 +711,7 @@ static void stream_state_sos_pm_apc_string(ghostcon_stream_t *st, uint8_t c)
  * arriving mid-OSC-payload used to be truncated here, after which the rest of the
  * title leaked onto the screen as literal text.
  */
-static bool stream_handle_c1(ghostcon_stream_t *st, uint8_t c,
-                             ghostcon_screen_t *s)
+static bool stream_handle_c1(ghostcon_stream_t *st, uint8_t c, ghostcon_screen_t *s)
 {
     if (c < 0x80 || c > 0x9F)
         return false;
@@ -744,9 +740,7 @@ static bool stream_handle_c1(ghostcon_stream_t *st, uint8_t c,
     }
 }
 
-void ghostcon_stream_process_byte(ghostcon_stream_t *st,
-                                  uint8_t c,
-                                  ghostcon_screen_t *s)
+void ghostcon_stream_process_byte(ghostcon_stream_t *st, uint8_t c, ghostcon_screen_t *s)
 {
     if (stream_handle_c1(st, c, s))
         return;
@@ -801,9 +795,7 @@ void ghostcon_stream_process_byte(ghostcon_stream_t *st,
     }
 }
 
-void ghostcon_stream_process(ghostcon_stream_t *st,
-                             const uint8_t *data, size_t len,
-                             ghostcon_screen_t *s)
+void ghostcon_stream_process(ghostcon_stream_t *st, const uint8_t *data, size_t len, ghostcon_screen_t *s)
 {
     for (size_t i = 0; i < len; i++)
         ghostcon_stream_process_byte(st, data[i], s);

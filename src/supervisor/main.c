@@ -439,8 +439,7 @@ static pid_t spawn_agetty_fallback(int vtnum)
  *
  * and never overrides an explicit argv[3], at reload same as at startup.
  */
-static void apply_config_reload(const char *config_path, int vtnum, bool drm_node_from_argv,
-                                 char *drm_node_buf, size_t drm_node_buf_len, int *canary_deadline_ms)
+static void apply_config_reload(const char *config_path, int vtnum, bool drm_node_from_argv, char *drm_node_buf, size_t drm_node_buf_len, int *canary_deadline_ms)
 {
     ghostcon_config_t new_cfg;
     if (!ghostcon_config_load(config_path, &new_cfg))
@@ -470,9 +469,7 @@ static void apply_config_reload(const char *config_path, int vtnum, bool drm_nod
  * Instead: a config-only wakeup applies the reload and polls again rather than
  * returning.
  */
-static int poll_state_fd(int state_fd, int timeout_ms, int config_watch_fd, const char *config_path,
-                         int vtnum, bool drm_node_from_argv, char *drm_node_buf, size_t drm_node_buf_len,
-                         int *canary_deadline_ms, short *out_revents)
+static int poll_state_fd(int state_fd, int timeout_ms, int config_watch_fd, const char *config_path, int vtnum, bool drm_node_from_argv, char *drm_node_buf, size_t drm_node_buf_len, int *canary_deadline_ms, short *out_revents)
 {
     for (;;)
     {

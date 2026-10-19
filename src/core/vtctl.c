@@ -249,8 +249,7 @@ int ghostcon_vtctl_signal_fd(const ghostcon_vtctl_t *vt)
     return vt->pipe_fds[0];
 }
 
-int ghostcon_vtctl_transition(ghostcon_vt_state_t *state, char event,
-                              ghostcon_vt_op_t *ops, int max)
+int ghostcon_vtctl_transition(ghostcon_vt_state_t *state, char event, ghostcon_vt_op_t *ops, int max)
 {
     if (max < 2)
         return -1;
@@ -275,9 +274,7 @@ int ghostcon_vtctl_transition(ghostcon_vt_state_t *state, char event,
     return -1;
 }
 
-void ghostcon_vtctl_process_pending(ghostcon_vtctl_t *vt,
-                                    ghostcon_vtctl_pre_ack_fn pre_ack,
-                                    void *userdata)
+void ghostcon_vtctl_process_pending(ghostcon_vtctl_t *vt, ghostcon_vtctl_pre_ack_fn pre_ack, void *userdata)
 {
     char buf[64];
     ssize_t n;

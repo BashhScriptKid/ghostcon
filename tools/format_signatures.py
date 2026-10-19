@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Enforce the return-type layout rule for function DEFINITIONS:
+"""Enforce the signature layout rules for function DEFINITIONS:
 
   * Portable return type (language keyword or standard/POSIX scalar
     typedef, qualifiers/pointers ignored) -> one line:
@@ -8,9 +8,14 @@
     struct/union/enum tag -> split:
         ghostcon_display_t *
         ghostcon_display_create(...)
+  * The parameter list is always collapsed onto the name line, however
+    long:
+        static void foo(int a, int b)
 
 Prototypes are left alone. Definitions whose return type contains a
-comment or a function-pointer declarator are skipped.
+comment or a function-pointer declarator are skipped, as are parameter
+lists containing line comments, multi-line comments, or preprocessor
+lines (anything that can't safely be moved onto one line).
 """
 import glob, re, sys
 
@@ -158,6 +163,58 @@ def analyze_defs(s, toks, ms):
         elif t=='}': depth=max(0,depth-1)
     return defs, is_macro
 
+def collapse_ws(inner):
+    """Collapse whitespace runs without touching literals or comments.
+
+    Returns None when the list can't be joined safely: line comments would
+    swallow whatever follows on the joined line, multi-line comments would
+    re-introduce a newline, and preprocessor lines can't be moved.
+    """
+    parts=[]; literals=[]; last=0
+    for m in TOK.finditer(inner):
+        t=m.group(0)
+        if t.startswith('#'):
+            return None
+        if t.startswith('//'):
+            return None
+        if t.startswith('/*') or t[0] in '"\'':
+            if '\n' in t:
+                return None
+            parts.append(inner[last:m.start()])
+            parts.append(f'\x00{len(literals)}\x00')
+            literals.append(t)
+            last=m.end()
+    parts.append(inner[last:])
+    text=re.sub(r'\s+', ' ', ''.join(parts))
+    text=re.sub(r'\s+([,)])', r'\1', text)
+    text=re.sub(r'\(\s+', '(', text)
+    text=re.sub(r'\s+\)', ')', text)
+    for i,t in enumerate(literals):
+        text=text.replace(f'\x00{i}\x00', t)
+    return text.strip()
+
+def collapse_params(s):
+    """Join every wrapped parameter list onto the name line.
+
+    Runs after the return-type pass, so a non-portable return type may
+    still be split but name/parameters are always one line.
+    """
+    toks=tokenize(s); ms=macro_lines(s)
+    defs,_=analyze_defs(s,toks,ms)
+    edits=[]
+    for _,name_i,_,open_i,close_i in defs:
+        op=toks[open_i][0]; cp=toks[close_i][0]
+        if line_start(s,op)==line_start(s,cp):
+            continue
+        collapsed=collapse_ws(s[op+1:cp])
+        if collapsed is None:
+            continue
+        edits.append((op+1,cp,collapsed))
+    edits.sort(reverse=True)
+    for st,en,rep in edits:
+        s=s[:st]+rep+s[en:]
+    return s, len(edits)
+
 def rewrite(s):
     toks=tokenize(s); ms=macro_lines(s)
     defs,_=analyze_defs(s,toks,ms)
@@ -239,7 +296,8 @@ def rewrite(s):
     for st,en,rep in clean:
         out.append(s[cur:st]); out.append(rep); cur=en
     out.append(s[cur:])
-    return ''.join(out), len(clean), defs
+    text, collapsed = collapse_params(''.join(out))
+    return text, len(clean)+collapsed, defs
 
 def main():
     apply='--apply' in sys.argv; check='--check' in sys.argv

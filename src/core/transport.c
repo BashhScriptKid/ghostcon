@@ -57,8 +57,7 @@ static void dirname_inplace(char *path)
         path[0] = '\0';
 }
 
-bool ghostcon_transport_connect(ghostcon_transport_t *t,
-                                 const char *registry_socket_path, int vtnum)
+bool ghostcon_transport_connect(ghostcon_transport_t *t, const char *registry_socket_path, int vtnum)
 {
     t->fd = -1;
     t->ctl_fd = -1;
@@ -210,8 +209,7 @@ ssize_t ghostcon_transport_write(ghostcon_transport_t *t, const uint8_t *buf, si
     return write(t->fd, buf, len);
 }
 
-bool ghostcon_transport_resize(ghostcon_transport_t *t, int rows, int cols,
-                               int xpixel, int ypixel)
+bool ghostcon_transport_resize(ghostcon_transport_t *t, int rows, int cols, int xpixel, int ypixel)
 {
     if (t->ctl_fd < 0)
         return true; /* no control connection -- best-effort, not an error */

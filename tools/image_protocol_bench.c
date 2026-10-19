@@ -361,9 +361,7 @@ static uint8_t *build_png(int w, int h, bool rgba, const uint8_t *pixels, size_t
 
 /* Synthetic pixel patterns */
 
-static void gen_checkerboard(uint8_t *px, int w, int h, int bpp, int cell,
-                              uint8_t r1, uint8_t g1, uint8_t b1,
-                              uint8_t r2, uint8_t g2, uint8_t b2)
+static void gen_checkerboard(uint8_t *px, int w, int h, int bpp, int cell, uint8_t r1, uint8_t g1, uint8_t b1, uint8_t r2, uint8_t g2, uint8_t b2)
 {
     for (int y = 0; y < h; y++)
     {
@@ -468,8 +466,7 @@ static void emit_sixel_run(const uint8_t *bits, int width)
 }
 
 /* idx is a w*h array of palette indices (row-major). */
-static void sixel_send(int width, int height, const uint8_t *idx,
-                       const uint8_t palette[][3], int ncolors)
+static void sixel_send(int width, int height, const uint8_t *idx, const uint8_t palette[][3], int ncolors)
 {
     printf(ESC "Pq" "\"1;1;%d;%d", width, height);
     for (int c = 0; c < ncolors; c++)

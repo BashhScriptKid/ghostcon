@@ -95,10 +95,25 @@ ghostcon_style_id_t
 ghostcon_style_add(...)
 ```
 
-Wrapped parameter lists are realigned when the name joins the
-return-type line. The exact classification sets are `PRIMITIVE` and
-`STD_TYPEDEFS` in `tools/format_signatures.py`; update both that script
-and this list together.
+Parameter lists are always collapsed onto the name line, however long;
+only the return type may remain split:
+
+```c
+static bool handle_scroll_shortcut(ghostcon_screen_t *screen,
+                                   uint32_t evdev_code, GhosttyMods mods,
+                                   GhosttyKeyAction action)
+```
+
+becomes:
+
+```c
+static bool handle_scroll_shortcut(ghostcon_screen_t *screen, uint32_t evdev_code, GhosttyMods mods, GhosttyKeyAction action)
+```
+
+Lists containing line comments, multi-line comments, or preprocessor
+lines are left as written. The exact classification sets are
+`PRIMITIVE` and `STD_TYPEDEFS` in `tools/format_signatures.py`; update
+both that script and this list together.
 
 ### Comments — wrapped block style
 

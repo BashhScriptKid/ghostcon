@@ -15,9 +15,7 @@
 
 static int failures = 0;
 
-static void check_transition(char event, ghostcon_vt_state_t start,
-                             const ghostcon_vt_op_t *expected, int expected_n,
-                             ghostcon_vt_state_t expected_state, const char *name)
+static void check_transition(char event, ghostcon_vt_state_t start, const ghostcon_vt_op_t *expected, int expected_n, ghostcon_vt_state_t expected_state, const char *name)
 {
     ghostcon_vt_op_t ops[4];
     ghostcon_vt_state_t state = start;
@@ -40,8 +38,7 @@ static void check_transition(char event, ghostcon_vt_state_t start,
  * so a coalesced sequence can be checked as a whole (the code deliberately
  * processes every drained byte, not only the last).
  */
-static int drain(const char *bytes, ghostcon_vt_state_t start,
-                 ghostcon_vt_op_t *trace, int max, ghostcon_vt_state_t *end)
+static int drain(const char *bytes, ghostcon_vt_state_t start, ghostcon_vt_op_t *trace, int max, ghostcon_vt_state_t *end)
 {
     ghostcon_vt_state_t state = start;
     int t = 0;
@@ -56,9 +53,7 @@ static int drain(const char *bytes, ghostcon_vt_state_t start,
     return t;
 }
 
-static void check_sequence(const char *bytes, const ghostcon_vt_op_t *expected,
-                           int expected_n, ghostcon_vt_state_t expected_state,
-                           const char *name)
+static void check_sequence(const char *bytes, const ghostcon_vt_op_t *expected, int expected_n, ghostcon_vt_state_t expected_state, const char *name)
 {
     ghostcon_vt_op_t trace[8];
     ghostcon_vt_state_t end;

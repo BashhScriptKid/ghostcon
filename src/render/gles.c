@@ -673,12 +673,7 @@ static void push_vertex(ghostcon_gles_t *gles, ghostcon_vertex_t v, bool bg)
     (*arr)[(*count)++] = v;
 }
 
-static void push_quad(ghostcon_gles_t *gles,
-                      float x, float y, float w, float h,
-                      float u0, float v0, float u1, float v1,
-                      float r, float g, float b, float a,
-                      float bg_r, float bg_g, float bg_b,
-                      float is_glyph, float is_color_glyph, bool bg)
+static void push_quad(ghostcon_gles_t *gles, float x, float y, float w, float h, float u0, float v0, float u1, float v1, float r, float g, float b, float a, float bg_r, float bg_g, float bg_b, float is_glyph, float is_color_glyph, bool bg)
 {
     ghostcon_vertex_t tl = { x,     y,     u0, v0, r, g, b, a, bg_r, bg_g, bg_b, is_glyph, is_color_glyph };
     ghostcon_vertex_t tr = { x + w, y,     u1, v0, r, g, b, a, bg_r, bg_g, bg_b, is_glyph, is_color_glyph };
@@ -693,9 +688,7 @@ static void push_quad(ghostcon_gles_t *gles,
     push_vertex(gles, br, bg);
 }
 
-void ghostcon_gles_push_rect(ghostcon_gles_t *gles,
-                              float x, float y, float w, float h,
-                              float r, float g, float b, float a)
+void ghostcon_gles_push_rect(ghostcon_gles_t *gles, float x, float y, float w, float h, float r, float g, float b, float a)
 {
     /* atlas.c reserves an opaque 2x2 block at the atlas origin for exactly this
      *
@@ -711,18 +704,12 @@ void ghostcon_gles_push_rect(ghostcon_gles_t *gles,
     push_quad(gles, x, y, w, h, 0.0f, 0.0f, 0.0f, 0.0f, r, g, b, a, r, g, b, 0.0f, 0.0f, false);
 }
 
-void ghostcon_gles_push_bg_rect(ghostcon_gles_t *gles,
-                                float x, float y, float w, float h,
-                                float r, float g, float b, float a)
+void ghostcon_gles_push_bg_rect(ghostcon_gles_t *gles, float x, float y, float w, float h, float r, float g, float b, float a)
 {
     push_quad(gles, x, y, w, h, 0.0f, 0.0f, 0.0f, 0.0f, r, g, b, a, r, g, b, 0.0f, 0.0f, true);
 }
 
-void ghostcon_gles_push_glyph(ghostcon_gles_t *gles,
-                               float x, float y, float w, float h,
-                               const ghostcon_glyph_t *glyph,
-                               float r, float g, float b, float a,
-                               float bg_r, float bg_g, float bg_b)
+void ghostcon_gles_push_glyph(ghostcon_gles_t *gles, float x, float y, float w, float h, const ghostcon_glyph_t *glyph, float r, float g, float b, float a, float bg_r, float bg_g, float bg_b)
 {
     push_quad(gles, x, y, w, h, glyph->u0, glyph->v0, glyph->u1, glyph->v1,
               r, g, b, a, bg_r, bg_g, bg_b, 1.0f, glyph->is_color ? 1.0f : 0.0f, false);
@@ -770,10 +757,7 @@ void ghostcon_gles_image_destroy(ghostcon_gles_image_t *img)
     free(img);
 }
 
-static void draw_image_internal(ghostcon_gles_t *gles, ghostcon_gles_image_t *img,
-                                float x, float y, float w, float h,
-                                float src_x, float src_y, float src_w, float src_h,
-                                float alpha)
+static void draw_image_internal(ghostcon_gles_t *gles, ghostcon_gles_image_t *img, float x, float y, float w, float h, float src_x, float src_y, float src_w, float src_h, float alpha)
 {
     if (!gles->img_program || !img)
         return;
@@ -830,10 +814,7 @@ static void draw_image_internal(ghostcon_gles_t *gles, ghostcon_gles_image_t *im
 }
 
 ghostcon_gles_image_t *
-ghostcon_gles_kitty_tex_get(ghostcon_gles_t *gles,
-                           const struct ghostcon_kitty_graphics *kg,
-                           uint32_t image_id, uint32_t generation,
-                           const uint8_t *pixels, int width, int height, int bpp)
+ghostcon_gles_kitty_tex_get(ghostcon_gles_t *gles, const struct ghostcon_kitty_graphics *kg, uint32_t image_id, uint32_t generation, const uint8_t *pixels, int width, int height, int bpp)
 {
     for (size_t i = 0; i < gles->kitty_tex_count; i++)
     {
@@ -892,10 +873,7 @@ ghostcon_gles_kitty_tex_get(ghostcon_gles_t *gles,
 }
 
 ghostcon_gles_image_t *
-ghostcon_gles_sixel_tex_get(ghostcon_gles_t *gles,
-                            const struct ghostcon_sixel_state *sx,
-                            int slot, uint32_t generation,
-                            const uint8_t *pixels, int width, int height)
+ghostcon_gles_sixel_tex_get(ghostcon_gles_t *gles, const struct ghostcon_sixel_state *sx, int slot, uint32_t generation, const uint8_t *pixels, int width, int height)
 {
     for (size_t i = 0; i < gles->sixel_tex_count; i++)
     {
@@ -957,10 +935,7 @@ ghostcon_gles_sixel_tex_get(ghostcon_gles_t *gles,
     return tex;
 }
 
-void ghostcon_gles_queue_image(ghostcon_gles_t *gles, ghostcon_gles_image_t *img,
-                               float x, float y, float w, float h,
-                               float src_x, float src_y, float src_w, float src_h,
-                               float alpha, bool above_text)
+void ghostcon_gles_queue_image(ghostcon_gles_t *gles, ghostcon_gles_image_t *img, float x, float y, float w, float h, float src_x, float src_y, float src_w, float src_h, float alpha, bool above_text)
 {
     if (gles->queued_count >= gles->queued_cap)
     {

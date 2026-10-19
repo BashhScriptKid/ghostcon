@@ -87,9 +87,7 @@ static void push_history(ghostcon_screen_t *s, ghostcon_row_t *row)
 
 /* Lifecycle */
 
-bool ghostcon_screen_init(ghostcon_screen_t *s,
-                          uint16_t cols, uint16_t rows,
-                          uint16_t scrollback_cap)
+bool ghostcon_screen_init(ghostcon_screen_t *s, uint16_t cols, uint16_t rows, uint16_t scrollback_cap)
 {
     memset(s, 0, sizeof(*s));
 
@@ -259,8 +257,7 @@ ghostcon_screen_active_sixel_state(ghostcon_screen_t *s)
     return s->alt_screen_active ? &s->sixel_alt : &s->sixel;
 }
 
-bool ghostcon_screen_resize(ghostcon_screen_t *s,
-                            uint16_t new_cols, uint16_t new_rows)
+bool ghostcon_screen_resize(ghostcon_screen_t *s, uint16_t new_cols, uint16_t new_rows)
 {
     /* Row layout (both rows_visible's ring geometry and every row's width) is
      * about to change
@@ -816,8 +813,7 @@ void ghostcon_screen_put_char(ghostcon_screen_t *s, uint32_t codepoint)
     s->cursor.x++;
 }
 
-void ghostcon_screen_put_text(ghostcon_screen_t *s,
-                              const uint32_t *codepoints, size_t len)
+void ghostcon_screen_put_text(ghostcon_screen_t *s, const uint32_t *codepoints, size_t len)
 {
     for (size_t i = 0; i < len; i++)
         ghostcon_screen_put_char(s, codepoints[i]);
@@ -1469,8 +1465,7 @@ void ghostcon_screen_scroll_down(ghostcon_screen_t *s, uint16_t n)
     }
 }
 
-void ghostcon_screen_set_scroll_region(ghostcon_screen_t *s,
-                                       int16_t top, int16_t bottom)
+void ghostcon_screen_set_scroll_region(ghostcon_screen_t *s, int16_t top, int16_t bottom)
 {
     if (top < 0 || bottom < 0)
     {
@@ -1518,8 +1513,7 @@ void ghostcon_screen_set_scroll_region(ghostcon_screen_t *s,
     s->cursor.pending_wrap = false;
 }
 
-void ghostcon_screen_set_margin_region(ghostcon_screen_t *s,
-                                       int16_t left, int16_t right)
+void ghostcon_screen_set_margin_region(ghostcon_screen_t *s, int16_t left, int16_t right)
 {
     if (left < 0 || right < 0)
     {
@@ -1640,8 +1634,7 @@ void ghostcon_screen_tab_set(ghostcon_screen_t *s)
 /* Attribute/style */
 
 ghostcon_style_id_t
-ghostcon_screen_set_style(ghostcon_screen_t *s,
-                          ghostcon_style_id_t style_id)
+ghostcon_screen_set_style(ghostcon_screen_t *s, ghostcon_style_id_t style_id)
 {
     s->cursor.style_id = style_id;
     return style_id;
@@ -1653,9 +1646,7 @@ ghostcon_screen_set_style(ghostcon_screen_t *s,
  * libghostty-vt's SGR parser. For now, a no-op.
  */
 ghostcon_style_t
-ghostcon_screen_apply_sgr_attribute(const ghostcon_style_t *base,
-                                   int sgr_tag,
-                                   const void *sgr_value)
+ghostcon_screen_apply_sgr_attribute(const ghostcon_style_t *base, int sgr_tag, const void *sgr_value)
 {
     (void)sgr_tag;
     (void)sgr_value;
@@ -1753,9 +1744,7 @@ void ghostcon_screen_scroll_view(ghostcon_screen_t *s, int delta)
     s->dirty.y_max = (int16_t)(s->rows_visible - 1);
 }
 
-bool ghostcon_screen_sync_output_expired(const ghostcon_screen_t *s,
-                                         const struct timespec *now,
-                                         double timeout_ms)
+bool ghostcon_screen_sync_output_expired(const ghostcon_screen_t *s, const struct timespec *now, double timeout_ms)
 {
     if (!s || !s->synchronized_output || !now)
         return true;
