@@ -257,6 +257,11 @@ typedef struct
      * Not per-acquire-cycle state (survives release/reacquire trivially since
      * it's just "is a render owed", not tied to any GPU handle).
      */
+    /* Event-loop liveness. Cleared by handle_transport_data() when the pty
+     * child (the shell session) is gone, which is this process's signal to
+     * exit and let the supervisor decide what runs on this VT next.
+     */
+    bool running;
     bool render_deferred;
     bool screenshot_requested; /* Ctrl+Alt+D also asks render_frame() to
                                    glReadPixels the next frame it draws --
@@ -815,6 +820,383 @@ static bool apply_config_reload(app_t *app)
     GC_LOG(config, "reload applied, need_render=%d", need_render);
     return need_render;
 }
+static bool handle_config_change(app_t *app)
+{
+    bool need_render = false;
+    if (ghostcon_config_watch_check(app->config_watch_fd, app->config_path))
+    {
+        GC_LOG(config, "config file change detected");
+        if (apply_config_reload(app))
+            need_render = true;
+    }
+    return need_render;
+}
+
+static bool handle_vt_events(app_t *app)
+{
+    bool need_render = false;
+    ghostcon_vt_state_t before = ghostcon_vtctl_state(app->vt);
+    ghostcon_vtctl_process_pending(app->vt, vtctl_pre_ack, app);
+    ghostcon_vt_state_t after = ghostcon_vtctl_state(app->vt);
+    GC_LOG(vt, "vt state %d -> %d", (int)before, (int)after);
+
+    if (before != GC_VT_STATE_ACTIVE && after == GC_VT_STATE_ACTIVE)
+    {
+        if (!acquire_display(app))
+        {
+            GC_LOG(vt, "reacquire FAILED, retrying on next switch");
+            fprintf(stderr, "ghostcon-core: reacquire failed, will keep retrying on next switch\n");
+        }
+        else
+        {
+            /* The terminal grid was sized at startup from app->kms.width/height
+             *
+             * but if the VT wasn't already active at process start (the normal
+             * case: you switch to it later), acquire_display() hadn't run yet at
+             * that point, so term_init fell back to a hardcoded 80x24 placeholder
+             * instead of the real screen size.
+             *
+             * That placeholder was never revisited once the real size became
+             * known here, so the terminal only ever occupied a small corner of
+             * the actual display and scrolled well before reaching the real
+             * bottom of the screen
+             *
+             * found live ("halfway through it just scrolls up instead of keeping
+             * to allocate the next row").
+             *
+             * Recompute and resize on every acquire (not just detecting the
+             * placeholder case) so a reacquire at a genuinely different
+             * resolution is handled the same way, closing the "known Phase 1
+             * limitation" noted elsewhere in this file too.
+             */
+            uint16_t new_cols = (uint16_t)(ghostcon_display_width(app->disp) / (uint32_t)app->cell_w);
+            uint16_t new_rows = (uint16_t)(ghostcon_display_height(app->disp) / (uint32_t)app->cell_h);
+            GC_LOG(vt, "grid %ux%u (was %ux%u)",
+                    new_cols, new_rows, app->term.cols, app->term.rows);
+            if (new_cols != app->term.cols || new_rows != app->term.rows)
+            {
+                if (!ghostcon_term_resize(&app->term, new_cols, new_rows))
+                    fprintf(stderr, "ghostcon-core: term_resize to %ux%u failed\n",
+                            new_cols, new_rows);
+                /* Propagate to the actual kernel pty
+                 *
+                 * without this, ghostcon's own idea of the grid size changes but
+                 * nothing tells programs running in the shell (found live: a TUI
+                 * rendered into a small, wrong-sized corner because ioctl(
+                 * TIOCGWINSZ) never reflected reality, not even once).
+                 *
+                 * See transport.h's ghostcon_transport_resize() and
+                 * ptyserv/pty_child.c's control-socket handler for the other end
+                 * of this.
+                 */
+                ghostcon_transport_resize(&app->transport, new_rows, new_cols,
+                                          new_cols * app->cell_w, new_rows * app->cell_h);
+            }
+
+            /* Two things need forcing here, not just one: (1) Acquiring the
+             * display alone doesn't paint anything --render_frame only runs below
+             * when need_render is set, which otherwise only happens when NEW PTY
+             * bytes arrive THIS SAME poll iteration.
+             *
+             * Whatever was already fed while inactive (e.g. the shell's startup
+             * prompt) would sit undrawn until the next unrelated PTY write
+             * --found via exactly that symptom on the first real VT-switch test
+             * ("stays blank until you press a key").
+             *
+             * (2) acquire_display() just destroyed and recreated the entire GPU
+             * context (kms/egl/gles) from scratch, so the terminal's own
+             * dirty-region tracking
+             *
+             * which assumes a CONTINUOUS GPU context and only remembers cells
+             * changed since the last render
+             *
+             * is not sufficient on its own for a reacquire (as opposed to the
+             * very first acquire): if a prior render cycle already cleared it,
+             * there's nothing marked dirty even though the fresh GPU context has
+             * no prior frame content at all.
+             *
+             * Force the whole screen dirty explicitly, same convention
+             * ghostcon_screen_reset() already uses internally.
+             */
+            app->term.screen.dirty.y_min = 0;
+            app->term.screen.dirty.y_max = (int16_t)(app->term.screen.rows_visible - 1);
+            need_render = true;
+        }
+    }
+    else if (before == GC_VT_STATE_ACTIVE && after != GC_VT_STATE_ACTIVE)
+    {
+        release_display(app);
+    }
+    return need_render;
+}
+
+static bool handle_transport_data(app_t *app)
+{
+    bool need_render = false;
+    /* Drain everything currently queued, not just one 4096-byte read
+     *
+     * t->fd is nonblocking (see transport.c's connect), so this loop
+     * costs nothing extra once the socket runs dry.
+     *
+     * Without this, a large transfer split across many escape-sequence
+     * chunks (e.g. a chunked Kitty image) paid a full render_frame()
+     *
+     * including its blocking, vsync-gated page flip
+     *
+     * per 4096 bytes instead of once per actual wakeup, which is what
+     * made such transfers visibly slower than Ghostty despite no more
+     * total work being done.
+     *
+     * Capped so a pathological sustained writer can't starve the other
+     * polled fds forever.
+     */
+    bool got_data = false;
+    size_t total_drained = 0;
+    for (;;)
+    {
+        uint8_t buf[65536];
+        ssize_t n = ghostcon_transport_read(&app->transport, buf, sizeof(buf));
+        if (n > 0)
+        {
+            ghostcon_term_feed(&app->term, buf, (size_t)n);
+            got_data = true;
+            total_drained += (size_t)n;
+            if (total_drained >= (1u << 20))
+                break;
+            continue;
+        }
+        if (n < 0 && errno == EINTR)
+            continue;
+        if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
+            break;
+        /* pty child gone (shell exited, or ghost-ptyserv itself died)
+         *
+         * this VT's session is over.
+         *
+         * Exiting is the correct reaction; a future supervisor decides
+         * what runs here next, not this process.
+         */
+        app->running = false;
+        break;
+    }
+    if (got_data)
+    {
+        GC_LOG(pty, "drained %zu bytes", total_drained);
+        need_render = true;
+    }
+    return need_render;
+}
+
+static bool handle_control_clear(app_t *app)
+{
+    bool need_render = false;
+    bool got_clear = false;
+    ghostcon_transport_read_ctl(&app->transport, &got_clear);
+    if (got_clear)
+        GC_LOG(pty, "CLEAR received, clear_on_logout=%d",
+                app->clear_on_logout ? 1 : 0);
+    if (got_clear && app->clear_on_logout)
+    {
+        ghostcon_screen_erase_display(&app->term.screen, GC_ERASE_DISPLAY_ALL);
+        ghostcon_screen_erase_display(&app->term.screen, GC_ERASE_DISPLAY_SCROLLBACK);
+        app->term.screen.cursor.x = 0;
+        app->term.screen.cursor.y = 0;
+        need_render = true;
+    }
+    return need_render;
+}
+
+static bool handle_input_events(app_t *app)
+{
+    bool need_render = false;
+    ghostcon_input_sync_modes(app->input, &app->term.screen);
+    int zoom_delta = 0;
+    ghostcon_input_pointer_t pointer = {0};
+    bool dump_requested = false;
+    bool vt_active = is_vt_foreground(app->vt_num);
+    if (!ghostcon_input_dispatch(app->input, &app->transport, &app->term.screen,
+                                  app->cell_w, app->cell_h, &zoom_delta, &pointer,
+                                  &dump_requested, vt_active))
+        fprintf(stderr, "ghostcon-core: input dispatch error (continuing)\n");
+    if (pointer.moved)
+        GC_LOG(input, "pointer moved to (%d,%d)", pointer.x, pointer.y);
+    if (pointer.moved && ghostcon_display_is_acquired(app->disp))
+    {
+        /* Hardware cursor movement is deliberately NOT folded into
+         * need_render/render_frame()
+         *
+         * see kms.h's own doc comment on ghostcon_kms_move_cursor() for
+         * why: the whole point of a real DRM cursor plane over a GLES
+         * quad is that its latency doesn't depend on content rendering.
+         *
+         * Called directly here instead.
+         */
+        ghostcon_display_move_cursor(app->disp, pointer.x, pointer.y);
+
+        /* Hover-state detection: switch to the "link" cursor sprite while over an
+         * OSC-8 hyperlink cell, back to "default" otherwise (pure grid
+         * hit-testing, no DRM involved). ghostcon_display_set_cursor_state()
+         * internally no-ops unless the state actually differs from last time, so
+         * hovering the same cell across many motion events in a row doesn't
+         * re-commit the plane every time.
+         */
+        ghostcon_cursor_state_t state = ghostcon_ui_compute_cursor_state(
+            &app->term.screen, app->cell_w, app->cell_h, pointer.x, pointer.y);
+        ghostcon_display_set_cursor_state(app->disp, state);
+    }
+
+    /* Click-drag text selection transitions. pointer.left_pressed/ left_released
+     * are only ever set when core/input.c's should_intercept_for_selection()
+     * decided this click is LOCAL (app hasn't grabbed mouse reporting, or Shift
+     * is overriding it), so no further mode-checking is needed here.
+     *
+     * Independent `if`s inside, not `else if`
+     *
+     * a fast click (press+release within one dispatch() call) must apply both in
+     * order, not have the release silently dropped.
+     *
+     * Copying to the clipboard is a separate, explicit keyboard-shortcut step
+     * (input.c's copy_to_clipboard binding), not automatic on release
+     *
+     * see PLAN.md.
+     *
+     * A plain click (no drag) deselects rather than "selecting" the one cell
+     * under the pointer
+     *
+     * matches how a click in most terminals clears any existing selection instead
+     * of creating a zero-width one.
+     */
+    if (ghostcon_ui_update_selection(&app->term.screen, &pointer,
+                                      app->cell_w, app->cell_h))
+        need_render = true;
+
+    /* A scrollback shortcut (Shift+Up/Down/PageUp/PageDown) changes the
+     * screen directly and produces no pty output, so it can't rely on the
+     * transport_idx branch below to notice and trigger a render
+     *
+     * check dirty state here too.
+     */
+    if (ghostcon_screen_get_dirty(&app->term.screen).y_min >= 0)
+        need_render = true;
+    /* Ctrl+=/Ctrl+Minus zoom shortcut
+     *
+     * same reasoning as above, plus it needs core/main.c's own apply_font_size()
+     * since core/input.c has no atlas/font ownership. input.c reports DIRECTION
+     * only (+-1 per press, "one zoom tick").
+     *
+     * The actual magnitude is app->zoom_step, config-driven (default 2pt
+     *
+     * see core/input.c's handle_zoom_shortcut() doc comment for why 1pt wasn't
+     * enough) and reloadable via ghostcon.toml like everything else in this
+     * block.
+     *
+     * ZOOM_MIN/MAX_FONT_SIZE keep it away from nonsensical extremes (a 0/negative
+     * size, or one large enough to plausibly not fit ATLAS_DIM --apply_font_size
+     * already handles a failed rebuild gracefully regardless, this is just to
+     * keep the common case sane).
+     */
+    if (zoom_delta != 0)
+    {
+        int new_size = ghostcon_ui_compute_zoom(app->font_size, zoom_delta,
+                                                 app->zoom_step,
+                                                 ZOOM_MIN_FONT_SIZE,
+                                                 ZOOM_MAX_FONT_SIZE);
+        int old_size = app->font_size;
+        if (apply_font_size(app, new_size, false))
+        {
+            GC_LOG(input, "zoom %d -> %d", old_size, app->font_size);
+            need_render = true;
+        }
+    }
+
+    /* Ctrl+Alt+D
+     *
+     * dump the live screen state right now, at exactly the
+     * cell/cursor/mode state a visible glitch was caught at, rather than
+     * trying to reproduce it offline.
+     *
+     * Fixed path (not per-VT) is deliberate: this is a manual debug
+     * action, one dump at a time, no need for the per-vtN namespacing the
+     * ctl sockets use.
+     */
+    if (dump_requested)
+    {
+        GC_LOG(input, "screen dump requested (Ctrl+Alt+D)");
+        app->screenshot_requested = true;
+        need_render = true;
+        FILE *df = fopen("/tmp/ghostcon-dump.txt", "w");
+        if (df)
+        {
+            ghostcon_screen_dump(df, &app->term.screen);
+            fclose(df);
+        }
+        else
+        {
+            fprintf(stderr, "ghostcon-core: dump requested but "
+                            "/tmp/ghostcon-dump.txt couldn't be opened: %s\n",
+                    strerror(errno));
+        }
+        /* Raw bytes leading up to this exact moment, alongside the
+         * screen-state dump above
+         *
+         * see transport_request_dump's own doc comment.
+         */
+        ghostcon_transport_request_dump(&app->transport);
+    }
+    return need_render;
+}
+
+static void handle_repeat_fire(app_t *app)
+{
+    if (!ghostcon_input_repeat_fire(app->input, &app->transport))
+        fprintf(stderr, "ghostcon-core: repeat-fire transport write error (continuing)\n");
+}
+
+/* Mode 2026 (Synchronized Output) gate, then present the frame. Runs once per
+ * loop iteration, after every fd branch above has updated render_deferred.
+ *
+ * An app mid-batch (cursor moved, some cells rewritten, more still pending) wants
+ * us to hold off presenting until it sends ?2026l -- otherwise a redraw bigger
+ * than one 4KB pty read spans multiple poll iterations and each one would present
+ * a torn, half-applied frame.
+ *
+ * The hold is bounded by SYNC_OUTPUT_TIMEOUT_MS: an app that sets ?2026h and
+ * never clears it (crash, bug) would otherwise freeze rendering forever.
+ * render_deferred (not a loop-local flag) is what's checked, so a batch that
+ * spans multiple idle poll iterations still flushes once the POLL_INTERVAL_MS
+ * canary wakeup notices the deadline has passed.
+ */
+static void present_frame_if_ready(app_t *app)
+{
+    if (!app->render_deferred || !ghostcon_display_is_acquired(app->disp))
+        return;
+
+    if (app->term.screen.synchronized_output)
+    {
+        struct timespec now;
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        if (!ghostcon_screen_sync_output_expired(&app->term.screen, &now,
+                                                  SYNC_OUTPUT_TIMEOUT_MS))
+        {
+            GC_LOG(vt, "render withheld for sync-output batch");
+            return;
+        }
+    }
+
+    app->render_deferred = false;
+    if (!ghostcon_display_render_frame(app->disp, &app->term.screen,
+                                        app->atlas, app->cell_w, app->cell_h,
+                                        app->ligatures, app->screenshot_requested))
+    {
+        GC_LOG(drm, "present failed, releasing display");
+        fprintf(stderr, "ghostcon-core: render_frame failed, releasing display\n");
+        release_display(app);
+    }
+    /* screenshot_requested consumed by the present above (read inside the
+     * frame draw, per gles.h's doc comment on why it must happen there).
+     */
+    app->screenshot_requested = false;
+}
 
 int main(int argc, char **argv)
 {
@@ -1059,8 +1441,8 @@ int main(int argc, char **argv)
      * replace it.
      */
 
-    bool running = true;
-    while (running)
+    app.running = true;
+    while (app.running)
     {
         struct pollfd fds[6];
         int nfds = 0;
@@ -1141,416 +1523,23 @@ int main(int argc, char **argv)
         }
 
         bool need_render = false;
-
         if (config_watch_idx >= 0 && (fds[config_watch_idx].revents & POLLIN))
-        {
-            if (ghostcon_config_watch_check(app.config_watch_fd, app.config_path))
-            {
-                GC_LOG(config, "config file change detected");
-                if (apply_config_reload(&app))
-                    need_render = true;
-            }
-        }
-
+            need_render |= handle_config_change(&app);
         if (fds[vtctl_idx].revents & POLLIN)
-        {
-            ghostcon_vt_state_t before = ghostcon_vtctl_state(app.vt);
-            ghostcon_vtctl_process_pending(app.vt, vtctl_pre_ack, &app);
-            ghostcon_vt_state_t after = ghostcon_vtctl_state(app.vt);
-            GC_LOG(vt, "vt state %d -> %d", (int)before, (int)after);
-
-            if (before != GC_VT_STATE_ACTIVE && after == GC_VT_STATE_ACTIVE)
-            {
-                if (!acquire_display(&app))
-                {
-                    GC_LOG(vt, "reacquire FAILED, retrying on next switch");
-                    fprintf(stderr, "ghostcon-core: reacquire failed, will keep retrying on next switch\n");
-                }
-                else
-                {
-                    /* The terminal grid was sized at startup from
-                     * app.kms.width/height
-                     *
-                     * but if the VT wasn't already active at process start (the
-                     * normal case: you switch to it later), acquire_display()
-                     * hadn't run yet at that point, so term_init fell back to a
-                     * hardcoded 80x24 placeholder instead of the real screen
-                     * size.
-                     *
-                     * That placeholder was never revisited once the real size
-                     * became known here, so the terminal only ever occupied a
-                     * small corner of the actual display and scrolled well before
-                     * reaching the real bottom of the screen
-                     *
-                     * found live ("halfway through it just scrolls up instead of
-                     * keeping to allocate the next row").
-                     *
-                     * Recompute and resize on every acquire (not just detecting
-                     * the placeholder case) so a reacquire at a genuinely
-                     * different resolution is handled the same way, closing the
-                     * "known Phase 1 limitation" noted elsewhere in this file
-                     * too.
-                     */
-                    uint16_t new_cols = (uint16_t)(ghostcon_display_width(app.disp) / (uint32_t)app.cell_w);
-                    uint16_t new_rows = (uint16_t)(ghostcon_display_height(app.disp) / (uint32_t)app.cell_h);
-                    GC_LOG(vt, "grid %ux%u (was %ux%u)",
-                            new_cols, new_rows, app.term.cols, app.term.rows);
-                    if (new_cols != app.term.cols || new_rows != app.term.rows)
-                    {
-                        if (!ghostcon_term_resize(&app.term, new_cols, new_rows))
-                            fprintf(stderr, "ghostcon-core: term_resize to %ux%u failed\n",
-                                    new_cols, new_rows);
-                        /* Propagate to the actual kernel pty
-                         *
-                         * without this, ghostcon's own idea of the grid size
-                         * changes but nothing tells programs running in the shell
-                         * (found live: a TUI rendered into a small, wrong-sized
-                         * corner because ioctl( TIOCGWINSZ) never reflected
-                         * reality, not even once).
-                         *
-                         * See transport.h's ghostcon_transport_resize() and
-                         * ptyserv/pty_child.c's control-socket handler for the
-                         * other end of this.
-                         */
-                        ghostcon_transport_resize(&app.transport, new_rows, new_cols,
-                                                  new_cols * app.cell_w, new_rows * app.cell_h);
-                    }
-
-                    /* Two things need forcing here, not just one: (1) Acquiring
-                     * the display alone doesn't paint anything --render_frame
-                     * only runs below when need_render is set, which otherwise
-                     * only happens when NEW PTY bytes arrive THIS SAME poll
-                     * iteration.
-                     *
-                     * Whatever was already fed while inactive (e.g. the shell's
-                     * startup prompt) would sit undrawn until the next unrelated
-                     * PTY write --found via exactly that symptom on the first
-                     * real VT-switch test ("stays blank until you press a key").
-                     *
-                     * (2) acquire_display() just destroyed and recreated the
-                     * entire GPU context (kms/egl/gles) from scratch, so the
-                     * terminal's own dirty-region tracking
-                     *
-                     * which assumes a CONTINUOUS GPU context and only remembers
-                     * cells changed since the last render
-                     *
-                     * is not sufficient on its own for a reacquire (as opposed to
-                     * the very first acquire): if a prior render cycle already
-                     * cleared it, there's nothing marked dirty even though the
-                     * fresh GPU context has no prior frame content at all.
-                     *
-                     * Force the whole screen dirty explicitly, same convention
-                     * ghostcon_screen_reset() already uses internally.
-                     */
-                    app.term.screen.dirty.y_min = 0;
-                    app.term.screen.dirty.y_max = (int16_t)(app.term.screen.rows_visible - 1);
-                    need_render = true;
-                }
-            }
-            else if (before == GC_VT_STATE_ACTIVE && after != GC_VT_STATE_ACTIVE)
-            {
-                release_display(&app);
-            }
-        }
-
+            need_render |= handle_vt_events(&app);
         if (fds[transport_idx].revents & (POLLIN | POLLHUP | POLLERR))
-        {
-            /* Drain everything currently queued, not just one 4096-byte read
-             *
-             * t->fd is nonblocking (see transport.c's connect), so this loop
-             * costs nothing extra once the socket runs dry.
-             *
-             * Without this, a large transfer split across many escape-sequence
-             * chunks (e.g. a chunked Kitty image) paid a full render_frame()
-             *
-             * including its blocking, vsync-gated page flip
-             *
-             * per 4096 bytes instead of once per actual wakeup, which is what
-             * made such transfers visibly slower than Ghostty despite no more
-             * total work being done.
-             *
-             * Capped so a pathological sustained writer can't starve the other
-             * polled fds forever.
-             */
-            bool got_data = false;
-            size_t total_drained = 0;
-            for (;;)
-            {
-                uint8_t buf[65536];
-                ssize_t n = ghostcon_transport_read(&app.transport, buf, sizeof(buf));
-                if (n > 0)
-                {
-                    ghostcon_term_feed(&app.term, buf, (size_t)n);
-                    got_data = true;
-                    total_drained += (size_t)n;
-                    if (total_drained >= (1u << 20))
-                        break;
-                    continue;
-                }
-                if (n < 0 && errno == EINTR)
-                    continue;
-                if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
-                    break;
-                /* pty child gone (shell exited, or ghost-ptyserv itself died)
-                 *
-                 * this VT's session is over.
-                 *
-                 * Exiting is the correct reaction; a future supervisor decides
-                 * what runs here next, not this process.
-                 */
-                running = false;
-                break;
-            }
-            if (got_data)
-            {
-                GC_LOG(pty, "drained %zu bytes", total_drained);
-                need_render = true;
-            }
-        }
-
+            need_render |= handle_transport_data(&app);
         if (ctl_idx >= 0 && (fds[ctl_idx].revents & (POLLIN | POLLHUP | POLLERR)))
-        {
-            bool got_clear = false;
-            ghostcon_transport_read_ctl(&app.transport, &got_clear);
-            if (got_clear)
-                GC_LOG(pty, "CLEAR received, clear_on_logout=%d",
-                        app.clear_on_logout ? 1 : 0);
-            if (got_clear && app.clear_on_logout)
-            {
-                ghostcon_screen_erase_display(&app.term.screen, GC_ERASE_DISPLAY_ALL);
-                ghostcon_screen_erase_display(&app.term.screen, GC_ERASE_DISPLAY_SCROLLBACK);
-                app.term.screen.cursor.x = 0;
-                app.term.screen.cursor.y = 0;
-                need_render = true;
-            }
-        }
-
+            need_render |= handle_control_clear(&app);
         if (input_idx >= 0 && (fds[input_idx].revents & POLLIN))
-        {
-            ghostcon_input_sync_modes(app.input, &app.term.screen);
-            int zoom_delta = 0;
-            ghostcon_input_pointer_t pointer = {0};
-            bool dump_requested = false;
-            bool vt_active = is_vt_foreground(app.vt_num);
-            if (!ghostcon_input_dispatch(app.input, &app.transport, &app.term.screen,
-                                          app.cell_w, app.cell_h, &zoom_delta, &pointer,
-                                          &dump_requested, vt_active))
-                fprintf(stderr, "ghostcon-core: input dispatch error (continuing)\n");
-            /* Hardware cursor movement is deliberately NOT folded into
-             * need_render/render_frame()
-             *
-             * see kms.h's own doc comment on ghostcon_kms_move_cursor() for why:
-             * the whole point of a real DRM cursor plane over a GLES quad is that
-             * its latency doesn't depend on content rendering.
-             *
-             * Called directly here instead.
-             */
-            if (pointer.moved)
-                GC_LOG(input, "pointer moved to (%d,%d)", pointer.x, pointer.y);
-            if (pointer.moved && ghostcon_display_is_acquired(app.disp))
-            {
-                /* Hardware cursor movement is deliberately NOT folded into
-                 * need_render/render_frame()
-                 *
-                 * see kms.h's own doc comment on ghostcon_kms_move_cursor() for
-                 * why: the whole point of a real DRM cursor plane over a GLES
-                 * quad is that its latency doesn't depend on content rendering.
-                 *
-                 * Called directly here instead.
-                 */
-                ghostcon_display_move_cursor(app.disp, pointer.x, pointer.y);
-
-                /* Hover-state detection: switch to the "link" cursor sprite while
-                 * over an OSC-8 hyperlink cell, back to "default" otherwise (pure
-                 * grid hit-testing, no DRM involved).
-                 * ghostcon_display_set_cursor_state() internally no-ops unless
-                 * the state actually differs from last time, so hovering the same
-                 * cell across many motion events in a row doesn't re-commit the
-                 * plane every time.
-                 */
-                ghostcon_cursor_state_t state = ghostcon_ui_compute_cursor_state(
-                    &app.term.screen, app.cell_w, app.cell_h, pointer.x, pointer.y);
-                ghostcon_display_set_cursor_state(app.disp, state);
-            }
-
-            /* Click-drag text selection
-             *
-             * pointer.left_pressed/ left_released are only ever set when
-             * core/input.c's should_intercept_for_selection() decided this click
-             * is LOCAL (app hasn't grabbed mouse reporting, or Shift is
-             * overriding it), so no further mode-checking is needed here.
-             *
-             * Independent `if`s, not `else if`
-             *
-             * a fast click (press+release within one dispatch() call) must apply
-             * both in order, not have the release silently dropped.
-             *
-             * Copying to the clipboard is a separate, explicit keyboard-shortcut
-             * step (input.c's copy_to_clipboard binding), not automatic on
-             * release
-             *
-             * see PLAN.md.
-             */
-            /* Click-drag text selection transitions. pointer.left_pressed/
-             * left_released are only ever set when core/input.c's
-             * should_intercept_for_selection() decided this click is LOCAL (app
-             * hasn't grabbed mouse reporting, or Shift is overriding it), so no
-             * further mode-checking is needed here.
-             *
-             * Independent `if`s inside, not `else if`
-             *
-             * a fast click (press+release within one dispatch() call) must apply
-             * both in order, not have the release silently dropped.
-             *
-             * Copying to the clipboard is a separate, explicit keyboard-shortcut
-             * step (input.c's copy_to_clipboard binding), not automatic on
-             * release
-             *
-             * see PLAN.md.
-             *
-             * A plain click (no drag) deselects rather than "selecting" the one
-             * cell under the pointer
-             *
-             * matches how a click in most terminals clears any existing selection
-             * instead of creating a zero-width one.
-             */
-            if (ghostcon_ui_update_selection(&app.term.screen, &pointer,
-                                              app.cell_w, app.cell_h))
-                need_render = true;
-
-            /* A scrollback shortcut (Shift+Up/Down/PageUp/PageDown) changes the
-             * screen directly and produces no pty output, so it can't rely on the
-             * transport_idx branch below to notice and trigger a render
-             *
-             * check dirty state here too.
-             */
-            if (ghostcon_screen_get_dirty(&app.term.screen).y_min >= 0)
-                need_render = true;
-            /* Ctrl+=/Ctrl+Minus zoom shortcut
-             *
-             * same reasoning as above, plus it needs core/main.c's own
-             * apply_font_size() since core/input.c has no atlas/font ownership.
-             * input.c reports DIRECTION only (+-1 per press, "one zoom tick").
-             *
-             * The actual magnitude is app.zoom_step, config-driven (default 2pt
-             *
-             * see core/input.c's handle_zoom_shortcut() doc comment for why 1pt
-             * wasn't enough) and reloadable via ghostcon.toml like everything
-             * else in this block.
-             *
-             * ZOOM_MIN/MAX_FONT_SIZE keep it away from nonsensical extremes (a
-             * 0/negative size, or one large enough to plausibly not fit ATLAS_DIM
-             * --apply_font_size already handles a failed rebuild gracefully
-             * regardless, this is just to keep the common case sane).
-             */
-            if (zoom_delta != 0)
-            {
-                int new_size = ghostcon_ui_compute_zoom(app.font_size, zoom_delta,
-                                                         app.zoom_step,
-                                                         ZOOM_MIN_FONT_SIZE,
-                                                         ZOOM_MAX_FONT_SIZE);
-                int old_size = app.font_size;
-                if (apply_font_size(&app, new_size, false))
-                {
-                    GC_LOG(input, "zoom %d -> %d", old_size, app.font_size);
-                    need_render = true;
-                }
-            }
-
-            /* Ctrl+Alt+D
-             *
-             * dump the live screen state right now, at exactly the
-             * cell/cursor/mode state a visible glitch was caught at, rather than
-             * trying to reproduce it offline.
-             *
-             * Fixed path (not per-VT) is deliberate: this is a manual debug
-             * action, one dump at a time, no need for the per-vtN namespacing the
-             * ctl sockets use.
-             */
-            if (dump_requested)
-            {
-                GC_LOG(input, "screen dump requested (Ctrl+Alt+D)");
-                app.screenshot_requested = true;
-                need_render = true;
-                FILE *df = fopen("/tmp/ghostcon-dump.txt", "w");
-                if (df)
-                {
-                    ghostcon_screen_dump(df, &app.term.screen);
-                    fclose(df);
-                }
-                else
-                {
-                    fprintf(stderr, "ghostcon-core: dump requested but "
-                                    "/tmp/ghostcon-dump.txt couldn't be opened: %s\n",
-                            strerror(errno));
-                }
-                /* Raw bytes leading up to this exact moment, alongside the
-                 * screen-state dump above
-                 *
-                 * see transport_request_dump's own doc comment.
-                 */
-                ghostcon_transport_request_dump(&app.transport);
-            }
-        }
-
+            need_render |= handle_input_events(&app);
         if (repeat_idx >= 0 && (fds[repeat_idx].revents & POLLIN))
-        {
-            if (!ghostcon_input_repeat_fire(app.input, &app.transport))
-                fprintf(stderr, "ghostcon-core: repeat-fire transport write error (continuing)\n");
-        }
+            handle_repeat_fire(&app);
 
         if (need_render)
             app.render_deferred = true;
 
-        if (app.render_deferred && ghostcon_display_is_acquired(app.disp))
-        {
-            /* Mode 2026 (Synchronized Output): an app mid-batch (cursor moved,
-             * some cells rewritten, more still pending) wants us to hold off
-             * presenting until it sends ?2026l
-             *
-             * otherwise a redraw bigger than one 4KB pty read (main loop reads
-             * above) spans multiple poll iterations and each one would present a
-             * torn, half-applied frame.
-             *
-             * Withholding here is bounded by SYNC_OUTPUT_TIMEOUT_MS below, not
-             * held open indefinitely: a crashed/buggy app that sets ?2026h and
-             * never clears it would otherwise freeze rendering forever instead of
-             * just missing this one deadline. render_deferred (not the loop-local
-             * need_render) is what's checked, so a batch that spans multiple poll
-             * iterations with no other fd activity in between still gets flushed
-             * once the POLL_INTERVAL_MS canary wakeup notices the timeout has
-             * elapsed.
-             */
-            bool still_withholding = app.term.screen.synchronized_output;
-            if (still_withholding)
-            {
-                struct timespec now;
-                clock_gettime(CLOCK_MONOTONIC, &now);
-                double elapsed_ms =
-                    (now.tv_sec - app.term.screen.synchronized_output_since.tv_sec) * 1000.0 +
-                    (now.tv_nsec - app.term.screen.synchronized_output_since.tv_nsec) / 1e6;
-                still_withholding = elapsed_ms < SYNC_OUTPUT_TIMEOUT_MS;
-                GC_LOG(vt, "render withheld for sync-output batch (%.1f ms)", elapsed_ms);
-            }
-
-            if (!still_withholding)
-            {
-                app.render_deferred = false;
-                if (!ghostcon_display_render_frame(app.disp, &app.term.screen,
-                                                    app.atlas, app.cell_w, app.cell_h,
-                                                    app.ligatures, app.screenshot_requested))
-                {
-                    GC_LOG(drm, "present failed, releasing display");
-                    fprintf(stderr, "ghostcon-core: render_frame failed, releasing display\n");
-                    release_display(&app);
-                }
-                /* screenshot_requested consumed by the present above (read
-                 * inside the frame draw, per gles.h's doc comment on why it
-                 * must happen there)
-                 */
-                app.screenshot_requested = false;
-            }
-        }
+        present_frame_if_ready(&app);
     }
 
     if (app.input)

@@ -1752,3 +1752,16 @@ void ghostcon_screen_scroll_view(ghostcon_screen_t *s, int delta)
     s->dirty.y_min = 0;
     s->dirty.y_max = (int16_t)(s->rows_visible - 1);
 }
+
+bool ghostcon_screen_sync_output_expired(const ghostcon_screen_t *s,
+                                         const struct timespec *now,
+                                         double timeout_ms)
+{
+    if (!s || !s->synchronized_output || !now)
+        return true;
+
+    double elapsed_ms =
+        (now->tv_sec - s->synchronized_output_since.tv_sec) * 1000.0 +
+        (now->tv_nsec - s->synchronized_output_since.tv_nsec) / 1e6;
+    return elapsed_ms >= timeout_ms;
+}

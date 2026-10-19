@@ -211,6 +211,49 @@ main(void)
     }
     printf("PASS: resize\n");
 
+    /* Test 10: mode-2026 synchronized-output render gate
+     *
+     * ghostcon_screen_sync_output_expired() is the pure decision core/main.c's
+     * present gate uses to bound how long a frame may be withheld from an app
+     * that sets ?2026h and never clears it.
+     */
+    {
+        ghostcon_screen_t *s = &term.screen;
+        struct timespec t0 = { .tv_sec = 100, .tv_nsec = 0 };
+
+        s->synchronized_output = false;
+        if (!ghostcon_screen_sync_output_expired(s, &t0, 200.0))
+        {
+            fprintf(stderr, "FAIL: no open batch should count as expired\n");
+            return 1;
+        }
+
+        s->synchronized_output = true;
+        s->synchronized_output_since = t0;
+
+        struct timespec t_inside = { .tv_sec = 100, .tv_nsec = 100 * 1000000 };
+        if (ghostcon_screen_sync_output_expired(s, &t_inside, 200.0))
+        {
+            fprintf(stderr, "FAIL: open batch inside budget should not expire\n");
+            return 1;
+        }
+        if (!ghostcon_screen_sync_output_expired(s, &t_inside, 50.0))
+        {
+            fprintf(stderr, "FAIL: open batch past a shorter deadline should expire\n");
+            return 1;
+        }
+
+        struct timespec t_after = { .tv_sec = 100, .tv_nsec = 250 * 1000000 };
+        if (!ghostcon_screen_sync_output_expired(s, &t_after, 200.0))
+        {
+            fprintf(stderr, "FAIL: open batch past deadline should expire\n");
+            return 1;
+        }
+
+        s->synchronized_output = false;
+        printf("PASS: sync-output render gate\n");
+    }
+
     ghostcon_term_deinit(&term);
     printf("ALL PASS\n");
     return 0;

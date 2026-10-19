@@ -510,3 +510,15 @@ ghostcon_row_t *ghostcon_screen_row(ghostcon_screen_t *screen, uint16_t y);
  * it.
  */
 void ghostcon_screen_scroll_view(ghostcon_screen_t *screen, int delta);
+
+/* Returns true when a render may proceed despite mode 2026: either no
+ * synchronized-output batch is open, or the open one has outlived
+ * `timeout_ms`. False only while a batch is open and still within budget.
+ *
+ * The timeout is the guard against an app that sets ?2026h and never clears
+ * it (crash, bug) freezing rendering forever. `now` is CLOCK_MONOTONIC, the
+ * same clock the timestamp is stamped with.
+ */
+bool ghostcon_screen_sync_output_expired(const ghostcon_screen_t *screen,
+                                         const struct timespec *now,
+                                         double timeout_ms);
