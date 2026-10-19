@@ -102,6 +102,7 @@ Formatting is enforced by three idempotent tools (not clang-format); see
 python3 tools/format_comments.py   --check
 python3 tools/format_braces.py     --check
 python3 tools/format_signatures.py --check
+python3 tools/format_pointers.py   --check
 ```
 
 Add `--apply` to rewrite in place.

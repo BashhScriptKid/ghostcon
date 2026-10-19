@@ -15,7 +15,7 @@ meson test -C build-release          # currently 22 tests
 
 ## 0. Code style
 
-Three rules, each enforced by a script in `tools/`. The scripts are the
+Four rules, each enforced by a script in `tools/`. The scripts are the
 executable specification; update both if a rule changes. Run them from
 the repository root before sending changes:
 
@@ -23,9 +23,10 @@ the repository root before sending changes:
 python3 tools/format_comments.py   --check
 python3 tools/format_braces.py     --check
 python3 tools/format_signatures.py --check
+python3 tools/format_pointers.py   --check
 ```
 
-Each accepts `--apply` to rewrite in place and is idempotent. All three
+Each accepts `--apply` to rewrite in place and is idempotent. All four
 are tokenizer-based, not full C parsers: they ignore comments and
 strings while tokenizing, skip preprocessor logical lines (including
 macro bodies), and only inspect top-level function definitions. Review
@@ -114,6 +115,30 @@ Lists containing line comments, multi-line comments, or preprocessor
 lines are left as written. The exact classification sets are
 `PRIMITIVE` and `STD_TYPEDEFS` in `tools/format_signatures.py`; update
 both that script and this list together.
+
+### Pointer declarators — `T *name`
+
+The `*` binds to the declared name, not the base type:
+
+```c
+uint32_t *pixels;   /* not uint32_t* pixels */
+char   **fields;    /* not char * * fields    */
+```
+
+At least one space (or a newline) before the `*` run, and none between
+the `*`s and the name. Multiple spaces before the `*` are allowed so
+struct fields can stay column-aligned:
+
+```c
+ghostcon_row_t  *rows;
+char            *buf;
+```
+
+A `*` at end of line is allowed (the return-type split above). Spacing
+around pointer qualifiers (`char *const *p`) and function-pointer
+declarators (`bool (*fn)(int)`) is left alone; expressions such as
+`width * height` are not touched because the token before the `*` is
+not a type.
 
 ### Comments — wrapped block style
 
