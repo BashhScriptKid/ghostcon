@@ -211,7 +211,8 @@ ghostcon_atlas_create(const char *font_family, const char *font_variant,
     FcPatternDestroy(pat);
     if (atlas->fallback_set && atlas->fallback_set->nfont > 0)
     {
-        atlas->fallback_faces = calloc((size_t)atlas->fallback_set->nfont, sizeof(FT_Face));
+        atlas->fallback_faces = (FT_Face *)calloc((size_t)atlas->fallback_set->nfont,
+                                                       sizeof(FT_Face));
         if (!atlas->fallback_faces)
         {
             FcFontSetDestroy(atlas->fallback_set);
@@ -289,7 +290,7 @@ fail_face:
 fail:
     if (atlas->fallback_set)
         FcFontSetDestroy(atlas->fallback_set);
-    free(atlas->fallback_faces);
+    free((void *)atlas->fallback_faces);
     free(atlas);
     return NULL;
 }
@@ -312,7 +313,7 @@ void ghostcon_atlas_destroy(ghostcon_atlas_t *atlas)
         }
         FcFontSetDestroy(atlas->fallback_set);
     }
-    free(atlas->fallback_faces);
+    free((void *)atlas->fallback_faces);
     FT_Done_Face(atlas->face);
     FT_Done_FreeType(atlas->ft);
     free(atlas);

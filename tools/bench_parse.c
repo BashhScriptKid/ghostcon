@@ -99,7 +99,7 @@ int main(int argc, char **argv)
     /* Pre-generate all screens' bytes up front so the timed loop below
      * measures ONLY parse throughput, not this synthesis work.
      */
-    char **screen_data = malloc((size_t)screens * sizeof(char *));
+    char **screen_data = (char **)malloc((size_t)screens * sizeof(char *));
     size_t *screen_len = malloc((size_t)screens * sizeof(size_t));
     size_t total_bytes = 0;
     for (int i = 0; i < screens; i++)
@@ -128,7 +128,7 @@ int main(int argc, char **argv)
         off += screen_len[i];
         free(screen_data[i]);
     }
-    free(screen_data);
+    free((void *)screen_data);
     free(screen_len);
 
     double t0 = now_ms();

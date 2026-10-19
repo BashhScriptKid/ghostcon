@@ -551,7 +551,7 @@ void ghostcon_machine_render_images(ghostcon_screen_t *screen,
         if (kg->placements[i].in_use)
             sorted[count++] = &kg->placements[i];
     }
-    qsort(sorted, (size_t)count, sizeof(sorted[0]), placement_z_cmp);
+    qsort((void *)sorted, (size_t)count, sizeof(sorted[0]), placement_z_cmp);
 
     for (int i = 0; i < count; i++)
         render_one_placement(gles, kg, sorted[i], cell_w, cell_h);

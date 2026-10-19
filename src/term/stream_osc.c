@@ -354,7 +354,7 @@ void gc_stream_osc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s)
     case GHOSTTY_OSC_COMMAND_CHANGE_WINDOW_TITLE:
     case GHOSTTY_OSC_COMMAND_CHANGE_WINDOW_ICON: {
         const char *str = NULL;
-        ghostty_osc_command_data(cmd, GHOSTTY_OSC_DATA_CHANGE_WINDOW_TITLE_STR, &str);
+        ghostty_osc_command_data(cmd, GHOSTTY_OSC_DATA_CHANGE_WINDOW_TITLE_STR, (void *)&str);
         if (str && st->title_fn)
             st->title_fn(st->title_userdata, str);
         (void)s;
