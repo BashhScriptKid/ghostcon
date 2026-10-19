@@ -30,6 +30,7 @@
 #define _DEFAULT_SOURCE /* clock_gettime()/CLOCK_MONOTONIC under -std=c11 without this */
 
 #include "ghostcon/term/term.h"
+#include "ghostcon/core/parse.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -71,9 +72,12 @@ static size_t build_one_screen(char *out, size_t out_cap, uint16_t cols, uint16_
 
 int main(int argc, char **argv)
 {
-    uint16_t cols = argc > 1 ? (uint16_t)atoi(argv[1]) : 128;
-    uint16_t rows = argc > 2 ? (uint16_t)atoi(argv[2]) : 32;
-    int screens = argc > 3 ? atoi(argv[3]) : 2000;
+    int cols_i = 128, rows_i = 32, screens = 2000;
+    if (argc > 1) (void)ghostcon_parse_int(argv[1], &cols_i);
+    if (argc > 2) (void)ghostcon_parse_int(argv[2], &rows_i);
+    if (argc > 3) (void)ghostcon_parse_int(argv[3], &screens);
+    uint16_t cols = (uint16_t)cols_i;
+    uint16_t rows = (uint16_t)rows_i;
 
     if (cols == 0 || rows == 0 || screens <= 0)
     {

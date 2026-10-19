@@ -21,6 +21,7 @@
 #define _DEFAULT_SOURCE
 
 #include "ghostcon/core/egl.h"
+#include "ghostcon/core/parse.h"
 #include "ghostcon/render/atlas.h"
 #include "ghostcon/render/gles.h"
 #include "ghostcon/render/machine.h"
@@ -53,10 +54,13 @@ main(int argc, char **argv)
     const char *out_path = argv[1];
     const char *raw_path = getenv("HEADLESS_PROBE_RAW_DUMP");
     FILE *raw_f = raw_path ? fopen(raw_path, "wb") : NULL;
-    uint32_t target_vw = argc > 2 ? (uint32_t)atoi(argv[2]) : 1920;
-    uint32_t target_vh = argc > 3 ? (uint32_t)atoi(argv[3]) : 1080;
-    int font_size = argc > 4 ? atoi(argv[4]) : 20;
-    int settle_ms = argc > 5 ? atoi(argv[5]) : 1500;
+    int vw_i = 1920, vh_i = 1080, font_size = 20, settle_ms = 1500;
+    if (argc > 2) (void)ghostcon_parse_int(argv[2], &vw_i);
+    if (argc > 3) (void)ghostcon_parse_int(argv[3], &vh_i);
+    if (argc > 4) (void)ghostcon_parse_int(argv[4], &font_size);
+    if (argc > 5) (void)ghostcon_parse_int(argv[5], &settle_ms);
+    uint32_t target_vw = (uint32_t)vw_i;
+    uint32_t target_vh = (uint32_t)vh_i;
     const char *font_family = argc > 6 ? argv[6] : NULL;
     const char *font_variant = argc > 7 ? argv[7] : NULL;
     bool ligatures = getenv("HEADLESS_PROBE_LIGATURES") != NULL;

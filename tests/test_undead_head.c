@@ -23,6 +23,7 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#include "ghostcon/core/parse.h"
 
 #define TEST_VT 92
 
@@ -125,7 +126,10 @@ static pid_t pgrep_once(const char *pattern)
      * naturally stops at the first newline, giving the first
      * (lowest/oldest) match.
      */
-    pid_t pid = (pid_t)atoi(buf);
+    int pid_i = 0;
+    if (!ghostcon_parse_int(buf, &pid_i))
+        return -1;
+    pid_t pid = (pid_t)pid_i;
     return pid > 0 ? pid : -1;
 }
 

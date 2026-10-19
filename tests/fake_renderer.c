@@ -61,6 +61,7 @@
 #include <unistd.h>
 
 #include "ghostcon/core/transport.h"
+#include "ghostcon/core/parse.h"
 
 #define HEARTBEAT_INTERVAL_MS 100
 
@@ -75,11 +76,15 @@ now_ms(void)
 int main(int argc, char **argv)
 {
     const char *fd_str = getenv("GHOSTCON_CANARY_FD");
-    int canary_fd = fd_str ? atoi(fd_str) : -1;
+    int canary_fd = -1;
+    if (fd_str)
+        (void)ghostcon_parse_int(fd_str, &canary_fd);
 
     if (getenv("FAKE_RENDERER_REAL_PTY"))
     {
-        int vtnum = argc > 1 ? atoi(argv[1]) : 0;
+        int vtnum = 0;
+        if (argc > 1)
+            (void)ghostcon_parse_int(argv[1], &vtnum);
         const char *registry_socket = argc > 3 ? argv[3] : NULL;
         ghostcon_transport_t transport = {0};
         if (registry_socket && ghostcon_transport_connect(&transport, registry_socket, vtnum))
@@ -146,9 +151,9 @@ int main(int argc, char **argv)
 
     long hang_after = -1, exit_after = -1;
     if (getenv("FAKE_RENDERER_HANG_AFTER_MS"))
-        hang_after = atol(getenv("FAKE_RENDERER_HANG_AFTER_MS"));
+        (void)ghostcon_parse_long(getenv("FAKE_RENDERER_HANG_AFTER_MS"), &hang_after);
     if (getenv("FAKE_RENDERER_EXIT_AFTER_MS"))
-        exit_after = atol(getenv("FAKE_RENDERER_EXIT_AFTER_MS"));
+        (void)ghostcon_parse_long(getenv("FAKE_RENDERER_EXIT_AFTER_MS"), &exit_after);
 
     long start = now_ms();
     for (;;)

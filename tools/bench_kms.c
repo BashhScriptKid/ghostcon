@@ -27,6 +27,7 @@
 #define _DEFAULT_SOURCE
 
 #include "ghostcon/core/egl.h"
+#include "ghostcon/core/parse.h"
 #include "ghostcon/core/kms.h"
 #include "ghostcon/render/gles.h"
 
@@ -54,7 +55,9 @@ now_ms(void)
 int main(int argc, char **argv)
 {
     const char *drm_node = argc > 1 ? argv[1] : "/dev/dri/card1";
-    int frames = argc > 2 ? atoi(argv[2]) : 300;
+    int frames = 300;
+    if (argc > 2)
+        (void)ghostcon_parse_int(argv[2], &frames);
     if (frames <= 0)
     {
         fprintf(stderr, "usage: %s [drm_node] [frames]\n", argv[0]);

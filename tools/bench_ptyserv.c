@@ -24,6 +24,7 @@
 #define _DEFAULT_SOURCE
 
 #include "ghostcon/ptyserv/protocol.h"
+#include "ghostcon/core/parse.h"
 
 #include <poll.h>
 #include <signal.h>
@@ -65,7 +66,9 @@ static int connect_unix(const char *path)
 
 int main(int argc, char **argv)
 {
-    int megabytes = argc > 1 ? atoi(argv[1]) : 64;
+    int megabytes = 64;
+    if (argc > 1)
+        (void)ghostcon_parse_int(argv[1], &megabytes);
     if (megabytes <= 0)
     {
         fprintf(stderr, "usage: %s [megabytes]\n", argv[0]);

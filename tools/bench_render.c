@@ -20,6 +20,7 @@
 #define _DEFAULT_SOURCE /* clock_gettime()/CLOCK_MONOTONIC under -std=c11 without this */
 
 #include "ghostcon/core/egl.h"
+#include "ghostcon/core/parse.h"
 #include "ghostcon/render/atlas.h"
 #include "ghostcon/render/gles.h"
 #include "ghostcon/render/machine.h"
@@ -82,10 +83,13 @@ static void fill_scrollback(ghostcon_term_t *term, uint16_t cols)
 
 int main(int argc, char **argv)
 {
-    uint16_t cols = argc > 1 ? (uint16_t)atoi(argv[1]) : 128;
-    uint16_t rows = argc > 2 ? (uint16_t)atoi(argv[2]) : 32;
-    int font_size = argc > 3 ? atoi(argv[3]) : 24;
-    int frames = argc > 4 ? atoi(argv[4]) : 300;
+    int cols_i = 128, rows_i = 32, font_size = 24, frames = 300;
+    if (argc > 1) (void)ghostcon_parse_int(argv[1], &cols_i);
+    if (argc > 2) (void)ghostcon_parse_int(argv[2], &rows_i);
+    if (argc > 3) (void)ghostcon_parse_int(argv[3], &font_size);
+    if (argc > 4) (void)ghostcon_parse_int(argv[4], &frames);
+    uint16_t cols = (uint16_t)cols_i;
+    uint16_t rows = (uint16_t)rows_i;
 
     if (cols == 0 || rows == 0 || font_size <= 0 || frames <= 0)
     {

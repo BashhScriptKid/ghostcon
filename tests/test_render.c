@@ -13,6 +13,7 @@
 
 #include "ghostcon/core/egl.h"
 #include "ghostcon/render/atlas.h"
+#include "ghostcon/core/parse.h"
 #include "ghostcon/render/gles.h"
 #include "ghostcon/render/machine.h"
 #include "ghostcon/term/term.h"
@@ -134,6 +135,7 @@ main(void)
         return 1;
     }
     unsigned pw = 0, ph = 0, maxv = 0;
+    // NOLINTNEXTLINE(bugprone-unchecked-string-to-number-conversion) -- return count checked
     if (fscanf(ppm, "P6 %u %u %u", &pw, &ph, &maxv) != 3 ||
         pw != (unsigned)vw || ph != (unsigned)vh || maxv != 255)
     {

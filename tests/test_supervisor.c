@@ -10,6 +10,7 @@
 #define _DEFAULT_SOURCE
 
 #include "ghostcon/ptyserv/protocol.h"
+#include "ghostcon/core/parse.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -504,6 +505,7 @@ static void scenario_hang_preserves_session(void)
     bool ok = wait_for_log_seq(stderr_fd, log, sizeof(log), &log_len, &pos,
                                "PTY_CHILD_PID: ", 3000);
     if (ok)
+        // NOLINTNEXTLINE(bugprone-unchecked-string-to-number-conversion) -- return count checked
         sscanf(log + pos, "%d", &pid1);
     ok = ok && wait_for_log_seq(stderr_fd, log, sizeof(log), &log_len, &pos,
                                 "claimed VT, ACTIVE", 3000);
