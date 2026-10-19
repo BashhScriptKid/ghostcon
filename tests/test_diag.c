@@ -13,6 +13,7 @@
 #define _DEFAULT_SOURCE
 
 #include "ghostcon/core/diag.h"
+#include "test_process.h"
 
 #include <signal.h>
 #include <stdbool.h>
@@ -40,27 +41,26 @@ journal_has_entry(pid_t pid, char *out_buf, size_t out_cap)
      * (current boot only) + _COMM= (this binary's name) together with _PID=
      * make the match actually unique.
      */
-    char cmd[256];
-    snprintf(cmd, sizeof(cmd),
-             "journalctl -b _PID=%d _COMM=test_diag --no-pager -o export 2>/dev/null",
-             (int)pid);
+    char pid_filter[64];
+    snprintf(pid_filter, sizeof(pid_filter), "_PID=%d", (int)pid);
+    char *journal_argv[] = { "journalctl", "-b", pid_filter, "_COMM=test_diag",
+                             "--no-pager", "-o", "export", NULL };
 
     for (int attempt = 0; attempt < 20; attempt++)
     {
-        FILE *p = popen(cmd, "r");
-        if (!p)
-            return false;
-
         char buf[8192];
-        size_t n = fread(buf, 1, sizeof(buf) - 1, p);
-        pclose(p);
+        ssize_t n = gc_test_capture_command(journal_argv, buf, sizeof(buf));
+        if (n < 0)
+            return false;
         buf[n] = '\0';
 
         if (strstr(buf, "GHOSTCON_COMPONENT=" TEST_COMPONENT) &&
             strstr(buf, "GHOSTCON_VT=42") &&
             strstr(buf, "GHOSTCON_SIGNAL=6" /* SIGABRT */))
         {
-            size_t copy_len = n < out_cap - 1 ? n : out_cap - 1;
+            size_t copy_len = (size_t)n;
+            if (copy_len > out_cap - 1)
+                copy_len = out_cap - 1;
             memcpy(out_buf, buf, copy_len);
             out_buf[copy_len] = '\0';
             return true;

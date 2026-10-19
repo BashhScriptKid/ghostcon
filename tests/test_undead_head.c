@@ -23,6 +23,7 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#include "test_process.h"
 #include "ghostcon/core/parse.h"
 
 #define TEST_VT 92
@@ -288,8 +289,10 @@ teardown:
      * undead_head/main.c) -- best-effort extra cleanup in case that path
      * itself is what's broken.
      */
-    system("pkill -9 -f 'test_fake_renderer' 2>/dev/null; "
-           "pkill -9 -f 'pty-ttyN' 2>/dev/null");
+    char *kill_renderer[] = { "pkill", "-9", "-f", "test_fake_renderer", NULL };
+    char *kill_pty_children[] = { "pkill", "-9", "-f", "pty-ttyN", NULL };
+    (void)gc_test_run_command(kill_renderer);
+    (void)gc_test_run_command(kill_pty_children);
     unlink(registry_sock);
 
     printf(result == 0 ? "ALL TESTS PASSED\n" : "FAILED\n");

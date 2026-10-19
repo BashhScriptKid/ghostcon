@@ -10,6 +10,7 @@
 #define _DEFAULT_SOURCE
 
 #include "ghostcon/ptyserv/protocol.h"
+#include "test_process.h"
 #include "ghostcon/core/parse.h"
 
 #include <errno.h>
@@ -413,9 +414,8 @@ cleanup:
     unsetenv("GHOSTCON_RUN_DIR");
     unsetenv("GHOSTCON_DISABLE_KMSCON_FALLBACK");
     unsetenv("FAKE_RENDERER_NEVER_HEARTBEAT");
-    char rm_cmd[600];
-    snprintf(rm_cmd, sizeof(rm_cmd), "rm -rf '%s'", run_dir);
-    system(rm_cmd);
+    char *rm_argv[] = { "rm", "-rf", run_dir, NULL };
+    (void)gc_test_run_command(rm_argv);
 }
 
 /* Deepens scenario_hang_and_respawn to the full induced-hang checklist from
@@ -654,9 +654,8 @@ cleanup_ptyserv:
     unsetenv("FAKE_RENDERER_HANG_AFTER_MS");
 cleanup_rundir:
     {
-        char rm_cmd2[600];
-        snprintf(rm_cmd2, sizeof(rm_cmd2), "rm -rf '%s'", run_dir);
-        system(rm_cmd2);
+        char *rm_argv2[] = { "rm", "-rf", run_dir, NULL };
+        (void)gc_test_run_command(rm_argv2);
     }
 }
 

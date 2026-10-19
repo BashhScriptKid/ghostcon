@@ -7,10 +7,12 @@
 #define _DEFAULT_SOURCE /* mkdtemp() under -std=c11 without this */
 
 #include "ghostcon/core/cursor_image.h"
+#include "test_process.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 static int failures = 0;
@@ -197,9 +199,7 @@ int main(void)
     /* mkdir via system-independent approach: just use rename to move the
      * same file into a cursors/ subdir for this check.
      */
-    char mkdir_cmd[600];
-    snprintf(mkdir_cmd, sizeof(mkdir_cmd), "mkdir -p '%s'", cursors_dir);
-    if (system(mkdir_cmd) == 0)
+    if (mkdir(cursors_dir, 0700) == 0)
     {
         char nested_path[600];
         snprintf(nested_path, sizeof(nested_path), "%s/nested", cursors_dir);
