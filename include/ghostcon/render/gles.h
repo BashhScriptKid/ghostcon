@@ -7,9 +7,11 @@
 
 /* Forward-declared rather than including term/kitty_graphics.h
  *
- * this header only ever needs a pointer to it (see ghostcon_gles_kitty_tex_get
- * below), same reasoning as screen.h's own forward-declare of struct
+ * this header only ever needs a pointer to it[1],
+ * same reasoning as screen.h's own forward-declare of struct
  * ghostcon_screen for selection.h.
+ *
+ * [1] see ghostcon_gles_kitty_tex_get below
  */
 struct ghostcon_kitty_graphics;
 
@@ -24,12 +26,7 @@ struct ghostcon_sixel_state;
  * see atlas.h's doc comment on ghostcon_glyph_t.is_color for why they're
  * separate).
  *
- * A quad is either a solid fill (background cell, cursor block
- *
- * sampled from a reserved opaque texel at the mask atlas origin), a mask glyph
- * (sampled from u_atlas, alpha = per-pixel coverage, tinted with the foreground
- * color), or a color glyph (sampled from u_atlas_color as direct source color, no
- * tint).
+ * A quad is either a solid fill[1], a mask glyph[2], or a color glyph[3].
  *
  * All three go through the same textured-quad path per PLAN.md's "Renderer
  * design": draw background quads first, then glyph quads on top with alpha
@@ -37,26 +34,39 @@ struct ghostcon_sixel_state;
  *
  * See render/machine.c for turning screen damage into the quad list this
  * consumes.
+ *
+ * [1] Background cell, cursor block sampled from a reserved opaque texel at
+ *     the mask atlas origin.
+ *
+ * [2] Sampled from u_atlas, alpha = per-pixel coverage, tinted with the
+ *     foreground color.
+ *
+ * [3] Sampled from u_atlas_color as direct source color, no tint.
  */
 
 typedef struct
 {
-    float x, y;         /* screen-space pixel position, top-left origin */
+    float x, y; // screen-space pixel position, top-left origin
     float u, v;
     float r, g, b, a;
-    float bg_r, bg_g, bg_b; /* cell background, for gamma alpha correction --
-                                equal to r/g/b on non-glyph quads, a no-op */
-    float is_glyph; /* 1.0 for glyph quads (ghostcon_gles_push_glyph),
-                        0.0 for everything else -- selects the shader's
-                        per-channel subpixel-mix path vs. the plain
-                        alpha-blended path. See FRAG_SRC's doc comment
-                        in gles.c. */
-    float is_color_glyph; /* 1.0 for a color glyph (glyph->is_color --
-                        e.g. Noto Color Emoji), 0.0 otherwise. Only
-                        meaningful when is_glyph is also 1.0; selects
-                        sampling u_atlas_color as direct RGBA source
-                        color instead of u_atlas as a coverage mask to
-                        tint. See FRAG_SRC's doc comment in gles.c. */
+    float bg_r, bg_g, bg_b; // cell background, for gamma alpha correction [1]
+    float is_glyph;         // 1.0 for glyph quads, else 0.0 [2]
+    float is_color_glyph;   // 1.0 for color glyphs, else 0.0 [3]
+
+    /*
+     * [1] Equal to r/g/b on non-glyph quads, a no-op.
+     *
+     * [2] Selects the shader's per-channel subpixel-mix path instead of
+     *     the plain alpha-blended path. Glyph quads come from
+     *     ghostcon_gles_push_glyph(). See FRAG_SRC's doc comment in
+     *     gles.c.
+     *
+     * [3] Only meaningful when is_glyph is also 1.0. Samples
+     *     u_atlas_color as direct RGBA source instead of u_atlas as a
+     *     coverage mask to tint. A color glyph is one with glyph->is_color
+     *     set, e.g. Noto Color Emoji. See FRAG_SRC's doc comment in
+     *     gles.c.
+     */
 } ghostcon_vertex_t;
 
 typedef struct ghostcon_gles ghostcon_gles_t;

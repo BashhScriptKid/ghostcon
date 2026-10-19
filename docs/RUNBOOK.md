@@ -138,6 +138,11 @@ breaking the sentence:
 Leave just the marker inline. Indent footnote continuation lines so they
 group with the marker.
 
+The same applies to struct-field comments: keep the trailing comment to
+one line (`float is_glyph; // 1.0 for glyph quads, else 0.0 [2]`) and put
+the long explanation in a `[n]` block after the field list, rather than
+letting the comment wrap into a column-block.
+
 Inline/trailing comments are untouched. License headers, ASCII banners,
 comments inside `#define` continuations, and verbatim code/table blocks
 are skipped. Boxed runs of adjacent one-line comments collapse into one
