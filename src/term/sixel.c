@@ -153,159 +153,140 @@ static void parse_color_intro(const char **p, const char *end, color_reg_t *regs
     }
 }
 
-void ghostcon_sixel_decode(ghostcon_sixel_state_t *st,
-                           const int32_t *dcs_params, size_t params_count,
-                           const char *body, size_t body_len,
-                           int32_t cursor_col, int32_t cursor_row,
-                           int32_t cell_w, int32_t cell_h,
-                           ghostcon_sixel_cursor_move_t *out_move)
+
+
+/* First pass: scan for a raster-attribute command ("Pan;Pad;Ph;Pv) to get a
+ * declared size hint, and separately find the true extent by tracking max x
+ * reached and max y-band reached while walking the sixel character stream.
+ *
+ * Some encoders declare a size that doesn't match what they actually emit, so the
+ * final canvas uses whichever is larger, same "trust but verify" posture as
+ * kitty_graphics.c's PNG width/height handling.
+ *
+ * declared_h is trusted outright when present rather than taking max(declared_h,
+ * max_y_band_end): max_y_band_end is rounded UP to the nearest multiple of 6
+ * (sixel's row-band height), so for any declared height that isn't itself a
+ * multiple of 6 (e.g. 200) it would always appear "bigger" and silently inflate
+ * the canvas by up to 5 blank rows even though the raster attribute --which real
+ * encoders compute exactly-- already says how tall the image is.
+ *
+ * A stream legitimately carrying more row-bands than declared is still safe: the
+ * paint pass bounds-checks every write against `height`, so excess bands are
+ * clipped the way a real terminal clips to the raster size. max_y_band_end is
+ * only the fallback when no raster attribute was sent.
+ */
+static void sixel_measure(const char *body, size_t body_len,
+                          int32_t *out_width, int32_t *out_height)
 {
-    if (out_move)
-        memset(out_move, 0, sizeof *out_move);
-
-    /* P2 (background select): 1 = positions never touched by any sixel character
-     * stay transparent (the underlying cell content shows through); 0/2/absent =
-     * untouched positions are filled with an opaque background.
-     *
-     * Real terminals fill with the terminal's actual current background color for
-     * P2=0.
-     *
-     * This module is decoupled from screen state (see this file's own header doc
-     * comment) the same way kitty_graphics.h is, so there is no background color
-     * to reach for here
-     *
-     * opaque black is used instead, matching what most sixel-producing tools
-     * already expect in practice (they fill their own canvas fully rather than
-     * relying on this corner of the spec).
-     */
-    int32_t p2 = params_count > 1 ? dcs_params[1] : 0;
-    bool transparent_bg = (p2 == 1);
-
-    /* First pass: scan for a raster-attribute command ("Pan;Pad;Ph;Pv) to get a
-     * declared size hint, and separately find the true extent by tracking max x
-     * reached and max y-band reached while walking the sixel character stream
-     *
-     * some encoders declare a size that doesn't match what they actually emit, so
-     * the final canvas uses whichever is larger, same "trust but verify" posture
-     * as kitty_graphics.c's PNG width/height handling.
-     */
     int32_t declared_w = 0, declared_h = 0;
     int32_t max_x = 0, max_y_band_end = 0;
+    const char *p = body, *end = body + body_len;
+    int32_t x = 0, y0 = 0;
+    while (p < end)
     {
-        const char *p = body, *end = body + body_len;
-        int32_t x = 0, y0 = 0;
-        while (p < end) {
-            char c = *p;
-            if (c == '"') {
-                p++;
-                long vals[4]; int n = 0;
-                while (n < 4 && p < end) {
-                    char *after;
-                    long v = strtol(p, &after, 10);
-                    if (after == p) break;
-                    vals[n++] = v;
-                    p = after;
-                    if (p < end && *p == ';') p++;
-                    else break;
-                }
-                if (n >= 4) { declared_w = (int32_t)vals[2]; declared_h = (int32_t)vals[3]; }
-            }
-            else if (c == '#') {
-                p++;
-                while (p < end && ((*p >= '0' && *p <= '9') || *p == ';'))
-                    p++;
-            }
-            else if (c == '!') {
-                p++;
-                char *after;
-                long rep = strtol(p, &after, 10);
-                p = (after == p) ? p + 1 : after;
-                if (p < end && *p >= 0x3F && *p <= 0x7E) {
-                    x += (int32_t)(rep > 0 ? rep : 1);
-                    p++;
-                }
-            }
-            else if (c >= 0x3F && c <= 0x7E) {
-                x++;
-                p++;
-            }
-            else if (c == '$') {
-                if (x > max_x) max_x = x;
-                x = 0;
-                p++;
-            }
-            else if (c == '-') {
-                if (x > max_x) max_x = x;
-                y0 += 6;
-                if (y0 > max_y_band_end) max_y_band_end = y0;
-                x = 0;
-                p++;
-            }
-            else {
-                p++;
-            }
-        }
-        if (x > max_x) max_x = x;
-        int32_t last_band_end = y0 + 6;
-        if (last_band_end > max_y_band_end) max_y_band_end = last_band_end;
-    }
-
-    int32_t width = declared_w > max_x ? declared_w : max_x;
-    /* Trust declared_h outright when present, rather than taking max(declared_h,
-     * max_y_band_end): max_y_band_end is rounded UP to the nearest multiple of 6
-     * (sixel's row-band height), so for any declared height that isn't itself a
-     * multiple of 6 (e.g. 200), max_y_band_end (204) would always appear "bigger"
-     * and silently inflate the canvas by up to 5 extra blank rows even though the
-     * raster attribute
-     *
-     * which real encoders compute exactly
-     *
-     * already says how tall the image actually is.
-     *
-     * A sixel stream legitimately containing more row-bands than declared is
-     * still handled safely: the paint pass below bounds-checks every write
-     * against `height`, so excess bands are just clipped, the same way a real
-     * terminal clips to the declared raster size. max_y_band_end is only used as
-     * a fallback when no raster attribute was sent at all (declared_h <= 0).
-     */
-    int32_t height = declared_h > 0 ? declared_h : max_y_band_end;
-    if (width <= 0 || height <= 0 ||
-        (uint32_t)width > GHOSTCON_SIXEL_MAX_DIM ||
-        (uint32_t)height > GHOSTCON_SIXEL_MAX_DIM)
-        return; /* nothing decodable -- silently ignore, no ack channel to report on */
-
-    size_t pixel_len = (size_t)width * (size_t)height * 4;
-    if (pixel_len > GHOSTCON_SIXEL_MAX_IMAGE_BYTES)
-        return;
-
-    uint8_t *pixels = malloc(pixel_len);
-    if (!pixels)
-        return;
-    /* Fill with the P2-determined default: transparent (alpha 0) or opaque black
-     *
-     * see the P2 doc comment above.
-     */
-    if (transparent_bg)
-    {
-        memset(pixels, 0, pixel_len);
-    }
-    else
-    {
-        for (size_t i = 0; i < pixel_len; i += 4)
+        char c = *p;
+        if (c == '"')
         {
-            pixels[i + 0] = 0; pixels[i + 1] = 0; pixels[i + 2] = 0; pixels[i + 3] = 255;
+            p++;
+            long vals[4]; int n = 0;
+            while (n < 4 && p < end)
+            {
+                char *after;
+                long v = strtol(p, &after, 10);
+                if (after == p) break;
+                vals[n++] = v;
+                p = after;
+                if (p < end && *p == ';') p++;
+                else break;
+            }
+            if (n >= 4)
+            {
+                declared_w = (int32_t)vals[2]; declared_h = (int32_t)vals[3];
+            }
+        }
+        else if (c == '#')
+        {
+            p++;
+            while (p < end && ((*p >= '0' && *p <= '9') || *p == ';'))
+                p++;
+        }
+        else if (c == '!')
+        {
+            p++;
+            char *after;
+            long rep = strtol(p, &after, 10);
+            p = (after == p) ? p + 1 : after;
+            if (p < end && *p >= 0x3F && *p <= 0x7E)
+            {
+                x += (int32_t)(rep > 0 ? rep : 1);
+                p++;
+            }
+        }
+        else if (c >= 0x3F && c <= 0x7E)
+        {
+            x++;
+            p++;
+        }
+        else if (c == '$')
+        {
+            if (x > max_x) max_x = x;
+            x = 0;
+            p++;
+        }
+        else if (c == '-')
+        {
+            if (x > max_x) max_x = x;
+            y0 += 6;
+            if (y0 > max_y_band_end) max_y_band_end = y0;
+            x = 0;
+            p++;
+        }
+        else
+        {
+            p++;
         }
     }
+    if (x > max_x) max_x = x;
+    int32_t last_band_end = y0 + 6;
+    if (last_band_end > max_y_band_end) max_y_band_end = last_band_end;
 
-    /* Second pass: actually paint.
-     *
-     * Registers start undefined (black, per this module's
-     * decoupled-from-screen-state posture
-     *
-     * see parse_color_intro's own doc comment); every real-world encoder defines
-     * every register it uses before selecting it, so this only matters for a
-     * pathological stream that selects a register it never defined.
-     */
+    *out_width = declared_w > max_x ? declared_w : max_x;
+    *out_height = declared_h > 0 ? declared_h : max_y_band_end;
+}
+
+/* Sets the six vertical pixels of one column from a sixel character's 6-bit
+ * `bits`, clipping to the canvas. */
+static void sixel_set_column(uint8_t *pixels, int32_t width, int32_t height,
+                             int32_t x, int32_t y0, uint8_t bits,
+                             const color_reg_t *reg)
+{
+    if (x < 0 || x >= width)
+        return;
+    for (int r = 0; r < 6; r++)
+    {
+        if (!(bits & (1u << r)))
+            continue;
+        int32_t py = y0 + r;
+        if (py < 0 || py >= height)
+            continue;
+        size_t off = ((size_t)py * (size_t)width + (size_t)x) * 4;
+        pixels[off + 0] = reg->r;
+        pixels[off + 1] = reg->g;
+        pixels[off + 2] = reg->b;
+        pixels[off + 3] = 255;
+    }
+}
+
+/* Second pass: actually paint.
+ *
+ * Registers start undefined (black, per this module's decoupled-from-screen-state
+ * posture -- see parse_color_intro's own doc comment); every real-world encoder
+ * defines every register it uses before selecting it, so this only matters for a
+ * pathological stream that selects a register it never defined.
+ */
+static void sixel_paint(const char *body, size_t body_len, uint8_t *pixels,
+                        int32_t width, int32_t height)
+{
     color_reg_t regs[GHOSTCON_SIXEL_COLOR_REGISTERS];
     memset(regs, 0, sizeof regs);
     int current_reg = 0;
@@ -345,27 +326,10 @@ void ghostcon_sixel_decode(ghostcon_sixel_state_t *st,
             if (p < end && *p >= 0x3F && *p <= 0x7E)
             {
                 uint8_t bits = (uint8_t)(*p - 0x3F);
-                color_reg_t *reg = &regs[current_reg];
+                const color_reg_t *reg = &regs[current_reg];
                 for (long k = 0; k < rep; k++)
                 {
-                    if (x >= 0 && x < width)
-                    {
-                        for (int r = 0; r < 6; r++)
-                        {
-                            if (bits & (1u << r))
-                            {
-                                int32_t py = y0 + r;
-                                if (py >= 0 && py < height)
-                                {
-                                    size_t off = ((size_t)py * (size_t)width + (size_t)x) * 4;
-                                    pixels[off + 0] = reg->r;
-                                    pixels[off + 1] = reg->g;
-                                    pixels[off + 2] = reg->b;
-                                    pixels[off + 3] = 255;
-                                }
-                            }
-                        }
-                    }
+                    sixel_set_column(pixels, width, height, x, y0, bits, reg);
                     x++;
                 }
                 p++;
@@ -373,26 +337,8 @@ void ghostcon_sixel_decode(ghostcon_sixel_state_t *st,
         }
         else if (c >= 0x3F && c <= 0x7E)
         {
-            uint8_t bits = (uint8_t)(c - 0x3F);
-            if (x >= 0 && x < width)
-            {
-                color_reg_t *reg = &regs[current_reg];
-                for (int r = 0; r < 6; r++)
-                {
-                    if (bits & (1u << r))
-                    {
-                        int32_t py = y0 + r;
-                        if (py >= 0 && py < height)
-                        {
-                            size_t off = ((size_t)py * (size_t)width + (size_t)x) * 4;
-                            pixels[off + 0] = reg->r;
-                            pixels[off + 1] = reg->g;
-                            pixels[off + 2] = reg->b;
-                            pixels[off + 3] = 255;
-                        }
-                    }
-                }
-            }
+            sixel_set_column(pixels, width, height, x, y0,
+                             (uint8_t)(c - 0x3F), &regs[current_reg]);
             x++;
             p++;
         }
@@ -412,6 +358,67 @@ void ghostcon_sixel_decode(ghostcon_sixel_state_t *st,
             p++; /* whitespace/unrecognized -- ignore */
         }
     }
+}
+
+void ghostcon_sixel_decode(ghostcon_sixel_state_t *st,
+                           const int32_t *dcs_params, size_t params_count,
+                           const char *body, size_t body_len,
+                           int32_t cursor_col, int32_t cursor_row,
+                           int32_t cell_w, int32_t cell_h,
+                           ghostcon_sixel_cursor_move_t *out_move)
+{
+    if (out_move)
+        memset(out_move, 0, sizeof *out_move);
+
+    /* P2 (background select): 1 = positions never touched by any sixel character
+     * stay transparent (the underlying cell content shows through); 0/2/absent =
+     * untouched positions are filled with an opaque background.
+     *
+     * Real terminals fill with the terminal's actual current background color for
+     * P2=0.
+     *
+     * This module is decoupled from screen state (see this file's own header doc
+     * comment) the same way kitty_graphics.h is, so there is no background color
+     * to reach for here
+     *
+     * opaque black is used instead, matching what most sixel-producing tools
+     * already expect in practice (they fill their own canvas fully rather than
+     * relying on this corner of the spec).
+     */
+    int32_t p2 = params_count > 1 ? dcs_params[1] : 0;
+    bool transparent_bg = (p2 == 1);
+
+    int32_t width, height;
+    sixel_measure(body, body_len, &width, &height);
+    if (width <= 0 || height <= 0 ||
+        (uint32_t)width > GHOSTCON_SIXEL_MAX_DIM ||
+        (uint32_t)height > GHOSTCON_SIXEL_MAX_DIM)
+        return; /* nothing decodable -- silently ignore, no ack channel to report on */
+
+    size_t pixel_len = (size_t)width * (size_t)height * 4;
+    if (pixel_len > GHOSTCON_SIXEL_MAX_IMAGE_BYTES)
+        return;
+
+    uint8_t *pixels = malloc(pixel_len);
+    if (!pixels)
+        return;
+    /* Fill with the P2-determined default: transparent (alpha 0) or opaque black
+     *
+     * see the P2 doc comment above.
+     */
+    if (transparent_bg)
+    {
+        memset(pixels, 0, pixel_len);
+    }
+    else
+    {
+        for (size_t i = 0; i < pixel_len; i += 4)
+        {
+            pixels[i + 0] = 0; pixels[i + 1] = 0; pixels[i + 2] = 0; pixels[i + 3] = 255;
+        }
+    }
+
+    sixel_paint(body, body_len, pixels, width, height);
 
     if (st->total_bytes + pixel_len > GHOSTCON_SIXEL_MAX_TOTAL_BYTES)
     {

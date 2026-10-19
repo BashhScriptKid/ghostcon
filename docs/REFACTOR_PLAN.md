@@ -280,7 +280,8 @@ Phases 1–4 above are implemented, each as a reviewable commit:
 | VT transition test | `ghostcon_vtctl_transition()` in `core/vtctl.c` (pure), `tests/test_vtctl.c` | `test_vtctl` (unit); the ioctl/signal side still needs a real VT |
 | Hotspot 1 evdev lookup | `src/core/input.c`: `evdev_key_table[KEY_MAX+1]` replaces the 164-line `ghostcon_input_evdev_to_ghostty_key` switch | `test_input` (unit) |
 | Hotspot 2 parser states | `src/term/stream.c`: `ghostcon_stream_process_byte` (cx 119 / cog 575) split into 15 `stream_state_*` handlers, a `stream_handle_c1` guard, and a thin dispatch switch → cx 17 / cog 32 | full suite + ASan/UBSan + fuzzer smoke |
+| Hotspot 3 sixel split | `src/term/sixel.c`: `ghostcon_sixel_decode` (cx 47 / cog 204) split into `sixel_measure`, `sixel_paint`, and `sixel_set_column` → cx 8 / cog 9; added `tests/test_sixel.c` (the decode path had no unit coverage) | `test_sixel` (unit) |
 
-Current test count: **22/22** (`meson test -C build-release`).
+Current test count: **23/23** (`meson test -C build-release`).
 Live-service deploys use `build-release` + `meson install` + restart, per
 `CLAUDE.md`; that restart drops active VT sessions.
