@@ -249,13 +249,38 @@ int ghostcon_vtctl_signal_fd(const ghostcon_vtctl_t *vt)
     return vt->pipe_fds[0];
 }
 
+int ghostcon_vtctl_transition(ghostcon_vt_state_t *state, char event,
+                              ghostcon_vt_op_t *ops, int max)
+{
+    if (max < 2)
+        return -1;
+    if (event == 'R')
+    {
+        /* pre_ack('R', ...) must call drmDropMaster() before returning, so it is
+         * emitted before the VT_RELDISP ack — see vtctl.h's op-enum comment for
+         * the live hang this ordering fixes.
+         */
+        ops[0] = GC_VT_OP_PRE_ACK_RELEASE;
+        ops[1] = GC_VT_OP_ACK_RELEASE;
+        *state = GC_VT_STATE_INACTIVE;
+        return 2;
+    }
+    if (event == 'A')
+    {
+        ops[0] = GC_VT_OP_PRE_ACK_ACQUIRE;
+        ops[1] = GC_VT_OP_ACK_ACQUIRE;
+        *state = GC_VT_STATE_ACTIVE;
+        return 2;
+    }
+    return -1;
+}
+
 void ghostcon_vtctl_process_pending(ghostcon_vtctl_t *vt,
                                     ghostcon_vtctl_pre_ack_fn pre_ack,
                                     void *userdata)
 {
     char buf[64];
     ssize_t n;
-    char last = 0;
 
     /* Multiple signals may have coalesced in the pipe (e.g. a rapid
      * release-then-reacquire); only the final one reflects reality, but we still
@@ -271,31 +296,29 @@ void ghostcon_vtctl_process_pending(ghostcon_vtctl_t *vt,
     {
         for (ssize_t i = 0; i < n; i++)
         {
-            last = buf[i];
-            if (last == 'R')
+            ghostcon_vt_op_t ops[2];
+            int nops = ghostcon_vtctl_transition(&vt->state, buf[i], ops, 2);
+            for (int j = 0; j < nops; j++)
             {
-                /* pre_ack('R', ...) must call drmDropMaster() before returning
-                 *
-                 * see this function's own header doc comment for why the ordering
-                 * matters here specifically (found live: paging back to the
-                 * desktop hung on a black screen until forced through an
-                 * unrelated VT, because this ack used to go out before master was
-                 * actually dropped).
-                 */
-                if (pre_ack)
-                    pre_ack('R', userdata);
-                ioctl(vt->fd, VT_RELDISP, 1);
-                vt->state = GC_VT_STATE_INACTIVE;
-            }
-            else if (last == 'A')
-            {
-                if (pre_ack)
-                    pre_ack('A', userdata);
-                ioctl(vt->fd, VT_RELDISP, VT_ACKACQ);
-                vt->state = GC_VT_STATE_ACTIVE;
-                /* Caller must now call drmSetMaster() — see header. */
+                switch (ops[j])
+                {
+                case GC_VT_OP_PRE_ACK_RELEASE:
+                    if (pre_ack)
+                        pre_ack('R', userdata);
+                    break;
+                case GC_VT_OP_ACK_RELEASE:
+                    ioctl(vt->fd, VT_RELDISP, 1);
+                    break;
+                case GC_VT_OP_PRE_ACK_ACQUIRE:
+                    if (pre_ack)
+                        pre_ack('A', userdata);
+                    break;
+                case GC_VT_OP_ACK_ACQUIRE:
+                    ioctl(vt->fd, VT_RELDISP, VT_ACKACQ);
+                    /* Caller must now call drmSetMaster() — see header. */
+                    break;
+                }
             }
         }
     }
-    (void)last;
 }

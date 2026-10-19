@@ -239,13 +239,23 @@ core_kms_lib = static_library('ghostcon-core-kms',
     install: false,
 )
 
-# core/vtctl.c — compile-checked only, not runtime-tested; see vtctl.h's
-# doc comment and PLAN.md's Phase 1 item 3 note for why.
+# core/vtctl.c — the ioctl/signal handshake is compile-checked only (it needs a
+# real /dev/ttyN and a chvt; see vtctl.h). Its pure decision step,
+# ghostcon_vtctl_transition(), is unit-tested by test_vtctl below.
 core_vtctl_lib = static_library('ghostcon-core-vtctl',
     'core/vtctl.c',
     include_directories: include_directories('../include'),
     install: false,
 )
+
+if not meson.is_subproject()
+    test_vtctl_exe = executable('test_vtctl',
+        '../tests/test_vtctl.c',
+        include_directories: include_directories('../include'),
+        link_with: core_vtctl_lib,
+    )
+    test('test_vtctl', test_vtctl_exe)
+endif
 
 if not meson.is_subproject()
     # Not a test -- standalone benchmark needing REAL DRM master (it

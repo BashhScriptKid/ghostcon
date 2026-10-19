@@ -102,6 +102,37 @@ int ghostcon_vtctl_signal_fd(const ghostcon_vtctl_t *vt);
  */
 typedef void (*ghostcon_vtctl_pre_ack_fn)(char event, void *userdata);
 
+/* Ordered operations a single drained signal byte implies.
+ *
+ * Exposed so a unit test can pin the order down without a real VT.
+ *
+ * The release path must list GC_VT_OP_PRE_ACK_RELEASE before
+ * GC_VT_OP_ACK_RELEASE: that is what makes the caller's drmDropMaster() (in the
+ * pre_ack callback) run before the VT_RELDISP ack reaches the kernel.
+ *
+ * Getting it backwards is the live hang documented on
+ * ghostcon_vtctl_process_pending().
+ */
+typedef enum
+{
+    GC_VT_OP_PRE_ACK_RELEASE, /* pre_ack('R', ...) — caller drops DRM master */
+    GC_VT_OP_ACK_RELEASE,     /* ioctl(VT_RELDISP, 1) */
+    GC_VT_OP_PRE_ACK_ACQUIRE, /* pre_ack('A', ...) */
+    GC_VT_OP_ACK_ACQUIRE,     /* ioctl(VT_RELDISP, VT_ACKACQ) */
+} ghostcon_vt_op_t;
+
+/* Pure transition for one drained byte: 'R' (release) or 'A' (acquire).
+ *
+ * Writes the ordered ops for `event` into ops[0..max), sets *state to the
+ * resulting VT state, and returns the op count. An unrecognized byte emits
+ * nothing, leaves *state unchanged, and returns -1.
+ *
+ * No ioctl, no callback, no /dev/ttyN — this is the piece of the handshake a
+ * unit test can pin down; ghostcon_vtctl_process_pending() is the thin executor.
+ */
+int ghostcon_vtctl_transition(ghostcon_vt_state_t *state, char event,
+                              ghostcon_vt_op_t *ops, int max);
+
 /* Drains the self-pipe and updates state, invoking `pre_ack` (if non-NULL)
  * immediately before each individual signal's ack.
  *
