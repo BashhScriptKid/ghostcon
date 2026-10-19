@@ -43,19 +43,14 @@ Example goal: `[general] my_option = 42`.
    whether it applies live or only on respawn).
 2. **Default** — set it in `ghostcon_config_defaults()` in
    `src/config/config.c`.
-3. **Parse** — in `ghostcon_config_load()`, add one row to the
-   relevant field table (`GENERAL_FIELDS`, `CURSOR_FIELDS`,
-   `KEYBINDINGS_FIELDS`, `MOUSE_FIELDS`, `TOUCHPAD_FIELDS`):
+3. **Parse** — in `ghostcon_config_load()`, inside the right table
+   (`general`, `keybindings`, `cursor`, `mouse`, `touchpad`, ...), add:
    ```c
-   CFG_INT   ("my_option", my_option),
-   CFG_STRING("my_option", my_option),
-   CFG_BOOL  ("my_option", my_option),
-   CFG_FLOAT ("my_option", my_option),
+   load_int(general, "my_option", &cfg->my_option);      /* or */
+   load_string(section, "my_option", cfg->my_option, sizeof(cfg->my_option));
+   load_bool(section, "my_option", &cfg->my_option);
+   load_double(section, "my_option", &cfg->my_option);
    ```
-   The table row is type, TOML key, and struct member; `load_fields()`
-   derives the offset and capacity automatically. Adding a new table
-   means defining its `cfg_field_t[]` and calling `load_fields()` once
-   with `CFG_FIELD_COUNT(...)`.
 4. **Env export** (only if supervisor/undead-head/ghost-ptyserv need it
    at spawn time) — add it to `ghostcon_config_export_env()` in
    `src/config/config.c`.

@@ -2,7 +2,6 @@
 
 #include "ghostcon/config/config.h"
 
-#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,7 +57,6 @@ ghostcon_config_defaults(ghostcon_config_t *cfg)
     cfg->touchpad_sensitivity = 0.0f;
 }
 
-/// HELPER FUNCTIONS FOR TOML LOADING
 static void
 load_string(toml_table_t *tab, const char *key, char *out, size_t out_len)
 {
@@ -69,141 +67,29 @@ load_string(toml_table_t *tab, const char *key, char *out, size_t out_len)
     free(d.u.s);
 }
 
-/* Table-driven field loading
- *
- * Adding a config key is one row in the relevant table below, not a new
- * load_*() call in ghostcon_config_load(). The table stores the field's
- * type, TOML key, and struct byte offset; load_fields() walks it.
- * Strings also carry their destination capacity.
- */
-typedef enum {
-    CFG_FIELD_STRING,
-    CFG_FIELD_INT,
-    CFG_FIELD_BOOL,
-    CFG_FIELD_FLOAT,
-} cfg_field_type_t;
-
-typedef struct {
-    cfg_field_type_t type;
-    const char *key;
-    size_t offset;
-    size_t size; /* capacity in bytes; CFG_FIELD_STRING only */
-} cfg_field_t;
-
-#define CFG_STRING(key, member) \
-    { CFG_FIELD_STRING, (key), offsetof(ghostcon_config_t, member), \
-      sizeof(((ghostcon_config_t *)0)->member) }
-#define CFG_INT(key, member) \
-    { CFG_FIELD_INT, (key), offsetof(ghostcon_config_t, member), 0 }
-#define CFG_BOOL(key, member) \
-    { CFG_FIELD_BOOL, (key), offsetof(ghostcon_config_t, member), 0 }
-#define CFG_FLOAT(key, member) \
-    { CFG_FIELD_FLOAT, (key), offsetof(ghostcon_config_t, member), 0 }
-#define CFG_FIELD_COUNT(fields) (sizeof(fields) / sizeof((fields)[0]))
-
-/* Unknown/wrong-typed TOML values are silently skipped (patch semantics:
- * a bad key leaves that field at its default), matching this loader's
- * pre-table behavior.
- */
 static void
-load_field(toml_table_t *tab, const cfg_field_t *field, ghostcon_config_t *cfg)
+load_int(toml_table_t *tab, const char *key, int *out)
 {
-    void *dst = (char *)cfg + field->offset;
-
-    switch (field->type) {
-    case CFG_FIELD_STRING: {
-        toml_datum_t d = toml_string_in(tab, field->key);
-        if (d.ok) {
-            snprintf((char *)dst, field->size, "%s", d.u.s);
-            free(d.u.s);
-        }
-        break;
-    }
-    case CFG_FIELD_INT: {
-        toml_datum_t d = toml_int_in(tab, field->key);
-        if (d.ok)
-            *(int *)dst = (int)d.u.i;
-        break;
-    }
-    case CFG_FIELD_BOOL: {
-        toml_datum_t d = toml_bool_in(tab, field->key);
-        if (d.ok)
-            *(bool *)dst = d.u.b;
-        break;
-    }
-    case CFG_FIELD_FLOAT: {
-        toml_datum_t d = toml_double_in(tab, field->key);
-        if (d.ok)
-            *(float *)dst = (float)d.u.d;
-        break;
-    }
-    }
+    toml_datum_t d = toml_int_in(tab, key);
+    if (d.ok)
+        *out = (int)d.u.i;
 }
 
 static void
-load_fields(toml_table_t *tab, const cfg_field_t *fields, size_t count,
-            ghostcon_config_t *cfg)
+load_bool(toml_table_t *tab, const char *key, bool *out)
 {
-    for (size_t i = 0; i < count; i++)
-        load_field(tab, &fields[i], cfg);
+    toml_datum_t d = toml_bool_in(tab, key);
+    if (d.ok)
+        *out = d.u.b;
 }
 
-static const cfg_field_t GENERAL_FIELDS[] = {
-    CFG_STRING("drm_node",              drm_node),
-    CFG_STRING("run_dir",               run_dir),
-    CFG_INT   ("canary_deadline_ms",    canary_deadline_ms),
-    CFG_BOOL  ("disable_wall",          disable_wall),
-    CFG_BOOL  ("disable_kmscon_fallback", disable_kmscon_fallback),
-    CFG_INT   ("font_size",             font_size),
-    CFG_STRING("font_family",           font_family),
-    CFG_STRING("font_variant",          font_variant),
-    CFG_BOOL  ("clear_on_logout",       clear_on_logout),
-    CFG_INT   ("zoom_step",             zoom_step),
-    CFG_INT   ("repeat_rate_ms",        repeat_rate_ms),
-    CFG_INT   ("scrollback_lines",      scrollback_lines),
-    CFG_INT   ("repeat_delay_ms",       repeat_delay_ms),
-    CFG_STRING("antialiasing",          antialiasing),
-    CFG_STRING("subpixel_order",        subpixel_order),
-    CFG_BOOL  ("gamma_correct",         gamma_correct),
-    CFG_BOOL  ("ligatures",             ligatures),
-    CFG_STRING("theme",                 theme),
-};
-
-static const cfg_field_t COLORS_FIELDS[] = {
-    CFG_STRING("background", color_background),
-    CFG_STRING("foreground", color_foreground),
-    CFG_STRING("cursor",     color_cursor),
-};
-
-static const cfg_field_t CURSOR_FIELDS[] = {
-    CFG_STRING("theme",                cursor_theme),
-    CFG_STRING("default",              cursor_default_path),
-    CFG_STRING("link",                 cursor_link_path),
-    CFG_FLOAT ("base_scale",           cursor_base_scale),
-    CFG_BOOL  ("scale_with_terminal",  cursor_scale_with_terminal),
-    CFG_STRING("default_hot_pos",      cursor_default_hot_pos),
-    CFG_STRING("link_hot_pos",         cursor_link_hot_pos),
-};
-
-static const cfg_field_t KEYBINDINGS_FIELDS[] = {
-    CFG_STRING("copy_to_clipboard",    copy_to_clipboard_binding),
-    CFG_STRING("paste_from_clipboard", paste_from_clipboard_binding),
-};
-
-static const cfg_field_t MOUSE_FIELDS[] = {
-    CFG_BOOL ("enable",       mouse_enable),
-    CFG_FLOAT("scroll_speed", mouse_scroll_speed),
-    CFG_FLOAT("sensitivity",  mouse_sensitivity),
-};
-
-static const cfg_field_t TOUCHPAD_FIELDS[] = {
-    CFG_BOOL ("enable",         touchpad_enable),
-    CFG_FLOAT("scroll_speed",   touchpad_scroll_speed),
-    CFG_BOOL ("tap_to_click",   touchpad_tap_to_click),
-    CFG_BOOL ("natural_scroll", touchpad_natural_scroll),
-    CFG_FLOAT("sensitivity",    touchpad_sensitivity),
-};
-/// END HELPER FUNCTIONS
+static void
+load_double(toml_table_t *tab, const char *key, float *out)
+{
+    toml_datum_t d = toml_double_in(tab, key);
+    if (d.ok)
+        *out = (float)d.u.d;
+}
 
 bool
 ghostcon_config_load(const char *path, ghostcon_config_t *cfg)
@@ -217,18 +103,36 @@ ghostcon_config_load(const char *path, ghostcon_config_t *cfg)
     char errbuf[256];
     toml_table_t *root = toml_parse_file(fp, errbuf, sizeof(errbuf));
     fclose(fp);
-
     if (!root)
         return false; /* file exists but doesn't parse -- a real error */
 
     toml_table_t *general = toml_table_in(root, "general");
-    if (general)
-        load_fields(general, GENERAL_FIELDS, CFG_FIELD_COUNT(GENERAL_FIELDS), cfg);
+    if (general) {
+        load_string(general, "drm_node", cfg->drm_node, sizeof(cfg->drm_node));
+        load_string(general, "run_dir", cfg->run_dir, sizeof(cfg->run_dir));
+        load_int(general, "canary_deadline_ms", &cfg->canary_deadline_ms);
+        load_bool(general, "disable_wall", &cfg->disable_wall);
+        load_bool(general, "disable_kmscon_fallback", &cfg->disable_kmscon_fallback);
+        load_int(general, "font_size", &cfg->font_size);
+        load_string(general, "font_family", cfg->font_family, sizeof(cfg->font_family));
+        load_string(general, "font_variant", cfg->font_variant, sizeof(cfg->font_variant));
+        load_bool(general, "clear_on_logout", &cfg->clear_on_logout);
+        load_int(general, "zoom_step", &cfg->zoom_step);
+        load_int(general, "scrollback_lines", &cfg->scrollback_lines);
+        load_int(general, "repeat_delay_ms", &cfg->repeat_delay_ms);
+        load_int(general, "repeat_rate_ms", &cfg->repeat_rate_ms);
+        load_string(general, "antialiasing", cfg->antialiasing, sizeof(cfg->antialiasing));
+        load_string(general, "subpixel_order", cfg->subpixel_order, sizeof(cfg->subpixel_order));
+        load_bool(general, "gamma_correct", &cfg->gamma_correct);
+        load_bool(general, "ligatures", &cfg->ligatures);
+        load_string(general, "theme", cfg->theme, sizeof(cfg->theme));
+    }
 
     toml_table_t *colors = toml_table_in(root, "colors");
     if (colors) {
-        load_fields(colors, COLORS_FIELDS, CFG_FIELD_COUNT(COLORS_FIELDS), cfg);
-
+        load_string(colors, "background", cfg->color_background, sizeof(cfg->color_background));
+        load_string(colors, "foreground", cfg->color_foreground, sizeof(cfg->color_foreground));
+        load_string(colors, "cursor", cfg->color_cursor, sizeof(cfg->color_cursor));
         char key[8];
         for (int i = 0; i < 16; i++) {
             snprintf(key, sizeof(key), "color%d", i);
@@ -237,21 +141,39 @@ ghostcon_config_load(const char *path, ghostcon_config_t *cfg)
     }
 
     toml_table_t *cursor = toml_table_in(root, "cursor");
-    if (cursor)
-        load_fields(cursor, CURSOR_FIELDS, CFG_FIELD_COUNT(CURSOR_FIELDS), cfg);
+    if (cursor) {
+        load_string(cursor, "theme", cfg->cursor_theme, sizeof(cfg->cursor_theme));
+        load_string(cursor, "default", cfg->cursor_default_path, sizeof(cfg->cursor_default_path));
+        load_string(cursor, "link", cfg->cursor_link_path, sizeof(cfg->cursor_link_path));
+        load_double(cursor, "base_scale", &cfg->cursor_base_scale);
+        load_bool(cursor, "scale_with_terminal", &cfg->cursor_scale_with_terminal);
+        load_string(cursor, "default_hot_pos", cfg->cursor_default_hot_pos, sizeof(cfg->cursor_default_hot_pos));
+        load_string(cursor, "link_hot_pos", cfg->cursor_link_hot_pos, sizeof(cfg->cursor_link_hot_pos));
+    }
 
     toml_table_t *keybindings = toml_table_in(root, "keybindings");
-    if (keybindings)
-        load_fields(keybindings, KEYBINDINGS_FIELDS,
-                    CFG_FIELD_COUNT(KEYBINDINGS_FIELDS), cfg);
+    if (keybindings) {
+        load_string(keybindings, "copy_to_clipboard", cfg->copy_to_clipboard_binding,
+                    sizeof(cfg->copy_to_clipboard_binding));
+        load_string(keybindings, "paste_from_clipboard", cfg->paste_from_clipboard_binding,
+                    sizeof(cfg->paste_from_clipboard_binding));
+    }
 
     toml_table_t *mouse = toml_table_in(root, "mouse");
-    if (mouse)
-        load_fields(mouse, MOUSE_FIELDS, CFG_FIELD_COUNT(MOUSE_FIELDS), cfg);
+    if (mouse) {
+        load_bool(mouse, "enable", &cfg->mouse_enable);
+        load_double(mouse, "scroll_speed", &cfg->mouse_scroll_speed);
+        load_double(mouse, "sensitivity", &cfg->mouse_sensitivity);
+    }
 
     toml_table_t *touchpad = toml_table_in(root, "touchpad");
-    if (touchpad)
-        load_fields(touchpad, TOUCHPAD_FIELDS, CFG_FIELD_COUNT(TOUCHPAD_FIELDS), cfg);
+    if (touchpad) {
+        load_bool(touchpad, "enable", &cfg->touchpad_enable);
+        load_double(touchpad, "scroll_speed", &cfg->touchpad_scroll_speed);
+        load_bool(touchpad, "tap_to_click", &cfg->touchpad_tap_to_click);
+        load_bool(touchpad, "natural_scroll", &cfg->touchpad_natural_scroll);
+        load_double(touchpad, "sensitivity", &cfg->touchpad_sensitivity);
+    }
 
     toml_free(root);
     return true;
@@ -267,7 +189,7 @@ ghostcon_config_export_env(const ghostcon_config_t *cfg, const char *config_path
     setenv("GHOSTCON_CONFIG_PATH", config_path, 1); /* always the resolved path, unconditionally */
 
     setenv("GHOSTCON_DRM_NODE", cfg->drm_node, ow);
-    setenv("GHOSTCON_RUN_DIR",  cfg->run_dir,  ow);
+    setenv("GHOSTCON_RUN_DIR", cfg->run_dir, ow);
 
     snprintf(buf, sizeof(buf), "%d", cfg->canary_deadline_ms);
     setenv("GHOSTCON_CANARY_DEADLINE_MS", buf, ow);
