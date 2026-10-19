@@ -45,10 +45,24 @@ main(int argc, char **argv)
     fseek(f, 0, SEEK_END);
     long len = ftell(f);
     fseek(f, 0, SEEK_SET);
+    if (len < 0)
+    {
+        perror("ftell");
+        fclose(f);
+        return 2;
+    }
     uint8_t *buf = malloc((size_t)len > 0 ? (size_t)len : 1);
+    if (!buf)
+    {
+        fprintf(stderr, "out of memory\n");
+        fclose(f);
+        return 1;
+    }
     if (len > 0 && fread(buf, 1, (size_t)len, f) != (size_t)len)
     {
         perror("fread");
+        free(buf);
+        fclose(f);
         return 2;
     }
     fclose(f);
@@ -57,6 +71,7 @@ main(int argc, char **argv)
     if (!ghostcon_term_init(&term, cols, rows, 0))
     {
         fprintf(stderr, "ghostcon_term_init failed\n");
+        free(buf);
         return 1;
     }
 

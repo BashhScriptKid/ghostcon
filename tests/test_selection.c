@@ -120,7 +120,10 @@ main(void)
     char tiny[4];
     n = ghostcon_selection_extract_text(&term.screen, tiny, sizeof(tiny));
     CHECK(n <= 3, "extract_text: truncates to fit a small buffer");
-    CHECK(tiny[n] == '\0', "extract_text: still NUL-terminates when truncated");
+    if (n <= 3)
+        CHECK(tiny[n] == '\0', "extract_text: still NUL-terminates when truncated");
+    else
+        CHECK(0, "extract_text: returned an index past its buffer");
 
     ghostcon_term_deinit(&term);
 

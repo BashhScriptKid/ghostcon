@@ -136,6 +136,12 @@ static bool ringbuf_replay(ringbuf_t *rb, int fd)
 
 static pid_t spawn_session(const char *shell, int *out_master_fd)
 {
+    /* Copy before any setenv(): the caller's pointer may come from
+       getenv(), and setenv() can reallocate environ out from under it. */
+    char shell_buf[4096];
+    snprintf(shell_buf, sizeof(shell_buf), "%s", shell);
+    shell = shell_buf;
+
     int master_fd;
     pid_t child = forkpty(&master_fd, NULL, NULL, NULL);
     if (child < 0)
@@ -745,6 +751,7 @@ int main(int argc, char **argv)
         }
     }
 
+    free(rb.data);
     if (renderer_fd >= 0)
         close(renderer_fd);
     close(listen_fd);

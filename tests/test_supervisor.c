@@ -51,6 +51,11 @@ spawn_supervisor_with_registry(int *out_stderr_fd, const char *registry_socket)
         close(pipefd[1]);
 
         const char *bin = getenv("SUPERVISOR_BIN");
+        if (!bin)
+        {
+            fprintf(stderr, "SUPERVISOR_BIN not set\n");
+            _exit(127);
+        }
         char vt_str[16];
         snprintf(vt_str, sizeof(vt_str), "%d", TEST_VT);
         execlp(bin, bin, vt_str, registry_socket, (char *)NULL);

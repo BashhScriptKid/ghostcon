@@ -37,9 +37,11 @@
 #include "ghostcon/term/screen.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 static const char *
 tag_name(ghostcon_cell_content_tag_t tag)
@@ -214,21 +216,32 @@ static void dump_cells(ghostcon_screen_t *s)
 
 static bool feed_file(ghostcon_term_t *term, const char *path)
 {
-    FILE *f = strcmp(path, "-") == 0 ? stdin : fopen(path, "rb");
-    if (!f)
+    int fd = strcmp(path, "-") == 0 ? STDIN_FILENO : open(path, O_RDONLY);
+    if (fd < 0)
     {
         fprintf(stderr, "gc-inspect: %s: %s\n", path, strerror(errno));
         return false;
     }
 
     uint8_t buf[65536];
-    size_t n;
-    while ((n = fread(buf, 1, sizeof(buf), f)) > 0)
-        ghostcon_term_feed(term, buf, n);
+    bool ok = true;
+    for (;;)
+    {
+        ssize_t n = read(fd, buf, sizeof(buf));
+        if (n > 0)
+        {
+            ghostcon_term_feed(term, buf, (size_t)n);
+            continue;
+        }
+        if (n < 0 && errno == EINTR)
+            continue;
+        if (n < 0)
+            ok = false;
+        break;
+    }
 
-    bool ok = !ferror(f);
-    if (ok && f != stdin)
-        fclose(f);
+    if (fd != STDIN_FILENO)
+        close(fd);
     if (!ok)
         fprintf(stderr, "gc-inspect: %s: read error\n", path);
     return ok;

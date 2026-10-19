@@ -82,6 +82,12 @@ int main(int argc, char **argv)
                         "  (same env var meson's own test harness sets -- see build-release/meson-logs)\n");
         return 1;
     }
+    /* Copy before setenv(): the pointer came from getenv() and environ
+       may be reallocated by the call below. */
+    char ptyserv_bin_buf[4096];
+    snprintf(ptyserv_bin_buf, sizeof(ptyserv_bin_buf), "%s", ptyserv_bin);
+    ptyserv_bin = ptyserv_bin_buf;
+
     setenv("GHOSTCON_PTY_SKIP_LOGIN", "1", 1); /* straight to a shell, no agetty banner noise */
 
     char registry_sock[] = "/tmp/ghostcon-bench-registry-XXXXXX";
