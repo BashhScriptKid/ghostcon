@@ -10,6 +10,17 @@ project('ghostcon', 'c',
 
 # Dependencies
 cc = meson.get_compiler('c')
+# C defines duplicate designated initializers as "last one wins", so a
+# copy-pasted member name compiles silently. Promote the diagnostic to a
+# hard error; the flag's name differs between compilers and
+# get_supported_arguments drops the unknown one.
+add_project_arguments(
+    cc.get_supported_arguments([
+        '-Werror=override-init',         # GCC
+        '-Werror=initializer-overrides', # Clang
+    ]),
+    language: 'c',
+)
 # libFuzzer is a clang feature -- reject the combination up front rather
 # than letting GCC fail later on an unrecognized -fsanitize=fuzzer.
 if get_option('build_fuzzers') and cc.get_id() != 'clang'
