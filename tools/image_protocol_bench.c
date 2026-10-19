@@ -414,8 +414,7 @@ static void gen_alpha_ramp(uint8_t *px, int w, int h)
 
 #define KITTY_CHUNK 4096 /* max base64 bytes per chunk, per spec */
 
-static void
-kitty_send(const char *keys, const uint8_t *payload, size_t len)
+static void kitty_send(const char *keys, const uint8_t *payload, size_t len)
 {
     size_t b64_len = 0;
     char *b64 = b64_encode(payload, len, &b64_len);
@@ -975,8 +974,7 @@ static const page_t pages[] = {
 };
 #define NUM_PAGES (sizeof(pages) / sizeof(pages[0]))
 
-static void
-list_pages(void)
+static void list_pages(void)
 {
     for (size_t i = 0; i < NUM_PAGES; i++)
         printf("%-20s %s\n", pages[i].name, pages[i].desc);

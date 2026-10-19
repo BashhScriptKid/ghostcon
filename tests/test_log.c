@@ -16,8 +16,7 @@ static int failures = 0;
     else { printf("PASS: %s\n", msg); } \
 } while (0)
 
-int
-main(void)
+int main(void)
 {
     /* Empty / NULL spec: nothing matches. */
     CHECK(gc_log_domain_matches(NULL, "drm") == 0, "NULL spec matches nothing");

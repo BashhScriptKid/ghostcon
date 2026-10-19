@@ -10,8 +10,7 @@
 
 #include <toml.h>
 
-void
-ghostcon_config_defaults(ghostcon_config_t *cfg)
+void ghostcon_config_defaults(ghostcon_config_t *cfg)
 {
     memset(cfg, 0, sizeof(*cfg));
     /* Matches every binary's own hardcoded fallback today

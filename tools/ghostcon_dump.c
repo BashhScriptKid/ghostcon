@@ -19,8 +19,7 @@
 #include "ghostcon/term/term.h"
 #include "ghostcon/term/dump.h"
 
-int
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     if (argc != 4)
     {

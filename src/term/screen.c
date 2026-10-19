@@ -6,15 +6,13 @@
 /* Internal helpers */
 
 /* Convert a 0-based logical row index to the actual index in the ring buffer */
-static inline uint16_t
-row_idx(ghostcon_screen_t *s, int16_t y)
+static inline uint16_t row_idx(ghostcon_screen_t *s, int16_t y)
 {
     return (uint16_t)((s->scrollback_top + y) % s->rows_visible);
 }
 
 /* Get cell at (x, y) in logical coordinates */
-static inline ghostcon_cell_t *
-cell_at(ghostcon_screen_t *s, int16_t x, int16_t y)
+static inline ghostcon_cell_t *cell_at(ghostcon_screen_t *s, int16_t x, int16_t y)
 {
     return &s->rows[row_idx(s, y)].cells[x];
 }
@@ -245,14 +243,12 @@ void ghostcon_screen_deinit(ghostcon_screen_t *s)
     memset(s, 0, sizeof(*s));
 }
 
-ghostcon_kitty_graphics_t *
-ghostcon_screen_active_kitty_graphics(ghostcon_screen_t *s)
+ghostcon_kitty_graphics_t *ghostcon_screen_active_kitty_graphics(ghostcon_screen_t *s)
 {
     return s->alt_screen_active ? &s->kitty_graphics_alt : &s->kitty_graphics;
 }
 
-ghostcon_sixel_state_t *
-ghostcon_screen_active_sixel_state(ghostcon_screen_t *s)
+ghostcon_sixel_state_t *ghostcon_screen_active_sixel_state(ghostcon_screen_t *s)
 {
     return s->alt_screen_active ? &s->sixel_alt : &s->sixel;
 }
@@ -1678,16 +1674,14 @@ ghostcon_screen_get_dirty(const ghostcon_screen_t *s)
 
 /* Direct cell access */
 
-ghostcon_cell_t *
-ghostcon_screen_cell(ghostcon_screen_t *s, uint16_t x, uint16_t y)
+ghostcon_cell_t *ghostcon_screen_cell(ghostcon_screen_t *s, uint16_t x, uint16_t y)
 {
     if (y >= s->rows_visible || x >= s->cols)
         return NULL;
     return &s->rows[row_idx(s, (int16_t)y)].cells[x];
 }
 
-ghostcon_row_t *
-ghostcon_screen_row(ghostcon_screen_t *s, uint16_t y)
+ghostcon_row_t *ghostcon_screen_row(ghostcon_screen_t *s, uint16_t y)
 {
     if (y >= s->rows_visible)
         return NULL;

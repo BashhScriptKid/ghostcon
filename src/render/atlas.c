@@ -139,8 +139,7 @@ struct ghostcon_atlas {
  */
 #define GHOSTCON_ATLAS_FACE_FAILED ((FT_Face)(intptr_t)-1)
 
-static atlas_slot_t *
-slot_find(ghostcon_atlas_t *atlas, uint32_t codepoint, bool *found)
+static atlas_slot_t *slot_find(ghostcon_atlas_t *atlas, uint32_t codepoint, bool *found)
 {
     uint32_t h = codepoint * 2654435761u; /* Knuth multiplicative hash */
     for (uint32_t i = 0; i < GHOSTCON_ATLAS_MAX_GLYPHS; i++)
@@ -162,8 +161,7 @@ slot_find(ghostcon_atlas_t *atlas, uint32_t codepoint, bool *found)
     return NULL; /* table full */
 }
 
-ghostcon_atlas_t *
-ghostcon_atlas_create(const char *font_family, const char *font_variant, const char *antialiasing, const char *subpixel_order, int font_size_px, uint32_t atlas_dim)
+ghostcon_atlas_t *ghostcon_atlas_create(const char *font_family, const char *font_variant, const char *antialiasing, const char *subpixel_order, int font_size_px, uint32_t atlas_dim)
 {
     ghostcon_atlas_t *atlas = calloc(1, sizeof(*atlas));
     if (!atlas)
@@ -356,8 +354,7 @@ void ghostcon_atlas_destroy(ghostcon_atlas_t *atlas)
  * glyph at exactly the cell's top-left corner, with no changes needed to
  * machine.c or gles.c).
  */
-static const ghostcon_glyph_t *
-pack_bitmap(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t codepoint, const uint8_t *bitmap, unsigned width, unsigned rows, unsigned pitch, int16_t bearing_x, int16_t bearing_y, float advance)
+static const ghostcon_glyph_t *pack_bitmap(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t codepoint, const uint8_t *bitmap, unsigned width, unsigned rows, unsigned pitch, int16_t bearing_x, int16_t bearing_y, float advance)
 {
     if (atlas->pen_x + width + GHOSTCON_ATLAS_GLYPH_PADDING > atlas->dim)
     {
@@ -406,8 +403,7 @@ pack_bitmap(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t codepoint, con
  *
  * `pitch` is width*4 for a tightly-packed RGBA source.
  */
-static const ghostcon_glyph_t *
-pack_bitmap_rgba(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t codepoint, const uint8_t *bitmap, unsigned width, unsigned rows, unsigned pitch, int16_t bearing_x, int16_t bearing_y, float advance)
+static const ghostcon_glyph_t *pack_bitmap_rgba(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t codepoint, const uint8_t *bitmap, unsigned width, unsigned rows, unsigned pitch, int16_t bearing_x, int16_t bearing_y, float advance)
 {
     if (atlas->color_pen_x + width + GHOSTCON_ATLAS_GLYPH_PADDING > atlas->dim)
     {
@@ -565,12 +561,10 @@ find_face_for_codepoint(ghostcon_atlas_t *atlas, uint32_t codepoint, FT_UInt *ou
     return NULL;
 }
 
-static const ghostcon_glyph_t *
-load_glyph_into_slot(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t slot_key,
+static const ghostcon_glyph_t *load_glyph_into_slot(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t slot_key,
                       FT_Face face, FT_UInt gidx);
 
-const ghostcon_glyph_t *
-ghostcon_atlas_glyph(ghostcon_atlas_t *atlas, uint32_t codepoint)
+const ghostcon_glyph_t *ghostcon_atlas_glyph(ghostcon_atlas_t *atlas, uint32_t codepoint)
 {
     bool found;
     atlas_slot_t *slot = slot_find(atlas, codepoint, &found);
@@ -643,8 +637,7 @@ ghostcon_atlas_glyph(ghostcon_atlas_t *atlas, uint32_t codepoint)
  *
  * rendering itself only cares about face+gidx.
  */
-static const ghostcon_glyph_t *
-load_glyph_into_slot(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t slot_key, FT_Face face, FT_UInt gidx)
+static const ghostcon_glyph_t *load_glyph_into_slot(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t slot_key, FT_Face face, FT_UInt gidx)
 {
     /* Color bitmap fonts (CBDT/CBLC, e.g. Noto Color Emoji) need a completely
      * different load path from ordinary outline fonts: FT_LOAD_COLOR (so FreeType
@@ -832,8 +825,7 @@ load_glyph_into_slot(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t slot_
  */
 #define GHOSTCON_ATLAS_GIDX_SLOT_KEY(gidx) (0x80000000u | (uint32_t)(gidx))
 
-const ghostcon_glyph_t *
-ghostcon_atlas_glyph_by_index(ghostcon_atlas_t *atlas, uint32_t glyph_index)
+const ghostcon_glyph_t *ghostcon_atlas_glyph_by_index(ghostcon_atlas_t *atlas, uint32_t glyph_index)
 {
     uint32_t key = GHOSTCON_ATLAS_GIDX_SLOT_KEY(glyph_index);
     bool found;

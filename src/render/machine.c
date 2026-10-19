@@ -22,8 +22,7 @@
  * Only when neither applies does the caller need to actually scale the glyph
  * down.
  */
-static uint8_t
-symbol_constraint_width(const ghostcon_row_t *row, uint16_t x)
+static uint8_t symbol_constraint_width(const ghostcon_row_t *row, uint16_t x)
 {
     if (x == (uint16_t)(row->cols - 1))
         return 1; /* screen edge -- no room to borrow */
@@ -415,8 +414,7 @@ void ghostcon_machine_render_dirty(ghostcon_screen_t *screen, ghostcon_atlas_t *
  */
 #define GC_CURSOR_LINE_THICKNESS 2
 
-void
-ghostcon_machine_render_cursor(ghostcon_screen_t *screen, ghostcon_gles_t *gles, int cell_w, int cell_h)
+void ghostcon_machine_render_cursor(ghostcon_screen_t *screen, ghostcon_gles_t *gles, int cell_w, int cell_h)
 {
     /* While scrolled back into history (view_offset > 0, see screen.h's own doc
      * comment), the grid coordinates the cursor was last left at are now showing
@@ -473,8 +471,7 @@ ghostcon_machine_render_cursor(ghostcon_screen_t *screen, ghostcon_gles_t *gles,
  */
 #define GC_SELECTION_ALPHA 0.35f
 
-void
-ghostcon_machine_render_selection(ghostcon_screen_t *screen, ghostcon_gles_t *gles, int cell_w, int cell_h)
+void ghostcon_machine_render_selection(ghostcon_screen_t *screen, ghostcon_gles_t *gles, int cell_w, int cell_h)
 {
     const ghostcon_selection_t *sel = &screen->selection;
     if (!sel->active || screen->view_offset > 0)

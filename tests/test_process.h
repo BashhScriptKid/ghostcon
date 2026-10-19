@@ -18,8 +18,7 @@
 
 /* Runs argv to completion, discarding stdout/stderr. Returns the
  * waitpid status, or -1 if fork/exec failed. */
-static inline int
-gc_test_run_command(char *const argv[])
+static inline int gc_test_run_command(char *const argv[])
 {
     pid_t pid = fork();
     if (pid < 0)

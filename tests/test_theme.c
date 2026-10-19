@@ -19,8 +19,7 @@ static int failures = 0;
     else { printf("PASS: %s\n", msg); } \
 } while (0)
 
-static bool
-rgb_eq(GhosttyColorRgb a, GhosttyColorRgb b)
+static bool rgb_eq(GhosttyColorRgb a, GhosttyColorRgb b)
 {
     return a.r == b.r && a.g == b.g && a.b == b.b;
 }

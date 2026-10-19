@@ -162,8 +162,7 @@ void ghostcon_display_configure_cursor(ghostcon_display_t *disp, const ghostcon_
         ghostcon_display_reload_cursor(disp, cell_h);
 }
 
-ghostcon_display_t *
-ghostcon_display_create(const char *drm_node, int vt_num, bool gamma_correct)
+ghostcon_display_t *ghostcon_display_create(const char *drm_node, int vt_num, bool gamma_correct)
 {
     ghostcon_display_t *disp = calloc(1, sizeof(*disp));
     if (!disp)

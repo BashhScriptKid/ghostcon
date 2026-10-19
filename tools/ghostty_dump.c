@@ -30,8 +30,7 @@
 
 #include <ghostty/vt.h>
 
-static void
-dump_cell(GhosttyTerminal term, uint16_t x, uint16_t y)
+static void dump_cell(GhosttyTerminal term, uint16_t x, uint16_t y)
 {
     GhosttyPoint pt;
     pt.tag = GHOSTTY_POINT_TAG_ACTIVE;

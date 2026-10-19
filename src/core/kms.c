@@ -11,9 +11,7 @@
 
 /* Property ID resolution — done once at init, cached in ghostcon_kms_t */
 
-static bool
-get_property_id(int fd, uint32_t obj_id, uint32_t obj_type,
-                 const char *name, uint32_t *out_id)
+static bool get_property_id(int fd, uint32_t obj_id, uint32_t obj_type, const char *name, uint32_t *out_id)
 {
     drmModeObjectProperties *props = drmModeObjectGetProperties(fd, obj_id, obj_type);
     if (!props)
@@ -200,10 +198,7 @@ static bool find_plane_of_type(int fd, int crtc_index, uint64_t want_type, uint3
  * itself became square --apparently a common cursor-plane HW restriction, not
  * universal across drivers but safe to always honor).
  */
-static void
-draw_cursor_ibeam(uint8_t *pixels, uint32_t canvas_w, uint32_t canvas_h,
-                   uint32_t stride, uint32_t ibeam_h,
-                   uint32_t *out_off_x, uint32_t *out_off_y)
+static void draw_cursor_ibeam(uint8_t *pixels, uint32_t canvas_w, uint32_t canvas_h, uint32_t stride, uint32_t ibeam_h, uint32_t *out_off_x, uint32_t *out_off_y)
 {
     memset(pixels, 0, (size_t)stride * canvas_h); /* fully transparent by default */
 

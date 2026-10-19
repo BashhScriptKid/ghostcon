@@ -73,8 +73,7 @@ void ghostcon_term_set_notify(ghostcon_term_t *term,
 
 /* Accessors */
 
-static inline ghostcon_screen_t *
-ghostcon_term_screen(ghostcon_term_t *term)
+static inline ghostcon_screen_t *ghostcon_term_screen(ghostcon_term_t *term)
 {
     return &term->screen;
 }

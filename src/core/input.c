@@ -352,8 +352,7 @@ struct ghostcon_input {
  * Any device that supports tap-to-click at all (finger count > 0) is a
  * touchpad; a plain mouse reports 0.
  */
-static bool
-device_is_touchpad(struct libinput_device *dev)
+static bool device_is_touchpad(struct libinput_device *dev)
 {
     return libinput_device_config_tap_get_finger_count(dev) > 0;
 }
@@ -410,8 +409,7 @@ static const struct libinput_interface LI_INTERFACE = {
     .close_restricted = close_restricted,
 };
 
-ghostcon_input_t *
-ghostcon_input_open(const char *seat_id, int viewport_w, int viewport_h, int repeat_delay_ms, int repeat_rate_ms)
+ghostcon_input_t *ghostcon_input_open(const char *seat_id, int viewport_w, int viewport_h, int repeat_delay_ms, int repeat_rate_ms)
 {
     ghostcon_input_t *input = calloc(1, sizeof(*input));
     if (!input)

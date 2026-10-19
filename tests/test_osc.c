@@ -23,8 +23,7 @@ static int failures = 0;
     else { printf("PASS: %s\n", msg); } \
 } while (0)
 
-static void
-check_parse(const char *spec, bool expect_ok, uint8_t r, uint8_t g, uint8_t b, const char *label)
+static void check_parse(const char *spec, bool expect_ok, uint8_t r, uint8_t g, uint8_t b, const char *label)
 {
     GhosttyColorRgb c = {0, 0, 0};
     bool ok = ghostcon_color_parse_spec(spec, &c);

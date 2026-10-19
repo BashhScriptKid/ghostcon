@@ -482,8 +482,7 @@ static const page_t pages[] = {
 };
 #define NUM_PAGES (sizeof(pages) / sizeof(pages[0]))
 
-static void
-list_pages(void)
+static void list_pages(void)
 {
     for (size_t i = 0; i < NUM_PAGES; i++)
         printf("%-20s %s\n", pages[i].name, pages[i].desc);

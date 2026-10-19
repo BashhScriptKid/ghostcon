@@ -25,8 +25,7 @@
 
 #define TEST_VT 97
 
-static int
-connect_unix(const char *path)
+static int connect_unix(const char *path)
 {
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0)

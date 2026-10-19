@@ -2,8 +2,7 @@
 #include "ghostcon/term/cell.h"
 #include <stdbool.h>
 
-void
-ghostcon_screen_dump(FILE *f, ghostcon_screen_t *s)
+void ghostcon_screen_dump(FILE *f, ghostcon_screen_t *s)
 {
     fprintf(f, "cols=%u\n", s->cols);
     fprintf(f, "rows=%u\n", s->rows_visible);

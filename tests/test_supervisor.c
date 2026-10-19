@@ -33,8 +33,7 @@
 
 #define TEST_VT 90
 
-static pid_t
-spawn_supervisor_with_registry(int *out_stderr_fd, const char *registry_socket)
+static pid_t spawn_supervisor_with_registry(int *out_stderr_fd, const char *registry_socket)
 {
     int pipefd[2];
     if (pipe(pipefd) != 0)

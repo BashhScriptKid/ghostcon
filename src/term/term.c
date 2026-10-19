@@ -1,7 +1,6 @@
 #include "ghostcon/term/term.h"
 
-bool
-ghostcon_term_init(ghostcon_term_t *term, uint16_t cols, uint16_t rows, uint16_t scrollback_cap)
+bool ghostcon_term_init(ghostcon_term_t *term, uint16_t cols, uint16_t rows, uint16_t scrollback_cap)
 {
     if (!ghostcon_screen_init(&term->screen, cols, rows, scrollback_cap))
         return false;

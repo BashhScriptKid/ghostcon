@@ -22,8 +22,7 @@
 
 #define TEST_VT 96
 
-static bool
-wait_for_substring(ghostcon_transport_t *t, const char *needle, int timeout_ms)
+static bool wait_for_substring(ghostcon_transport_t *t, const char *needle, int timeout_ms)
 {
     char acc[8192];
     size_t acc_len = 0;

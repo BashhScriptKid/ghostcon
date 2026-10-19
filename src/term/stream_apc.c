@@ -15,8 +15,7 @@
  * land at its right edge" cursor behavior.
  */
 
-void
-gc_stream_apc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s)
+void gc_stream_apc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s)
 {
     if (st->apc_introducer != '_')
         return; /* SOS/PM: no known use, discard as before */
@@ -65,8 +64,7 @@ gc_stream_apc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s)
  * the caller's only recourse at that point is to stop accepting more bytes, same
  * as any other overflow case in this file.
  */
-bool
-gc_stream_dcs_buf_grow(ghostcon_stream_t *st)
+bool gc_stream_dcs_buf_grow(ghostcon_stream_t *st)
 {
     if (st->buf_cap >= GHOSTCON_STREAM_DCS_MAX_BUF)
         return false;

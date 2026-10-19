@@ -159,8 +159,7 @@ static void write_pid_file(const char *path, pid_t pid)
     rename(tmp_path, path);
 }
 
-static vt_entry_t *
-find_vt(int vtnum)
+static vt_entry_t *find_vt(int vtnum)
 {
     for (int i = 0; i < g_nvts; i++)
     {

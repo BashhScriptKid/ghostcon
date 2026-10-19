@@ -18,8 +18,7 @@ static int failures = 0;
     else { printf("PASS: %s\n", msg); } \
 } while (0)
 
-int
-main(void)
+int main(void)
 {
     /* --- Zoom computation --- */
     CHECK(ghostcon_ui_compute_zoom(16, 0, 2, 6, 96) == 16, "zoom delta 0 preserves size");

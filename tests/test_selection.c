@@ -21,8 +21,7 @@ static int failures = 0;
     else { printf("PASS: %s\n", msg); } \
 } while (0)
 
-int
-main(void)
+int main(void)
 {
     /* --- selection state machine --- */
     ghostcon_selection_t sel;

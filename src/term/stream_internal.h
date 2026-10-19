@@ -30,8 +30,7 @@
 /* CSI parameter access */
 
 /* Parse a collected CSI parameter. Returns default if empty. */
-static inline int
-param(ghostcon_stream_t *st, int idx, int def)
+static inline int param(ghostcon_stream_t *st, int idx, int def)
 {
     if (idx < st->params_idx && st->params[idx] != 0)
         return st->params[idx];
@@ -46,8 +45,7 @@ param(ghostcon_stream_t *st, int idx, int def)
  * handler's expected range (stream.zig `switch (input.params.len)` with an
  * `else => return`). mirror that here.
  */
-static inline bool
-csi_param_count(ghostcon_stream_t *st, uint8_t minc, uint8_t maxc)
+static inline bool csi_param_count(ghostcon_stream_t *st, uint8_t minc, uint8_t maxc)
 {
     return st->params_idx >= minc && st->params_idx <= maxc;
 }

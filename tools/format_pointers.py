@@ -5,11 +5,13 @@ For a declarator whose base is a known type:
   * at least one space (or a newline) separates the base from the `*`
     run -- `T*name` is rewritten to `T *name`;
   * the `*` run is adjacent to the declared name -- `T * name` and
-    `T * * name` are rewritten to `T *name` / `T **name`.
+    `T * * name` are rewritten to `T *name` / `T **name`. The name
+    must be on the `*`'s line: a `*` left at the end of a line
+    (`T *\\nname`) is joined to the name too, since the `*` belongs to
+    the declarator.
 
 Allowed and left alone:
   * multiple spaces before the `*` (struct-field alignment);
-  * a `*` at end of line (the return-type-on-its-own-line rule);
   * spacing around pointer qualifiers (`char *const *p`);
   * function-pointer declarators (`bool (*fn)(int)`), whose `*` is not
     adjacent to a type;
@@ -76,11 +78,11 @@ def edits_for(s):
             edits.append((p, p, ' '))
         for k in range(i, j):
             st, en = toks[k][0] + 1, toks[k + 1][0]
-            if s[st:en] and '\n' not in s[st:en]:
+            if s[st:en]:
                 edits.append((st, en, ''))
         if j + 1 < len(toks) and IDENT.fullmatch(nxt):
             st, en = toks[j][0] + 1, toks[j + 1][0]
-            if s[st:en] and '\n' not in s[st:en]:
+            if s[st:en]:
                 edits.append((st, en, ''))
     return edits
 

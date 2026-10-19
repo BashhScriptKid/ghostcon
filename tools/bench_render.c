@@ -46,8 +46,7 @@
  */
 #define SCROLLBACK_LINES 2000
 
-static double
-now_ms(void)
+static double now_ms(void)
 {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);

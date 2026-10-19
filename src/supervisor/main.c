@@ -87,8 +87,7 @@
  *
  * Falls back to the bare name only if /proc/self/exe itself is unavailable.
  */
-static void
-resolve_sibling_path(char *out, size_t out_len, const char *name)
+static void resolve_sibling_path(char *out, size_t out_len, const char *name)
 {
     char self_path[4096];
     ssize_t n = readlink("/proc/self/exe", self_path, sizeof(self_path) - 1);

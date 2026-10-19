@@ -18,8 +18,7 @@
 #error "GHOSTCON_UCD_PATH must be defined (path to vendored UnicodeData.txt)"
 #endif
 
-static bool
-is_symbol_category(const char *cat)
+static bool is_symbol_category(const char *cat)
 {
     return strcmp(cat, "Sm") == 0 || strcmp(cat, "Sc") == 0 ||
            strcmp(cat, "Sk") == 0 || strcmp(cat, "So") == 0;

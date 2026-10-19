@@ -39,8 +39,7 @@
  * to `max_fields` pointers into `fields`. fields[0] is always the leading
  * OSC number. Returns the field count.
  */
-static int
-osc_split_fields(char *buf, uint16_t len, char **fields, int max_fields)
+static int osc_split_fields(char *buf, uint16_t len, char **fields, int max_fields)
 {
     int n = 0;
     fields[n++] = buf;

@@ -66,8 +66,7 @@
 
 #define HEARTBEAT_INTERVAL_MS 100
 
-static long
-now_ms(void)
+static long now_ms(void)
 {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);

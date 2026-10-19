@@ -90,8 +90,7 @@ static const theme_preset_t PRESETS[] = {
 
 #undef RGB
 
-bool
-ghostcon_theme_apply(ghostcon_palette_t *pal, const char *name)
+bool ghostcon_theme_apply(ghostcon_palette_t *pal, const char *name)
 {
     if (!name || !name[0])
         return false;

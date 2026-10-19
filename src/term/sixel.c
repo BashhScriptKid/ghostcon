@@ -3,8 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-void
-ghostcon_sixel_state_init(ghostcon_sixel_state_t *st)
+void ghostcon_sixel_state_init(ghostcon_sixel_state_t *st)
 {
     memset(st, 0, sizeof *st);
 }
@@ -16,8 +15,7 @@ void ghostcon_sixel_state_deinit(ghostcon_sixel_state_t *st)
     memset(st, 0, sizeof *st);
 }
 
-static ghostcon_sixel_placement_t *
-alloc_placement_slot(ghostcon_sixel_state_t *st)
+static ghostcon_sixel_placement_t *alloc_placement_slot(ghostcon_sixel_state_t *st)
 {
     for (int i = 0; i < GHOSTCON_SIXEL_MAX_PLACEMENTS; i++)
     {

@@ -4,9 +4,7 @@
 
 /* Shared helpers */
 
-static void
-fill_rect(uint8_t *alpha, int cell_w, int cell_h,
-          int x0, int y0, int x1, int y1, uint8_t v)
+static void fill_rect(uint8_t *alpha, int cell_w, int cell_h, int x0, int y0, int x1, int y1, uint8_t v)
 {
     if (x0 < 0) x0 = 0;
     if (y0 < 0) y0 = 0;
@@ -177,8 +175,7 @@ static const box_line_t BOX_LINES[] = {
 };
 #define BOX_LINES_COUNT (sizeof(BOX_LINES) / sizeof(BOX_LINES[0]))
 
-static bool
-render_box_line(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
+static bool render_box_line(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
 {
     if (cp < 0x2500 || cp > 0x257b)
         return false;

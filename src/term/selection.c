@@ -2,8 +2,7 @@
 
 #include "ghostcon/term/screen.h"
 
-void
-ghostcon_selection_clear(ghostcon_selection_t *sel)
+void ghostcon_selection_clear(ghostcon_selection_t *sel)
 {
     sel->active = false;
     sel->pending = false;

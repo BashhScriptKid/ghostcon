@@ -36,8 +36,7 @@
  * crash_handler() doc comment says is deliberately truncated to
  * GHOSTCON_DIAG_HEAD_FRAMES (8) frames.
  */
-static bool
-journal_has_entry(pid_t pid, char *out_buf, size_t out_cap)
+static bool journal_has_entry(pid_t pid, char *out_buf, size_t out_cap)
 {
     /* _PID= alone isn't enough to disambiguate
      *
@@ -119,8 +118,7 @@ recurse_and_abort(int depth)
 }
 #pragma GCC diagnostic pop
 
-int
-main(void)
+int main(void)
 {
     pid_t child = fork();
     if (child < 0)

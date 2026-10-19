@@ -1,7 +1,6 @@
 #include "ghostcon/term/kitty.h"
 
-void
-ghostcon_kitty_push(ghostcon_kitty_state_t *k, uint8_t f)
+void ghostcon_kitty_push(ghostcon_kitty_state_t *k, uint8_t f)
 {
     /* Overflow wraps around, evicting oldest entry */
     k->stack.idx = (k->stack.idx + 1) % GC_KITTY_STACK_DEPTH;

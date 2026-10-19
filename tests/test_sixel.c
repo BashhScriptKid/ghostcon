@@ -21,8 +21,7 @@ static int failures = 0;
     else { printf("PASS: %s\n", msg); } \
 } while (0)
 
-static const uint8_t *
-pixel_at(const ghostcon_sixel_placement_t *pl, int32_t x, int32_t y)
+static const uint8_t *pixel_at(const ghostcon_sixel_placement_t *pl, int32_t x, int32_t y)
 {
     return pl->pixels + ((size_t)y * (size_t)pl->width + (size_t)x) * 4;
 }

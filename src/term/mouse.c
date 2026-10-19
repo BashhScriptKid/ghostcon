@@ -2,8 +2,7 @@
 
 #include <stdio.h>
 
-static int
-button_base_code(ghostcon_mouse_button_t button)
+static int button_base_code(ghostcon_mouse_button_t button)
 {
     switch (button)
     {

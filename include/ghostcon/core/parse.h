@@ -21,8 +21,7 @@
  * library dependency.
  */
 
-static inline bool
-ghostcon_parse_int(const char *s, int *out)
+static inline bool ghostcon_parse_int(const char *s, int *out)
 {
     if (!s || *s == '\0')
         return false;

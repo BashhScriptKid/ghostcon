@@ -86,8 +86,7 @@
 #define RESTART_BACKOFF_BASE_SECS 1
 #define RESTART_BACKOFF_MAX_SECS 30
 
-static void
-apply_restart_backoff(time_t *last_death, int *backoff, const char *what)
+static void apply_restart_backoff(time_t *last_death, int *backoff, const char *what)
 {
     time_t now = time(NULL);
     if (*last_death != 0 && (now - *last_death) >= RESTART_STABLE_SECS)

@@ -18,8 +18,7 @@
  * NOT another nested switch case in the monolithic state machine.
  */
 
-static void
-handle_csi_cursor_up(ghostcon_stream_t *st, ghostcon_screen_t *s)
+static void handle_csi_cursor_up(ghostcon_stream_t *st, ghostcon_screen_t *s)
 {
     if (!csi_param_count(st, 0, 1)) return;
     int n = PARAM1(st, 1);

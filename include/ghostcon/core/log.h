@@ -49,8 +49,7 @@
  * Exposed (not hidden inside the macro) so tests/unit code can exercise the
  * parsing rules without the env-var static state.
  */
-static inline int
-gc_log_domain_matches(const char *spec, const char *domain)
+static inline int gc_log_domain_matches(const char *spec, const char *domain)
 {
     if (!spec || !spec[0] || !domain || !domain[0])
         return 0;

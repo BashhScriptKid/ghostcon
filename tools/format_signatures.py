@@ -6,8 +6,11 @@
         static bool foo(int x)
   * Anything declared by ghostcon or a third-party dependency, or a
     struct/union/enum tag -> split:
-        ghostcon_display_t *
-        ghostcon_display_create(...)
+        ghostcon_style_id_t
+        ghostcon_style_add(...)
+  * A pointer return keeps the `*` with the declared name, so it stays
+    one line (the `*` is part of the declarator, not the base type):
+        ghostcon_style_set_t *ghostcon_style_set_create(...)
   * The parameter list is always collapsed onto the name line, however
     long:
         static void foo(int a, int b)
@@ -33,6 +36,7 @@ TOK = re.compile(r'''
 STORAGE = {'static','extern','inline','_Noreturn','auto','register','typedef'}
 QUALIFIERS = {'const','volatile','restrict','_Atomic'}
 ATTRS = {'__attribute__','__declspec','alignas','_Alignas'}
+IDENT = re.compile(r'[A-Za-z_]\w*')
 PRIMITIVE = {'void','char','short','int','long','float','double',
              'signed','unsigned','_Bool','bool'}
 STD_TYPEDEFS = {
@@ -45,6 +49,9 @@ STD_TYPEDEFS = {
     'wchar_t','wint_t','clock_t','time_t','off_t','pid_t','uid_t','gid_t','mode_t',
     'dev_t','ino_t','nlink_t','blksize_t','blkcnt_t','FILE','va_list',
 }
+# tokens that can appear in a return-type/declaration range
+TYPE_TOKENS = (set(PRIMITIVE) | set(STD_TYPEDEFS) | QUALIFIERS | STORAGE
+               | {'struct','union','enum'})
 
 def tokenize(s):
     out=[]
@@ -147,13 +154,27 @@ def analyze_defs(s, toks, ms):
                 if op is not None and op>0:
                     name_i=op-1
                     if re.fullmatch(r'[A-Za-z_]\w*', toks[name_i][1]):
-                        # find start of declaration: previous top-level ; or }
+                        # find start of declaration: walk back over the
+                        # return type's tokens. Stopping at the previous
+                        # top-level ';' or '}' is not enough: a file whose
+                        # first function follows a block of #defines has
+                        # neither, and the type range would then swallow
+                        # the preprocessor lines (and the comment above
+                        # them) and get them collapsed onto one line.
                         j=name_i-1
+                        tstart=name_i
                         while j>=0:
-                            if depths_after[j]==0 and toks[j][1] in (';','}'):
+                            if depths_after[j]!=0:
                                 break
-                            j-=1
-                        tstart=j+1
+                            t=toks[j][1]
+                            if is_macro[j]:
+                                j-=1
+                                continue
+                            if t=='*' or t in TYPE_TOKENS or IDENT.fullmatch(t):
+                                tstart=j
+                                j-=1
+                                continue
+                            break
                         # no function-pointer return; no comment inside range
                         seg=s[(toks[tstart][0] if tstart<name_i else p):(toks[name_i][0] if tstart<name_i else p)]
                         if tstart<name_i and '(' not in [tok for _,tok in toks[tstart:name_i]] \
@@ -222,7 +243,10 @@ def rewrite(s):
     for tstart,name_i,brace_i,open_i,close_i in defs:
         if tstart>=name_i: continue
         if any(toks[k][1]=='(' for k in range(tstart,name_i)): continue
-        portable=classify_base(s,toks,tstart,name_i)
+        # A pointer return is a declarator, not a base type: keep the `*`
+        # with the name on one line rather than splitting `T *` / `name`.
+        star_return=any(t=='*' for _,t in toks[tstart:name_i])
+        portable=classify_base(s,toks,tstart,name_i) or star_return
         name_pos=toks[name_i][0]
         last=name_i-1
         # collapse type-internal newlines and fix type/name gap

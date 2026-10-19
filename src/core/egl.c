@@ -17,9 +17,7 @@
  * `borrowed_surf` NULL means "create our own"; non-NULL means "wrap this
  * one".
  */
-static bool
-init_common(ghostcon_egl_t *egl, struct gbm_surface *borrowed_surf,
-            uint32_t width, uint32_t height)
+static bool init_common(ghostcon_egl_t *egl, struct gbm_surface *borrowed_surf, uint32_t width, uint32_t height)
 {
     egl->width = width;
     egl->height = height;

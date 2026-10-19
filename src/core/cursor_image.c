@@ -9,8 +9,7 @@
  * BMP and Xcursor are both LE on disk regardless of host byte order.
  */
 
-static uint32_t
-rd_u32le(const uint8_t *p)
+static uint32_t rd_u32le(const uint8_t *p)
 {
     return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
 }
@@ -79,8 +78,7 @@ static uint8_t *read_whole_file(const char *path, size_t *out_len)
 #define BMP_FILE_HEADER_SIZE 14
 #define BMP_DIB_HEADER_SIZE 40 /* BITMAPINFOHEADER -- the only variant this decoder reads/writes */
 
-uint32_t *
-ghostcon_cursor_load_bmp(const char *path, uint32_t *out_w, uint32_t *out_h)
+uint32_t *ghostcon_cursor_load_bmp(const char *path, uint32_t *out_w, uint32_t *out_h)
 {
     size_t len;
     uint8_t *buf = read_whole_file(path, &len);
@@ -246,9 +244,7 @@ bool ghostcon_cursor_write_bmp(const char *path, const uint32_t *pixels, uint32_
 #define XCURSOR_TOC_ENTRY_SIZE 12  /* type, subtype, position -- all u32 */
 #define XCURSOR_IMAGE_HEADER_SIZE 36 /* chunk header (16) + width/height/xhot/yhot/delay (20) */
 
-static uint32_t *
-decode_xcursor_buf(const uint8_t *buf, size_t len,
-                    uint32_t *out_w, uint32_t *out_h, uint32_t *out_hot_x, uint32_t *out_hot_y)
+static uint32_t *decode_xcursor_buf(const uint8_t *buf, size_t len, uint32_t *out_w, uint32_t *out_h, uint32_t *out_hot_x, uint32_t *out_hot_y)
 {
     if (len < XCURSOR_FILE_HEADER_SIZE || rd_u32le(buf) != XCURSOR_MAGIC)
         return NULL;

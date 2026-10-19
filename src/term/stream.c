@@ -6,8 +6,7 @@
 
 /* Lifecycle */
 
-bool
-ghostcon_stream_init(ghostcon_stream_t *st)
+bool ghostcon_stream_init(ghostcon_stream_t *st)
 {
     memset(st, 0, sizeof(*st));
     st->state = GC_STREAM_GROUND;

@@ -14,8 +14,7 @@ static int failures = 0;
     else { printf("PASS: %s\n", msg); } \
 } while (0)
 
-int
-main(void)
+int main(void)
 {
     /* Nonexistent path -- pure defaults, not an error. */
     ghostcon_config_t cfg;

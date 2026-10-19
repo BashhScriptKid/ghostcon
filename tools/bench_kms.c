@@ -46,8 +46,7 @@
 #define DRM_MASTER_RETRIES 20
 #define DRM_MASTER_RETRY_DELAY_US 100000
 
-static double
-now_ms(void)
+static double now_ms(void)
 {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);

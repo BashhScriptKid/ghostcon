@@ -45,8 +45,7 @@
 #define FONT_SIZE 16
 #define ATLAS_DIM 512
 
-int
-main(void)
+int main(void)
 {
     const char *node = ghostcon_render_node();
     if (access(node, R_OK | W_OK) != 0)

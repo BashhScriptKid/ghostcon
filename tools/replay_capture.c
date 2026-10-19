@@ -26,8 +26,7 @@
 
 #define READ_CHUNK 4096
 
-static void
-row_to_text(ghostcon_screen_t *screen, uint16_t y, char *out, uint16_t cols)
+static void row_to_text(ghostcon_screen_t *screen, uint16_t y, char *out, uint16_t cols)
 {
     ghostcon_row_t *row = ghostcon_screen_row(screen, y);
     for (uint16_t x = 0; x < cols; x++)

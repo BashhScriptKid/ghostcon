@@ -4,8 +4,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-size_t
-ghostcon_ptyserv_format_get(char *buf, size_t buf_len, int vtnum)
+size_t ghostcon_ptyserv_format_get(char *buf, size_t buf_len, int vtnum)
 {
     int n = snprintf(buf, buf_len, "GET %d\n", vtnum);
     if (n < 0 || (size_t)n >= buf_len)

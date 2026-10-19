@@ -46,8 +46,7 @@
 #include <string.h>
 #include <unistd.h>
 
-static const char *
-tag_name(ghostcon_cell_content_tag_t tag)
+static const char *tag_name(ghostcon_cell_content_tag_t tag)
 {
     switch (tag)
     {

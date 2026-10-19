@@ -46,8 +46,7 @@
 
 #define ATLAS_DIM 1024
 
-int
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     if (argc < 2)
     {
