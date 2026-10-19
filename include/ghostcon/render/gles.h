@@ -46,7 +46,7 @@ struct ghostcon_sixel_state;
 
 typedef struct
 {
-    float x, y; // screen-space pixel position, top-left origin
+    float x, y;             // screen-space pixel position, top-left origin
     float u, v;
     float r, g, b, a;
     float bg_r, bg_g, bg_b; // cell background, for gamma alpha correction [1]
@@ -101,9 +101,11 @@ void ghostcon_gles_resize(ghostcon_gles_t *gles, uint32_t w, uint32_t h);
  * syncing first uploads a stale/empty atlas and glyphs silently don't appear (no
  * GL error, since the texture is valid, just outdated).
  *
- * Call order: begin -> render_dirty (pushes quads, rasterizes new glyphs into the
- * CPU-side atlas) -> sync_atlas (uploads them) -> end (draws, using the
- * now-current texture).
+ * Call order:
+ *   begin ->
+ *   render_dirty[1] ->
+ *   sync_atlas (uploads them) ->
+ *   end (draws, using the now-current texture)
  *
  * `force=true` is required exactly once per `ghostcon_gles_t` instance, right
  * after creating it (before its first end())
@@ -112,10 +114,9 @@ void ghostcon_gles_resize(ghostcon_gles_t *gles, uint32_t w, uint32_t h);
  * separate, longer-lived object than any one GLES instance's GPU texture.
  *
  * A brand-new instance's texture is created empty (glGenTextures, no data yet);
- * if the atlas bitmap happens to already be "not dirty" at that point (nothing
- * new rasterized since some earlier instance's last sync), a dirty-gated
- * sync_atlas call would skip uploading anything, leaving that fresh texture
- * "incomplete" per the GL spec (never given level-0 data)
+ * if the atlas bitmap happens to already be "not dirty" at that point[2],
+ * a dirty-gated sync_atlas call would skip uploading anything, leaving that
+ * fresh texture "incomplete" per the GL spec (never given level-0 data)
  *
  * sampling it is implementation-defined, and on at least one real driver this
  * silently returned solid opaque alpha, making every glyph quad render as a
@@ -124,6 +125,10 @@ void ghostcon_gles_resize(ghostcon_gles_t *gles, uint32_t w, uint32_t h);
  * Found live, after a VT reacquire (which always creates a fresh ghostcon_gles_t)
  *
  * see core/main.c's acquire_display().
+ *
+ * [1] The method pushes quads, rasterizes new glyphs into the CPU-side atlas
+ *
+ * [2] Means nothing new rasterized since some earlier instance's last sync
  */
 void ghostcon_gles_sync_atlas(ghostcon_gles_t *gles, ghostcon_atlas_t *atlas, bool force);
 
@@ -155,9 +160,9 @@ void ghostcon_gles_sync_atlas(ghostcon_gles_t *gles, ghostcon_atlas_t *atlas, bo
  * but is real complexity this doesn't need yet
  *
  * see core/main.c's render_frame() and PLAN.md's own renderer design note
- * ("redrawing all dirty cells each frame is sufficient" for a terminal at this
- * scale, which in practice means every frame, full stop, not just
- * first-frame-after-acquire).
+ * > "redrawing all dirty cells each frame is sufficient" for a terminal at this
+ * > scale, which in practice means every frame, full stop, not just
+ * > first-frame-after-acquire
  */
 void ghostcon_gles_begin(ghostcon_gles_t *gles, bool clear,
                           float bg_r, float bg_g, float bg_b);
@@ -211,17 +216,18 @@ void ghostcon_gles_push_glyph(ghostcon_gles_t *gles,
 void ghostcon_gles_set_gamma_correct(ghostcon_gles_t *gles, bool enabled);
 
 /* True if ghostcon_gles_create()'s want_linear_blending actually resulted in a
- * working offscreen sRGB FBO + blit pipeline (both the needed extensions present
- * AND the FBO completed)
+ * working offscreen sRGB FBO + blit pipeline[1]
  *
  * decided once at creation time, not something that changes later.
  *
- * False doesn't mean anything is broken. It just means rendering fell back to the
- * plain path, silently, same as an unrecognized antialiasing value falling back
- * to grayscale.
+ * False doesn't mean anything is broken.
+ * It just means rendering fell back to the plain path, silently,
+ * same as an unrecognized antialiasing value falling back to grayscale.
  *
  * Purely informational (e.g. startup logging). Nothing else needs to branch on
  * this, the shader already does.
+ *
+ * [1] tl;dr: both the needed extensions present AND the FBO completed
  */
 bool ghostcon_gles_linear_blending_active(const ghostcon_gles_t *gles);
 
@@ -238,9 +244,13 @@ void ghostcon_gles_end(ghostcon_gles_t *gles);
  * within one draw call.
  *
  * Each image placement is its own glDrawArrays call, queued and drawn at one of
- * two points in ghostcon_gles_end()'s sequence: push_bg_rect draw call
- * (backgrounds) -> queued below_text images (z<0) -> push_rect/push_glyph draw
- * call (cursor/selection/glyphs) -> queued above_text images (z>=0) -> blit/swap
+ * two points in ghostcon_gles_end()'s sequence:
+ *   push_bg_rect draw call (backgrounds) ->
+ *   queued below_text images (z<0) ->
+ *   push_rect/push_glyph draw call (cursor/selection/glyphs) ->
+ *   queued above_text images (z>=0) ->
+ *   blit/swap
+ *
  * matching Ghostty's own three-tier ordering (renderer/image.zig): z<0 is above
  * cell backgrounds but below glyphs, not below everything
  *
@@ -265,13 +275,15 @@ void ghostcon_gles_image_destroy(ghostcon_gles_image_t *img);
  * above
  *
  * above_text=false for z<0 (drawn between the background and glyph draw calls),
- * above_text=true for z>=0 (drawn after everything else, before the blit/swap).
- * src_w/src_h == 0 means "full image" (src_x/src_y ignored). alpha scales the
- * whole placement's opacity (1.0 = fully opaque).
+ * above_text=true  for z>=0 (drawn after everything else, before the blit/swap).
+ *
+ * src_w/src_h == 0 means "full image" (src_x/src_y ignored).
+ * alpha scales the whole placement's opacity (1.0 = fully opaque).
  *
  * Both queues are drained and cleared by the next ghostcon_gles_end() call;
- * nothing needs to be called to reset them between frames, and queuing can happen
- * any time between ghostcon_gles_begin and ghostcon_gles_end regardless of
+ * nothing needs to be called to reset them between frames,
+ * and queuing can happen any time between
+ * ghostcon_gles_begin and ghostcon_gles_end regardless of
  * push_rect/push_glyph call order
  *
  * only the tier (above_text) controls where it actually lands in the draw
@@ -284,36 +296,40 @@ void ghostcon_gles_queue_image(ghostcon_gles_t *gles, ghostcon_gles_image_t *img
 
 /* Returns a GPU texture for Kitty image `image_id`, uploading from `pixels` on
  * first use and re-uploading whenever `generation` differs from what's currently
- * cached (the term-layer image store bumps its generation counter each time an id
- * is re-transmitted
+ * cached[1].
  *
- * see term/kitty_graphics.h).
+ * The returned handle is owned by `gles`:
+ *   never call ghostcon_gles_image_destroy on it,
+ *   and don't hold onto it past the current frame
+ *   (a later re-transmission can invalidate and replace it).
  *
- * The returned handle is owned by `gles`: never call ghostcon_gles_image_destroy
- * on it, and don't hold onto it past the current frame (a later re-transmission
- * can invalidate and replace it).
+ * Bounded to the same max-image count as the term-layer store;
+ * under pressure, evicts whichever cached entry's id doesn't
+ * currently resolve via ghostcon_kitty_graphics_find_image first
+ * (requires the same screen's kitty_graphics to check).
  *
- * Bounded to the same max-image count as the term-layer store; under pressure,
- * evicts whichever cached entry's id doesn't currently resolve via
- * ghostcon_kitty_graphics_find_image first (this needs the same screen's
- * kitty_graphics to check that), falling back to simple oldest-first if every
- * cached entry is still live.
+ * Falls back to simple oldest-first if every cached entry is still live.
  *
  * Returns NULL on allocation failure.
+ *
+ * [1] The term-layer image store bumps its generation counter each time an id
+ *     is re-transmitted (see term/kitty_graphics.h)
  */
 ghostcon_gles_image_t *ghostcon_gles_kitty_tex_get(ghostcon_gles_t *gles,
                                                    const struct ghostcon_kitty_graphics *kg,
                                                    uint32_t image_id, uint32_t generation,
                                                    const uint8_t *pixels, int width, int height, int bpp);
 
-/* Same caching contract as ghostcon_gles_kitty_tex_get above, but keyed by sixel
- * placement SLOT (array index into ghostcon_sixel_state_t::placements[], not a
- * client-chosen id --sixel has no ids at all, see term/sixel.h) rather than image
- * id.
+/* Same caching contract as ghostcon_gles_kitty_tex_get above,
+ * but keyed by sixel placement SLOT[1] rather than image id.
  *
- * Pixels are always RGBA (sixel decode always produces RGBA
+ * Pixels are always RGBA[2], so there's no bpp parameter.
  *
- * see term/sixel.c), so there's no bpp parameter.
+ * [1] array index into ghostcon_sixel_state_t::placements[],
+ *     not a client-chosen id; as sixel has
+ *     no ids at all (see term/sixel.h)
+ *
+ * [2] sixel decode always produces RGBA (see term/sixel.c)
  */
 ghostcon_gles_image_t *ghostcon_gles_sixel_tex_get(ghostcon_gles_t *gles,
                                                    const struct ghostcon_sixel_state *sx,
