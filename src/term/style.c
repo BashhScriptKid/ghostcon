@@ -83,6 +83,8 @@ static int16_t find_entry(const ghostcon_style_set_t *set, const ghostcon_style_
     if (set->capacity == 0)
         return -1;
 
+    if (set->capacity == 0)
+        return GC_STYLE_DEFAULT_ID; /* should be unreachable: create() enforces a minimum */
     uint32_t h = hash_style(style);
     uint16_t idx = h % set->capacity;
 
@@ -101,6 +103,8 @@ static int16_t find_entry(const ghostcon_style_set_t *set, const ghostcon_style_
 /* Grow the table to new_capacity */
 static bool grow_table(ghostcon_style_set_t *set, uint16_t new_capacity)
 {
+    if (new_capacity == 0)
+        return false; /* capacity doubling overflowed */
     style_entry_t *old = set->entries;
     uint16_t old_cap = set->capacity;
 

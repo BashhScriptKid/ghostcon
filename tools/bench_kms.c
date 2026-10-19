@@ -141,8 +141,14 @@ int main(int argc, char **argv)
     printf("bench_kms: initial modeset committed, starting %d-frame timed run "
            "(display will show a plain color-cycling test pattern)\n", frames);
 
-    double *frame_ms = malloc((size_t)frames * sizeof(double));
+    double *frame_ms = calloc((size_t)frames, sizeof(double));
+    if (!frame_ms)
+    {
+        fprintf(stderr, "FAIL: out of memory\n");
+        return 1;
+    }
     double total_ms = 0.0, min_ms = 1e9, max_ms = 0.0;
+    int recorded = 0;
 
     for (int i = 0; i < frames; i++)
     {
@@ -163,13 +169,20 @@ int main(int argc, char **argv)
             break;
         }
 
-        frame_ms[i] = dt;
+        frame_ms[recorded++] = dt;
         total_ms += dt;
         if (dt < min_ms) min_ms = dt;
         if (dt > max_ms) max_ms = dt;
     }
 
-    for (int i = 1; i < frames; i++)
+    if (recorded == 0)
+    {
+        fprintf(stderr, "FAIL: no frames completed\n");
+        free(frame_ms);
+        return 1;
+    }
+
+    for (int i = 1; i < recorded; i++)
     {
         double key = frame_ms[i];
         int j = i - 1;
@@ -180,12 +193,12 @@ int main(int argc, char **argv)
         }
         frame_ms[j + 1] = key;
     }
-    double p50 = frame_ms[frames / 2];
-    double p95 = frame_ms[(int)((double)frames * 0.95)];
-    double p99 = frame_ms[(int)((double)frames * 0.99)];
-    double avg_ms = total_ms / frames;
+    double p50 = frame_ms[recorded / 2];
+    double p95 = frame_ms[(int)((double)recorded * 0.95)];
+    double p99 = frame_ms[(int)((double)recorded * 0.99)];
+    double avg_ms = total_ms / recorded;
 
-    printf("\n--- results (%d frames, real DRM commit + page-flip wait) ---\n", frames);
+    printf("\n--- results (%d frames, real DRM commit + page-flip wait) ---\n", recorded);
     printf("avg: %6.2f ms  (%6.1f fps)\n", avg_ms, 1000.0 / avg_ms);
     printf("min: %6.2f ms  (%6.1f fps)\n", min_ms, 1000.0 / min_ms);
     printf("p50: %6.2f ms  (%6.1f fps)\n", p50, 1000.0 / p50);

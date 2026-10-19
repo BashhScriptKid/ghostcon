@@ -70,6 +70,8 @@ static int16_t find_entry(const ghostcon_hyperlink_set_t *set, const char *uri)
     if (set->capacity == 0)
         return -1;
 
+    if (set->capacity == 0)
+        return GC_HYPERLINK_ID_NONE; /* should be unreachable: create() enforces a minimum */
     uint32_t h = hash_uri(uri);
     uint16_t idx = h % set->capacity;
 
@@ -87,6 +89,8 @@ static int16_t find_entry(const ghostcon_hyperlink_set_t *set, const char *uri)
 
 static bool grow_table(ghostcon_hyperlink_set_t *set, uint16_t new_capacity)
 {
+    if (new_capacity == 0)
+        return false; /* capacity doubling overflowed */
     hyperlink_entry_t *old = set->entries;
     uint16_t old_cap = set->capacity;
 

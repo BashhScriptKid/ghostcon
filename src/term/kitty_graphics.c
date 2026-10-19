@@ -1007,7 +1007,8 @@ static void handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t
                       "error=EINVAL:payload exceeds declared size");
             return;
         }
-        memcpy(img->recv_buf + img->recv_len, decoded, decoded_len);
+        if (decoded && decoded_len > 0)
+            memcpy(img->recv_buf + img->recv_len, decoded, decoded_len);
         img->recv_len += decoded_len;
         free(decoded);
         return; /* no ack for intermediate chunks */
@@ -1032,7 +1033,8 @@ static void handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t
                       "error=EINVAL:size mismatch");
             return;
         }
-        memcpy(img->recv_buf + img->recv_len, decoded, decoded_len);
+        if (decoded && decoded_len > 0)
+            memcpy(img->recv_buf + img->recv_len, decoded, decoded_len);
         img->recv_len += decoded_len;
         free(decoded);
         final_pixels = img->recv_buf;
