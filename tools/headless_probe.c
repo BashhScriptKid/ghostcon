@@ -156,12 +156,15 @@ main(int argc, char **argv)
         int r = poll(&pfd, 1, 200);
         if (r < 0)
         {
-            if (errno == EINTR) continue; break;
+            if (errno == EINTR)
+                continue;
+            break;
         }
         if (r == 0)
         {
             deadline_ms -= 200;
-            if (deadline_ms <= 0) break;
+            if (deadline_ms <= 0)
+                break;
             continue;
         }
         if (pfd.revents & (POLLIN | POLLHUP))
@@ -188,11 +191,16 @@ main(int argc, char **argv)
             int r = poll(&pfd, 1, 200);
             if (r < 0)
             {
-                if (errno == EINTR) continue; break;
+                if (errno == EINTR)
+                    continue;
+                break;
             }
             if (r == 0)
             {
-                extra_ms -= 200; if (extra_ms <= 0) break; continue;
+                extra_ms -= 200;
+                if (extra_ms <= 0)
+                    break;
+                continue;
             }
             if (pfd.revents & (POLLIN | POLLHUP))
             {
