@@ -16,8 +16,9 @@
 
 /* Computes which cursor state (e.g. DEFAULT vs LINK for hyperlinks) the
  * pointer should display based on its pixel position over the terminal
- * grid. Returns GC_CURSOR_STATE_DEFAULT if not over a hyperlink or out of
- * bounds.
+ * grid.
+ *
+ * Returns GC_CURSOR_STATE_DEFAULT if not over a hyperlink or out of bounds.
  */
 ghostcon_cursor_state_t ghostcon_ui_compute_cursor_state(ghostcon_screen_t *screen,
                                                          int cell_w, int cell_h,

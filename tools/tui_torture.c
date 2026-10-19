@@ -1,20 +1,21 @@
-/* tui_torture -- a plain terminal client (no libghostcon dependency at
- * all, unlike tools/bench_*.c) that emits real VT escape sequences to
- * stdout, choreographed to reproduce the specific redraw idioms real
- * full-screen TUIs use (fixed status/input areas, synchronized-output
- * batches, alt-screen dips, scrollback churn, ...). Meant to be run
- * from an interactive shell INSIDE ghostcon itself (tty4), so each
- * page exercises the real parser -> screen -> renderer pipeline
- * end-to-end -- turning "does this real complex TUI glitch" into
- * "does this one specific, isolated, repeatable pattern glitch."
+/* tui_torture -- a plain terminal client (no libghostcon dependency at all,
+ * unlike tools/bench_*.c) that emits real VT escape sequences to stdout,
+ * choreographed to reproduce the specific redraw idioms real full-screen
+ * TUIs use (fixed status/input areas, synchronized-output batches,
+ * alt-screen dips, scrollback churn, ...).
+ *
+ * Meant to be run from an interactive shell INSIDE ghostcon itself (tty4),
+ * so each page exercises the real parser -> screen -> renderer pipeline
+ * end-to-end -- turning "does this real complex TUI glitch" into "does this
+ * one specific, isolated, repeatable pattern glitch."
  *
  * Usage:
  *   tui_torture --list            list all pages
  *   tui_torture <page>            run just that one page
  *   tui_torture [--all]           run every page in sequence
  *
- * In --all / no-args mode, each page waits for Enter before advancing
- * so you have time to look and call out which one (if any) glitches.
+ * In --all / no-args mode, each page waits for Enter before advancing so
+ * you have time to look and call out which one (if any) glitches.
  */
 
 #define _DEFAULT_SOURCE /* usleep() under -std=c11 without this */
@@ -33,10 +34,11 @@
  * exactly like a real keystroke -- the kernel tty line discipline's ECHO
  * flag then reflects those bytes straight back out to the display as
  * literal text before this program ever reads them, regardless of whether a
- * human typed them or ghostcon injected them. Found live: exactly this made
- * those pages' output unreadable. Disabling ECHO for the whole run (ICANON
- * stays on, so wait_enter()'s line-buffered getchar() loop is unaffected)
- * suppresses it.
+ * human typed them or ghostcon injected them.
+ *
+ * Found live: exactly this made those pages' output unreadable. Disabling
+ * ECHO for the whole run (ICANON stays on, so wait_enter()'s line-buffered
+ * getchar() loop is unaffected) suppresses it.
  */
 static struct termios g_orig_termios;
 static bool g_termios_saved = false;
@@ -71,9 +73,11 @@ static void banner(const char *title, const char *desc)
      * screen to draw on top of, but they don't all fully overwrite every
      * cell they touch (e.g. a shorter line printed where the inverse-video
      * title bar above was longer), which would otherwise leave leftover
-     * styled characters from this banner behind. Found live: reproduced
-     * identically on real Ghostty used as a control, confirming it's a bug
-     * in this tool's own output sequencing, not a terminal rendering bug.
+     * styled characters from this banner behind.
+     *
+     * Found live: reproduced identically on real Ghostty used as a control,
+     * confirming it's a bug in this tool's own output sequencing, not a
+     * terminal rendering bug.
      */
     printf(ESC "[2J" ESC "[H");
     fflush(stdout);
@@ -92,9 +96,10 @@ static void wait_enter(void)
 /* Pages */
 
 /* Bare \r progress-line redraw, no cursor positioning or scroll region at
- * all -- the simplest and most common "spinner"/progress idiom. Interleaved
- * with plain log lines that scroll normally, so the spinner line keeps
- * moving down the screen as it's rewritten.
+ * all -- the simplest and most common "spinner"/progress idiom.
+ *
+ * Interleaved with plain log lines that scroll normally, so the spinner
+ * line keeps moving down the screen as it's rewritten.
  */
 static void page_cr_redraw(void)
 {
@@ -134,10 +139,12 @@ static void page_scroll_status_bar(void)
     {
         printf("scrolling content line %d\r\n", i);
         /* Save the in-region cursor position before jumping down to redraw
-         * the reserved status/input area, and restore it right after --
-         * otherwise the NEXT iteration's content line gets printed wherever
-         * the status/input redraw left the cursor (the reserved area
-         * itself), never actually reaching the visible scrollable region.
+         * the reserved status/input area, and restore it right after
+         * --otherwise the NEXT iteration's content line gets printed
+         * wherever the status/input redraw left the cursor (the reserved
+         * area itself), never actually reaching the visible scrollable
+         * region.
+         *
          * Found live: without this, only the very first content line ever
          * showed.
          */

@@ -1,8 +1,8 @@
-/*
- * test_mouse -- pure-CPU unit test for term/mouse.c's
- * ghostcon_mouse_encode(). No libinput/hardware dependency, matching
- * tests/test_input.c's own split between the pure encoder and the
- * real dispatch loop.
+/* test_mouse -- pure-CPU unit test for term/mouse.c's
+ * ghostcon_mouse_encode().
+ *
+ * No libinput/hardware dependency, matching tests/test_input.c's own split
+ * between the pure encoder and the real dispatch loop.
  */
 
 #include "ghostcon/term/mouse.h"

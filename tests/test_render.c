@@ -1,14 +1,16 @@
-/*
- * test_render — Phase 1 item 2 smoke test for the GLES2 renderer.
+/* test_render — Phase 1 item 2 smoke test for the GLES2 renderer.
  *
- * Headless: renders to a GBM surface backed by a DRM render node (no
- * DRM master / KMS scanout needed — see core/egl.h). Feeds known text
- * into a ghostcon_term_t, renders it via atlas+gles+machine, reads back
- * the framebuffer with glReadPixels, and verifies glyph pixels actually
- * differ from the background (i.e. something was drawn, not just a
- * clear color). Does NOT exercise core/kms.c (real scanout) — that
- * needs a VT switch away from the live desktop session; see PLAN.md's
- * Phase 1 item 2 note for that follow-up.
+ * Headless: renders to a GBM surface backed by a DRM render node (no DRM
+ * master / KMS scanout needed — see core/egl.h).
+ *
+ * Feeds known text into a ghostcon_term_t, renders it via
+ * atlas+gles+machine, reads back the framebuffer with glReadPixels, and
+ * verifies glyph pixels actually differ from the background (i.e. something
+ * was drawn, not just a clear color).
+ *
+ * Does NOT exercise core/kms.c (real scanout) — that needs a VT switch away
+ * from the live desktop session; see PLAN.md's Phase 1 item 2 note for that
+ * follow-up.
  */
 
 #include "ghostcon/core/egl.h"

@@ -15,9 +15,10 @@
  *
  * Channels are enabled via GHOSTCON_LOG (a comma-separated domain list;
  * "all" is a wildcard). Unset/empty = every GC_LOG site silent, so normal
- * operation logs no more than before this file existed. Always-on channel
- * remains journald warnings (ghostcon_diag_log_warning) -- nothing here
- * replaces that.
+ * operation logs no more than before this file existed.
+ *
+ * Always-on channel remains journald warnings (ghostcon_diag_log_warning)
+ * -- nothing here replaces that.
  *
  * GHOSTCON_LOG=input,selection ghostcon-core 4   # two domains
  * GHOSTCON_LOG=vt,drm          ghostcon-core 4   # VT + KMS
@@ -39,9 +40,10 @@
  */
 
 /* Pure token matcher: does `spec` (comma-separated, NULL/empty = no)
- * contain the token `domain`, or the wildcard "all"? Exposed (not hidden
- * inside the macro) so tests/unit code can exercise the parsing rules
- * without the env-var static state.
+ * contain the token `domain`, or the wildcard "all"?
+ *
+ * Exposed (not hidden inside the macro) so tests/unit code can exercise the
+ * parsing rules without the env-var static state.
  */
 static inline int
 gc_log_domain_matches(const char *spec, const char *domain)

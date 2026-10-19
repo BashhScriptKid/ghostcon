@@ -1,5 +1,4 @@
-/*
- * supervisor[ttyN] — per-VT lifecycle manager.
+/* supervisor[ttyN] — per-VT lifecycle manager.
  *
  * State machine (PLAN.md "Supervision layer"):
  *
@@ -12,10 +11,11 @@
  *   FALLBACK -> SIGHUP ("user requests ghostcon") -> kill fallback -> SPAWNING
  *
  * The canary is deliberately dumb (PLAN.md "Philosophy"): silence past a
- * deadline = treat as dead, full stop, no attempt to diagnose why. The
- * startup race timer and the ongoing canary are the SAME mechanism (one
- * poll(canary_fd, POLLIN|POLLHUP, deadline) call) -- the only difference
- * is what "timeout" means for the current state (fall back vs. retry).
+ * deadline = treat as dead, full stop, no attempt to diagnose why.
+ *
+ * The startup race timer and the ongoing canary are the SAME mechanism (one
+ * poll(canary_fd, POLLIN|POLLHUP, deadline) call) -- the only difference is
+ * what "timeout" means for the current state (fall back vs. retry).
  *
  * Env var overrides (no TOML config yet, same precedent as ghost-ptyserv):
  *   GHOSTCON_CORE_BIN        - path to the renderer binary (default
@@ -40,16 +40,17 @@
  *                              this path working; fix the default
  *                              instead if it's ever wrong again.
  *
- * Usage: supervisor <vtnum> [registry_socket] [drm_node]
- * (registry_socket first since that's what undead-head actually has to
- * pass through -- drm_node is a supervisor-local hardware detail
- * undead-head doesn't need to know about. Internally reordered to
- * ghostcon-core's own <vtnum> [drm_node] [registry_socket] argv when
- * spawning it -- see spawn_renderer.)
+ * Usage: supervisor <vtnum> [registry_socket] [drm_node] (registry_socket
+ * first since that's what undead-head actually has to pass through
+ * --drm_node is a supervisor-local hardware detail undead-head doesn't need
+ * to know about.
  *
- * GHOSTCON_CORE_BIN's default resolution does NOT fall back to a bare
- * name + PATH lookup -- see undead_head/main.c's file comment (same
- * reasoning applies here: this runs under pkexec, PATH isn't trustworthy).
+ * Internally reordered to ghostcon-core's own <vtnum> [drm_node]
+ * [registry_socket] argv when spawning it -- see spawn_renderer.)
+ *
+ * GHOSTCON_CORE_BIN's default resolution does NOT fall back to a bare name
+ * + PATH lookup -- see undead_head/main.c's file comment (same reasoning
+ * applies here: this runs under pkexec, PATH isn't trustworthy).
  */
 
 #define _DEFAULT_SOURCE
@@ -79,8 +80,9 @@
 
 /* Resolves `name` relative to this executable's own directory (via
  * /proc/self/exe) instead of trusting PATH -- see this file's header
- * comment on GHOSTCON_CORE_BIN. Falls back to the bare name only if
- * /proc/self/exe itself is unavailable.
+ * comment on GHOSTCON_CORE_BIN.
+ *
+ * Falls back to the bare name only if /proc/self/exe itself is unavailable.
  */
 static void
 resolve_sibling_path(char *out, size_t out_len, const char *name)
@@ -215,11 +217,14 @@ static void kill_and_reap(pid_t pid, int canary_fd)
 /* Looks up the real pty child pid via ghost-ptyserv's registry (same "GET
  * <vtnum>" protocol ghostcon-core's own transport.c uses to connect) so the
  * recovery file records something a human/tool can actually act on, instead
- * of a permanent placeholder. Returns -1 on any failure (registry
- * unreachable, no pty child registered for this vt yet -- e.g. a
- * startup_timeout so early ghostcon-core never got as far as querying the
- * registry itself) -- same conservative fallback the caller already had
- * before this existed, just no longer the ONLY possible outcome.
+ * of a permanent placeholder.
+ *
+ * Returns -1 on any failure (registry unreachable, no pty child registered
+ * for this vt yet -- e.g. a startup_timeout so early ghostcon-core never
+ * got as far as querying the registry itself) -- same conservative fallback
+ * the caller already had before this existed, just no longer the ONLY
+ * possible outcome.
+ *
  * Best-effort and deliberately simple: a short, bounded round-trip on the
  * same registry socket the renderer itself would use, not a persistent
  * connection.
@@ -236,10 +241,11 @@ static pid_t query_pty_child_pid(const char *registry_socket, int vtnum)
      * or simply slow) must not be able to block this process indefinitely
      * -- that would turn a "write a diagnostic recovery file" call into
      * exactly the kind of wedged-event-loop condition this whole project
-     * exists to detect and recover from in OTHER processes. Found live via
-     * test_undead_head.c timing out after this function was added without a
-     * timeout: a plain blocking read() here has no such protection on its
-     * own.
+     * exists to detect and recover from in OTHER processes.
+     *
+     * Found live via test_undead_head.c timing out after this function was
+     * added without a timeout: a plain blocking read() here has no such
+     * protection on its own.
      */
     struct timeval tv = { .tv_sec = 0, .tv_usec = 500000 };
     setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
@@ -313,7 +319,9 @@ static void wall_broadcast(int vtnum, const char *reason)
     /* Test-only override -- a real rate limit test waiting out the actual
      * 60s window would be needlessly slow; this exercises the exact same
      * rate-limit logic against a much shorter window instead of changing
-     * what ships. Defaults to the real constant when unset.
+     * what ships.
+     *
+     * Defaults to the real constant when unset.
      */
     long rate_limit_secs = WALL_RATE_LIMIT_SECS;
     const char *rate_override = getenv("GHOSTCON_WALL_RATE_LIMIT_SECS");
@@ -374,9 +382,11 @@ static pid_t spawn_kmscon_fallback(int vtnum)
         snprintf(vt_arg, sizeof(vt_arg), "--vt=tty%d", vtnum);
         /* Matches this system's real kmsconvt@.service invocation
          * (verified: /usr/lib/systemd/system/kmsconvt@.service) rather than
-         * a guessed one. --no-switchvt: don't fight the VT switch that's
-         * presumably already in flight (or absent, if we're just starting
-         * this VT fresh).
+         * a guessed one.
+         *
+         * --no-switchvt: don't fight the VT switch that's presumably
+         * already in flight (or absent, if we're just starting this VT
+         * fresh).
          */
         execlp("kmscon", "kmscon", vt_arg, "--no-switchvt", "--login", "--",
                "/sbin/agetty", "-8", "-o", "-p -- \\u", "--noclear", "--", "-",
@@ -435,12 +445,15 @@ static void apply_config_reload(const char *config_path, int vtnum, bool drm_nod
 /* Polls `state_fd` (canary_fd or the SIGHUP pipe, depending on which state
  * calls this) for `timeout_ms`, transparently handling and consuming config
  * hot-reload wakeups along the way so callers see exactly the same
- * poll()-return semantics they had before config watching existed. Without
- * this, a config-file-only wakeup (state_fd itself has nothing pending)
- * would make poll() return rv>0 with state_fd's revents at 0 --
- * indistinguishable, to the three existing state-machine call sites below,
- * from an actual timeout, which would incorrectly fire "renderer hung"/"did
- * not claim VT in time" purely because someone saved ghostcon.toml.
+ * poll()-return semantics they had before config watching existed.
+ *
+ * Without this, a config-file-only wakeup (state_fd itself has nothing
+ * pending) would make poll() return rv>0 with state_fd's revents at 0
+ * --indistinguishable, to the three existing state-machine call sites
+ * below, from an actual timeout, which would incorrectly fire "renderer
+ * hung"/"did not claim VT in time" purely because someone saved
+ * ghostcon.toml.
+ *
  * Instead: a config-only wakeup applies the reload and polls again rather
  * than returning.
  */
@@ -504,6 +517,7 @@ int main(int argc, char **argv)
      * fork_supervisor's own comment), so this env var is the actual
      * override path when launched via undead-head; note pkexec resets the
      * environment, so it must be set via `pkexec env GHOSTCON_DRM_NODE=...
+     *
      * CMD`, not a plain `VAR=val pkexec CMD` prefix (that only sets it in
      * the calling shell, never reaching the exec'd program).
      */
@@ -541,8 +555,10 @@ int main(int argc, char **argv)
      * of undead-head, same reasoning as every other process in this tree
      * per PLAN.md's "General config hot-reload" section (no
      * reload-propagation IPC between processes, each just re-reads the same
-     * file). Not fatal if either step fails --hot-reload just silently
-     * doesn't happen.
+     * file).
+     *
+     * Not fatal if either step fails --hot-reload just silently doesn't
+     * happen.
      */
     const char *config_path = getenv("GHOSTCON_CONFIG_PATH");
     if (!config_path)
@@ -643,11 +659,14 @@ int main(int argc, char **argv)
                  * returning 0 (that only happens on EOF), so a "drain until
                  * empty" loop like that hangs forever the moment the
                  * renderer actually goes silent -- exactly the case this
-                 * poll loop exists to detect. Any coalesced extra heartbeat
-                 * bytes just get left for the next iteration's read;
-                 * discarding them isn't needed since we don't count bytes,
-                 * only liveness. Found via test_supervisor.c's hang
-                 * scenario never completing.
+                 * poll loop exists to detect.
+                 *
+                 * Any coalesced extra heartbeat bytes just get left for the
+                 * next iteration's read; discarding them isn't needed since
+                 * we don't count bytes, only liveness.
+                 *
+                 * Found via test_supervisor.c's hang scenario never
+                 * completing.
                  */
                 uint8_t buf[64];
                 read(canary_fd, buf, sizeof(buf));

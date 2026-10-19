@@ -1,9 +1,7 @@
-/*
- * test_theme — covers term/theme.c's named presets: every preset name
- * is recognized and produces a sane, non-degenerate palette (distinct
- * fg/bg, all 16 ANSI slots actually set), and an unrecognized/empty
- * name is a no-op (returns false, palette untouched) rather than an
- * error.
+/* test_theme — covers term/theme.c's named presets: every preset name is
+ * recognized and produces a sane, non-degenerate palette (distinct fg/bg,
+ * all 16 ANSI slots actually set), and an unrecognized/empty name is a
+ * no-op (returns false, palette untouched) rather than an error.
  */
 
 #include "ghostcon/term/theme.h"

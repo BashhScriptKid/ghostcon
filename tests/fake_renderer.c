@@ -1,9 +1,9 @@
-/*
- * fake_renderer — stand-in for ghostcon-core, used only by
- * test_supervisor.c/test_undead_head.c. Speaks just enough of the
- * canary protocol (a byte per "frame" on GHOSTCON_CANARY_FD) to drive
- * supervisor's state machine through each scenario, without needing
- * real DRM/KMS/VT hardware.
+/* fake_renderer — stand-in for ghostcon-core, used only by
+ * test_supervisor.c/test_undead_head.c.
+ *
+ * Speaks just enough of the canary protocol (a byte per "frame" on
+ * GHOSTCON_CANARY_FD) to drive supervisor's state machine through each
+ * scenario, without needing real DRM/KMS/VT hardware.
  *
  * Behavior selected via env vars (all optional):
  *   FAKE_RENDERER_NEVER_HEARTBEAT - never write anything; just sleep.
@@ -96,9 +96,11 @@ int main(int argc, char **argv)
              * connect (see transport.h's own doc comment on
              * ghostcon_transport_connect()) -- i.e. output from a PRIOR
              * instance's session, not an echo of this instance's own write
-             * below. That ordering is what makes a "found" here actual
-             * proof of session continuity across a hang/respawn cycle, not
-             * just proof that some shell somewhere responds to input.
+             * below.
+             *
+             * That ordering is what makes a "found" here actual proof of
+             * session continuity across a hang/respawn cycle, not just
+             * proof that some shell somewhere responds to input.
              */
             const char *check = getenv("FAKE_RENDERER_CHECK_MARKER");
             if (check)

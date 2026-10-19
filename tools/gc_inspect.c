@@ -1,20 +1,21 @@
-/*
- * gc-inspect — headless terminal-state inspector.
+/* gc-inspect — headless terminal-state inspector.
  *
- * Feeds a recorded raw PTY byte stream through ghostcon's real parser
- * and screen model (the same code ghostcon-core runs), then prints the
+ * Feeds a recorded raw PTY byte stream through ghostcon's real parser and
+ * screen model (the same code ghostcon-core runs), then prints the
  * resulting grid cell by cell. No DRM, no EGL, no VT, no display needed.
  *
- * Why this exists (PLAN.md refactor 3.2, and CLAUDE.md's rendering-
- * parity debugging notes): the old dump paths reported only
- * *style*-based background information, so a cell whose background came
- * from the content-tag mechanism (GHOSTCON_CELL_BG_COLOR_PALETTE /
- * _RGB -- what ED/EL/ECH and scroll-produced blank rows use) looked
- * like "default" in every existing tool. This prints the tag AND its
- * payload explicitly, so that blind spot can't recur.
+ * Why this exists (PLAN.md refactor 3.2, and CLAUDE.md's rendering-parity
+ * debugging notes): the old dump paths reported only *style*-based
+ * background information, so a cell whose background came from the
+ * content-tag mechanism (GHOSTCON_CELL_BG_COLOR_PALETTE / _RGB -- what
+ * ED/EL/ECH and scroll-produced blank rows use) looked like "default" in
+ * every existing tool.
+ *
+ * This prints the tag AND its payload explicitly, so that blind spot can't
+ * recur.
  *
  * Usage:
- *   gc-inspect [options] <file.raw|-> 
+ *   gc-inspect [options] <file.raw|->
  *
  *   -             read the byte stream from stdin
  *   --cols N      grid width  (default 80)

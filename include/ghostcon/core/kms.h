@@ -14,16 +14,19 @@
  * Live-tested on the real machine as of this writing (PLAN.md has many
  * rounds of live verification: login/rendering fixes, the
  * leftover-cursor-plane fix, the hardware mouse cursor below) — the
- * "untested at runtime" note that used to be here is stale. Follows the
- * standard atomic-KMS pattern (query connector/CRTC/plane properties once
- * at init, then commit only FB_ID/CRTC_ID + geometry deltas per frame) —
- * see e.g. the kernel's drm-howto or Weston's drm-backend for the same
- * shape of code.
+ * "untested at runtime" note that used to be here is stale.
+ *
+ * Follows the standard atomic-KMS pattern (query connector/CRTC/plane
+ * properties once at init, then commit only FB_ID/CRTC_ID + geometry deltas
+ * per frame) — see e.g. the kernel's drm-howto or Weston's drm-backend for
+ * the same shape of code.
  *
  * Ownership split: this module does NOT call drmSetMaster/ drmDropMaster
  * itself — that's tied to the VT_PROCESS acquire/ release lifecycle, which
- * core/vtctl.c owns (PLAN.md "vtctl.c"). Callers must already hold DRM
- * master on `drm_path`'s fd before calling ghostcon_kms_init.
+ * core/vtctl.c owns (PLAN.md "vtctl.c").
+ *
+ * Callers must already hold DRM master on `drm_path`'s fd before calling
+ * ghostcon_kms_init.
  */
 
 typedef struct
@@ -113,10 +116,11 @@ bool ghostcon_kms_create_scanout_surface(ghostcon_kms_t *kms);
 bool ghostcon_kms_modeset(ghostcon_kms_t *kms);
 
 /* Non-blocking atomic page flip to the most recently swapped GBM buffer
- * (call after every subsequent eglSwapBuffers). Waits for the previous
- * flip's completion event first if one is still in flight — single-buffered
- * flip queue, matching PLAN.md's "no zero-copy" simplicity note for the
- * renderer.
+ * (call after every subsequent eglSwapBuffers).
+ *
+ * Waits for the previous flip's completion event first if one is still in
+ * flight — single-buffered flip queue, matching PLAN.md's "no zero-copy"
+ * simplicity note for the renderer.
  */
 bool ghostcon_kms_page_flip(ghostcon_kms_t *kms);
 
@@ -124,33 +128,41 @@ bool ghostcon_kms_page_flip(ghostcon_kms_t *kms);
  * (top-left origin, same space as everything else in this tree) -- the
  * ACTIVE state's own hot_x/hot_y (see ghostcon_kms_set_cursor_state()) is
  * subtracted internally, so callers always pass the raw pointer position,
- * never a pre-adjusted one. A cheap atomic commit touching only
- * CRTC_X/CRTC_Y (plus CRTC_ID/FB_ID on the very first call, to enable the
- * plane) -- deliberately NOT part of ghostcon_kms_page_flip()'s
- * per-content-frame path, so cursor movement latency doesn't depend on how
- * often the terminal content itself needs to redraw. No-op (returns true)
- * if no CURSOR-type plane was found at init (kms->cursor_plane_id == 0) or
- * the active state's image failed to set up -- matches this module's usual
- * "optional hardware feature" tolerance.
+ * never a pre-adjusted one.
+ *
+ * A cheap atomic commit touching only CRTC_X/CRTC_Y (plus CRTC_ID/FB_ID on
+ * the very first call, to enable the plane) -- deliberately NOT part of
+ * ghostcon_kms_page_flip()'s per-content-frame path, so cursor movement
+ * latency doesn't depend on how often the terminal content itself needs to
+ * redraw.
+ *
+ * No-op (returns true) if no CURSOR-type plane was found at init
+ * (kms->cursor_plane_id == 0) or the active state's image failed to set up
+ * -- matches this module's usual "optional hardware feature" tolerance.
  */
 bool ghostcon_kms_move_cursor(ghostcon_kms_t *kms, int x, int y);
 
 /* Sets/replaces the cursor image for one state (GC_CURSOR_STATE_DEFAULT/
- * LINK). `pixels` (ARGB8888, row-major, w*h) is letterboxed (centered,
- * transparent padding) into the fixed square canvas -- same amdgpu
- * square-cursor-plane constraint the procedural path already handles.
+ * LINK).
+ *
+ * `pixels` (ARGB8888, row-major, w*h) is letterboxed (centered, transparent
+ * padding) into the fixed square canvas -- same amdgpu square-cursor-plane
+ * constraint the procedural path already handles.
+ *
  * `pixels == NULL` means "no raster asset for this state" -- falls back to
  * the procedural I-beam (kmscon's own generate_ibeam_cursor() algorithm,
  * src/terminal.c -- a white stem with top/bottom serifs, dark halo outline)
  * sized from `fallback_font_height` (typically the terminal's current
  * cell_h), preserving the original behavior when nothing is configured.
+ *
  * Safe to call repeatedly (e.g. on a config hot-reload, or a font_size zoom
  * changing fallback_font_height) --destroys any previous image/FB for this
- * state first. No-op (returns true) if no CURSOR-type plane was found. If
- * this state is the currently-active one and the plane is already visible,
- * it's re-enabled on the next ghostcon_kms_move_cursor() call so the new
- * image actually gets committed (FB_ID isn't touched by move_cursor()'s
- * fast path once already enabled).
+ * state first. No-op (returns true) if no CURSOR-type plane was found.
+ *
+ * If this state is the currently-active one and the plane is already
+ * visible, it's re-enabled on the next ghostcon_kms_move_cursor() call so
+ * the new image actually gets committed (FB_ID isn't touched by
+ * move_cursor()'s fast path once already enabled).
  */
 bool ghostcon_kms_set_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t state,
                                     const uint32_t *pixels, uint32_t w, uint32_t h,
@@ -159,8 +171,9 @@ bool ghostcon_kms_set_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t 
 
 /* Switches which pre-loaded state's image is bound to the plane --e.g. call
  * when the pointer moves onto/off an OSC-8 hyperlink cell. A cheap atomic
- * commit (same class as ghostcon_kms_move_cursor()). No-op if `state` is
- * already the active one (avoids a redundant commit on every motion event
- * while hovering the same state continuously).
+ * commit (same class as ghostcon_kms_move_cursor()).
+ *
+ * No-op if `state` is already the active one (avoids a redundant commit on
+ * every motion event while hovering the same state continuously).
  */
 bool ghostcon_kms_set_cursor_state(ghostcon_kms_t *kms, ghostcon_cursor_state_t state);

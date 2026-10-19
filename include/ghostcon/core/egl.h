@@ -9,12 +9,15 @@
 /* GBM + EGL/GLES2 context
  *
  * Opens a DRM node and creates a GBM-backed EGL window surface plus a GLES2
- * context. GBM buffer allocation for *rendering* doesn't need DRM master —
- * only scanning a buffer out to a display does (that's core/kms.c's job,
- * layered on top of this). This means the same setup here works both
- * headless (render node, e.g. renderD128 — used by the render smoke test)
- * and for the real display path (primary node, e.g. card0/card1 — used once
- * kms.c owns the DRM master).
+ * context.
+ *
+ * GBM buffer allocation for *rendering* doesn't need DRM master — only
+ * scanning a buffer out to a display does (that's core/kms.c's job, layered
+ * on top of this).
+ *
+ * This means the same setup here works both headless (render node, e.g.
+ * renderD128 — used by the render smoke test) and for the real display path
+ * (primary node, e.g. card0/card1 — used once kms.c owns the DRM master).
  */
 
 typedef struct

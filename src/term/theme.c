@@ -4,6 +4,7 @@
 
 /* Real Ghostty theme catalog, generated from Ghostty's own bundled theme
  * files -- see theme_ghostty_presets.c and tools/gen_ghostty_themes.py.
+ *
  * Colors are stored as hex strings there (not pre-parsed RGB) so the
  * generator doesn't need its own hex-parsing implementation -- it reuses
  * ghostcon_color_parse_spec() below instead, same as everywhere else in the
@@ -104,11 +105,13 @@ ghostcon_theme_apply(ghostcon_palette_t *pal, const char *name)
 
     /* Fall back to the generated Ghostty catalog -- case-sensitive exact
      * match, same as Ghostty's own theme names, so a `theme = "..."` value
-     * copied verbatim out of a real Ghostty config just works. A malformed
-     * hex string in one of these (shouldn't happen -- the generator only
-     * emits values ghostcon_color_parse_spec already validated) just leaves
-     * that one slot unset rather than aborting the whole theme, same
-     * "degrade gracefully" convention used elsewhere in this codebase.
+     * copied verbatim out of a real Ghostty config just works.
+     *
+     * A malformed hex string in one of these (shouldn't happen -- the
+     * generator only emits values ghostcon_color_parse_spec already
+     * validated) just leaves that one slot unset rather than aborting the
+     * whole theme, same "degrade gracefully" convention used elsewhere in
+     * this codebase.
      */
     for (int i = 0; i < GHOSTCON_GHOSTTY_PRESET_COUNT; i++)
     {

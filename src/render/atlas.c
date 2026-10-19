@@ -16,6 +16,7 @@
 
 /* Fixed-size open-addressing hash table. Terminal glyph sets are small
  * (ASCII + a modest working set of Unicode) — no need for a resizable map.
+ *
  * GHOSTCON_ATLAS_MAX_GLYPHS is generous headroom, not a hard cap on what
  * any one session can display (a full atlas just means new glyphs stop
  * being cached and lose the ability to render, which is the same failure
@@ -36,8 +37,10 @@
 /* Bound for a color bitmap glyph's rasterized size -- see this file's
  * color-loading path in ghostcon_atlas_glyph() for why this needs to be
  * wider than the mono/outline path's 128x128 cap (a color font's fixed
- * strike size, not the target font_size_px). Still headroom, not a real
- * limit -- Noto Color Emoji's actual strike is 136x128.
+ * strike size, not the target font_size_px).
+ *
+ * Still headroom, not a real limit -- Noto Color Emoji's actual strike is
+ * 136x128.
  */
 #define GHOSTCON_ATLAS_COLOR_GLYPH_MAX 160
 
@@ -71,9 +74,10 @@ struct ghostcon_atlas {
     uint32_t pen_x, pen_y, shelf_h;
 
     /* Color glyph atlas -- separate bitmap/packer/dirty flag, same dim as
-     * the mask atlas above. See atlas.h's doc comment on
-     * ghostcon_glyph_t.is_color for why this can't share the mask atlas's
-     * storage or packer state.
+     * the mask atlas above.
+     *
+     * See atlas.h's doc comment on ghostcon_glyph_t.is_color for why this
+     * can't share the mask atlas's storage or packer state.
      */
     uint8_t *color_bitmap; /* dim * dim * 4, RGBA (straight alpha) */
     bool     color_dirty;
@@ -89,16 +93,19 @@ struct ghostcon_atlas {
      * from -- the same ordered candidate list a normal desktop app gets
      * "for free" via its toolkit, not a hardcoded list this project would
      * have to maintain and which would inevitably miss whatever fonts are
-     * actually installed on a given system. Faces are opened lazily (most
-     * users never need more than the first one or two candidates that
-     * actually cover their content) and cached in fallback_faces,
-     * parallel-indexed to fallback_set; a NULL entry means "not tried yet",
-     * (FT_Face)(intptr_t)-1 means "tried and failed to open" so a broken
-     * font file in the list isn't retried on every miss. Found live: the
-     * default font had no glyph at all for several emoji/Nerd-Font-icon
-     * codepoints, and ghostcon_atlas_glyph() just returned NULL -- the
-     * renderer skipped drawing anything rather than trying any other
-     * installed font that DID have the glyph.
+     * actually installed on a given system.
+     *
+     * Faces are opened lazily (most users never need more than the first
+     * one or two candidates that actually cover their content) and cached
+     * in fallback_faces, parallel-indexed to fallback_set; a NULL entry
+     * means "not tried yet", (FT_Face)(intptr_t)-1 means "tried and failed
+     * to open" so a broken font file in the list isn't retried on every
+     * miss.
+     *
+     * Found live: the default font had no glyph at all for several
+     * emoji/Nerd-Font-icon codepoints, and ghostcon_atlas_glyph() just
+     * returned NULL -- the renderer skipped drawing anything rather than
+     * trying any other installed font that DID have the glyph.
      */
     FcFontSet *fallback_set;
     FT_Face   *fallback_faces;
@@ -200,11 +207,12 @@ ghostcon_atlas_create(const char *font_family, const char *font_variant,
 
     /* Same pattern the primary match above came from, but sorted (not just
      * best-matched) -- fontconfig's own system fallback order, respecting
-     * whatever fallback config this machine actually has. Best-effort: a
-     * NULL result here just means no fallback chain (atlas->fallback_set
-     * stays NULL, glyph lookup falls back to "primary lacks it -> give up",
-     * same as before this feature existed), not a fatal error for the whole
-     * atlas.
+     * whatever fallback config this machine actually has.
+     *
+     * Best-effort: a NULL result here just means no fallback chain
+     * (atlas->fallback_set stays NULL, glyph lookup falls back to "primary
+     * lacks it -> give up", same as before this feature existed), not a
+     * fatal error for the whole atlas.
      */
     FcResult sort_result;
     atlas->fallback_set = FcFontSort(NULL, pat, FcTrue, NULL, &sort_result);
@@ -246,13 +254,14 @@ ghostcon_atlas_create(const char *font_family, const char *font_variant,
     if (atlas->cell_h <= 0)
         atlas->cell_h = font_size_px + 2;
 
-    /* Baseline offset from the cell's top edge. Must come from the font's
-     * line metrics (ascender), NOT from any per-glyph bearing — anchoring
-     * per-glyph would put descenders (g, q, y, p, j) at a different
-     * baseline than the rest of the line and, worse, using cell_h itself as
-     * the anchor (as an earlier version of this code did) leaves zero room
-     * below the baseline, so descenders spill into the next row and get
-     * overdrawn by its background quad.
+    /* Baseline offset from the cell's top edge.
+     *
+     * Must come from the font's line metrics (ascender), NOT from any
+     * per-glyph bearing — anchoring per-glyph would put descenders (g, q,
+     * y, p, j) at a different baseline than the rest of the line and,
+     * worse, using cell_h itself as the anchor (as an earlier version of
+     * this code did) leaves zero room below the baseline, so descenders
+     * spill into the next row and get overdrawn by its background quad.
      */
     atlas->ascent = (int)(atlas->face->size->metrics.ascender >> 6);
     if (atlas->ascent <= 0)
@@ -268,8 +277,10 @@ ghostcon_atlas_create(const char *font_family, const char *font_variant,
 
     /* Reserve a 2x2 opaque block at the atlas origin for solid-color quads
      * (background cells, cursor) — see ghostcon_atlas_reserved_uv() and
-     * render/gles.c's push_rect. Advance the shelf packer past it so no
-     * real glyph ever lands there. 3 bytes/pixel now (RGB atlas).
+     * render/gles.c's push_rect.
+     *
+     * Advance the shelf packer past it so no real glyph ever lands there. 3
+     * bytes/pixel now (RGB atlas).
      */
     memset(atlas->bitmap, 0xFF, 6);                                   /* row 0: (0,0) (1,0) */
     memset(atlas->bitmap + (size_t)atlas_dim * 3, 0xFF, 6);           /* row 1: (0,1) (1,1) */
@@ -323,11 +334,13 @@ void ghostcon_atlas_destroy(ghostcon_atlas_t *atlas)
  * file's helpers below for how each FreeType pixel mode gets converted to
  * that shape) into the atlas and fills in `slot->glyph`, sharing the exact
  * packing logic between the font path and the procedural box-drawing path
- * below. `pitch` is the source's stride in bytes (i.e. width*3 for a
+ * below.
+ *
+ * `pitch` is the source's stride in bytes (i.e. width*3 for a
  * tightly-packed source). bearing_x/ bearing_y are passed through as-is
  * (see box_draw.c call site for why the procedural path passes bearing_y =
- * atlas->ascent: it makes machine.c's existing "gy = py + ascent -
- * bearing_y" placement formula land the glyph at exactly the cell's
+ * atlas->ascent: it makes machine.c's existing "gy = py + ascent
+ * -bearing_y" placement formula land the glyph at exactly the cell's
  * top-left corner, with no changes needed to machine.c or gles.c).
  */
 static const ghostcon_glyph_t *
@@ -377,7 +390,9 @@ pack_bitmap(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t codepoint,
 /* Same shelf-packing scheme as pack_bitmap() above, into the SEPARATE color
  * atlas/pen state instead -- see atlas.h's doc comment on
  * ghostcon_glyph_t.is_color for why color glyphs can't share the mask
- * atlas's storage. `pitch` is width*4 for a tightly-packed RGBA source.
+ * atlas's storage.
+ *
+ * `pitch` is width*4 for a tightly-packed RGBA source.
  */
 static const ghostcon_glyph_t *
 pack_bitmap_rgba(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t codepoint,
@@ -427,12 +442,13 @@ pack_bitmap_rgba(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t codepoint
 /* Picks the fixed bitmap strike (face->available_sizes) whose height is
  * closest to target_px -- color bitmap fonts (CBDT/CBLC, e.g. Noto Color
  * Emoji) ship a handful of discrete pre-rendered sizes, not a scalable
- * outline, so there's no exact match in general. The chosen strike's actual
- * pixel size (not target_px) becomes the glyph's width/height; machine.c's
- * existing symbol-constraint shrink-to-fit path (ghostcon_cell_is_symbol()
- * now covers emoji -- see cell.c) already handles the mismatch between
- * whatever strike this picks and the cell's actual size, so no separate
- * scaling logic is needed here.
+ * outline, so there's no exact match in general.
+ *
+ * The chosen strike's actual pixel size (not target_px) becomes the glyph's
+ * width/height; machine.c's existing symbol-constraint shrink-to-fit path
+ * (ghostcon_cell_is_symbol() now covers emoji -- see cell.c) already
+ * handles the mismatch between whatever strike this picks and the cell's
+ * actual size, so no separate scaling logic is needed here.
  */
 static int best_fixed_size_index(FT_Face face, int target_px)
 {
@@ -452,23 +468,30 @@ static int best_fixed_size_index(FT_Face face, int target_px)
 
 /* Returns the first face (the primary face, or a lazily-opened fallback
  * from atlas->fallback_set) that actually has a glyph for `codepoint`, and
- * sets *out_gidx to that face's glyph index for it. Returns NULL if none of
- * them do -- same "give up" outcome as before this fallback chain existed,
- * just checked against more than one font first.
+ * sets *out_gidx to that face's glyph index for it.
+ *
+ * Returns NULL if none of them do -- same "give up" outcome as before this
+ * fallback chain existed, just checked against more than one font first.
  *
  * Scans the WHOLE fallback list (not stopping at the first hit) because
  * fontconfig's sort order is generic font-similarity, not "best format for
  * this codepoint" -- found live: for an emoji codepoint, a plain outline
- * font (e.g. DejaVu Sans, which has a monochrome fallback glyph for a lot
- * of emoji) commonly ranks ahead of a real color-bitmap emoji font (e.g.
+ * font (e.g.
+ *
+ * DejaVu Sans, which has a monochrome fallback glyph for a lot of emoji)
+ * commonly ranks ahead of a real color-bitmap emoji font (e.g.
+ *
  * Noto Color Emoji) in that order, so stopping at the first match would
- * silently prefer the worse-looking glyph every time. A color-capable
- * face's glyph wins immediately when found; otherwise the first (in
- * fontconfig's order) ordinary match is used, same as before this
- * preference existed. The full scan only costs anything on a genuine cache
- * miss -- every candidate face opened here is cached in fallback_faces[],
- * so a repeat lookup for a different codepoint from the same fallback set
- * doesn't reopen anything.
+ * silently prefer the worse-looking glyph every time.
+ *
+ * A color-capable face's glyph wins immediately when found; otherwise the
+ * first (in fontconfig's order) ordinary match is used, same as before this
+ * preference existed.
+ *
+ * The full scan only costs anything on a genuine cache miss -- every
+ * candidate face opened here is cached in fallback_faces[], so a repeat
+ * lookup for a different codepoint from the same fallback set doesn't
+ * reopen anything.
  */
 static FT_Face
 find_face_for_codepoint(ghostcon_atlas_t *atlas, uint32_t codepoint, FT_UInt *out_gidx)
@@ -545,9 +568,10 @@ ghostcon_atlas_glyph(ghostcon_atlas_t *atlas, uint32_t codepoint)
      * bearing/padding that font happens to use around them, which is
      * invisible for ordinary letters but a visible seam for shapes meant to
      * connect seamlessly (found live: a TUI splash logo built from these
-     * characters rendered as a visible checkerboard of gaps). See
-     * box_draw.h's own doc comment for the full reasoning and PLAN.md for
-     * the live repro this fixes.
+     * characters rendered as a visible checkerboard of gaps).
+     *
+     * See box_draw.h's own doc comment for the full reasoning and PLAN.md
+     * for the live repro this fixes.
      */
     /* Cell dimensions come from font metrics at a fixed, small pixel size
      * (see core/main.c's FONT_SIZE) -- 128x128 is generous headroom, not a
@@ -590,6 +614,7 @@ ghostcon_atlas_glyph(ghostcon_atlas_t *atlas, uint32_t codepoint)
 /* Shared by ghostcon_atlas_glyph() (codepoint lookup, any face in the
  * fallback chain) and ghostcon_atlas_glyph_by_index() (raw glyph index in
  * the primary face, for HarfBuzz-shaped ligatures -- see atlas.h).
+ *
  * `slot_key` is whatever slot_find() was called with (a real codepoint for
  * the former, a synthetic 0x80000000|glyph_index for the latter) purely for
  * atlas_slot_t bookkeeping -- rendering itself only cares about face+gidx.
@@ -603,8 +628,10 @@ load_glyph_into_slot(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t slot_
      * FT_LOAD_COLOR (so FreeType hands back the color strike instead of
      * trying -- and failing -- to render an outline that doesn't exist for
      * this face), and FT_Select_Size to pick which discrete strike size,
-     * since these fonts aren't scalable. See best_fixed_size_index()'s doc
-     * comment above for why an exact size match isn't expected or needed.
+     * since these fonts aren't scalable.
+     *
+     * See best_fixed_size_index()'s doc comment above for why an exact size
+     * match isn't expected or needed.
      */
     if (FT_HAS_COLOR(face))
     {
@@ -680,25 +707,29 @@ load_glyph_into_slot(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t slot_
      * down to a replicated mask (GC_ATLAS_AA_SUBPIXEL --LCD-optimized
      * hinting only, no real subpixel color) or copied through as genuine
      * per-subpixel coverage, respecting the configured physical subpixel
-     * order (GC_ATLAS_AA_CLEARTYPE). Bounded scratch buffer matches the
-     * box-drawing path's own 128x128 headroom precedent above -- an
-     * absurdly large glyph at any sane font size just silently doesn't
-     * render, same "give up gracefully" convention as an
-     * atlas-full/no-outline miss elsewhere in this function.
+     * order (GC_ATLAS_AA_CLEARTYPE).
+     *
+     * Bounded scratch buffer matches the box-drawing path's own 128x128
+     * headroom precedent above -- an absurdly large glyph at any sane font
+     * size just silently doesn't render, same "give up gracefully"
+     * convention as an atlas-full/no-outline miss elsewhere in this
+     * function.
      *
      * A genuinely EMPTY bitmap (real_width==0 and/or bmp->rows==0) is NOT a
      * failure to reject here, unlike the too-large case -- found live: some
      * fonts' ligature substitutions (see ligature.h) use a real,
      * deliberately empty glyph for one half of a 2-glyph pair (JetBrains
-     * Mono does this for every pair this project tested). Rejecting it as
-     * if the load had failed sent ghostcon_atlas_glyph_by_index() down the
-     * "no glyph" path, which render/machine.c was (reasonably) treating as
-     * "fall back to the plain per-codepoint glyph" -- drawing a real,
-     * visible character where the font intended nothing to appear at all (a
-     * stray disconnected mark next to the real ligature glyph, e.g. "!="'s
-     * "!" leaving a tiny tick above the "≠"). pack_bitmap() below already
-     * handles width==0/rows==0 safely (copies nothing, packs a zero-size UV
-     * rect), so just let it through.
+     * Mono does this for every pair this project tested).
+     *
+     * Rejecting it as if the load had failed sent
+     * ghostcon_atlas_glyph_by_index() down the "no glyph" path, which
+     * render/machine.c was (reasonably) treating as "fall back to the plain
+     * per-codepoint glyph" -- drawing a real, visible character where the
+     * font intended nothing to appear at all (a stray disconnected mark
+     * next to the real ligature glyph, e.g. "!="'s "!" leaving a tiny tick
+     * above the "≠"). pack_bitmap() below already handles width==0/rows==0
+     * safely (copies nothing, packs a zero-size UV rect), so just let it
+     * through.
      */
     unsigned real_width = (bmp->pixel_mode == FT_PIXEL_MODE_LCD) ? bmp->width / 3 : bmp->width;
     if (real_width > 128 || bmp->rows > 128)
@@ -720,11 +751,12 @@ load_glyph_into_slot(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t slot_
         case FT_PIXEL_MODE_LCD:
             if (atlas->aa_mode == GC_ATLAS_AA_CLEARTYPE)
             {
-                /* Real per-subpixel coverage. FreeType always writes bytes
-                 * in physical left-to-right order; map that to R/G/B
-                 * according to the panel's actual subpixel order -- getting
-                 * this backwards produces visible color fringing instead of
-                 * removing it.
+                /* Real per-subpixel coverage.
+                 *
+                 * FreeType always writes bytes in physical left-to-right
+                 * order; map that to R/G/B according to the panel's actual
+                 * subpixel order -- getting this backwards produces visible
+                 * color fringing instead of removing it.
                  */
                 for (unsigned col = 0; col < real_width; col++)
                 {

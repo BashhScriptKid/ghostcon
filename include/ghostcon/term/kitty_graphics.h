@@ -67,10 +67,12 @@ typedef struct
     uint8_t *pixels; /* owned, width*height*bpp bytes */
     size_t   pixel_len;
     /* Bumped every time this slot's pixels are (re)populated by a
-     * transmission. Lets the renderer, which caches one GPU texture per
-     * image id, tell "same id, same data, texture still valid" apart from
-     * "same id, re-transmitted, texture is stale" without the term/ layer
-     * knowing anything about textures itself.
+     * transmission.
+     *
+     * Lets the renderer, which caches one GPU texture per image id, tell
+     * "same id, same data, texture still valid" apart from "same id,
+     * re-transmitted, texture is stale" without the term/ layer knowing
+     * anything about textures itself.
      */
     uint32_t generation;
 
@@ -107,16 +109,18 @@ typedef struct ghostcon_kitty_graphics {
      * crop/cell-scale/C=/p=, per spec) -- tracked here so the FINAL chunk,
      * where the placement actually gets created, can resolve back to what
      * the first chunk actually asked for instead of silently seeing
-     * "absent" (defaults) for all of it. -1 for the int64/int32 fields
-     * means no transfer in progress / value not yet captured.
+     * "absent" (defaults) for all of it.
+     *
+     * -1 for the int64/int32 fields means no transfer in progress / value
+     * not yet captured.
      *
      * Found live via a real chunked transfer (a 48x48 PNG's base64 exceeds
      * the 4096-byte per-chunk cap): only image_id and the display flag were
      * carried across chunks before this, so a chunked a=T,C=1 placement
      * lost C=1 on the final chunk and ghostcon's own cursor auto-advance
      * fired in ADDITION to whatever manual clearance the client was already
-     * doing itself (since C=1 exists specifically to prevent that) --
-     * silently doubling the vertical gap after any image large enough to
+     * doing itself (since C=1 exists specifically to prevent that)
+     * --silently doubling the vertical gap after any image large enough to
      * need chunking. z/crop/cell-scale have the exact same "only chunk 1
      * carries it" exposure; fixed for all of them together rather than
      * patching just the one symptom that happened to be reproduced first.
@@ -135,10 +139,12 @@ void ghostcon_kitty_graphics_init(ghostcon_kitty_graphics_t *kg);
 void ghostcon_kitty_graphics_deinit(ghostcon_kitty_graphics_t *kg);
 
 /* Looks up an image by id (NULL if not present or not yet fully
- * transmitted). Read-only accessor for the renderer -- see
- * render/machine.c, which walks kg->placements[] itself (a plain fixed
- * array, no accessor needed for that part) but needs this to resolve each
- * placement's image_id back to pixel data.
+ * transmitted).
+ *
+ * Read-only accessor for the renderer -- see render/machine.c, which walks
+ * kg->placements[] itself (a plain fixed array, no accessor needed for that
+ * part) but needs this to resolve each placement's image_id back to pixel
+ * data.
  */
 const ghostcon_kitty_image_t *ghostcon_kitty_graphics_find_image(
     const ghostcon_kitty_graphics_t *kg, uint32_t id);
@@ -148,9 +154,10 @@ const ghostcon_kitty_image_t *ghostcon_kitty_graphics_find_image(
  * matching Ghostty's own default (cursor_movement=.after, suppressed only
  * by an explicit C=1 key): advance `rows` lines via normal linefeed
  * semantics (so it scrolls correctly at the bottom of a scroll region,
- * unlike just incrementing cursor.y), then set the column to `col`. This
- * module never touches screen state directly --see this header's own top
- * comment -- so it hands back what to do rather than doing it, keeping
+ * unlike just incrementing cursor.y), then set the column to `col`.
+ *
+ * This module never touches screen state directly --see this header's own
+ * top comment -- so it hands back what to do rather than doing it, keeping
  * stream.c as the one place that actually knows how to move a cursor.
  * moved=false means don't move it at all (C=1 was set, or the placement
  * wasn't a screen-anchored one).
@@ -168,9 +175,11 @@ typedef struct
  * the renderer's current cell pixel size, needed to compute how many
  * rows/columns a placement occupies for the post-placement cursor move
  * below -- pass 0 for either if unknown, which suppresses that move
- * entirely (better than guessing wrong). Acks (OK/error) are written via
- * output_fn per the command's q= quiet level. On return, out_move (if
- * non-NULL) describes any cursor move the caller should apply.
+ * entirely (better than guessing wrong).
+ *
+ * Acks (OK/error) are written via output_fn per the command's q= quiet
+ * level. On return, out_move (if non-NULL) describes any cursor move the
+ * caller should apply.
  */
 void ghostcon_kitty_graphics_handle(ghostcon_kitty_graphics_t *kg,
                                     const char *body, size_t body_len,

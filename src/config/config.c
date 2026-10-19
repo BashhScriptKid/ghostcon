@@ -195,13 +195,16 @@ void ghostcon_config_export_env(const ghostcon_config_t *cfg, const char *config
     snprintf(buf, sizeof(buf), "%d", cfg->canary_deadline_ms);
     setenv("GHOSTCON_CANARY_DEADLINE_MS", buf, ow);
 
-    /* Readers check presence only (getenv() truthiness), not the value --
-     * "1" means on, ABSENT means off. On a plain startup export
-     * (overwrite=false) that's already correct by construction: a false
-     * bool here just never calls setenv, leaving it absent. On a hot-reload
-     * export (overwrite=true) a bool can flip in either direction, so a
-     * false value must actively unsetenv() a previously-true one, not just
-     * skip setenv().
+    /* Readers check presence only (getenv() truthiness), not the value
+     * --"1" means on, ABSENT means off.
+     *
+     * On a plain startup export (overwrite=false) that's already correct by
+     * construction: a false bool here just never calls setenv, leaving it
+     * absent.
+     *
+     * On a hot-reload export (overwrite=true) a bool can flip in either
+     * direction, so a false value must actively unsetenv() a
+     * previously-true one, not just skip setenv().
      */
     if (cfg->disable_wall)
         setenv("GHOSTCON_DISABLE_WALL", "1", ow);
@@ -218,10 +221,11 @@ void ghostcon_config_export_env(const ghostcon_config_t *cfg, const char *config
     /* Default true (see core/main.c's CLEAR_ON_LOGOUT_DEFAULT), unlike
      * every other bool above -- only export "0" when the config explicitly
      * turns it OFF, so the reader's own true-default stands when this key
-     * is left out of the file entirely (the common case). Same
-     * reload-direction-flip reasoning as above, inverted: a hot-reload back
-     * to true must unsetenv() a previously-exported "0", not leave it stuck
-     * off.
+     * is left out of the file entirely (the common case).
+     *
+     * Same reload-direction-flip reasoning as above, inverted: a hot-reload
+     * back to true must unsetenv() a previously-exported "0", not leave it
+     * stuck off.
      */
     if (!cfg->clear_on_logout)
         setenv("GHOSTCON_CLEAR_ON_LOGOUT", "0", ow);
@@ -250,8 +254,9 @@ int ghostcon_config_watch_open(const char *path)
      * write-temp-then-rename-over-original pattern most editors (vim
      * included) use by default -- watching the directory rather than the
      * file itself is what makes that second case observable at all (see
-     * this function's own header doc comment). IN_MODIFY is a cheap extra
-     * safety net for tools that do neither.
+     * this function's own header doc comment).
+     *
+     * IN_MODIFY is a cheap extra safety net for tools that do neither.
      */
     if (inotify_add_watch(fd, dir, IN_CLOSE_WRITE | IN_MOVED_TO | IN_MODIFY) < 0)
     {

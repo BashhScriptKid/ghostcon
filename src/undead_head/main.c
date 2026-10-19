@@ -1,5 +1,4 @@
-/*
- * undead-head — process-group anchor, the single process systemd starts
+/* undead-head — process-group anchor, the single process systemd starts
  * (ghostcon.service). Forks ghost-ptyserv and one supervisor per VT, then
  * enters a waitpid() reaper/restart loop. PLAN.md "undead-head":
  *
@@ -10,9 +9,11 @@
  *     future overlay) -> restart that one supervisor.
  *
  * No PTY data, renderer state, IPC, or KMS/DRM lives here -- just fork,
- * waitpid, and process-group signal delivery. If this process did any of
- * those things, it would reintroduce a single point of failure
- * structurally identical to the problem this whole layer exists to solve.
+ * waitpid, and process-group signal delivery.
+ *
+ * If this process did any of those things, it would reintroduce a single
+ * point of failure structurally identical to the problem this whole layer
+ * exists to solve.
  *
  * Env var overrides:
  *   GHOSTCON_PTYSERV_BIN    - path to ghost-ptyserv (default: resolved
@@ -27,11 +28,12 @@
  *                             config file at all; everything downstream
  *                             still just reads getenv() as before.
  *
- * Default resolution deliberately does NOT fall back to a bare name +
- * PATH lookup: this is normally launched via `pkexec`, which resets the
+ * Default resolution deliberately does NOT fall back to a bare name + PATH
+ * lookup: this is normally launched via `pkexec`, which resets the
  * environment (including PATH) for security -- a bare "ghost-ptyserv"
- * silently fails to exec under pkexec even though it works fine in a
- * normal shell, and env var overrides don't survive pkexec either.
+ * silently fails to exec under pkexec even though it works fine in a normal
+ * shell, and env var overrides don't survive pkexec either.
+ *
  * Found the hard way: undead-head spun in a fast fork/exec-fail/restart
  * loop under pkexec before this existed. Resolving siblings via
  * /proc/self/exe's own directory works regardless of PATH/environment.
@@ -63,15 +65,18 @@
  * restarting instantly is dangerous, not just wasteful -- each restart of
  * ghost-ptyserv tears down and rebuilds EVERY supervisor's tree, including
  * a fresh ghostcon-core doing a fresh vtctl_open()/claim/ close() on its VT
- * with no pause between cycles. A tight loop of that is a rapid-fire
- * VT_PROCESS acquire/release pattern the kernel isn't necessarily built to
- * survive gracefully -- found the hard way: this wedged VT switching badly
- * enough that even Ctrl+Alt+Fn couldn't recover it, needing a hard reboot,
- * while an earlier version of ghost-ptyserv was dying near-instantly on
- * every restart attempt. Doubling backoff (capped) makes a
- * persistently-broken child restart slower and slower rather than spinning
- * tightly forever; surviving RESTART_STABLE_SECS resets it, since that's
- * long enough to trust the restart actually worked.
+ * with no pause between cycles.
+ *
+ * A tight loop of that is a rapid-fire VT_PROCESS acquire/release pattern
+ * the kernel isn't necessarily built to survive gracefully -- found the
+ * hard way: this wedged VT switching badly enough that even Ctrl+Alt+Fn
+ * couldn't recover it, needing a hard reboot, while an earlier version of
+ * ghost-ptyserv was dying near-instantly on every restart attempt.
+ *
+ * Doubling backoff (capped) makes a persistently-broken child restart
+ * slower and slower rather than spinning tightly forever; surviving
+ * RESTART_STABLE_SECS resets it, since that's long enough to trust the
+ * restart actually worked.
  */
 #define RESTART_STABLE_SECS 10
 #define RESTART_BACKOFF_BASE_SECS 1
@@ -99,9 +104,10 @@ apply_restart_backoff(time_t *last_death, int *backoff, const char *what)
 
 /* Resolves `name` relative to this executable's own directory (via
  * /proc/self/exe), for finding sibling binaries without depending on PATH
- * -- see the file header comment on why that can't be trusted here. Falls
- * back to the bare name (PATH lookup) only if /proc/self/exe itself is
- * unavailable.
+ * -- see the file header comment on why that can't be trusted here.
+ *
+ * Falls back to the bare name (PATH lookup) only if /proc/self/exe itself
+ * is unavailable.
  */
 static void resolve_sibling_path(char *out, size_t out_len, const char *name)
 {
@@ -135,10 +141,11 @@ static void term_handler(int signum)
 /* SIGCHLD self-pipe -- same pattern as ptyserv/pty_child.c's own
  * chld_signal_handler/g_chld_pipe (see its comment for the full rationale:
  * async-signal-safe wakeup, actual reaping done via waitpid(WNOHANG) back
- * in the main loop, never inline in the handler itself). Needed here
- * because the reaper loop below became a poll() loop (to also watch the
- * config hot-reload fd) instead of a plain blocking waitpid() -- poll()
- * needs an fd to wake up on, a bare signal handler alone no longer
+ * in the main loop, never inline in the handler itself).
+ *
+ * Needed here because the reaper loop below became a poll() loop (to also
+ * watch the config hot-reload fd) instead of a plain blocking waitpid()
+ * --poll() needs an fd to wake up on, a bare signal handler alone no longer
  * suffices.
  */
 static int g_chld_pipe[2] = { -1, -1 };
@@ -235,16 +242,19 @@ static void kill_group(pid_t pid)
         return;
     /* Every group leader we spawn calls setpgid(0, 0), so its pgid always
      * equals its own original pid -- kill(-pid, ...) directly, don't look
-     * it up via getpgid(pid) first. That lookup fails (ESRCH) exactly when
-     * it matters most: this is most often called right after waitpid() has
-     * already reaped `pid` (see the ghost-ptyserv-died branch below), so
-     * the process no longer exists to query -- but the group itself, and
-     * any orphaned grandchildren still in it (e.g. pty-ttyN, once its
-     * parent ghost-ptyserv died), are still very much alive and need this
-     * signal. Silently skipping the kill here left exactly those orphans
-     * running forever, holding the test harness's stdout pipe open long
-     * after the tracked process had already exited (found via
-     * test_undead_head.c timing out despite printing "ALL TESTS PASSED").
+     * it up via getpgid(pid) first.
+     *
+     * That lookup fails (ESRCH) exactly when it matters most: this is most
+     * often called right after waitpid() has already reaped `pid` (see the
+     * ghost-ptyserv-died branch below), so the process no longer exists to
+     * query -- but the group itself, and any orphaned grandchildren still
+     * in it (e.g. pty-ttyN, once its parent ghost-ptyserv died), are still
+     * very much alive and need this signal.
+     *
+     * Silently skipping the kill here left exactly those orphans running
+     * forever, holding the test harness's stdout pipe open long after the
+     * tracked process had already exited (found via test_undead_head.c
+     * timing out despite printing "ALL TESTS PASSED").
      */
     kill(-pid, SIGTERM);
 }
@@ -260,10 +270,11 @@ int main(int argc, char **argv)
 
     /* Load config, if any, and export it as GHOSTCON_* env vars for the
      * whole tree at startup (overwrite=false: an already-set env var, e.g.
-     * from a test harness, still wins the first time). See config.h's doc
-     * comment -- this is also where GHOSTCON_CONFIG_PATH itself gets
-     * exported, so supervisor/ghostcon-core know what to watch for
-     * hot-reload below without duplicating this resolution.
+     * from a test harness, still wins the first time).
+     *
+     * See config.h's doc comment -- this is also where GHOSTCON_CONFIG_PATH
+     * itself gets exported, so supervisor/ghostcon-core know what to watch
+     * for hot-reload below without duplicating this resolution.
      */
     ghostcon_config_t cfg;
     const char *config_path = getenv("GHOSTCON_CONFIG_PATH");
@@ -293,15 +304,17 @@ int main(int argc, char **argv)
 
     /* Deliberately NOT SA_RESTART: the reaper loop below spends most of its
      * time blocked in poll(), and the shutdown flag this handler sets is
-     * only ever checked at the top of that loop. With SA_RESTART, the
-     * kernel transparently resumes the interrupted poll() call itself
-     * instead of returning EINTR to us -- control never comes back to the
-     * loop to notice the flag, so SIGTERM would be silently swallowed with
-     * the process just continuing to block (found via test_undead_head.c
-     * hanging on teardown, back when this was a blocking waitpid() -- same
-     * reasoning still applies to poll()). Without it, poll() returns
-     * -1/EINTR, our `if (errno == EINTR) continue` sends control back to
-     * the loop top, and the flag gets seen.
+     * only ever checked at the top of that loop.
+     *
+     * With SA_RESTART, the kernel transparently resumes the interrupted
+     * poll() call itself instead of returning EINTR to us -- control never
+     * comes back to the loop to notice the flag, so SIGTERM would be
+     * silently swallowed with the process just continuing to block (found
+     * via test_undead_head.c hanging on teardown, back when this was a
+     * blocking waitpid() -- same reasoning still applies to poll()).
+     *
+     * Without it, poll() returns -1/EINTR, our `if (errno == EINTR)
+     * continue` sends control back to the loop top, and the flag gets seen.
      */
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
@@ -393,8 +406,10 @@ int main(int argc, char **argv)
 
                 if (pid == ghost_ptyserv_pid)
                 {
-                    /* Does NOT touch any supervisor. An already-connected
-                     * renderer has no ongoing dependency on ghost-ptyserv
+                    /* Does NOT touch any supervisor.
+                     *
+                     * An already-connected renderer has no ongoing
+                     * dependency on ghost-ptyserv
                      * --ghostcon_transport_connect() (core/transport.c)
                      * only uses the registry socket for a one-shot lookup
                      * at startup, then talks directly to its own
@@ -403,12 +418,14 @@ int main(int argc, char **argv)
                      * pty_child.c now calling its own setpgid(0,0), this no
                      * longer takes any live pty-ttyN (and the shell/login
                      * session inside it) down as collateral damage the way
-                     * it used to. A restarted ghost-ptyserv recognizes and
-                     * reuses those already-running pty-ttyN children
-                     * instead of spawning duplicates (see ptyserv/main.c's
-                     * spawn_pty_child() pidfile-liveness check) -- found
-                     * live: one component dying used to mean losing every
-                     * VT's session, not just the affected one.
+                     * it used to.
+                     *
+                     * A restarted ghost-ptyserv recognizes and reuses those
+                     * already-running pty-ttyN children instead of spawning
+                     * duplicates (see ptyserv/main.c's spawn_pty_child()
+                     * pidfile-liveness check) -- found live: one component
+                     * dying used to mean losing every VT's session, not
+                     * just the affected one.
                      */
                     fprintf(stderr, "undead-head: ghost-ptyserv died, restarting it (supervisors unaffected)\n");
                     kill_group(ghost_ptyserv_pid);
@@ -440,11 +457,13 @@ int main(int argc, char **argv)
                 {
                     /* overwrite=true: this is a reload, the file's new
                      * value must actually take effect, unlike the startup
-                     * export above. Only affects FUTURE respawns --
-                     * undead-head owns no live runtime state of its own by
-                     * design (file header comment), so e.g. a changed
-                     * drm_node naturally applies the next time supervisor
-                     * spawns ghostcon-core, with no extra code needed here.
+                     * export above.
+                     *
+                     * Only affects FUTURE respawns --undead-head owns no
+                     * live runtime state of its own by design (file header
+                     * comment), so e.g. a changed drm_node naturally
+                     * applies the next time supervisor spawns
+                     * ghostcon-core, with no extra code needed here.
                      */
                     ghostcon_config_export_env(&new_cfg, config_path, true);
                     fprintf(stderr, "undead-head: %s changed, re-exported config\n", config_path);

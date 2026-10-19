@@ -110,10 +110,17 @@ and this list together.
  */
 ```
 
+Prose paragraphs are kept short: at most ~3 wrapped lines. Longer
+paragraphs are split at sentence boundaries with a blank ` *` between
+the pieces, and enumerations should be separate `- item` paragraphs (or
+label lines with indented descriptions), not one wall of text.
+Accidental lowercase fragments left by an earlier line split are
+re-joined.
+
 Inline/trailing comments are untouched. License headers, ASCII banners,
-comments inside `#define` continuations, and comments already in this
-style are skipped. Boxed runs of adjacent one-line comments collapse
-into one block. `tools/format_comments.py` enforces this.
+comments inside `#define` continuations, and verbatim code/table blocks
+are skipped. Boxed runs of adjacent one-line comments collapse into one
+block. `tools/format_comments.py` enforces this (and is idempotent).
 
 ### Editor / clangd
 

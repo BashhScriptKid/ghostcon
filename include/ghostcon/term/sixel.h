@@ -8,10 +8,11 @@
  * sixel has no ids, no separate transmit/display split, no z-order, no
  * cropping or cell-scaling -- a sixel sequence IS an immediate "decode this
  * raster and stamp it at the cursor" command, closer to printing a very
- * tall multi-column character than to Kitty's image-object model. So
- * instead of images[]+placements[] keyed by client-chosen id, this is just
- * a flat array of already-decoded, already-placed images, each remembering
- * where it was stamped.
+ * tall multi-column character than to Kitty's image-object model.
+ *
+ * So instead of images[]+placements[] keyed by client-chosen id, this is
+ * just a flat array of already-decoded, already-placed images, each
+ * remembering where it was stamped.
  *
  * Same "renderer reads a side table, doesn't own compositing" shape as
  * kitty_graphics.h (see that header's own doc comment, and CLAUDE.md's note
@@ -55,9 +56,10 @@ void ghostcon_sixel_state_init(ghostcon_sixel_state_t *st);
 void ghostcon_sixel_state_deinit(ghostcon_sixel_state_t *st);
 
 /* Same shape as ghostcon_kitty_cursor_move_t (kitty_graphics.h) --see that
- * struct's own doc comment. Sixel has no C=1-equivalent suppression key, so
- * moved is unconditionally true whenever a valid image was actually decoded
- * and placed.
+ * struct's own doc comment.
+ *
+ * Sixel has no C=1-equivalent suppression key, so moved is unconditionally
+ * true whenever a valid image was actually decoded and placed.
  */
 typedef struct
 {

@@ -167,18 +167,22 @@ static bool find_plane_of_type(int fd, int crtc_index, uint64_t want_type, uint3
  * cap is 256x256, and a raster cursor asset sized between the two, 96x96
  * from a real Xcursor theme, silently got center-cropped to fit the
  * wrongly-small 64x64 canvas ghostcon was choosing instead of the real one
- * available. Now uses the ACTUAL queried cap (clamped only by this ceiling,
- * which exists so a driver reporting something absurd like 4096 doesn't
- * allocate an oversized buffer for no reason) rather than second-guessing
- * it down to kmscon's number.
+ * available.
+ *
+ * Now uses the ACTUAL queried cap (clamped only by this ceiling, which
+ * exists so a driver reporting something absurd like 4096 doesn't allocate
+ * an oversized buffer for no reason) rather than second-guessing it down to
+ * kmscon's number.
  */
 #define GHOSTCON_CURSOR_MAX_SIZE 256
 
 /* Port of kmscon's generate_ibeam_cursor() (src/terminal.c) shape/
  * algorithm -- a text I-beam (vertical stem + top/bottom serifs) rather
  * than an arrow, matching how kmscon's own mouse cursor looks over a
- * terminal. `rotate` (kmscon's screen-rotation support) is intentionally
- * not ported -- ghostcon has no rotation feature to serve it.
+ * terminal.
+ *
+ * `rotate` (kmscon's screen-rotation support) is intentionally not ported
+ * -- ghostcon has no rotation feature to serve it.
  *
  * Draws the I-beam glyph (sized from `ibeam_h`, kmscon's own w/thk formula)
  * CENTERED within a `canvas_w x canvas_h` ARGB8888 buffer (row-major,
@@ -230,8 +234,9 @@ draw_cursor_ibeam(uint8_t *pixels, uint32_t canvas_w, uint32_t canvas_h,
 
     /* White fill on the shape itself; a dark halo on neighboring pixels
      * within `thk` distance, so the beam stays visible against any
-     * background color (matches kmscon's own outline approach). Offset into
-     * the canvas by (off_x, off_y) to center it.
+     * background color (matches kmscon's own outline approach).
+     *
+     * Offset into the canvas by (off_x, off_y) to center it.
      */
     for (uint32_t y = 0; y < h; y++)
     {
@@ -331,13 +336,15 @@ bool ghostcon_kms_set_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t 
 
     /* The BUFFER is always a fixed square canvas (see this function's own
      * doc comment in kms.h on why -- a non-square cursor plane commit was
-     * rejected outright with EINVAL on this machine). Sized to the smaller
-     * of the two queried DRM_CAP_CURSOR_WIDTH/ HEIGHT caps (this machine:
-     * 256x256), clamped only by GHOSTCON_CURSOR_MAX_SIZE's sanity ceiling,
-     * not a hardcoded target -- see that macro's own doc comment for why.
-     * kms->cursor_w/h is shared by every state, only (re)computed once (the
-     * first time this is called with either plane just discovered), since
-     * it doesn't depend on which state or image is being set.
+     * rejected outright with EINVAL on this machine).
+     *
+     * Sized to the smaller of the two queried DRM_CAP_CURSOR_WIDTH/ HEIGHT
+     * caps (this machine: 256x256), clamped only by
+     * GHOSTCON_CURSOR_MAX_SIZE's sanity ceiling, not a hardcoded target
+     * --see that macro's own doc comment for why. kms->cursor_w/h is shared
+     * by every state, only (re)computed once (the first time this is called
+     * with either plane just discovered), since it doesn't depend on which
+     * state or image is being set.
      */
     if (kms->cursor_w == 0 || kms->cursor_h == 0)
     {
@@ -389,14 +396,17 @@ bool ghostcon_kms_set_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t 
         /* hot_x/hot_y are glyph-local (relative to `pixels`, w x h)
          * --blit_cursor_image() letterboxes that glyph into the middle of
          * the much larger fixed square canvas, so the stored hotspot must
-         * be shifted by that same offset. Without this, commit_ cursor()
-         * anchors the CANVAS's top-left corner (mostly empty padding) at
-         * the pointer instead of the actual glyph pixels, which sit
-         * `off_x`/`off_y` further in -- exactly the "gap between where
-         * you're pointing and what's drawn" bug this fixes. Clamped to the
-         * copied region so a hot_x/hot_y at or past the glyph's own edge
-         * (rounding slop from main.c's scaling) can't push the anchor
-         * outside the glyph entirely.
+         * be shifted by that same offset.
+         *
+         * Without this, commit_ cursor() anchors the CANVAS's top-left
+         * corner (mostly empty padding) at the pointer instead of the
+         * actual glyph pixels, which sit `off_x`/`off_y` further in
+         * --exactly the "gap between where you're pointing and what's
+         * drawn" bug this fixes.
+         *
+         * Clamped to the copied region so a hot_x/hot_y at or past the
+         * glyph's own edge (rounding slop from main.c's scaling) can't push
+         * the anchor outside the glyph entirely.
          */
         kms->cursor_hot_x[state] = off_x + (hot_x < w ? hot_x : w - 1);
         kms->cursor_hot_y[state] = off_y + (hot_y < h ? hot_y : h - 1);
@@ -415,9 +425,11 @@ bool ghostcon_kms_set_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t 
          * a real cursor theme's own "text" glyph bakes its hotspot near the
          * center of the stem into the file (see
          * ghostcon_cursor_load_xcursor(), which reads that out for real
-         * assets). Since draw_cursor_ibeam() always centers the glyph
-         * within the canvas, the glyph's own geometric center is just the
-         * canvas's center -- no need for its w/h here.
+         * assets).
+         *
+         * Since draw_cursor_ibeam() always centers the glyph within the
+         * canvas, the glyph's own geometric center is just the canvas's
+         * center -- no need for its w/h here.
          */
         kms->cursor_hot_x[state] = kms->cursor_w / 2;
         kms->cursor_hot_y[state] = kms->cursor_h / 2;
@@ -515,10 +527,12 @@ bool ghostcon_kms_init(ghostcon_kms_t *kms, int drm_fd)
     /* Cursor plane property resolution is best-effort (see
      * cursor_plane_id's own doc comment) -- a failure here just means the
      * hardware cursor never renders, not a fatal init error, unlike the
-     * primary plane's identical-shaped block above. The cursor IMAGE itself
-     * isn't set up here -- it needs font_height (cell_h), which isn't known
-     * at this layer; the caller (core/ main.c's acquire_display()) calls
-     * ghostcon_kms_set_cursor_shape() right after this returns.
+     * primary plane's identical-shaped block above.
+     *
+     * The cursor IMAGE itself isn't set up here -- it needs font_height
+     * (cell_h), which isn't known at this layer; the caller (core/ main.c's
+     * acquire_display()) calls ghostcon_kms_set_cursor_shape() right after
+     * this returns.
      */
     if (kms->cursor_plane_id)
     {
@@ -563,21 +577,25 @@ void ghostcon_kms_deinit(ghostcon_kms_t *kms)
         gbm_surface_release_buffer(kms->gbm_surf, kms->current_bo);
     /* Deliberately NOT drmModeRmFB(current_fb_id) here -- found live: this
      * runs while ghostcon still holds DRM master, on the framebuffer
-     * actively being scanned out. Removing a live FB isn't a passive
-     * resource free -- the kernel has to stop scanning it out first, which
-     * for the primary plane means disabling the CRTC outright (the physical
-     * output drops). The NEXT master (kmscon, Wayland, ...) then has to
-     * bring the panel back up from a cold, disabled state -- a real,
-     * driver-level cost that lands entirely on THEIR timeline, not
-     * ghostcon's, which is exactly why ghostcon's own release/reacquire
-     * profiling (both well under 300ms combined) never showed the ~1s
-     * black-screen gap actually observed on a real VT switch. Confirmed
-     * against kmscon's own source (drm_shared.c's drop_drm_master(): just
-     * drmDropMaster(), nothing else) -- dropping master never requires
-     * touching FB_ID at all; the display stays configured and parked, and
-     * the fd close below (or, once this leaks less transiently, process
-     * exit) is what actually reaps this id, harmlessly, with no live
-     * scanout to disturb.
+     * actively being scanned out.
+     *
+     * Removing a live FB isn't a passive resource free -- the kernel has to
+     * stop scanning it out first, which for the primary plane means
+     * disabling the CRTC outright (the physical output drops).
+     *
+     * The NEXT master (kmscon, Wayland, ...) then has to bring the panel
+     * back up from a cold, disabled state -- a real, driver-level cost that
+     * lands entirely on THEIR timeline, not ghostcon's, which is exactly
+     * why ghostcon's own release/reacquire profiling (both well under 300ms
+     * combined) never showed the ~1s black-screen gap actually observed on
+     * a real VT switch.
+     *
+     * Confirmed against kmscon's own source (drm_shared.c's
+     * drop_drm_master(): just drmDropMaster(), nothing else) -- dropping
+     * master never requires touching FB_ID at all; the display stays
+     * configured and parked, and the fd close below (or, once this leaks
+     * less transiently, process exit) is what actually reaps this id,
+     * harmlessly, with no live scanout to disturb.
      */
     for (int s = 0; s < GC_CURSOR_STATE_COUNT; s++)
         destroy_cursor_image(kms, (ghostcon_cursor_state_t)s);
@@ -627,15 +645,19 @@ static bool fb_id_for_bo(int fd, struct gbm_bo *bo, uint32_t *out_fb_id)
  * only ever change the properties they explicitly mention, so a plane
  * nobody touches keeps showing whatever was last on it (found live: the DE
  * session's mouse cursor sprite stayed visible, un-clickable, over
- * ghostcon's own rendered frame). Deliberately blanket rather than
- * cursor-plane-specific: matches this project's existing "check
- * liveness/ownership, not the specific failure mode" philosophy (see
- * PLAN.md's canary "Philosophy" section) -- catches any leftover overlay,
- * not just the one instance already found. Best-effort: filtered to planes
- * currently on OUR crtc_id (not just possible_crtcs, which is "could be",
- * not "is") so a multi-monitor machine's other active display is never
- * touched; a failed property lookup/add for one stray plane is silently
- * skipped rather than failing the whole modeset over a cosmetic cleanup.
+ * ghostcon's own rendered frame).
+ *
+ * Deliberately blanket rather than cursor-plane-specific: matches this
+ * project's existing "check liveness/ownership, not the specific failure
+ * mode" philosophy (see PLAN.md's canary "Philosophy" section) -- catches
+ * any leftover overlay, not just the one instance already found.
+ *
+ * Best-effort: filtered to planes currently on OUR crtc_id (not just
+ * possible_crtcs, which is "could be", not "is") so a multi-monitor
+ * machine's other active display is never touched; a failed property
+ * lookup/add for one stray plane is silently skipped rather than failing
+ * the whole modeset over a cosmetic cleanup.
+ *
  * Only needed once per modeset (acquire/reacquire), not per frame -- plane
  * state sticks around exactly like the cursor sprite problem it's fixing.
  */
@@ -804,9 +826,11 @@ bool ghostcon_kms_modeset(ghostcon_kms_t *kms)
 /* Shared by ghostcon_kms_move_cursor() and ghostcon_kms_set_cursor_state()
  * -- both end up doing "commit the active state's plane geometry/
  * position", just triggered by different things changing (position vs.
- * which state is active). `force_full` re-sends CRTC_ID/FB_ID/SRC_x_y_w_h/
- * CRTC_w_h (not just position) -- needed on the very first enable, and
- * whenever the active state's FB has changed.
+ * which state is active).
+ *
+ * `force_full` re-sends CRTC_ID/FB_ID/SRC_x_y_w_h/ CRTC_w_h (not just
+ * position) -- needed on the very first enable, and whenever the active
+ * state's FB has changed.
  */
 static bool commit_cursor(ghostcon_kms_t *kms, int x, int y, bool force_full)
 {
@@ -818,19 +842,24 @@ static bool commit_cursor(ghostcon_kms_t *kms, int x, int y, bool force_full)
     if (y < 0) y = 0;
     /* Subtract the active state's own hotspot -- callers always pass the
      * raw pointer position (see this function's own doc comment in kms.h),
-     * never a pre-adjusted one. CRTC_X/CRTC_Y on a DRM plane are a SIGNED
-     * property (DRM_MODE_PROP_SIGNED_RANGE) -- hardware explicitly supports
-     * a plane hanging partially off the top/left edge of the screen, the
-     * same way it already tolerates one extending past the bottom/right
-     * edge (never clamped there). Flooring this at 0 (an earlier version of
-     * this code did, to dodge unsigned underflow) pins the whole canvas --
-     * including the mostly-empty letterboxed padding around the actual
-     * glyph --at the screen edge instead, which reads as a dead zone the
-     * glyph can never visually enter near the top-left corner (worse the
-     * larger the hotspot, e.g. once it includes the letterbox offset for a
-     * raster cursor much smaller than the canvas -- see PLAN.md). Signed
-     * math with no floor fixes that: a partially negative CRTC_X/Y just
-     * clips the same way an out-of-bounds positive one already does.
+     * never a pre-adjusted one.
+     *
+     * CRTC_X/CRTC_Y on a DRM plane are a SIGNED property
+     * (DRM_MODE_PROP_SIGNED_RANGE) -- hardware explicitly supports a plane
+     * hanging partially off the top/left edge of the screen, the same way
+     * it already tolerates one extending past the bottom/right edge (never
+     * clamped there).
+     *
+     * Flooring this at 0 (an earlier version of this code did, to dodge
+     * unsigned underflow) pins the whole canvas --including the
+     * mostly-empty letterboxed padding around the actual glyph --at the
+     * screen edge instead, which reads as a dead zone the glyph can never
+     * visually enter near the top-left corner (worse the larger the
+     * hotspot, e.g. once it includes the letterbox offset for a raster
+     * cursor much smaller than the canvas -- see PLAN.md).
+     *
+     * Signed math with no floor fixes that: a partially negative CRTC_X/Y
+     * just clips the same way an out-of-bounds positive one already does.
      */
     int32_t crtc_x = x - (int32_t)kms->cursor_hot_x[state];
     int32_t crtc_y = y - (int32_t)kms->cursor_hot_y[state];
@@ -844,10 +873,11 @@ static bool commit_cursor(ghostcon_kms_t *kms, int x, int y, bool force_full)
     {
         /* First move (or a state switch): (re)set CRTC_ID/FB_ID and the
          * fixed geometry (source rect + on-screen size never change again
-         * for a given state -- only position does, below). Deliberately
-         * deferred to first-move rather than done once at init, so the
-         * cursor stays invisible until the user actually moves the mouse
-         * (see kms.h's own doc comment on cursor_enabled).
+         * for a given state -- only position does, below).
+         *
+         * Deliberately deferred to first-move rather than done once at
+         * init, so the cursor stays invisible until the user actually moves
+         * the mouse (see kms.h's own doc comment on cursor_enabled).
          */
         ok &= drmModeAtomicAddProperty(req, kms->cursor_plane_id,
                                         kms->cursor_plane_props.crtc_id, kms->crtc_id) >= 0;
@@ -866,12 +896,13 @@ static bool commit_cursor(ghostcon_kms_t *kms, int x, int y, bool force_full)
         ok &= drmModeAtomicAddProperty(req, kms->cursor_plane_id,
                                         kms->cursor_plane_props.crtc_h, kms->cursor_h) >= 0;
     }
-    /* (uint64_t)(int64_t)crtc_x -- NOT a plain (uint64_t) cast --
-     * sign-extends a negative int32 through int64 first, so the property's
-     * lower 32 bits are the correct two's-complement negative value the
-     * kernel expects for a DRM_MODE_PROP_SIGNED_RANGE property. A direct
-     * (uint64_t)crtc_x would instead zero-extend, turning a small negative
-     * offset into a huge positive one.
+    /* (uint64_t)(int64_t)crtc_x -- NOT a plain (uint64_t) cast
+     * --sign-extends a negative int32 through int64 first, so the
+     * property's lower 32 bits are the correct two's-complement negative
+     * value the kernel expects for a DRM_MODE_PROP_SIGNED_RANGE property.
+     *
+     * A direct (uint64_t)crtc_x would instead zero-extend, turning a small
+     * negative offset into a huge positive one.
      */
     ok &= drmModeAtomicAddProperty(req, kms->cursor_plane_id,
                                     kms->cursor_plane_props.crtc_x, (uint64_t)(int64_t)crtc_x) >= 0;
@@ -963,13 +994,17 @@ bool ghostcon_kms_page_flip(ghostcon_kms_t *kms)
 
     /* Once drmModeAtomicCommit succeeds, the kernel WILL apply this flip —
      * a lost/delayed completion event only means we won't be notified
-     * promptly, it does NOT mean the flip didn't happen. An earlier version
-     * of this function treated "no event within 1s" as "nothing happened"
-     * and left this buffer completely untracked (not released, not adopted
-     * as current) rather than retiring the old one — meaning teardown could
-     * then destroy the GBM surface and drop DRM master while THIS buffer
-     * was still the one actively scanned out. That wedged the GPU/display
-     * badly enough to need a hard reboot during real-hardware testing.
+     * promptly, it does NOT mean the flip didn't happen.
+     *
+     * An earlier version of this function treated "no event within 1s" as
+     * "nothing happened" and left this buffer completely untracked (not
+     * released, not adopted as current) rather than retiring the old one —
+     * meaning teardown could then destroy the GBM surface and drop DRM
+     * master while THIS buffer was still the one actively scanned out.
+     *
+     * That wedged the GPU/display badly enough to need a hard reboot during
+     * real-hardware testing.
+     *
      * Adopting the new buffer as current unconditionally on a successful
      * commit (and retiring the old one) is the actual correctness boundary;
      * the completion event below is only used to pace the next flip.

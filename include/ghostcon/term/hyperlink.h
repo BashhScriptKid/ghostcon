@@ -6,10 +6,13 @@
 
 /* HyperlinkSet — a ref-counted, id-indexed set of interned URIs
  *
- * OSC 8 support. Deliberately mirrors ghostcon_style_set_t's shape exactly
+ * OSC 8 support.
+ *
+ * Deliberately mirrors ghostcon_style_set_t's shape exactly
  * (style.h/style.c) -- same open-addressing hash table, same ref-counted
  * id-reuse scheme -- since cell.h's hyperlink_id field is the same 15-bit
  * width as style_id and follows the same "0 = none/ default" convention.
+ *
  * See cell.h's memory-layout doc comment.
  */
 

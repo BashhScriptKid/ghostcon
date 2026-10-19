@@ -1,13 +1,13 @@
-/*
- * test_diag — verifies core/diag.c actually reaches journald.
+/* test_diag — verifies core/diag.c actually reaches journald.
  *
- * Forks a child that installs the crash handler and deliberately
- * aborts, then queries journald (matched by the child's PID, a
- * structured field journald adds to every entry automatically) for the
+ * Forks a child that installs the crash handler and deliberately aborts,
+ * then queries journald (matched by the child's PID, a structured field
+ * journald adds to every entry automatically) for the
  * GHOSTCON_COMPONENT/GHOSTCON_VT/GHOSTCON_SIGNAL fields diag.c sends.
- * This is the exact check PLAN.md's testing strategy calls for:
- * "confirm the diag.c/panic-handler [...] wiring" against a real
- * triggered signal, not just a code read.
+ *
+ * This is the exact check PLAN.md's testing strategy calls for: "confirm
+ * the diag.c/panic-handler [...] wiring" against a real triggered signal,
+ * not just a code read.
  */
 
 #define _DEFAULT_SOURCE
@@ -38,9 +38,10 @@ journal_has_entry(pid_t pid, char *out_buf, size_t out_cap)
 {
     /* _PID= alone isn't enough to disambiguate -- PIDs get reused across
      * boots, and a bare journalctl query isn't scoped to the current boot
-     * by default, so it can match an unrelated historical entry. -b
-     * (current boot only) + _COMM= (this binary's name) together with _PID=
-     * make the match actually unique.
+     * by default, so it can match an unrelated historical entry.
+     *
+     * -b (current boot only) + _COMM= (this binary's name) together with
+     * _PID= make the match actually unique.
      */
     char pid_filter[64];
     snprintf(pid_filter, sizeof(pid_filter), "_PID=%d", (int)pid);
@@ -104,8 +105,9 @@ recurse_and_abort(int depth)
         return;
     }
     recurse_and_abort(depth - 1);
-    /* Compiler barrier: prevents sibling-call optimization so the
-       recursive frames remain in the backtrace. */
+    /* Compiler barrier: prevents sibling-call optimization so the recursive
+     * frames remain in the backtrace.
+     */
     atomic_signal_fence(memory_order_seq_cst);
 }
 #pragma GCC diagnostic pop

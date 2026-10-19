@@ -1,21 +1,19 @@
-/*
- * headless_probe -- one-off diagnostic tool (not registered as a
- * meson test/install target on purpose): runs a real child program
- * (e.g. nmtui) under a pty, feeds its output through the real term
- * pipeline, and renders one frame headlessly (DRM render node, no
- * display/DRM master needed -- same setup as tools/bench_render.c)
- * to a PPM screenshot, so a background-color rendering bug can be
- * eyeballed without needing to be physically at the console.
+/* headless_probe -- one-off diagnostic tool (not registered as a meson
+ * test/install target on purpose): runs a real child program (e.g. nmtui)
+ * under a pty, feeds its output through the real term pipeline, and renders
+ * one frame headlessly (DRM render node, no display/DRM master needed
+ * --same setup as tools/bench_render.c) to a PPM screenshot, so a
+ * background-color rendering bug can be eyeballed without needing to be
+ * physically at the console.
  *
- * Usage: headless_probe <out.ppm> <viewport_w> <viewport_h> <font_size> [settle_ms] [font_family] [font_variant] -- <cmd> [args...]
- *
- * cols/rows are DERIVED from viewport_w/viewport_h and the real cell
- * metrics for the given font (same order of operations as
- * core/main.c: cell size first, then cols=width/cell_w, rows=
- * height/cell_h) -- not passed directly -- so this can be pointed at
- * the exact real display size (e.g. 1920x1080) and font config a live
- * ghostcon-core session uses, instead of an arbitrary grid whose
- * cols/rows a TUI's own layout math may treat very differently.
+ * Usage: headless_probe <out.ppm> <viewport_w> <viewport_h> <font_size>
+ * [settle_ms] [font_family] [font_variant] -- <cmd> [args...] cols/rows are
+ * DERIVED from viewport_w/viewport_h and the real cell metrics for the
+ * given font (same order of operations as core/main.c: cell size first,
+ * then cols=width/cell_w, rows= height/cell_h) -- not passed directly -- so
+ * this can be pointed at the exact real display size (e.g. 1920x1080) and
+ * font config a live ghostcon-core session uses, instead of an arbitrary
+ * grid whose cols/rows a TUI's own layout math may treat very differently.
  */
 
 #define _DEFAULT_SOURCE
@@ -174,8 +172,9 @@ main(int argc, char **argv)
     {
         /* Real windowed terminals commonly deliver a SIGWINCH shortly after
          * a program starts (window creation/focus) even when the size
-         * doesn't actually change; this synthetic pty never does. Test
-         * whether that's what triggers a fuller repaint.
+         * doesn't actually change; this synthetic pty never does.
+         *
+         * Test whether that's what triggers a fuller repaint.
          */
         kill(child, SIGWINCH);
         double extra_ms = 2000;

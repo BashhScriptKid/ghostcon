@@ -7,10 +7,13 @@
 
 /* Checked decimal-string conversion helpers.
  *
- * atoi()/atol() cannot report errors: invalid input silently becomes 0
- * and trailing garbage is ignored. These helpers accept the same normal
- * decimal forms (optional sign, leading whitespace), but require the
- * whole string to be consumed and the value to fit the target type.
+ * atoi()/atol() cannot report errors: invalid input silently becomes 0 and
+ * trailing garbage is ignored.
+ *
+ * These helpers accept the same normal decimal forms (optional sign,
+ * leading whitespace), but require the whole string to be consumed and the
+ * value to fit the target type.
+ *
  * On failure *out is left untouched, so callers keep their existing
  * default/fallback and only overwrite it on a valid parse.
  *

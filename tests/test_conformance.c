@@ -125,9 +125,10 @@ TEST(cursor_down)
 
 TEST(cursor_up_down_scroll_region_no_origin_mode)
 {
-    /* CUU/CUD clamp to the scroll region only under origin mode (DECOM) --
-     * with it off (the default, and the common case: most apps never set
+    /* CUU/CUD clamp to the scroll region only under origin mode (DECOM)
+     * --with it off (the default, and the common case: most apps never set
      * DECOM), they must clamp to the FULL screen, not the scroll region.
+     *
      * Real bug found live: a status line reserved via a scroll region that
      * excludes the last 2 rows, combined with the well-known "CSI H then a
      * large CSI B" idiom for jumping to the absolute screen bottom, landed
@@ -171,9 +172,10 @@ TEST(cursor_next_line_below_scroll_region_does_not_scroll)
      * scroll_region.bottom` fired even when the cursor started BELOW the
      * scroll region entirely (e.g. a fixed status/input area a TUI
      * deliberately excludes from the region) -- spuriously scrolling the
-     * main content on every redraw of that fixed area. Fix mirrors
-     * soft_wrap()'s correct `==` check: only scroll if the cursor was
-     * actually AT the region's bottom edge before moving.
+     * main content on every redraw of that fixed area.
+     *
+     * Fix mirrors soft_wrap()'s correct `==` check: only scroll if the
+     * cursor was actually AT the region's bottom edge before moving.
      */
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
@@ -921,13 +923,14 @@ TEST(insert_delete_chars_cursor_past_margin_is_noop)
     /* Hardening regression: absolute CUP is NOT constrained to
      * margin_region.right (only to cols-1 -- see
      * ghostcon_screen_cursor_set()), so an app can legitimately position
-     * the cursor past an active DECSLRM margin before issuing ICH/DCH. An
-     * earlier version of both handlers computed their clamped count through
-     * unsigned/narrowing arithmetic that depended on incidental wraparound
-     * cancellation to stay safe in exactly this case, rather than an
-     * explicit guard -- this locks in the correct behavior (a no-op) so a
-     * future edit that removes that fragile cancellation can't silently
-     * reintroduce out-of-bounds cell access.
+     * the cursor past an active DECSLRM margin before issuing ICH/DCH.
+     *
+     * An earlier version of both handlers computed their clamped count
+     * through unsigned/narrowing arithmetic that depended on incidental
+     * wraparound cancellation to stay safe in exactly this case, rather
+     * than an explicit guard -- this locks in the correct behavior (a
+     * no-op) so a future edit that removes that fragile cancellation can't
+     * silently reintroduce out-of-bounds cell access.
      */
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 192, 49, 500), "init");
@@ -949,9 +952,11 @@ TEST(erase_display_scroll_complete_no_double_free)
      * into a history slot without nulling the source -- the handler
      * discarded the freshly-allocated replacement row instead of assigning
      * it back, so s->rows[] and s->history[] both ended up owning the same
-     * buffer. Crashed under ASAN as a double-free on deinit; ran clean
-     * (undetected corruption) without a sanitizer. Locks in that
-     * erasing+scrolling the whole display doesn't corrupt row ownership.
+     * buffer.
+     *
+     * Crashed under ASAN as a double-free on deinit; ran clean (undetected
+     * corruption) without a sanitizer. Locks in that erasing+scrolling the
+     * whole display doesn't corrupt row ownership.
      */
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 20, 10, 500), "init");
@@ -968,11 +973,14 @@ TEST(reverse_index_above_scroll_region_does_not_go_negative)
      * which sits ABOVE the new scroll region's top of row 2), then C1 RI
      * (0x8D) mid-escape. ghostcon_screen_reverse_index() only scrolled when
      * cursor.y == scroll_region.top; anywhere else it decremented cursor.y
-     * with no lower bound. A cursor above the region's top (this exact
-     * case) walked cursor.y negative, and row_idx()'s modulo on a negative
-     * index turned the next put_char into a wild out-of-bounds s->rows[]
-     * access -- a real SEGV, not just an ASAN-flagged one. Locks in that RI
-     * above the scroll region clamps at the same floor
+     * with no lower bound.
+     *
+     * A cursor above the region's top (this exact case) walked cursor.y
+     * negative, and row_idx()'s modulo on a negative index turned the next
+     * put_char into a wild out-of-bounds s->rows[] access -- a real SEGV,
+     * not just an ASAN-flagged one.
+     *
+     * Locks in that RI above the scroll region clamps at the same floor
      * ghostcon_screen_cursor_up() already uses, instead of walking past it.
      */
     ghostcon_term_t t;
@@ -992,11 +1000,15 @@ TEST(cursor_relative_move_huge_param_does_not_reverse_direction)
      * raw uint16_t n straight to int16_t before the add -- for n >= 32768
      * that wraps negative, silently reversing the direction, and each
      * function only ever clamped the bound it expected to hit from the
-     * correct direction. HPR with n=64614 walked cursor.x to -922 with no
-     * lower-bound check; the next printable character then wrote clean off
-     * the front of the row's cells array (a real heap-buffer-underflow, not
-     * just an ASAN-flagged one). Locks in that a huge count in either
-     * direction clamps to the screen instead.
+     * correct direction.
+     *
+     * HPR with n=64614 walked cursor.x to -922 with no lower-bound check;
+     * the next printable character then wrote clean off the front of the
+     * row's cells array (a real heap-buffer-underflow, not just an
+     * ASAN-flagged one).
+     *
+     * Locks in that a huge count in either direction clamps to the screen
+     * instead.
      */
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
@@ -1026,8 +1038,9 @@ TEST(scroll_region_huge_param_is_clamped_to_screen)
      * small screen stayed positive and got stored into
      * scroll_region/margin_region completely unclamped against the actual
      * row/col count. region_height computed from that feeds a per-line
-     * malloc loop in scroll_up/down (ghostcon_row_init per iteration) --
-     * one escape sequence could turn into an unbounded allocation storm.
+     * malloc loop in scroll_up/down (ghostcon_row_init per iteration) --one
+     * escape sequence could turn into an unbounded allocation storm.
+     *
      * Locks in that a huge region param clamps to the actual screen
      * instead.
      */
@@ -1047,11 +1060,15 @@ TEST(insert_delete_lines_huge_param_is_clamped_not_corrupted)
 {
     /* Hardening regression: an earlier version of both handlers cast an
      * unclamped n (up to UINT16_MAX) straight into int16_t loop-bound
-     * arithmetic (e.g. `top + (int16_t)n`) -- for n >= 32768 that cast
-     * wraps negative, corrupting the loop bounds and walking far outside
-     * the valid row range. Locks in that a huge IL/DL count is instead
-     * clamped to the scroll region's actual height and behaves exactly like
-     * a full-region clear, not a crash.
+     * arithmetic (e.g.
+     *
+     * `top + (int16_t)n`) -- for n >= 32768 that cast wraps negative,
+     * corrupting the loop bounds and walking far outside the valid row
+     * range.
+     *
+     * Locks in that a huge IL/DL count is instead clamped to the scroll
+     * region's actual height and behaves exactly like a full-region clear,
+     * not a crash.
      */
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 20, 10, 500), "init");
@@ -1073,9 +1090,11 @@ TEST(insert_delete_lines_huge_param_is_clamped_not_corrupted)
 TEST(csi_loop_handlers_huge_param_does_not_hang)
 {
     /* REP/CNL/CPL/CHT/CBT drive a per-step loop directly off a raw CSI
-     * param (up to UINT16_MAX). Locks in that a huge count is clamped to
-     * something bounded by the screen instead of looping 65535 times
-     * synchronously in the render/input loop.
+     * param (up to UINT16_MAX).
+     *
+     * Locks in that a huge count is clamped to something bounded by the
+     * screen instead of looping 65535 times synchronously in the
+     * render/input loop.
      */
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 20, 10, 500), "init");

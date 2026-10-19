@@ -4,27 +4,31 @@
 
 /* TOML config
  *
- * Startup: undead-head loads this file, then setenv()s
- * (overwrite=false) the corresponding GHOSTCON_* variable for each
- * config-backed value it found, before spawning
- * ghost-ptyserv/supervisor. An already-set env var (e.g. from a test
- * harness) still wins the first time.
+ * Startup: undead-head loads this file, then setenv()s (overwrite=false)
+ * the corresponding GHOSTCON_* variable for each config-backed value it
+ * found, before spawning ghost-ptyserv/supervisor.
  *
- * Those child processes inherit the environment normally, so the whole
- * tree picks the values up at spawn with no other file needing to parse
- * a config file itself for that part. Precedence at startup:
- * explicit env var > config file > hardcoded default.
+ * An already-set env var (e.g. from a test harness) still wins the first
+ * time.
  *
- * Hot-reload: undead-head/supervisor/ghostcon-core EACH independently
- * watch GHOSTCON_CONFIG_PATH (see ghostcon_config_watch_open() below)
- * and re-call ghostcon_config_load() on change.
+ * Those child processes inherit the environment normally, so the whole tree
+ * picks the values up at spawn with no other file needing to parse a config
+ * file itself for that part.
  *
- * There is no reload-propagation IPC between them; each just re-reads
- * the same file and applies whichever fields it individually
- * understands. Env vars can't change under an already-running process,
- * so this bypasses that path entirely for live values -- see PLAN.md's
- * "General config hot-reload" section for why (and which keys apply
- * live vs. only on next respawn).
+ * Precedence at startup: explicit env var > config file > hardcoded
+ * default.
+ *
+ * Hot-reload: undead-head/supervisor/ghostcon-core EACH independently watch
+ * GHOSTCON_CONFIG_PATH (see ghostcon_config_watch_open() below) and re-call
+ * ghostcon_config_load() on change.
+ *
+ * There is no reload-propagation IPC between them; each just re-reads the
+ * same file and applies whichever fields it individually understands.
+ *
+ * Env vars can't change under an already-running process, so this bypasses
+ * that path entirely for live values -- see PLAN.md's "General config
+ * hot-reload" section for why (and which keys apply live vs. only on next
+ * respawn).
  */
 
 typedef struct
@@ -35,55 +39,51 @@ typedef struct
     bool disable_wall;
     bool disable_kmscon_fallback;
     int  font_size;
-    /* Empty = unset
+    /* Empty = unset; ghostcon_atlas_create() falls back to fontconfig's own
+     * default monospace match, same as before either of these existed.
      *
-     * ghostcon_atlas_create() falls back to fontconfig's own default
-     * monospace match, same as before either of these existed.
+     * font_family maps to FC_FAMILY; font_variant maps to FC_STYLE (e.g.
+     * "Bold", "Light", "Medium Italic").
      *
-     * font_family maps to FC_FAMILY;
-     * font_variant maps to FC_STYLE (e.g. "Bold", "Light", "Medium
-     * Italic").
+     * Run `fc-list <family>` to see what a given family actually offers; an
+     * unrecognized value just falls through to fontconfig's normal
+     * substitution/default-style behavior, not an error.
      *
-     * Run `fc-list <family>` to see what a given family actually
-     * offers; an unrecognized value just falls through to
-     * fontconfig's normal substitution/default-style behavior, not an
-     * error.
-     *
-     * No dedicated GHOSTCON_* env var -- same as [cursor]'s fields,
-     * loaded directly from the config file at startup (see
-     * core/main.c's own doc comment on why cursor fields skip that,
-     * right where the initial config load happens).
+     * No dedicated GHOSTCON_* env var -- same as [cursor]'s fields, loaded
+     * directly from the config file at startup (see core/main.c's own doc
+     * comment on why cursor fields skip that, right where the initial
+     * config load happens).
      */
     char font_family[256];
     char font_variant[64];
 
-    /* "grayscale" (default), "subpixel", "cleartype", or "none"
+    /* "grayscale" (default), "subpixel", "cleartype", or "none" maps to
+     * FreeType's rasterization target (FT_LOAD_TARGET_NORMAL/LCD/LCD/MONO
+     * respectively).
      *
-     * maps to FreeType's rasterization target
-     * (FT_LOAD_TARGET_NORMAL/LCD/LCD/MONO respectively). An
-     * unrecognized value falls back to "grayscale", not an error.
+     * An unrecognized value falls back to "grayscale", not an error.
      *
-     * "subpixel" uses FreeType's LCD-optimized hinting/rasterization,
-     * but averages the 3 LCD subchannels down to one value. This gives
-     * a real, visibly different rasterization from plain grayscale,
-     * but not true per-subpixel-channel blending.
+     * "subpixel" uses FreeType's LCD-optimized hinting/rasterization, but
+     * averages the 3 LCD subchannels down to one value.
      *
-     * "cleartype" is the real thing: an RGB atlas texture storing
-     * genuine distinct R/G/B coverage, blended per-channel in the
-     * shader
+     * This gives a real, visibly different rasterization from plain
+     * grayscale, but not true per-subpixel-channel blending.
      *
-     * see render/gles.c's FRAG_SRC doc comment. See
-     * render/atlas.c's own doc comment on ghostcon_atlas_create() for
+     * "cleartype" is the real thing: an RGB atlas texture storing genuine
+     * distinct R/G/B coverage, blended per-channel in the shader; see
+     * render/gles.c's FRAG_SRC doc comment.
+     *
+     * See render/atlas.c's own doc comment on ghostcon_atlas_create() for
      * the exact FT_LOAD_TARGET mapping.
      */
     char antialiasing[16];
 
-    /* "rgb" (default) or "bgr"
+    /* "rgb" (default) or "bgr" only meaningful when antialiasing is
+     * "cleartype": the physical left-to-right subpixel order of the actual
+     * display.
      *
-     * only meaningful when antialiasing is
-     * "cleartype": the physical left-to-right subpixel order of the
-     * actual display. Get this wrong and cleartype produces visible
-     * color fringing instead of removing it.
+     * Get this wrong and cleartype produces visible color fringing instead
+     * of removing it.
      */
     char subpixel_order[8];
 
@@ -97,15 +97,13 @@ typedef struct
      */
     bool gamma_correct;
 
-    /* Shape fixed-charset runs
-     * (programming operators like "->", "==", "!=")
-     * through HarfBuzz and draw the result as a single glyph spanning
-     * multiple cells, when the configured font actually
-     * substitutes one (most do via calt/liga).
+    /* Shape fixed-charset runs (programming operators like "->", "==",
+     * "!=") through HarfBuzz and draw the result as a single glyph spanning
+     * multiple cells, when the configured font actually substitutes one
+     * (most do via calt/liga).
      *
-     * Off by default. Non-standard console-renderer behavior.
-     * See render/ligature.h.
-     * Applies live, no restart.
+     * Off by default. Non-standard console-renderer behavior. See
+     * render/ligature.h. Applies live, no restart.
      */
     bool ligatures;
 
@@ -127,15 +125,15 @@ typedef struct
 
     /* Explicit per-color overrides, applied after `theme` above
      *
-     * Same preset-then-explicit-override layering [cursor]'s fields
-     * already use.
+     * Same preset-then-explicit-override layering [cursor]'s fields already
+     * use.
      *
      * Empty string (the default) = "Nah we trust the theme on this one"
      *
-     * Accepts any format ghostcon_color_parse_spec() understands
-     * (#RGB, #RRGGBB, #RRRGGGBBB, #RRRRGGGGBBBB, or X11 "rgb:R/G/B");
-     * an unparseable value is ignored, not an error, same as an
-     * unrecognized `theme` name.
+     * Accepts any format ghostcon_color_parse_spec() understands (#RGB,
+     * #RRGGBB, #RRRGGGBBB, #RRRRGGGGBBBB, or X11 "rgb:R/G/B"); an
+     * unparseable value is ignored, not an error, same as an unrecognized
+     * `theme` name.
      *
      * color[0..15] are the ANSI palette slots in the standard order
      * (0=black, 1=red, ... 7=white, 8=bright black, ... 15=bright white).
@@ -186,60 +184,60 @@ typedef struct
     char cursor_default_path[256];
     char cursor_link_path[256];
 
-    /* Explicit hotspot override for a BMP-format per-state override
-     * (BMP has no hotspot field in the format at all, unlike Xcursor,
-     * which already carries a real one).
+    /* Explicit hotspot override for a BMP-format per-state override (BMP
+     * has no hotspot field in the format at all, unlike Xcursor, which
+     * already carries a real one).
      *
-     * "x,y" in the ORIGINAL, uncropped asset's own pixel coordinates --
-     * empty string (the default) means "no explicit override":
-     * core/main.c falls back to the asset's own real hotspot if it has
-     * one (Xcursor), or auto-centers on the cropped glyph's own
-     * bounding box otherwise (a much better generic guess than a fixed
-     * corner for most cursor shapes -- see PLAN.md's "Mouse support,
-     * pass 2" section).
+     * "x,y" in the ORIGINAL, uncropped asset's own pixel coordinates
+     * --empty string (the default) means "no explicit override":
+     * core/main.c falls back to the asset's own real hotspot if it has one
+     * (Xcursor), or auto-centers on the cropped glyph's own bounding box
+     * otherwise (a much better generic guess than a fixed corner for most
+     * cursor shapes -- see PLAN.md's "Mouse support, pass 2" section).
      */
     char cursor_default_hot_pos[32];
     char cursor_link_hot_pos[32];
 
-    /* Raster cursor scaling -- see core/main.c's load_cursor_state(),
-     * which resizes decoded pixels (via ghostcon_cursor_scale()) before
-     * handing them to ghostcon_kms_set_cursor_image().
+    /* Raster cursor scaling -- see core/main.c's load_cursor_state(), which
+     * resizes decoded pixels (via ghostcon_cursor_scale()) before handing
+     * them to ghostcon_kms_set_cursor_image().
      *
-     * base_scale is a flat multiplier applied to the asset's own
-     * decoded pixel size (1.0 = native size, at the reference cell
-     * height below).
+     * base_scale is a flat multiplier applied to the asset's own decoded
+     * pixel size (1.0 = native size, at the reference cell height below).
      *
-     * scale_with_terminal additionally scales that baseline by the
-     * ratio of the terminal's current cell height to a fixed reference
-     * cell height (CURSOR_SCALE_REFERENCE_CELL_H in main.c), so a
-     * raster cursor grows/shrinks with Ctrl+=/Ctrl+Minus the same way
-     * the procedural I-beam already does. Doesn't apply to the
-     * procedural fallback itself (pixels==NULL path), which is already
-     * always sized from the live cell height regardless of these two
-     * knobs.
+     * scale_with_terminal additionally scales that baseline by the ratio of
+     * the terminal's current cell height to a fixed reference cell height
+     * (CURSOR_SCALE_REFERENCE_CELL_H in main.c), so a raster cursor
+     * grows/shrinks with Ctrl+=/Ctrl+Minus the same way the procedural
+     * I-beam already does.
+     *
+     * Doesn't apply to the procedural fallback itself (pixels==NULL path),
+     * which is already always sized from the live cell height regardless of
+     * these two knobs.
      */
     float cursor_base_scale;
     bool  cursor_scale_with_terminal;
 
-    /* Configurable copy/paste shortcuts -- see PLAN.md's "Mouse
-     * support, pass 2" section.
+    /* Configurable copy/paste shortcuts -- see PLAN.md's "Mouse support,
+     * pass 2" section.
      *
-     * Syntax matches Ghostty's own Trigger strings ("ctrl+shift+c"),
-     * parsed via core/input.c's ghostcon_parse_keybinding(). Defaults
-     * are Ghostty's own Linux defaults for
+     * Syntax matches Ghostty's own Trigger strings ("ctrl+shift+c"), parsed
+     * via core/input.c's ghostcon_parse_keybinding().
+     *
+     * Defaults are Ghostty's own Linux defaults for
      * copy_to_clipboard/paste_from_clipboard.
      */
     char copy_to_clipboard_binding[64];
     char paste_from_clipboard_binding[64];
 
-    /* [mouse] / [touchpad] -- per-device-class libinput tuning,
-     * applied to every currently-connected device of that class and to
-     * each newly-hotplugged one as it is discovered. libinput's own
-     * tap-finger-count check tells a touchpad apart from a mouse, as
-     * that is the library's recommended way to do so.
+    /* [mouse] / [touchpad] -- per-device-class libinput tuning, applied to
+     * every currently-connected device of that class and to each
+     * newly-hotplugged one as it is discovered. libinput's own
+     * tap-finger-count check tells a touchpad apart from a mouse, as that
+     * is the library's recommended way to do so.
      *
-     * See core/input.c's apply_device_config() for the libinput API
-     * each field maps to.
+     * See core/input.c's apply_device_config() for the libinput API each
+     * field maps to.
      *
      * enable
      *      false fully disables the device (no movement, clicks, or
@@ -288,35 +286,37 @@ void ghostcon_config_defaults(ghostcon_config_t *cfg);
 bool ghostcon_config_load(const char *path, ghostcon_config_t *cfg);
 
 /* setenv()s GHOSTCON_* for every config-backed value in `cfg`, plus
- * GHOSTCON_CONFIG_PATH itself (unconditionally, so
- * supervisor/ghostcon-core know what to watch for hot-reload without
- * duplicating the default-path/env-override resolution logic
- * undead-head already did).
+ * GHOSTCON_CONFIG_PATH itself (unconditionally, so supervisor/ghostcon-core
+ * know what to watch for hot-reload without duplicating the
+ * default-path/env-override resolution logic undead-head already did).
  *
- * `overwrite` false = startup semantics (an already-set env var wins,
- * e.g. from a test harness); true = reload semantics (the file's new
- * value must actually take effect). Call at startup with false, and
- * again on every hot-reload with true.
+ * `overwrite` false = startup semantics (an already-set env var wins, e.g.
+ * from a test harness); true = reload semantics (the file's new value must
+ * actually take effect).
+ *
+ * Call at startup with false, and again on every hot-reload with true.
  */
 void ghostcon_config_export_env(const ghostcon_config_t *cfg, const char *config_path,
                                  bool overwrite);
 
 /* Hot-reload watch (inotify)
  *
- * Opens an inotify watch on the parent DIRECTORY of `path`, not the
- * file itself -- editors that save via write-temp+rename (vim, most
- * editors' default) orphan a watch placed on the file's own inode,
- * which then silently never fires again. Returns the inotify fd
- * (poll()-able, POLLIN when something in the directory changed), or -1
- * on failure (not fatal -- caller should just skip live-reload).
+ * Opens an inotify watch on the parent DIRECTORY of `path`, not the file
+ * itself -- editors that save via write-temp+rename (vim, most editors'
+ * default) orphan a watch placed on the file's own inode, which then
+ * silently never fires again.
+ *
+ * Returns the inotify fd (poll()-able, POLLIN when something in the
+ * directory changed), or -1 on failure (not fatal -- caller should just
+ * skip live-reload).
  */
 int ghostcon_config_watch_open(const char *path);
 
 /* Call when the fd from ghostcon_config_watch_open() is POLLIN-ready.
  *
- * Drains ALL pending events (coalescing a burst from one save into a
- * single reload) and returns true if any of them referred to `path`'s
- * own basename specifically -- false for an unrelated file changing in
- * the same directory, or a spurious wakeup.
+ * Drains ALL pending events (coalescing a burst from one save into a single
+ * reload) and returns true if any of them referred to `path`'s own basename
+ * specifically -- false for an unrelated file changing in the same
+ * directory, or a spurious wakeup.
  */
 bool ghostcon_config_watch_check(int inotify_fd, const char *path);

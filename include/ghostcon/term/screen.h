@@ -119,10 +119,11 @@ struct ghostcon_screen {
     int16_t          history_head;  /* write cursor in history ring buffer */
 
     /* How many lines back into `history` the VIEW currently is (0 = live,
-     * showing `rows`; up to history_count = fully scrolled back). Distinct
-     * from `scrollback_top` above, which is an internal ring-buffer
-     * rotation index for `rows` itself, not a user-facing scroll position —
-     * see ghostcon_screen_row()'s own doc comment.
+     * showing `rows`; up to history_count = fully scrolled back).
+     *
+     * Distinct from `scrollback_top` above, which is an internal
+     * ring-buffer rotation index for `rows` itself, not a user-facing
+     * scroll position — see ghostcon_screen_row()'s own doc comment.
      */
     uint16_t         view_offset;
 
@@ -160,8 +161,9 @@ struct ghostcon_screen {
     /* CLOCK_MONOTONIC timestamp of when synchronized_output last
      * transitioned false->true -- lets core/main.c's render gate cap how
      * long it'll withhold a frame if an app sets mode 2026 and never clears
-     * it (crash, bug), instead of freezing rendering forever. Meaningless
-     * while synchronized_output is false.
+     * it (crash, bug), instead of freezing rendering forever.
+     *
+     * Meaningless while synchronized_output is false.
      */
     struct timespec  synchronized_output_since;
     bool             bracketed_paste;     /* Mode 2004 */
@@ -181,10 +183,12 @@ struct ghostcon_screen {
     /* Style management */
     ghostcon_style_set_t *styles;
 
-    /* OSC 8 — interned hyperlink URIs. See hyperlink.h's doc comment for
-     * why this mirrors ghostcon_style_set_t's shape exactly. cursor's
-     * current hyperlink_id (above) is stamped onto each printed cell in
-     * print_cell(), same as style_id.
+    /* OSC 8 — interned hyperlink URIs.
+     *
+     * See hyperlink.h's doc comment for why this mirrors
+     * ghostcon_style_set_t's shape exactly. cursor's current hyperlink_id
+     * (above) is stamped onto each printed cell in print_cell(), same as
+     * style_id.
      */
     ghostcon_hyperlink_set_t *hyperlinks;
 
@@ -197,8 +201,9 @@ struct ghostcon_screen {
      */
     char cwd[1024];
 
-    /* OSC 133/633 — shell integration semantic-prompt state. Stamped onto
-     * every printed cell (see print_cell() in screen.c) so the
+    /* OSC 133/633 — shell integration semantic-prompt state.
+     *
+     * Stamped onto every printed cell (see print_cell() in screen.c) so the
      * renderer/overlay can later distinguish prompt/input/output text (e.g.
      * click-to-jump between prompts, dimming old output).
      */
@@ -207,10 +212,11 @@ struct ghostcon_screen {
 
     /* OSC 52 — clipboard, stub tier. Scoped to this single ghostcon[ttyN]
      * instance only (no cross-VT sharing yet -- that needs the
-     * not-yet-built ghostcon-ipc broker). Stored verbatim as the base64
-     * payload OSC 52's own wire format already uses -- no decode/re-encode
-     * needed since the bytes are never inspected. Empty string if nothing
-     * has been copied yet.
+     * not-yet-built ghostcon-ipc broker).
+     *
+     * Stored verbatim as the base64 payload OSC 52's own wire format
+     * already uses -- no decode/re-encode needed since the bytes are never
+     * inspected. Empty string if nothing has been copied yet.
      */
     char clipboard[4096];
 
@@ -220,22 +226,26 @@ struct ghostcon_screen {
     /* Kitty keyboard protocol state */
     ghostcon_kitty_state_t kitty;
 
-    /* Kitty graphics protocol state (images + placements). Lives here
-     * rather than on ghostcon_stream_t so the renderer (which only ever
-     * takes a ghostcon_screen_t*, see render/machine.h) can reach
+    /* Kitty graphics protocol state (images + placements).
+     *
+     * Lives here rather than on ghostcon_stream_t so the renderer (which
+     * only ever takes a ghostcon_screen_t*, see render/machine.h) can reach
      * placements without needing stream.h at all.
      *
      * Two separate, always-live instances -- primary and alt -- not one
      * shared field, matching Ghostty's own screens.primary/
-     * screens.alternate.kitty_images split. Found live: switching to alt
-     * screen (e.g. entering a TUI that uses 1049h) left a Kitty image
-     * placed on the primary screen still rendering on top of the TUI,
-     * because alt_screen_enter/_exit save and restore the cell grid
-     * (alt_rows below) but a single shared kitty_graphics field has no
-     * notion of "which screen this placement belongs to" -- switching
-     * screens didn't hide it, and clearing it would have permanently lost
-     * it when switching back. Use ghostcon_screen_active_kitty_graphics()
-     * rather than reaching into kitty_graphics/kitty_graphics_alt directly.
+     * screens.alternate.kitty_images split.
+     *
+     * Found live: switching to alt screen (e.g. entering a TUI that uses
+     * 1049h) left a Kitty image placed on the primary screen still
+     * rendering on top of the TUI, because alt_screen_enter/_exit save and
+     * restore the cell grid (alt_rows below) but a single shared
+     * kitty_graphics field has no notion of "which screen this placement
+     * belongs to" -- switching screens didn't hide it, and clearing it
+     * would have permanently lost it when switching back.
+     *
+     * Use ghostcon_screen_active_kitty_graphics() rather than reaching into
+     * kitty_graphics/kitty_graphics_alt directly.
      */
     ghostcon_kitty_graphics_t kitty_graphics;
     ghostcon_kitty_graphics_t kitty_graphics_alt;
@@ -271,21 +281,27 @@ bool ghostcon_screen_resize(ghostcon_screen_t *screen,
 
 /* RIS (ESC c) -- full terminal reset, the standard escape hatch every real
  * terminal offers for recovering from ANY stuck/confused mode or attribute
- * state (what `reset`/`tput reset` send). Was previously a complete no-op
- * (stream.c's RIS handler literally did nothing, and this function didn't
- * exist despite a stray comment referencing it as if it did) -- found live:
- * a DECRST 69 bug left a stale DECSLRM margin permanently wrapping every
- * subsequent line, and `reset` couldn't clear it because RIS itself was
- * unimplemented; nothing short of restarting the whole service could
- * recover. Resets: cursor position/attributes/saved-cursor, scroll and
- * margin regions to full screen, all DEC private modes to their power-on
- * defaults, tab stops, character-protection state, Kitty keyboard state,
- * selection, and clears the visible screen (scrollback history is left
- * intact, matching xterm's own RIS convention). Does NOT reallocate the
- * grid or reset the color palette -- this is a state reset, not
- * screen_deinit()+screen_init(). Drops out of the alternate screen if
- * active (discarding it, not restoring the saved main-screen content -- RIS
- * is a hard reset, not a graceful exit).
+ * state (what `reset`/`tput reset` send).
+ *
+ * Was previously a complete no-op (stream.c's RIS handler literally did
+ * nothing, and this function didn't exist despite a stray comment
+ * referencing it as if it did) -- found live: a DECRST 69 bug left a stale
+ * DECSLRM margin permanently wrapping every subsequent line, and `reset`
+ * couldn't clear it because RIS itself was unimplemented; nothing short of
+ * restarting the whole service could recover.
+ *
+ * Resets: cursor position/attributes/saved-cursor, scroll and margin
+ * regions to full screen, all DEC private modes to their power-on defaults,
+ * tab stops, character-protection state, Kitty keyboard state, selection,
+ * and clears the visible screen (scrollback history is left intact,
+ * matching xterm's own RIS convention).
+ *
+ * Does NOT reallocate the grid or reset the color palette -- this is a
+ * state reset, not screen_deinit()+screen_init().
+ *
+ * Drops out of the alternate screen if active (discarding it, not restoring
+ * the saved main-screen content -- RIS is a hard reset, not a graceful
+ * exit).
  */
 void ghostcon_screen_reset(ghostcon_screen_t *screen);
 
@@ -391,10 +407,12 @@ void ghostcon_screen_alt_screen_enter(ghostcon_screen_t *screen);
 void ghostcon_screen_alt_screen_exit(ghostcon_screen_t *screen);
 
 /* Kitty graphics state (images + placements) for whichever screen --primary
- * or alternate -- is currently active. All Kitty graphics command handling
- * and rendering should go through this rather than screen->kitty_graphics
- * directly, so images stay correctly scoped to the screen they were placed
- * on (see kitty_graphics/ kitty_graphics_alt's own doc comment above).
+ * or alternate -- is currently active.
+ *
+ * All Kitty graphics command handling and rendering should go through this
+ * rather than screen->kitty_graphics directly, so images stay correctly
+ * scoped to the screen they were placed on (see kitty_graphics/
+ * kitty_graphics_alt's own doc comment above).
  */
 ghostcon_kitty_graphics_t *ghostcon_screen_active_kitty_graphics(ghostcon_screen_t *screen);
 
@@ -442,11 +460,12 @@ ghostcon_dirty_region_t ghostcon_screen_get_dirty(const ghostcon_screen_t *scree
  */
 ghostcon_cell_t *ghostcon_screen_cell(ghostcon_screen_t *screen, uint16_t x, uint16_t y);
 
-/* Get a pointer to the row at y in the visible grid. When
- * screen->view_offset > 0 (see its own doc comment), this transparently
- * splices in rows from `history` instead — the sole read path the renderer
- * uses (render/machine.c), so scrollback viewing needs no changes anywhere
- * else in the render pipeline.
+/* Get a pointer to the row at y in the visible grid.
+ *
+ * When screen->view_offset > 0 (see its own doc comment), this
+ * transparently splices in rows from `history` instead — the sole read path
+ * the renderer uses (render/machine.c), so scrollback viewing needs no
+ * changes anywhere else in the render pipeline.
  */
 ghostcon_row_t *ghostcon_screen_row(ghostcon_screen_t *screen, uint16_t y);
 
@@ -454,8 +473,10 @@ ghostcon_row_t *ghostcon_screen_row(ghostcon_screen_t *screen, uint16_t y);
 
 /* Adjusts view_offset by `delta` lines (negative = toward live/bottom,
  * positive = further back into history), clamped to [0, history_count]. A
- * no-op if the clamped result doesn't change view_offset. Otherwise marks
- * the whole visible grid dirty (the entire viewport's content just changed,
- * not any specific line) so the next render repaints it.
+ * no-op if the clamped result doesn't change view_offset.
+ *
+ * Otherwise marks the whole visible grid dirty (the entire viewport's
+ * content just changed, not any specific line) so the next render repaints
+ * it.
  */
 void ghostcon_screen_scroll_view(ghostcon_screen_t *screen, int delta);

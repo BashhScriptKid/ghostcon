@@ -1,8 +1,8 @@
-/*
- * test_box_draw — pure-CPU unit test for the procedural box-drawing/
- * block-element/sextant rasterizer (render/box_draw.c). No GPU/DRM
- * dependency, unlike test_render.c: this only exercises the coverage
- * bitmap generation directly.
+/* test_box_draw — pure-CPU unit test for the procedural box-drawing/
+ * block-element/sextant rasterizer (render/box_draw.c).
+ *
+ * No GPU/DRM dependency, unlike test_render.c: this only exercises the
+ * coverage bitmap generation directly.
  */
 
 #include "ghostcon/render/box_draw.h"
@@ -93,9 +93,11 @@ int main(void)
           alpha[(CELL_H - 1) * CELL_W + CELL_W / 2] == 255);
 
     /* U+2579 BOX DRAWINGS HEAVY UP (╹) -- single arm reaching the top edge,
-     * no down arm reaching the bottom edge. Found live: a TUI border used
-     * this as a terminator cap; it fell through to the font atlas and
-     * showed as a short mark disconnected from the solid line above it.
+     * no down arm reaching the bottom edge.
+     *
+     * Found live: a TUI border used this as a terminator cap; it fell
+     * through to the font atlas and showed as a short mark disconnected
+     * from the solid line above it.
      */
     check("heavy-up terminator handled",
           ghostcon_box_draw_render(0x2579, CELL_W, CELL_H, alpha));

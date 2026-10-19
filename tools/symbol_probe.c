@@ -1,14 +1,13 @@
-/*
- * symbol_probe -- prints a batch of codepoints as raw UTF-8 text, one
- * per line, alongside ghostcon's own ghostcon_cell_is_symbol()/
- * is_graphics_element() classification -- meant to be piped or pasted
- * into a REAL Ghostty window so its rendering can be eyeballed
- * side-by-side with what ghostcon decided, as an independent check on
- * the UCD-generated table + the two hand-added carve-outs
- * (src/term/cell_symbol_table.gen.c, src/term/cell.c).
+/* symbol_probe -- prints a batch of codepoints as raw UTF-8 text, one per
+ * line, alongside ghostcon's own ghostcon_cell_is_symbol()/
+ * is_graphics_element() classification -- meant to be piped or pasted into
+ * a REAL Ghostty window so its rendering can be eyeballed side-by-side with
+ * what ghostcon decided, as an independent check on the UCD-generated table
+ * + the two hand-added carve-outs (src/term/cell_symbol_table.gen.c,
+ * src/term/cell.c).
  *
- * Not a meson test target (nothing to assert against here -- this is
- * for human eyes against a live reference terminal, not CI).
+ * Not a meson test target (nothing to assert against here -- this is for
+ * human eyes against a live reference terminal, not CI).
  *
  * Usage:
  *   symbol_probe             curated set: known-problem glyphs plus

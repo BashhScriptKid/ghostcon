@@ -113,12 +113,14 @@ static bool render_sextant(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
 
 /* Box drawing, U+2500-254B plus single-arm terminators U+2574-257B
  * --pure-weight subset only (both light or both heavy per glyph, or a
- * single arm for the terminators). Rounded corners (U+256D-2570) are
- * handled separately below. Mixed-weight, double-line, dashed, and diagonal
- * variants (U+254C-2573, U+257C+) are deliberately out of scope for this
- * pass -- see box_draw.h's doc comment and PLAN.md --and fall through to
- * the font atlas unchanged (same as before this file existed, not a
- * regression).
+ * single arm for the terminators).
+ *
+ * Rounded corners (U+256D-2570) are handled separately below.
+ *
+ * Mixed-weight, double-line, dashed, and diagonal variants (U+254C-2573,
+ * U+257C+) are deliberately out of scope for this pass -- see box_draw.h's
+ * doc comment and PLAN.md --and fall through to the font atlas unchanged
+ * (same as before this file existed, not a regression).
  */
 
 typedef struct
@@ -158,9 +160,11 @@ static const box_line_t BOX_LINES[] = {
      * border used U+2579 (a single short heavy upward tick, no down arm) as
      * a border cap/terminator, rendered via the font fallback with its
      * usual bearing gap, showing as a short disconnected mark below the
-     * main vertical line. Only the pure-weight ones (matching this table's
-     * existing scope) --U+257C-257F mix light/heavy per direction and would
-     * need per-arm thickness, not just per-glyph, so stay deferred.
+     * main vertical line.
+     *
+     * Only the pure-weight ones (matching this table's existing scope)
+     * --U+257C-257F mix light/heavy per direction and would need per-arm
+     * thickness, not just per-glyph, so stay deferred.
      */
     { 0x2574, 0, 0, 0, 1 }, /* ╴ light left */
     { 0x2575, 1, 0, 0, 0 }, /* ╵ light up */
@@ -217,10 +221,11 @@ render_box_line(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
  * r = min(cell_w,cell_h)/2 from the cell center -- i.e. the curve IS a true
  * quarter-circle arc of that radius (the bezier is just how their vector
  * canvas draws it), continuing as straight arms out to the cell edges
- * beyond the arc's endpoints. Reproduced directly here as a circle-band
- * test (squared distances, no libm dependency needed) rather than a bezier
- * stroke -- mathematically the same curve, simpler for this renderer's
- * plain rectangle-fill primitives.
+ * beyond the arc's endpoints.
+ *
+ * Reproduced directly here as a circle-band test (squared distances, no
+ * libm dependency needed) rather than a bezier stroke -- mathematically the
+ * same curve, simpler for this renderer's plain rectangle-fill primitives.
  */
 
 static bool render_rounded_corner(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)

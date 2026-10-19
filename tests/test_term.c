@@ -113,9 +113,11 @@ main(void)
 
     /* Test 8: scrollback view (Shift+Up/Down/PageUp/PageDown shortcuts'
      * underlying mechanism — ghostcon_screen_scroll_view()/the history
-     * splicing in ghostcon_screen_row()). Isolated small term (5 cols x 3
-     * rows) so exact line contents at each viewport position are easy to
-     * reason about, independent of the 80x24 term used above.
+     * splicing in ghostcon_screen_row()).
+     *
+     * Isolated small term (5 cols x 3 rows) so exact line contents at each
+     * viewport position are easy to reason about, independent of the 80x24
+     * term used above.
      */
     {
         ghostcon_term_t stest;
@@ -124,9 +126,10 @@ main(void)
             return 1;
         }
         /* Each line exactly fills the 5-col width; \r\n avoids relying on
-         * auto-wrap behavior at the last column. After this, the live grid
-         * holds "DDDDD"/"EEEEE"/"" and history holds
-         * "AAAAA","BBBBB","CCCCC" (oldest to newest).
+         * auto-wrap behavior at the last column.
+         *
+         * After this, the live grid holds "DDDDD"/"EEEEE"/"" and history
+         * holds "AAAAA","BBBBB","CCCCC" (oldest to newest).
          */
         ghostcon_term_feed(&stest, (const uint8_t *)
             "AAAAA\r\nBBBBB\r\nCCCCC\r\nDDDDD\r\nEEEEE\r\n", 35);

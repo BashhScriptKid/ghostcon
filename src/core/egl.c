@@ -12,8 +12,10 @@
 
 /* Shared by ghostcon_egl_init (owns gbm_dev, creates its own render-only
  * gbm_surf) and ghostcon_egl_init_with_gbm (borrows both from the caller,
- * e.g. core/kms.c's scanout-capable surface). `borrowed_surf` NULL means
- * "create our own"; non-NULL means "wrap this one".
+ * e.g. core/kms.c's scanout-capable surface).
+ *
+ * `borrowed_surf` NULL means "create our own"; non-NULL means "wrap this
+ * one".
  */
 static bool
 init_common(ghostcon_egl_t *egl, struct gbm_surface *borrowed_surf,
@@ -98,10 +100,11 @@ init_common(ghostcon_egl_t *egl, struct gbm_surface *borrowed_surf,
      * configs this display offers) that Mesa's radeonsi/GBM driver
      * advertises the extension string but doesn't honor
      * EGL_GL_COLORSPACE_SRGB_KHR for ANY window-surface config --every
-     * attempt fails EGL_BAD_MATCH. Real linear-space rendering is instead
-     * done via an offscreen sRGB-format FBO gles.c renders into and blits
-     * from -- see its own doc comment -- which needs nothing from this
-     * surface at all.
+     * attempt fails EGL_BAD_MATCH.
+     *
+     * Real linear-space rendering is instead done via an offscreen
+     * sRGB-format FBO gles.c renders into and blits from -- see its own doc
+     * comment -- which needs nothing from this surface at all.
      */
     egl->surface = eglCreateWindowSurface(egl->display, config,
                                            (EGLNativeWindowType)egl->gbm_surf, NULL);

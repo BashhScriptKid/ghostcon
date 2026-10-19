@@ -111,35 +111,39 @@ bool ghostcon_transport_connect(ghostcon_transport_t *t,
      * transfer split across many escape-sequence chunks took visibly longer
      * to appear than in Ghostty, because each 4096-byte read triggered its
      * own render_frame(), and render_frame() ends in a vsync-gated blocking
-     * page flip (kms.c's ghostcon_kms_page_flip()). Ghostty avoids this by
-     * reading into a 64KB ring on a dedicated thread decoupled from
-     * rendering; draining this fd fully per wakeup is the equivalent fix
-     * for a single-threaded loop -- one page flip per wakeup instead of one
-     * per 4096 bytes.
+     * page flip (kms.c's ghostcon_kms_page_flip()).
+     *
+     * Ghostty avoids this by reading into a 64KB ring on a dedicated thread
+     * decoupled from rendering; draining this fd fully per wakeup is the
+     * equivalent fix for a single-threaded loop -- one page flip per wakeup
+     * instead of one per 4096 bytes.
      */
     int flags = fcntl(t->fd, F_GETFL, 0);
     if (flags >= 0)
         fcntl(t->fd, F_SETFL, flags | O_NONBLOCK);
 
     /* Best-effort: the control socket connection failing doesn't fail the
-     * whole connect -- see ctl_fd's own doc comment. Derived from
-     * pty_socket's own directory (not registry_socket_path's) since that's
-     * the value ghost-ptyserv itself actually reported, the more
-     * authoritative source if the two ever diverged.
+     * whole connect -- see ctl_fd's own doc comment.
+     *
+     * Derived from pty_socket's own directory (not registry_socket_path's)
+     * since that's the value ghost-ptyserv itself actually reported, the
+     * more authoritative source if the two ever diverged.
      *
      * Retried, NOT a single attempt -- found live: a single-shot
      * connect_unix() here raced pty_child.c's own ctl-socket bind at
      * early-boot startup (both sockets bind around the same moment, but the
      * data socket above already gets 50 retries via its own caller loop,
-     * while this one previously had none). Losing that race left ctl_fd
-     * permanently -1 for the rest of this process's lifetime -- every
-     * ghostcon_transport_resize() call for the entire session (including
-     * from a later Ctrl+=/Ctrl+Minus zoom) then silently no-ops forever
-     * (see that function's own "best-effort, not an error" early return),
-     * with no error logged anywhere to explain why a resize that clearly
-     * ran produced no visible effect. Same retry budget as the data socket
-     * connect above, so both sockets get an equally fair chance to catch up
-     * with pty_child.c's startup.
+     * while this one previously had none).
+     *
+     * Losing that race left ctl_fd permanently -1 for the rest of this
+     * process's lifetime -- every ghostcon_transport_resize() call for the
+     * entire session (including from a later Ctrl+=/Ctrl+Minus zoom) then
+     * silently no-ops forever (see that function's own "best-effort, not an
+     * error" early return), with no error logged anywhere to explain why a
+     * resize that clearly ran produced no visible effect.
+     *
+     * Same retry budget as the data socket connect above, so both sockets
+     * get an equally fair chance to catch up with pty_child.c's startup.
      */
     char ctl_dir[GHOSTCON_PTYSERV_LINE_MAX];
     snprintf(ctl_dir, sizeof(ctl_dir), "%s", pty_socket);

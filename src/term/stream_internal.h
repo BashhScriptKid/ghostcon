@@ -3,9 +3,9 @@
  * stream_apc.c).
  *
  * NOT part of the public API (it lives under src/, not include/) —
- * everything here assumes ghostcon_stream_t's struct internals are
- * visible, which the public header deliberately does not promise to
- * external clients.
+ * everything here assumes ghostcon_stream_t's struct internals are visible,
+ * which the public header deliberately does not promise to external
+ * clients.
  *
  * Dispatch ownership split (see PLAN.md "Phase 2: Terminal Engine
  * Modularization"): the state machine in stream.c collects bytes, then
@@ -51,11 +51,12 @@ csi_param_count(ghostcon_stream_t *st, uint8_t minc, uint8_t maxc)
     return st->params_idx >= minc && st->params_idx <= maxc;
 }
 
-/* A raw CSI param can be up to UINT16_MAX (65535). Handlers that apply it
- * via an O(n) per-step loop (rather than O(1) arithmetic or a single
- * memmove) must not loop that many times just to hang synchronously in the
- * single-threaded render/input loop -- clamp to the largest count that can
- * still change anything observable.
+/* A raw CSI param can be up to UINT16_MAX (65535).
+ *
+ * Handlers that apply it via an O(n) per-step loop (rather than O(1)
+ * arithmetic or a single memmove) must not loop that many times just to
+ * hang synchronously in the single-threaded render/input loop -- clamp to
+ * the largest count that can still change anything observable.
  */
 static inline int clamp_loop_count(int n, int max_useful)
 {
@@ -79,8 +80,10 @@ typedef void (*gc_stream_csi_handler_t)(ghostcon_stream_t *,
 
 /* Looks up the handler for a completed CSI sequence (final byte +
  * accumulated intermediates/params). Returns NULL for unknown/invalid
- * combinations. The state machine invokes the returned handler, so handlers
- * may live file-static in stream_csi.c.
+ * combinations.
+ *
+ * The state machine invokes the returned handler, so handlers may live
+ * file-static in stream_csi.c.
  */
 gc_stream_csi_handler_t
 gc_stream_csi_dispatch(ghostcon_stream_t *st, uint8_t final_byte);

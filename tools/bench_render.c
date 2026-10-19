@@ -1,16 +1,16 @@
-/*
- * bench_render -- measures full-canvas redraw throughput for
- * ghostcon's render pipeline (atlas + gles + machine), headless (a
- * DRM render node, no display/DRM master needed -- same setup
- * tests/test_render.c already uses, see core/egl.h's doc comment).
+/* bench_render -- measures full-canvas redraw throughput for ghostcon's
+ * render pipeline (atlas + gles + machine), headless (a DRM render node, no
+ * display/DRM master needed -- same setup tests/test_render.c already uses,
+ * see core/egl.h's doc comment).
  *
- * Motivation: suspected slowness "fast scrolling" in a TUI -- every
- * visible row's content changing every frame is the worst case for
- * this renderer's "redraw everything dirty, one GLES draw call per
- * frame" design (see render/machine.c). This tool reproduces exactly
- * that worst case directly against the real render pipeline, with no
- * pty/VT/network in the loop, so the render cost is isolated from
- * everything else that could also be slow.
+ * Motivation: suspected slowness "fast scrolling" in a TUI -- every visible
+ * row's content changing every frame is the worst case for this renderer's
+ * "redraw everything dirty, one GLES draw call per frame" design (see
+ * render/machine.c).
+ *
+ * This tool reproduces exactly that worst case directly against the real
+ * render pipeline, with no pty/VT/network in the loop, so the render cost
+ * is isolated from everything else that could also be slow.
  *
  * Usage: bench_render [cols] [rows] [font_size] [frames]
  *   Defaults: 128x32 @ 24pt, 300 frames (matches a plausible real

@@ -1,24 +1,23 @@
-/*
- * bench_kms -- measures the REAL DRM atomic-commit/page-flip pacing
- * cost (core/kms.c's ghostcon_kms_modeset()/ghostcon_kms_page_flip(),
- * the exact sequence core/main.c's render_frame() uses every frame),
- * isolated from GLES render cost (already covered by bench_render,
- * which showed it's nowhere near the bottleneck).
+/* bench_kms -- measures the REAL DRM atomic-commit/page-flip pacing cost
+ * (core/kms.c's ghostcon_kms_modeset()/ghostcon_kms_page_flip(), the exact
+ * sequence core/main.c's render_frame() uses every frame), isolated from
+ * GLES render cost (already covered by bench_render, which showed it's
+ * nowhere near the bottleneck).
  *
- * Unlike bench_render/bench_parse/bench_ptyserv, this ONE needs real
- * DRM master on the primary node -- it actually modesets and scans
- * out to the physical display, so it can only run while nothing else
- * (ghostcon-core, a desktop compositor) already holds master on the
- * same card. Meant to be run with the real ghostcon.service stopped
- * for the duration.
+ * Unlike bench_render/bench_parse/bench_ptyserv, this ONE needs real DRM
+ * master on the primary node -- it actually modesets and scans out to the
+ * physical display, so it can only run while nothing else (ghostcon-core, a
+ * desktop compositor) already holds master on the same card.
  *
- * Renders a trivial solid-color clear per frame (no atlas/glyphs --
- * that cost is already isolated by bench_render) and times
- * ghostcon_egl_swap() + ghostcon_kms_page_flip() together, which is
- * what actually paces frame delivery: page_flip() waits for the
- * PREVIOUS flip's completion event before submitting the next one, so
- * steady-state timing here should track the display's real vsync
- * interval (e.g. ~16.7ms at 60Hz) if the KMS commit path is healthy.
+ * Meant to be run with the real ghostcon.service stopped for the duration.
+ *
+ * Renders a trivial solid-color clear per frame (no atlas/glyphs --that
+ * cost is already isolated by bench_render) and times ghostcon_egl_swap() +
+ * ghostcon_kms_page_flip() together, which is what actually paces frame
+ * delivery: page_flip() waits for the PREVIOUS flip's completion event
+ * before submitting the next one, so steady-state timing here should track
+ * the display's real vsync interval (e.g. ~16.7ms at 60Hz) if the KMS
+ * commit path is healthy.
  *
  * Usage: bench_kms [drm_node] [frames]
  *   Defaults: /dev/dri/card1, 300 frames.

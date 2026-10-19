@@ -7,10 +7,14 @@
 
 /* Operator/punctuation characters actual programming-ligature fonts
  * (JetBrains Mono, Fira Code, Cascadia Code, ...) key their calt/liga
- * substitutions off of. Deliberately generous -- a false-positive candidate
- * just costs one wasted hb_shape() call that reports "no substitution",
- * same as any character never in this set. Not meant to be exhaustive; the
- * real gate is HarfBuzz's own output, not this list.
+ * substitutions off of.
+ *
+ * Deliberately generous -- a false-positive candidate just costs one wasted
+ * hb_shape() call that reports "no substitution", same as any character
+ * never in this set.
+ *
+ * Not meant to be exhaustive; the real gate is HarfBuzz's own output, not
+ * this list.
  */
 static const char ligature_trigger_chars[] = "!#$%&*+-./:<=>?@^|~";
 

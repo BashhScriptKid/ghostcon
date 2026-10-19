@@ -1,28 +1,28 @@
-/*
- * ghostcon-core — per-VT renderer entry point.
+/* ghostcon-core — per-VT renderer entry point.
  *
- * Ties together every module built so far into the real event loop
- * (see IMPLEMENTATION.md "Renderer Architecture" pipeline and PLAN.md's
+ * Ties together every module built so far into the real event loop (see
+ * IMPLEMENTATION.md "Renderer Architecture" pipeline and PLAN.md's
  * "Architecture overview"): vtctl owns the VT_PROCESS acquire/release
- * handshake, kms+egl+gles+atlas+machine render, transport talks to the
- * pty child, input captures the keyboard, diag reports crashes, term
- * holds the actual terminal state.
+ * handshake, kms+egl+gles+atlas+machine render, transport talks to the pty
+ * child, input captures the keyboard, diag reports crashes, term holds the
+ * actual terminal state.
  *
- * The one genuinely new piece here (not exercised by any earlier
- * scratch harness, which only ever handled a single startup-activate-
- * then-exit cycle) is the repeated acquire/release lifecycle: a real
- * desktop user switches VTs back and forth many times over a session,
- * and this process must survive that indefinitely, not just once.
- * Display resources (DRM master, kms/egl/gles) are torn down on
- * release and rebuilt on reacquire; terminal state, the font atlas,
- * and the input/transport connections all persist across the cycle —
- * a VT switch away and back must not lose scrollback or reconnect the
- * shell.
+ * The one genuinely new piece here (not exercised by any earlier scratch
+ * harness, which only ever handled a single startup-activate-then-exit
+ * cycle) is the repeated acquire/release lifecycle: a real desktop user
+ * switches VTs back and forth many times over a session, and this process
+ * must survive that indefinitely, not just once.
  *
- * No TOML config yet (PLAN.md's own step list defers this past Phase
- * 1's early items — ghost-ptyserv already set this precedent). VT
- * number and DRM node come from argv; the canary fd (if a supervisor
- * is running this) comes from GHOSTCON_CANARY_FD.
+ * Display resources (DRM master, kms/egl/gles) are torn down on release and
+ * rebuilt on reacquire; terminal state, the font atlas, and the
+ * input/transport connections all persist across the cycle — a VT switch
+ * away and back must not lose scrollback or reconnect the shell.
+ *
+ * No TOML config yet (PLAN.md's own step list defers this past Phase 1's
+ * early items — ghost-ptyserv already set this precedent).
+ *
+ * VT number and DRM node come from argv; the canary fd (if a supervisor is
+ * running this) comes from GHOSTCON_CANARY_FD.
  *
  * Usage: ghostcon-core <vtnum> [drm_node] [registry_socket]
  */
@@ -100,6 +100,7 @@ typedef struct
     int zoom_step; /* points per Ctrl+=/Ctrl+Minus press, config-driven */
 
     /* [general] font_family/font_variant -- see config.h's own doc comment.
+     *
      * Persisted here (not just used transiently at load time) for the same
      * reason cursor_theme etc. below are: both apply_font_size() (zoom) and
      * apply_config_reload() need to re-call ghostcon_atlas_create() with
@@ -114,17 +115,21 @@ typedef struct
     bool ligatures;
 
     /* Cursor sprite config -- see PLAN.md's "Cursor sprite: raster images,
-     * per-state, config-driven" section. Persisted here (not just used
-     * transiently at load time) so ghostcon_display_reload_cursor() can be
-     * re-run from apply_font_size() (new fallback_font_height, same
-     * configured paths) without re-reading config.
+     * per-state, config-driven" section.
+     *
+     * Persisted here (not just used transiently at load time) so
+     * ghostcon_display_reload_cursor() can be re-run from apply_font_size()
+     * (new fallback_font_height, same configured paths) without re-reading
+     * config.
      */
     /* [cursor] config -- persisted here (not just pushed into the display
      * backend transiently at load time) so apply_config_reload() can diff
      * old vs new before touching the live cursor plane, and so
      * push_cursor_config() can be re-run whenever needed without re-reading
-     * config just for that. See display.h's
-     * ghostcon_display_cursor_config_t for the fields' meaning.
+     * config just for that.
+     *
+     * See display.h's ghostcon_display_cursor_config_t for the fields'
+     * meaning.
      */
     char cursor_theme[256];
     char cursor_default_path[256];
@@ -158,6 +163,7 @@ typedef struct
     char color[16][16];
 
     /* [mouse]/[touchpad] config -- see config.h's own doc comment.
+     *
      * Persisted here for the same reason the keybinding fields above are:
      * apply_mouse_touchpad_config() needs to re-push these into a fresh
      * app->input after every ghostcon_input_open() (a new input context
@@ -208,21 +214,25 @@ typedef struct
      * process's own open fd at the KERNEL level the entire time the VT is
      * inactive, backpressure or not -- simply not polling/dispatching it
      * while inactive (tried first) only delays consumption, it doesn't
-     * discard the backlog. The whole multi-minute backlog (any keystrokes
-     * typed anywhere else on the machine while this VT wasn't focused) gets
-     * replayed in one burst the instant dispatch resumes, indistinguishable
-     * from real input typed on this VT. Closing the libinput context on
-     * release and opening a fresh one on reacquire (same as kms/egl/gles
-     * below) discards that backlog for free, since a brand-new context has
-     * no history.
+     * discard the backlog.
+     *
+     * The whole multi-minute backlog (any keystrokes typed anywhere else on
+     * the machine while this VT wasn't focused) gets replayed in one burst
+     * the instant dispatch resumes, indistinguishable from real input typed
+     * on this VT.
+     *
+     * Closing the libinput context on release and opening a fresh one on
+     * reacquire (same as kms/egl/gles below) discards that backlog for
+     * free, since a brand-new context has no history.
      */
     ghostcon_input_t *input;
 
     /* Set when a render was skipped because the app had a
      * synchronized-output batch (mode 2026) open -- see the render-gate
-     * site below. Not per-acquire-cycle state (survives release/reacquire
-     * trivially since it's just "is a render owed", not tied to any GPU
-     * handle).
+     * site below.
+     *
+     * Not per-acquire-cycle state (survives release/reacquire trivially
+     * since it's just "is a render owed", not tied to any GPU handle).
      */
     bool render_deferred;
     bool screenshot_requested; /* Ctrl+Alt+D also asks render_frame() to
@@ -257,10 +267,11 @@ static void push_cursor_config(app_t *app)
  * (a fresh input context always starts back at that function's own
  * hardcoded defaults otherwise) and from apply_config_reload() (see app_t's
  * own doc comment on these two fields for why they're persisted rather than
- * applied transiently). A no-op if app->input is NULL (not yet acquired) or
- * either spec fails to parse (keeps whatever the input context already has
- * --its own built-in defaults on first open, or the last-known-good parse
- * on a reload).
+ * applied transiently).
+ *
+ * A no-op if app->input is NULL (not yet acquired) or either spec fails to
+ * parse (keeps whatever the input context already has --its own built-in
+ * defaults on first open, or the last-known-good parse on a reload).
  */
 static void apply_keybindings(app_t *app)
 {
@@ -343,13 +354,15 @@ static void apply_theme_config(app_t *app)
  * different VT is what's actually visible -- exactly what a
  * confused/desynced VT-switch state, e.g. from heavy manual chvt/session
  * churn, can cause), it would otherwise keep acting on every keystroke
- * typed ANYWHERE on the physical keyboard. This is a safety net for that
- * specific failure mode, not the primary "don't process input while
- * inactive" mechanism (that's already handled by app->input simply not
- * existing outside an acquire/release cycle). Fails OPEN (returns true) on
- * any read error -- if /sys/class/tty/tty0/active can't be read for some
- * reason, that's not grounds to silently stop responding to input in the
- * normal case.
+ * typed ANYWHERE on the physical keyboard.
+ *
+ * This is a safety net for that specific failure mode, not the primary
+ * "don't process input while inactive" mechanism (that's already handled by
+ * app->input simply not existing outside an acquire/release cycle).
+ *
+ * Fails OPEN (returns true) on any read error -- if
+ * /sys/class/tty/tty0/active can't be read for some reason, that's not
+ * grounds to silently stop responding to input in the normal case.
  */
 static bool is_vt_foreground(int vt_num)
 {
@@ -377,11 +390,13 @@ static void release_display(app_t *app)
     /* Tears down GLES/EGL/KMS and drops DRM master synchronously, in
      * vtctl_pre_ack()'s critical path order (drop master BEFORE the
      * VT_RELDISP ack reaches the kernel -- see that function's doc comment
-     * below for why a late drop once hung VT-switching whole). Deliberately
-     * does NOT close the display backend's internal DRM fd itself (measured
-     * 70-80ms+ synchronously; see display.c's release for why the fd stays
-     * open-but-unmarked-until-reacquire). Idempotent: no-op if nothing is
-     * acquired.
+     * below for why a late drop once hung VT-switching whole).
+     *
+     * Deliberately does NOT close the display backend's internal DRM fd
+     * itself (measured 70-80ms+ synchronously; see display.c's release for
+     * why the fd stays open-but-unmarked-until-reacquire).
+     *
+     * Idempotent: no-op if nothing is acquired.
      */
     ghostcon_display_release(app->disp);
     GC_LOG(vt, "released");
@@ -395,7 +410,9 @@ static void release_display(app_t *app)
      * pressed_buttons state) is discarded here and rebuilt fresh on
      * reacquire, but screen->selection lives outside ghostcon_input_t and
      * survives untouched, so without this it would get stuck pending
-     * forever. Clearing rather than finishing: there's no
+     * forever.
+     *
+     * Clearing rather than finishing: there's no
      * release-in-visible-app-content event to treat as a real finish.
      */
     ghostcon_selection_clear(&app->term.screen.selection);
@@ -407,7 +424,9 @@ static bool acquire_display(app_t *app)
      * KMS/GBM/EGL/GLES, replays the font atlas into the fresh GPU texture
      * (forced -- a freshly-created GLES context has an empty texture
      * regardless of CPU-side atlas dirty state; see gles.h), and uploads
-     * cursor sprites. Returns dimensions via out params.
+     * cursor sprites.
+     *
+     * Returns dimensions via out params.
      */
     uint32_t width = 0, height = 0;
     GC_LOG(vt, "acquire request");
@@ -419,9 +438,10 @@ static bool acquire_display(app_t *app)
 
     /* Fresh input context every acquire -- see app_t's own doc comment on
      * `input` for why this must not be reused across a release/ reacquire
-     * cycle (kernel-level event backlog, not a polling issue). Not fatal if
-     * it fails: continue without keyboard input, matching main()'s own
-     * original startup behavior.
+     * cycle (kernel-level event backlog, not a polling issue).
+     *
+     * Not fatal if it fails: continue without keyboard input, matching
+     * main()'s own original startup behavior.
      */
     app->input = ghostcon_input_open("seat0", (int)width, (int)height,
                                       app->repeat_delay_ms, app->repeat_rate_ms);
@@ -434,18 +454,20 @@ static bool acquire_display(app_t *app)
      * initial connect (see the one-shot call right after
      * ghostcon_transport_connect() in main(), which only covers the very
      * first acquire -- before this connection even exists on a later
-     * reacquire, so that call can't run again here). This makes resize
-     * idempotent/self-healing: ghost-ptyserv/pty-ttyN are a long-lived,
-     * persistent pty pair by design (survives ghostcon-core restarts, for
-     * VT-switch/ring-buffer session continuity), so the pty's
+     * reacquire, so that call can't run again here).
+     *
+     * This makes resize idempotent/self-healing: ghost-ptyserv/pty-ttyN are
+     * a long-lived, persistent pty pair by design (survives ghostcon-core
+     * restarts, for VT-switch/ring-buffer session continuity), so the pty's
      * kernel-tracked size is mutable shared state that can drift out of
      * sync with app.term's own correct size if ANYTHING clobbers a resize
      * message in between (found live: a burst of spurious zoom-out events
      * right after a restart left the pty stuck at a much-older, smaller
      * font size's dimensions, with nothing to correct it afterward -- a
      * plain resize-as-notification design has no way to recover from that;
-     * resending it here on every reacquire does, at the next VT switch). A
-     * harmless no-op before the transport is connected yet (ctl_fd still
+     * resending it here on every reacquire does, at the next VT switch).
+     *
+     * A harmless no-op before the transport is connected yet (ctl_fd still
      * -1, resize's own "best-effort, not an error" early return) -- the
      * existing one-shot call covers that exact case instead.
      */
@@ -457,10 +479,12 @@ static bool acquire_display(app_t *app)
 
 /* Routes terminal-generated responses (DSR/DA/DECRPM, OSC color query
  * replies, ...) back to the pty child, exactly like a real keystroke would
- * be -- the application on the other end can't tell the difference. Was
- * never wired up before this, meaning e.g. cursor-position queries (DSR 6)
- * got no response at all; OSC color queries (ESC]4;n;?ESC\ and friends)
- * need this same path.
+ * be -- the application on the other end can't tell the difference.
+ *
+ * Was never wired up before this, meaning e.g. cursor-position queries (DSR
+ *
+ * 6) got no response at all; OSC color queries (ESC]4;n;?ESC\ and friends)
+ *    need this same path.
  */
 static void term_output_callback(void *userdata, const uint8_t *data, size_t len)
 {
@@ -479,12 +503,14 @@ static void term_title_callback(void *userdata, const char *title)
     app_t *app = userdata;
 
     /* argv[0]: verbatim "ghostcon@tty<N> -- " + title, visible via `ps
-     * -ef`/`/proc/<pid>/cmdline`. Truncated to argv[0]'s original length
-     * rather than relocated via prctl(PR_SET_MM_ARG_START/END) — that call
-     * requires CAP_SYS_RESOURCE and correct mm_struct bookkeeping to avoid
-     * corrupting the process's own memory map; PLAN.md explicitly calls out
-     * either choice as acceptable as long as it's deliberate, and
-     * truncation is the safe one.
+     * -ef`/`/proc/<pid>/cmdline`.
+     *
+     * Truncated to argv[0]'s original length rather than relocated via
+     * prctl(PR_SET_MM_ARG_START/END) — that call requires CAP_SYS_RESOURCE
+     * and correct mm_struct bookkeeping to avoid corrupting the process's
+     * own memory map; PLAN.md explicitly calls out either choice as
+     * acceptable as long as it's deliberate, and truncation is the safe
+     * one.
      */
     if (app->argv0 && app->argv0_len > 0)
     {
@@ -509,9 +535,11 @@ static void term_title_callback(void *userdata, const char *title)
 }
 
 /* OSC 9/777 (desktop notifications) -- stub tier, no ghostcon-ipc broker
- * exists yet (PLAN.md's own deferred item). Logged to journald via the
- * existing diag path rather than silently discarded, so a notification an
- * application sent is at least visible somewhere.
+ * exists yet (PLAN.md's own deferred item).
+ *
+ * Logged to journald via the existing diag path rather than silently
+ * discarded, so a notification an application sent is at least visible
+ * somewhere.
  */
 static void term_notify_callback(void *userdata, const char *message)
 {
@@ -536,20 +564,23 @@ static void vtctl_pre_ack(char event, void *userdata)
         release_display((app_t *)userdata);
 }
 
-/* Shared by config hot-reload and the Ctrl+=/Ctrl+- zoom shortcut below --
- * rebuilds the glyph atlas at `new_size` (using app->font_family/
+/* Shared by config hot-reload and the Ctrl+=/Ctrl+- zoom shortcut below
+ * --rebuilds the glyph atlas at `new_size` (using app->font_family/
  * font_variant, which the caller must already have updated to whatever it
  * wants baked into the rebuild) and resizes the terminal grid to match,
  * reusing the exact cols/rows-from-kms-dimensions/term_resize/
  * transport_resize sequence acquire_display()'s own reacquire path already
- * uses. `force` rebuilds even if new_size == app->font_size --config
- * hot-reload needs this for a font_family/font_variant-only edit, where the
- * size genuinely didn't change but the atlas still needs to be recreated
- * against the new font; the zoom shortcut always passes false, since a zoom
- * keypress by definition means the size changed. Returns true if it
- * actually did something (caller should render); false for a no-op (size
- * unchanged and not forced, or invalid) or a failed rebuild (logged, old
- * atlas left in place).
+ * uses.
+ *
+ * `force` rebuilds even if new_size == app->font_size --config hot-reload
+ * needs this for a font_family/font_variant-only edit, where the size
+ * genuinely didn't change but the atlas still needs to be recreated against
+ * the new font; the zoom shortcut always passes false, since a zoom
+ * keypress by definition means the size changed.
+ *
+ * Returns true if it actually did something (caller should render); false
+ * for a no-op (size unchanged and not forced, or invalid) or a failed
+ * rebuild (logged, old atlas left in place).
  */
 static bool apply_font_size(app_t *app, int new_size, bool force)
 {
@@ -609,10 +640,12 @@ static bool apply_font_size(app_t *app, int new_size, bool force)
          * refresh_hw_cursor() being called on every font/resize change
          * (src/terminal.c) -- a procedural-fallback I-beam sized for the
          * old font would look visibly wrong (too small/large) at the new
-         * one. Re-resolves configured raster assets too, not just the
-         * fallback -- redundant work for a state that has one (same image
-         * gets redecoded/reuploaded), but simplest given this only runs on
-         * a zoom keypress, not a hot path.
+         * one.
+         *
+         * Re-resolves configured raster assets too, not just the fallback
+         * -- redundant work for a state that has one (same image gets
+         * redecoded/reuploaded), but simplest given this only runs on a
+         * zoom keypress, not a hot path.
          */
         ghostcon_display_reload_cursor(app->disp, app->cell_h);
     }
@@ -635,8 +668,10 @@ static bool apply_config_reload(app_t *app)
 
     /* A family/variant-only edit (font_size unchanged) still needs an atlas
      * rebuild -- apply_font_size()'s own early-return would otherwise treat
-     * this as a no-op. Update app's copies BEFORE calling it, since that's
-     * what the rebuild actually reads.
+     * this as a no-op.
+     *
+     * Update app's copies BEFORE calling it, since that's what the rebuild
+     * actually reads.
      */
     bool font_config_changed =
         strcmp(app->font_family, new_cfg.font_family) != 0 ||
@@ -684,9 +719,11 @@ static bool apply_config_reload(app_t *app)
     /* apply_font_size() above already calls reload_cursor_images() when
      * font_size actually changed -- but if ONLY the [cursor] section
      * changed (the common case: font_size usually doesn't move on the same
-     * edit), that early-returns before ever reaching it. Always re-copy the
-     * cursor config and reload here too; redundant (one extra
-     * decode/reupload) on the rare edit that changes both, not incorrect.
+     * edit), that early-returns before ever reaching it.
+     *
+     * Always re-copy the cursor config and reload here too; redundant (one
+     * extra decode/reupload) on the rare edit that changes both, not
+     * incorrect.
      */
     snprintf(app->cursor_theme, sizeof(app->cursor_theme), "%s", new_cfg.cursor_theme);
     snprintf(app->cursor_default_path, sizeof(app->cursor_default_path), "%s", new_cfg.cursor_default_path);
@@ -712,9 +749,11 @@ static bool apply_config_reload(app_t *app)
     app->touchpad_natural_scroll = new_cfg.touchpad_natural_scroll;
     app->touchpad_sensitivity = new_cfg.touchpad_sensitivity;
     /* Not re-armed immediately -- see ghostcon_input_open()'s own doc
-     * comment. Persisted here so the NEXT VT release/reacquire (which
-     * rebuilds the input context from scratch regardless) picks up the new
-     * value, rather than reverting to whatever was live at process startup.
+     * comment.
+     *
+     * Persisted here so the NEXT VT release/reacquire (which rebuilds the
+     * input context from scratch regardless) picks up the new value, rather
+     * than reverting to whatever was live at process startup.
      */
     if (new_cfg.repeat_delay_ms > 0)
         app->repeat_delay_ms = new_cfg.repeat_delay_ms;
@@ -769,10 +808,12 @@ int main(int argc, char **argv)
         app.zoom_step = ZOOM_STEP_DEFAULT; /* malformed/nonsensical env value */
 
     /* Hot-reload watch -- see PLAN.md's "General config hot-reload"
-     * section. GHOSTCON_CONFIG_PATH is exported unconditionally by
-     * undead-head regardless of whether this process needed a config file
-     * before (config.h's doc comment); not fatal if either step fails,
-     * live-reload just silently doesn't happen.
+     * section.
+     *
+     * GHOSTCON_CONFIG_PATH is exported unconditionally by undead-head
+     * regardless of whether this process needed a config file before
+     * (config.h's doc comment); not fatal if either step fails, live-reload
+     * just silently doesn't happen.
      */
     app.config_path = getenv("GHOSTCON_CONFIG_PATH");
     if (!app.config_path)
@@ -783,9 +824,11 @@ int main(int argc, char **argv)
      * font_size/zoom_step/clear_on_logout above) -- undead-head only
      * exports one env var per config key for values every process in the
      * tree might plausibly need at spawn time, and cursor assets are
-     * ghostcon-core-only. Simplest to just load the file directly here once
-     * for these three fields, same struct/function apply_config_reload()
-     * already uses for every later reload.
+     * ghostcon-core-only.
+     *
+     * Simplest to just load the file directly here once for these three
+     * fields, same struct/function apply_config_reload() already uses for
+     * every later reload.
      */
     app.cursor_base_scale = 1.0f;
     app.cursor_scale_with_terminal = true;
@@ -887,8 +930,9 @@ int main(int argc, char **argv)
     }
 
     /* Terminal grid is sized once, from whatever the first successful
-     * acquire reports (or a sane default if we're starting inactive). A
-     * later reacquire at a different resolution just keeps this grid —
+     * acquire reports (or a sane default if we're starting inactive).
+     *
+     * A later reacquire at a different resolution just keeps this grid —
      * proper live resize (ghostcon_screen_resize + SIGWINCH to the shell)
      * is a follow-up, not built here; see PLAN.md's own phasing notes on
      * this being provisional.
@@ -937,9 +981,10 @@ int main(int argc, char **argv)
     /* Covers the case the later reacquire-path resize (below, in the main
      * loop) doesn't: the VT already being active at process start, so
      * `app.term` was already correctly sized (from real KMS dimensions, not
-     * the 80x24 placeholder) before this connection even existed. Without
-     * this, a program launched before the first actual resize event --
-     * which might never come, if the VT is never released and reacquired
+     * the 80x24 placeholder) before this connection even existed.
+     *
+     * Without this, a program launched before the first actual resize event
+     * --which might never come, if the VT is never released and reacquired
      * during this run -- would never see the right size at all.
      */
     ghostcon_transport_resize(&app.transport, app.term.rows, app.term.cols,
@@ -948,8 +993,10 @@ int main(int argc, char **argv)
     /* No separate input_open() here -- acquire_display() now owns the whole
      * input lifecycle (opened there, closed in release_display()),
      * including the initial acquire above if the VT was already active at
-     * startup. A second unconditional open here would leak that first
-     * context and silently replace it.
+     * startup.
+     *
+     * A second unconditional open here would leak that first context and
+     * silently replace it.
      */
 
     bool running = true;
@@ -982,17 +1029,21 @@ int main(int argc, char **argv)
          * (see app_t's own doc comment on `input`, and
          * acquire_display()/release_display() -- a fresh libinput context
          * is opened per acquire and closed on release, rather than kept
-         * open across the inactive period). That's the real fix for a leak
-         * found live: with a single long-lived libinput context, every
-         * keystroke typed anywhere else on the machine while this VT was
-         * inactive still arrived at (and queued in) this process's own fd
-         * at the kernel level regardless of whether we called dispatch --
-         * so the moment this VT reactivated, the whole accumulated backlog
-         * replayed in one burst into the pty, indistinguishable from real
-         * input typed here. Simply skipping dispatch while inactive (tried
-         * first) only delayed consumption of that backlog, it didn't
-         * discard it. `app.input` being NULL while inactive is what keeps
-         * it out of the pollfd set below.
+         * open across the inactive period).
+         *
+         * That's the real fix for a leak found live: with a single
+         * long-lived libinput context, every keystroke typed anywhere else
+         * on the machine while this VT was inactive still arrived at (and
+         * queued in) this process's own fd at the kernel level regardless
+         * of whether we called dispatch --so the moment this VT
+         * reactivated, the whole accumulated backlog replayed in one burst
+         * into the pty, indistinguishable from real input typed here.
+         *
+         * Simply skipping dispatch while inactive (tried first) only
+         * delayed consumption of that backlog, it didn't discard it.
+         *
+         * `app.input` being NULL while inactive is what keeps it out of the
+         * pollfd set below.
          */
         int input_idx = -1;
         int repeat_idx = -1;
@@ -1061,12 +1112,14 @@ int main(int argc, char **argv)
                      * to it later), acquire_display() hadn't run yet at
                      * that point, so term_init fell back to a hardcoded
                      * 80x24 placeholder instead of the real screen size.
+                     *
                      * That placeholder was never revisited once the real
                      * size became known here, so the terminal only ever
                      * occupied a small corner of the actual display and
                      * scrolled well before reaching the real bottom of the
                      * screen — found live ("halfway through it just scrolls
                      * up instead of keeping to allocate the next row").
+                     *
                      * Recompute and resize on every acquire (not just
                      * detecting the placeholder case) so a reacquire at a
                      * genuinely different resolution is handled the same
@@ -1087,8 +1140,9 @@ int main(int argc, char **argv)
                          * changes but nothing tells programs running in the
                          * shell (found live: a TUI rendered into a small,
                          * wrong-sized corner because ioctl( TIOCGWINSZ)
-                         * never reflected reality, not even once). See
-                         * transport.h's ghostcon_transport_resize() and
+                         * never reflected reality, not even once).
+                         *
+                         * See transport.h's ghostcon_transport_resize() and
                          * ptyserv/pty_child.c's control-socket handler for
                          * the other end of this.
                          */
@@ -1097,14 +1151,17 @@ int main(int argc, char **argv)
                     }
 
                     /* Two things need forcing here, not just one: (1)
-                     * Acquiring the display alone doesn't paint anything --
-                     * render_frame only runs below when need_render is set,
-                     * which otherwise only happens when NEW PTY bytes
-                     * arrive THIS SAME poll iteration. Whatever was already
-                     * fed while inactive (e.g. the shell's startup prompt)
-                     * would sit undrawn until the next unrelated PTY write
-                     * --found via exactly that symptom on the first real
-                     * VT-switch test ("stays blank until you press a key").
+                     * Acquiring the display alone doesn't paint anything
+                     * --render_frame only runs below when need_render is
+                     * set, which otherwise only happens when NEW PTY bytes
+                     * arrive THIS SAME poll iteration.
+                     *
+                     * Whatever was already fed while inactive (e.g. the
+                     * shell's startup prompt) would sit undrawn until the
+                     * next unrelated PTY write --found via exactly that
+                     * symptom on the first real VT-switch test ("stays
+                     * blank until you press a key").
+                     *
                      * (2) acquire_display() just destroyed and recreated
                      * the entire GPU context (kms/egl/gles) from scratch,
                      * so the terminal's own dirty-region tracking -- which
@@ -1114,9 +1171,11 @@ int main(int argc, char **argv)
                      * the very first acquire): if a prior render cycle
                      * already cleared it, there's nothing marked dirty even
                      * though the fresh GPU context has no prior frame
-                     * content at all. Force the whole screen dirty
-                     * explicitly, same convention ghostcon_screen_reset()
-                     * already uses internally.
+                     * content at all.
+                     *
+                     * Force the whole screen dirty explicitly, same
+                     * convention ghostcon_screen_reset() already uses
+                     * internally.
                      */
                     app.term.screen.dirty.y_min = 0;
                     app.term.screen.dirty.y_max = (int16_t)(app.term.screen.rows_visible - 1);
@@ -1134,14 +1193,16 @@ int main(int argc, char **argv)
             /* Drain everything currently queued, not just one 4096-byte
              * read -- t->fd is nonblocking (see transport.c's connect), so
              * this loop costs nothing extra once the socket runs dry.
+             *
              * Without this, a large transfer split across many
              * escape-sequence chunks (e.g. a chunked Kitty image) paid a
              * full render_frame() -- including its blocking, vsync-gated
              * page flip -- per 4096 bytes instead of once per actual
              * wakeup, which is what made such transfers visibly slower than
-             * Ghostty despite no more total work being done. Capped so a
-             * pathological sustained writer can't starve the other polled
-             * fds forever.
+             * Ghostty despite no more total work being done.
+             *
+             * Capped so a pathological sustained writer can't starve the
+             * other polled fds forever.
              */
             bool got_data = false;
             size_t total_drained = 0;
@@ -1163,9 +1224,10 @@ int main(int argc, char **argv)
                 if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
                     break;
                 /* pty child gone (shell exited, or ghost-ptyserv itself
-                 * died) — this VT's session is over. Exiting is the correct
-                 * reaction; a future supervisor decides what runs here
-                 * next, not this process.
+                 * died) — this VT's session is over.
+                 *
+                 * Exiting is the correct reaction; a future supervisor
+                 * decides what runs here next, not this process.
                  */
                 running = false;
                 break;
@@ -1209,7 +1271,9 @@ int main(int argc, char **argv)
              * need_render/render_frame() -- see kms.h's own doc comment on
              * ghostcon_kms_move_cursor() for why: the whole point of a real
              * DRM cursor plane over a GLES quad is that its latency doesn't
-             * depend on content rendering. Called directly here instead.
+             * depend on content rendering.
+             *
+             * Called directly here instead.
              */
             if (pointer.moved)
                 GC_LOG(input, "pointer moved to (%d,%d)", pointer.x, pointer.y);
@@ -1219,8 +1283,9 @@ int main(int argc, char **argv)
                  * need_render/render_frame() -- see kms.h's own doc comment
                  * on ghostcon_kms_move_cursor() for why: the whole point of
                  * a real DRM cursor plane over a GLES quad is that its
-                 * latency doesn't depend on content rendering. Called
-                 * directly here instead.
+                 * latency doesn't depend on content rendering.
+                 *
+                 * Called directly here instead.
                  */
                 ghostcon_display_move_cursor(app.disp, pointer.x, pointer.y);
 
@@ -1241,28 +1306,34 @@ int main(int argc, char **argv)
              * left_released are only ever set when core/input.c's
              * should_intercept_for_selection() decided this click is LOCAL
              * (app hasn't grabbed mouse reporting, or Shift is overriding
-             * it), so no further mode-checking is needed here. Independent
-             * `if`s, not `else if` -- a fast click (press+release within
-             * one dispatch() call) must apply both in order, not have the
-             * release silently dropped. Copying to the clipboard is a
-             * separate, explicit keyboard-shortcut step (input.c's
-             * copy_to_clipboard binding), not automatic on release -- see
-             * PLAN.md.
+             * it), so no further mode-checking is needed here.
+             *
+             * Independent `if`s, not `else if` -- a fast click
+             * (press+release within one dispatch() call) must apply both in
+             * order, not have the release silently dropped.
+             *
+             * Copying to the clipboard is a separate, explicit
+             * keyboard-shortcut step (input.c's copy_to_clipboard binding),
+             * not automatic on release -- see PLAN.md.
              */
             /* Click-drag text selection transitions. pointer.left_pressed/
              * left_released are only ever set when core/input.c's
              * should_intercept_for_selection() decided this click is LOCAL
              * (app hasn't grabbed mouse reporting, or Shift is overriding
-             * it), so no further mode-checking is needed here. Independent
-             * `if`s inside, not `else if` -- a fast click (press+release
-             * within one dispatch() call) must apply both in order, not
-             * have the release silently dropped. Copying to the clipboard
-             * is a separate, explicit keyboard-shortcut step (input.c's
-             * copy_to_clipboard binding), not automatic on release -- see
-             * PLAN.md. A plain click (no drag) deselects rather than
-             * "selecting" the one cell under the pointer -- matches how a
-             * click in most terminals clears any existing selection instead
-             * of creating a zero-width one.
+             * it), so no further mode-checking is needed here.
+             *
+             * Independent `if`s inside, not `else if` -- a fast click
+             * (press+release within one dispatch() call) must apply both in
+             * order, not have the release silently dropped.
+             *
+             * Copying to the clipboard is a separate, explicit
+             * keyboard-shortcut step (input.c's copy_to_clipboard binding),
+             * not automatic on release -- see PLAN.md.
+             *
+             * A plain click (no drag) deselects rather than "selecting" the
+             * one cell under the pointer -- matches how a click in most
+             * terminals clears any existing selection instead of creating a
+             * zero-width one.
              */
             if (ghostcon_ui_update_selection(&app.term.screen, &pointer,
                                               app.cell_w, app.cell_h))
@@ -1282,11 +1353,13 @@ int main(int argc, char **argv)
              * magnitude is app.zoom_step, config-driven (default 2pt -- see
              * core/input.c's handle_zoom_shortcut() doc comment for why 1pt
              * wasn't enough) and reloadable via ghostcon.toml like
-             * everything else in this block. ZOOM_MIN/MAX_FONT_SIZE keep it
-             * away from nonsensical extremes (a 0/negative size, or one
-             * large enough to plausibly not fit ATLAS_DIM --
-             * apply_font_size already handles a failed rebuild gracefully
-             * regardless, this is just to keep the common case sane).
+             * everything else in this block.
+             *
+             * ZOOM_MIN/MAX_FONT_SIZE keep it away from nonsensical extremes
+             * (a 0/negative size, or one large enough to plausibly not fit
+             * ATLAS_DIM --apply_font_size already handles a failed rebuild
+             * gracefully regardless, this is just to keep the common case
+             * sane).
              */
             if (zoom_delta != 0)
             {
@@ -1304,8 +1377,9 @@ int main(int argc, char **argv)
 
             /* Ctrl+Alt+D -- dump the live screen state right now, at
              * exactly the cell/cursor/mode state a visible glitch was
-             * caught at, rather than trying to reproduce it offline. Fixed
-             * path (not per-VT) is deliberate: this is a manual debug
+             * caught at, rather than trying to reproduce it offline.
+             *
+             * Fixed path (not per-VT) is deliberate: this is a manual debug
              * action, one dump at a time, no need for the per-vtN
              * namespacing the ctl sockets use.
              */
@@ -1350,15 +1424,17 @@ int main(int argc, char **argv)
              * hold off presenting until it sends ?2026l -- otherwise a
              * redraw bigger than one 4KB pty read (main loop reads above)
              * spans multiple poll iterations and each one would present a
-             * torn, half-applied frame. Withholding here is bounded by
-             * SYNC_OUTPUT_TIMEOUT_MS below, not held open indefinitely: a
-             * crashed/buggy app that sets ?2026h and never clears it would
-             * otherwise freeze rendering forever instead of just missing
-             * this one deadline. render_deferred (not the loop-local
-             * need_render) is what's checked, so a batch that spans
-             * multiple poll iterations with no other fd activity in between
-             * still gets flushed once the POLL_INTERVAL_MS canary wakeup
-             * notices the timeout has elapsed.
+             * torn, half-applied frame.
+             *
+             * Withholding here is bounded by SYNC_OUTPUT_TIMEOUT_MS below,
+             * not held open indefinitely: a crashed/buggy app that sets
+             * ?2026h and never clears it would otherwise freeze rendering
+             * forever instead of just missing this one deadline.
+             * render_deferred (not the loop-local need_render) is what's
+             * checked, so a batch that spans multiple poll iterations with
+             * no other fd activity in between still gets flushed once the
+             * POLL_INTERVAL_MS canary wakeup notices the timeout has
+             * elapsed.
              */
             bool still_withholding = app.term.screen.synchronized_output;
             if (still_withholding)

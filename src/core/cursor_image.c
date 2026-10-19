@@ -179,6 +179,7 @@ bool ghostcon_cursor_write_bmp(const char *path, const uint32_t *pixels, uint32_
     /* Negative height = top-down storage -- avoids needing to flip rows on
      * write (we already hold pixels top-down internally) or on a later
      * read-back via ghostcon_cursor_load_bmp(), which handles both signs.
+     *
      * Well-supported (Windows since 3.0, every modern reader including this
      * one) despite being the less common case.
      */
@@ -219,14 +220,15 @@ bool ghostcon_cursor_write_bmp(const char *path, const uint32_t *pixels, uint32_
  * Format (see PLAN.md's "Cursor sprite" section for the reference this
  * mirrors): magic "Xcur" + version (u32) + ntoc (u32), then `ntoc`
  * table-of-contents entries (type u32, subtype u32, position u32), each
- * pointing to a chunk. An image chunk (type 0xfffd0002) has its own header
- * (header_size, type, subtype, version -- all u32) followed by
- * width/height/xhot/yhot/delay (all u32), then width*height raw ARGB32
- * pixels.
+ * pointing to a chunk.
+ *
+ * An image chunk (type 0xfffd0002) has its own header (header_size, type,
+ * subtype, version -- all u32) followed by width/height/xhot/yhot/delay
+ * (all u32), then width*height raw ARGB32 pixels.
  */
 
-/* "Xcur" (bytes 0x58,0x63,0x75,0x72 on disk) read as a little-endian u32 --
- * verified against a real system Xcursor file's actual header bytes, not
+/* "Xcur" (bytes 0x58,0x63,0x75,0x72 on disk) read as a little-endian u32
+ * --verified against a real system Xcursor file's actual header bytes, not
  * just derived by hand: an earlier version of this constant (0x72754358)
  * was a transposition typo that happened to match this file's own
  * hand-built synthetic test (which used the same wrong value for both
@@ -376,8 +378,9 @@ uint32_t *ghostcon_cursor_crop_to_content(const uint32_t *src, uint32_t src_w, u
     *out_w = crop_w;
     *out_h = crop_h;
     /* Shift the hotspot to match the new, smaller coordinate space
-     * --clamped so a hotspot that fell inside the trimmed padding (e.g. BMP
-     * callers always pass 0,0, which is almost always padding on a real
+     * --clamped so a hotspot that fell inside the trimmed padding (e.g.
+     *
+     * BMP callers always pass 0,0, which is almost always padding on a real
      * asset) lands on the nearest edge of the cropped image rather than
      * going negative/out of bounds.
      */

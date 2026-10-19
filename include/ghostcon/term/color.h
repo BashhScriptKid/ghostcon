@@ -29,9 +29,12 @@ void ghostcon_palette_set_cursor(ghostcon_palette_t *pal, GhosttyColorRgb c);
 
 /* OSC color-spec parsing (OSC 4/10/11/12) — "#RGB"/"#RRGGBB"/
  * "#RRRGGGBBB"/"#RRRRGGGGBBBB" and X11 "rgb:R/G/B" (variable digit width
- * per component, 1-4 hex digits each). Named X11 colors ("red", "blue",
- * ...) are NOT supported — out of scope, rare in real-world OSC usage. The
- * installed libghostty-vt's OSC C API only exposes window-title text
+ * per component, 1-4 hex digits each).
+ *
+ * Named X11 colors ("red", "blue", ...) are NOT supported — out of scope,
+ * rare in real-world OSC usage.
+ *
+ * The installed libghostty-vt's OSC C API only exposes window-title text
  * extraction (verified against both the distro package and a from-source
  * master build with -Demit-lib-vt=true) — everything else, including
  * color-spec parsing, is ours to do; see term/stream.c's

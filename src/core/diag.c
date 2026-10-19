@@ -22,8 +22,11 @@ static const int FATAL_SIGNALS[] = { SIGSEGV, SIGABRT, SIGFPE, SIGILL, SIGBUS };
 
 /* backtrace()/backtrace_symbols() call malloc, which is not
  * async-signal-safe -- a real risk here since the fault that got us into
- * this handler may itself have been heap corruption. This is a deliberate,
- * pragmatic tradeoff shared by most real-world crash reporters (e.g.
+ * this handler may itself have been heap corruption.
+ *
+ * This is a deliberate, pragmatic tradeoff shared by most real-world crash
+ * reporters (e.g.
+ *
  * Breakpad): best-effort diagnostics on the way down beat none, and if this
  * itself deadlocks or re-faults, the process was going to die anyway.
  * backtrace_symbols_fd() below is the async-signal-safer variant (no

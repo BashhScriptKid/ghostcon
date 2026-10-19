@@ -24,19 +24,22 @@ struct ghostcon_vtctl {
 };
 
 /* Console keyboard modes that disable the kernel's own console-switch keys.
+ *
  * Ctrl+Alt+Fn is a KT_CONS key: in kbd_keycode() (drivers/tty/vt/
  * keyboard.c) every key type except KT_SPEC/KT_SHIFT is dropped before its
  * handler runs whenever kbdmode is VC_RAW, VC_MEDIUMRAW, or VC_OFF — so
  * k_cons()/set_console() never executes, the kernel never initiates a
  * switch, and our VT_PROCESS handshake (SIGUSR2 -> VT_RELDISP) never fires.
+ *
  * Found live: Ctrl+Alt+Fn was completely dead inside a ghostcon session
- * with the active tty2 reporting kb_mode=K_OFF. The mode is kernel state
- * that survives a renderer restart, so taking over a VT a previous owner
- * (kmscon sets K_OFF and does not always restore it on an unclean exit)
- * left in one of these silently breaks VT switching for ghostcon's entire
- * lifetime — ghostcon relies on the kernel's own switch handling rather
- * than implementing it itself (unlike kmscon's --no-switchvt), so it needs
- * the switch key to keep working.
+ * with the active tty2 reporting kb_mode=K_OFF.
+ *
+ * The mode is kernel state that survives a renderer restart, so taking over
+ * a VT a previous owner (kmscon sets K_OFF and does not always restore it
+ * on an unclean exit) left in one of these silently breaks VT switching for
+ * ghostcon's entire lifetime — ghostcon relies on the kernel's own switch
+ * handling rather than implementing it itself (unlike kmscon's
+ * --no-switchvt), so it needs the switch key to keep working.
  */
 static bool kbd_mode_blocks_vt_switch(int mode)
 {
@@ -145,12 +148,16 @@ ghostcon_vtctl_open(int vt_num)
      * from dropping the console-switch keys; a stale K_OFF/raw mode
      * inherited from a previous owner does, and that silently kills the
      * very VT-switch keys this handshake depends on (see
-     * kbd_mode_blocks_vt_switch()'s own comment). Override to a
-     * switching-capable mode when needed, remembering the old value so a
-     * clean shutdown can put it back. Best-effort: a failed KDGKBMODE/
-     * KDSKBMODE is logged, not fatal — worst case VT switching stays as
-     * broken as it already was, never worse. Placed after VT_SETMODE so no
-     * earlier failure path has to unwind it.
+     * kbd_mode_blocks_vt_switch()'s own comment).
+     *
+     * Override to a switching-capable mode when needed, remembering the old
+     * value so a clean shutdown can put it back.
+     *
+     * Best-effort: a failed KDGKBMODE/ KDSKBMODE is logged, not fatal —
+     * worst case VT switching stays as broken as it already was, never
+     * worse.
+     *
+     * Placed after VT_SETMODE so no earlier failure path has to unwind it.
      */
     int kbm = -1;
     if (ioctl(vt->fd, KDGKBMODE, &kbm) != 0)
@@ -201,11 +208,13 @@ void ghostcon_vtctl_close(ghostcon_vtctl_t *vt)
     ioctl(vt->fd, KDSETMODE, KD_TEXT);
 
     /* Restore the keyboard mode only if it wasn't itself a
-     * switching-blocking one. Putting K_OFF/K_RAW/K_MEDIUMRAW back would
-     * hand the VT to whatever runs next (a getty, another renderer) in the
-     * exact state kbd_mode_blocks_vt_switch() exists to repair, so a mode
-     * this module had to override is deliberately left as the usable
-     * K_UNICODE instead of being faithfully (and uselessly) restored.
+     * switching-blocking one.
+     *
+     * Putting K_OFF/K_RAW/K_MEDIUMRAW back would hand the VT to whatever
+     * runs next (a getty, another renderer) in the exact state
+     * kbd_mode_blocks_vt_switch() exists to repair, so a mode this module
+     * had to override is deliberately left as the usable K_UNICODE instead
+     * of being faithfully (and uselessly) restored.
      */
     if (vt->saved_kbd_mode >= 0 && !kbd_mode_blocks_vt_switch(vt->saved_kbd_mode))
         ioctl(vt->fd, KDSKBMODE, vt->saved_kbd_mode);
@@ -247,8 +256,9 @@ void ghostcon_vtctl_process_pending(ghostcon_vtctl_t *vt,
      * still ack every VT_RELDISP the kernel is waiting on — draining and
      * acking on the LAST byte's meaning is wrong if there were both an 'R'
      * and a later 'A' pending, since each needs its own specific ack call
-     * (VT_RELDISP with different arguments). So process each byte as it's
-     * drained, not just the last one.
+     * (VT_RELDISP with different arguments).
+     *
+     * So process each byte as it's drained, not just the last one.
      */
     while ((n = read(vt->pipe_fds[0], buf, sizeof(buf))) > 0)
     {

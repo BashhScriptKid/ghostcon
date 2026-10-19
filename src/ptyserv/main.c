@@ -1,14 +1,15 @@
-/*
- * ghost-ptyserv — registry + pty child spawner.
+/* ghost-ptyserv — registry + pty child spawner.
  *
  * Spawns one pty-ttyN child per configured VT, tracks child PID/socket
- * path, and answers renderer registry queries ("GET <vtnum>" ->
- * "OK pid=<pid> socket=<path>"). Never touches PTY data itself — pure
- * coordinator. See PLAN.md "Architecture overview" / "ghost-ptyserv".
+ * path, and answers renderer registry queries ("GET <vtnum>" -> "OK
+ * pid=<pid> socket=<path>").
  *
- * Phase 1 scope: no TOML config parsing yet (that's a separate, later
- * item per PLAN.md's own Phase 1 step list) — VT list and registry
- * socket path come from argv so this is independently testable now.
+ * Never touches PTY data itself — pure coordinator. See PLAN.md
+ * "Architecture overview" / "ghost-ptyserv".
+ *
+ * Phase 1 scope: no TOML config parsing yet (that's a separate, later item
+ * per PLAN.md's own Phase 1 step list) — VT list and registry socket path
+ * come from argv so this is independently testable now.
  *
  * Usage: ghost-ptyserv <registry_socket_path> <vtnum> [vtnum...]
  */
@@ -54,10 +55,11 @@ static char g_registry_dir[GHOSTCON_PTYSERV_LINE_MAX];
 /* Resolves `name` relative to this executable's own directory (via
  * /proc/self/exe) instead of trusting PATH -- this normally runs under
  * pkexec, which resets the environment (including PATH) for security, so a
- * bare name silently fails to exec. Same fix as undead_head/main.c and
- * supervisor/main.c; found the same way, one binary later (pty-ttyN wasn't
- * covered by that earlier fix). Falls back to the bare name only if
- * /proc/self/exe itself is unavailable.
+ * bare name silently fails to exec.
+ *
+ * Same fix as undead_head/main.c and supervisor/main.c; found the same way,
+ * one binary later (pty-ttyN wasn't covered by that earlier fix). Falls
+ * back to the bare name only if /proc/self/exe itself is unavailable.
  */
 static void resolve_sibling_path(char *out, size_t out_len, const char *name)
 {
@@ -81,11 +83,12 @@ static void resolve_sibling_path(char *out, size_t out_len, const char *name)
 }
 
 /* Sidecar pidfile path for a VT's pty-ttyN, alongside its socket
- * (<dir>/pty-tty<N>.pid next to <dir>/pty-tty<N>.sock). Lets a restarted
- * ghost-ptyserv recognize an already-running, still-live pty-ttyN (see
- * spawn_pty_child()'s reuse path below) without needing to touch its
- * renderer-facing socket at all -- connecting to that socket just to test
- * liveness was considered and rejected: pty_child.c treats any new
+ * (<dir>/pty-tty<N>.pid next to <dir>/pty-tty<N>.sock).
+ *
+ * Lets a restarted ghost-ptyserv recognize an already-running, still-live
+ * pty-ttyN (see spawn_pty_child()'s reuse path below) without needing to
+ * touch its renderer-facing socket at all -- connecting to that socket just
+ * to test liveness was considered and rejected: pty_child.c treats any new
  * connection as "the renderer reconnected" and replaces (closes) whatever
  * was already connected, so a bare liveness probe would kick out a real,
  * working renderer connection.
@@ -176,8 +179,9 @@ static bool spawn_pty_child(int vtnum)
     /* If a pty-ttyN for this VT is already alive (this ghost-ptyserv
      * instance itself was restarted -- e.g. after a crash -- while a
      * previous one's children kept running independently: see pty_child.c's
-     * own setpgid(0,0)), reuse it instead of spawning a duplicate. A
-     * duplicate would orphan the real, possibly-mid-use shell session
+     * own setpgid(0,0)), reuse it instead of spawning a duplicate.
+     *
+     * A duplicate would orphan the real, possibly-mid-use shell session
      * behind a socket the registry no longer points to.
      */
     pid_t existing = read_live_pid_file(pid_path);

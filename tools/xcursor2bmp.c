@@ -1,16 +1,15 @@
-/*
- * xcursor2bmp -- flattens a whole Xcursor theme directory into a
- * directory of BMP files, one per cursor name found (largest
- * available size, same rule ghostcon_cursor_load_xcursor() itself
- * uses). Lets a theme be pre-converted into the manual per-state BMP
- * overrides ghostcon's [cursor] config table supports, without
- * ghostcon needing to parse Xcursor at runtime at all if preferred.
+/* xcursor2bmp -- flattens a whole Xcursor theme directory into a directory
+ * of BMP files, one per cursor name found (largest available size, same
+ * rule ghostcon_cursor_load_xcursor() itself uses).
  *
- * Usage: xcursor2bmp <theme_dir> <output_dir>
- * <theme_dir> may be either a theme root (looked for via its own
- * cursors/ subdirectory) or a cursors/ directory directly -- same
- * acceptance ghostcon_cursor_load_xcursor() has, reused here via the
- * same function.
+ * Lets a theme be pre-converted into the manual per-state BMP overrides
+ * ghostcon's [cursor] config table supports, without ghostcon needing to
+ * parse Xcursor at runtime at all if preferred.
+ *
+ * Usage: xcursor2bmp <theme_dir> <output_dir> <theme_dir> may be either a
+ * theme root (looked for via its own cursors/ subdirectory) or a cursors/
+ * directory directly -- same acceptance ghostcon_cursor_load_xcursor() has,
+ * reused here via the same function.
  */
 
 #include "ghostcon/core/cursor_image.h"
@@ -41,9 +40,11 @@ main(int argc, char **argv)
      * live: pointing this at a real theme root silently "succeeded" by
      * listing (and skipping, one by one, as invalid) the root's own
      * non-cursor files instead of ever finding the real cursors/
-     * subdirectory. Prefer theme_dir/cursors when it exists; only fall back
-     * to treating theme_dir itself as the cursors dir if that subdirectory
-     * isn't there at all.
+     * subdirectory.
+     *
+     * Prefer theme_dir/cursors when it exists; only fall back to treating
+     * theme_dir itself as the cursors dir if that subdirectory isn't there
+     * at all.
      */
     char cursors_dir[1024];
     snprintf(cursors_dir, sizeof(cursors_dir), "%s/cursors", theme_dir);

@@ -12,12 +12,15 @@
 /* Port of Ghostty's renderer/cell.zig constraintWidth() -- how many cells
  * (1 or 2) a "symbol"-classified glyph (see cell.h's own doc comment on
  * ghostcon_cell_is_symbol()) is allowed to occupy this frame.
+ *
  * Context-aware, not a fixed per-glyph property: a symbol at the screen
  * edge, or immediately following another symbol (unless that one tiles
  * across cells, e.g. Powerline), is squeezed to 1 cell; otherwise, if the
  * NEXT cell is blank, it's allowed to borrow that space and render at its
- * natural size across 2 cells. Only when neither applies does the caller
- * need to actually scale the glyph down.
+ * natural size across 2 cells.
+ *
+ * Only when neither applies does the caller need to actually scale the
+ * glyph down.
  */
 static uint8_t
 symbol_constraint_width(const ghostcon_row_t *row, uint16_t x)
@@ -43,8 +46,10 @@ symbol_constraint_width(const ghostcon_row_t *row, uint16_t x)
  * directly in its content field (Ghostty's own representation for a blank,
  * erase-colored cell -- see erase_fill_cell()'s doc comment in
  * term/screen.c), bypassing the style system entirely (style_id stays
- * 0/default on these cells). When present, this overrides whatever
- * resolve_colors() computed from the cell's (default) style.
+ * 0/default on these cells).
+ *
+ * When present, this overrides whatever resolve_colors() computed from the
+ * cell's (default) style.
  */
 static void override_bg_from_content(const ghostcon_screen_t *screen, ghostcon_cell_t cell, float *bg)
 {
@@ -126,8 +131,10 @@ void ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
          * ligature.h's own doc comment for why this is a per-cell override
          * list, not a multi-cell run list: the fonts this targets implement
          * ligatures via contextual-alternate glyphs that each still occupy
-         * exactly one cell. Sized to the row's own width -- worst case,
-         * every cell in the row gets a substitution.
+         * exactly one cell.
+         *
+         * Sized to the row's own width -- worst case, every cell in the row
+         * gets a substitution.
          */
         ghostcon_ligature_glyph_t ligature_overrides[row->cols > 0 ? row->cols : 1];
         int n_ligature_overrides = ligatures
@@ -183,6 +190,7 @@ void ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
                 /* A glyph with no rows/columns draws nothing regardless of
                  * where it's positioned -- found live: the "empty
                  * placeholder" half of a 2-glyph ligature pair (e.g.
+                 *
                  * JetBrains Mono's "->"/"!="/etc. always substitute an
                  * invisible glyph for the FIRST character, see ligature.h)
                  * can still have a nonzero, even slightly negative
@@ -192,8 +200,10 @@ void ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
                  * real, visible glyph where nothing should have appeared at
                  * all (a stray disconnected mark floating next to the real
                  * ligature glyph, e.g. "!="'s "!" leaving a tiny tick above
-                 * the "≠"). Only bounds-check glyphs that would actually
-                 * draw something.
+                 * the "≠").
+                 *
+                 * Only bounds-check glyphs that would actually draw
+                 * something.
                  */
                 if (ligature_glyph && ligature_glyph->width > 0 && ligature_glyph->height > 0)
                 {
@@ -208,21 +218,25 @@ void ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
 
             /* Figure out up front whether this cell's glyph (if any) is a
              * symbol borrowing the next cell's space, so the
-             * background-quad push below can be adjusted accordingly. Real
-             * bug found live: the width-borrowing decision itself
+             * background-quad push below can be adjusted accordingly.
+             *
+             * Real bug found live: the width-borrowing decision itself
              * (symbol_constraint_width()) was correct, but the NEXT cell
              * still got its own full background quad pushed when the loop
              * reached it moments later -- submitted AFTER this glyph's draw
              * call, so it painted right back over the portion that extended
-             * into it, undoing the fix entirely. Fixed by pushing BOTH
-             * cells' backgrounds here (each with its own resolved color,
-             * not assumed to match) and skipping the borrowed cell's own
-             * iteration entirely, rather than letting it redundantly
-             * repaint. Ligature glyphs that fit their run bypass this
-             * entirely -- they're positioned by their own bearing, not
-             * centered in a borrowed bound, and their fit-check above
-             * already guarantees they stay within cells this same scan
-             * already marked dirty, so no separate borrowing is needed.
+             * into it, undoing the fix entirely.
+             *
+             * Fixed by pushing BOTH cells' backgrounds here (each with its
+             * own resolved color, not assumed to match) and skipping the
+             * borrowed cell's own iteration entirely, rather than letting
+             * it redundantly repaint.
+             *
+             * Ligature glyphs that fit their run bypass this entirely
+             * --they're positioned by their own bearing, not centered in a
+             * borrowed bound, and their fit-check above already guarantees
+             * they stay within cells this same scan already marked dirty,
+             * so no separate borrowing is needed.
              */
             bool is_symbol = !is_ligature && cp != 0 && cp != ' ' && ghostcon_cell_is_symbol(cp);
             uint8_t constraint_width = is_symbol ? symbol_constraint_width(row, x) : 1;
@@ -268,12 +282,13 @@ void ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
             }
 
             /* Baseline-align: bearing_y is this glyph's offset from the
-             * baseline up to its bitmap top. The baseline itself must sit
-             * at a fixed offset from the cell top for every glyph on the
-             * line — the font's ascent metric — not cell_h; anchoring at
-             * cell_h leaves no room below the baseline, so descenders (g,
-             * q, y, p, j) spill into the row below and get overdrawn by its
-             * background quad.
+             * baseline up to its bitmap top.
+             *
+             * The baseline itself must sit at a fixed offset from the cell
+             * top for every glyph on the line — the font's ascent metric —
+             * not cell_h; anchoring at cell_h leaves no room below the
+             * baseline, so descenders (g, q, y, p, j) spill into the row
+             * below and get overdrawn by its background quad.
              */
             float gx = px + (float)glyph->bearing_x;
             float gy = py + (float)ascent - (float)glyph->bearing_y;
@@ -287,16 +302,21 @@ void ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
              * rasterized glyph can be physically wider than one cell
              * regardless (found live: a Nerd Font git-pull-request icon and
              * several circle/dot glyphs all measured wider than cell_w at
-             * the configured font size). Drawing those at native size left
-             * the right portion erased the instant the next cell's own
-             * background quad got pushed -- "half the glyph renders, half
-             * is cut off". Fix, ported from Ghostty's own symbol-constraint
-             * system: let it borrow the next cell's space if that cell is
-             * blank (symbol_constraint_width() above), and only if it STILL
+             * the configured font size).
+             *
+             * Drawing those at native size left the right portion erased
+             * the instant the next cell's own background quad got pushed
+             * --"half the glyph renders, half is cut off".
+             *
+             * Fix, ported from Ghostty's own symbol-constraint system: let
+             * it borrow the next cell's space if that cell is blank
+             * (symbol_constraint_width() above), and only if it STILL
              * doesn't fit, scale it down (never up) to fit, centered in the
-             * resulting bounds. Ordinary text glyphs are completely
-             * untouched by any of this -- draw_w/draw_h stay at native size
-             * and gx/gy stay baseline-anchored, exactly as before.
+             * resulting bounds.
+             *
+             * Ordinary text glyphs are completely untouched by any of this
+             * -- draw_w/draw_h stay at native size and gx/gy stay
+             * baseline-anchored, exactly as before.
              */
             if (is_symbol)
             {
@@ -320,9 +340,10 @@ void ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
                  * it's genuinely symmetric (found live -- confirmed by
                  * dumping the raw FreeType bitmap directly: perfectly
                  * symmetric top-to-bottom, so this was never a
-                 * font/rasterization issue). Floor, not round, so the glyph
-                 * never grows past its already-established bound_w/bound_h
-                 * on either edge.
+                 * font/rasterization issue).
+                 *
+                 * Floor, not round, so the glyph never grows past its
+                 * already-established bound_w/bound_h on either edge.
                  */
                 gx = floorf(px + (bound_w - draw_w) / 2.0f);
                 gy = floorf(py + (bound_h - draw_h) / 2.0f);
@@ -344,8 +365,11 @@ void ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
                  * overflow their single cell by a pixel or two --grayscale
                  * AA's rasterizer pads bitmap width for the coverage
                  * falloff more than mono's tightly-hinted-to-grid bitmaps
-                 * do. Found live: '&'/'%'/'W' in JetBrainsMono Nerd Font
-                 * Mono overflow at most tested sizes under grayscale AA.
+                 * do.
+                 *
+                 * Found live: '&'/'%'/'W' in JetBrainsMono Nerd Font Mono
+                 * overflow at most tested sizes under grayscale AA.
+                 *
                  * Unlike symbols, ordinary glyphs never borrow the next
                  * cell's space -- just squash the overflow back to fit,
                  * same "scale down, never up" principle as the symbol path
@@ -394,9 +418,10 @@ ghostcon_machine_render_cursor(ghostcon_screen_t *screen,
      * doc comment), the grid coordinates the cursor was last left at are
      * now showing spliced-in history content, not the live line the cursor
      * actually belongs to -- drawing it there just looks like a stray mark
-     * sitting on the wrong text. Matches how most terminals handle this:
-     * hide the cursor while scrolled back, rather than drawing it somewhere
-     * misleading.
+     * sitting on the wrong text.
+     *
+     * Matches how most terminals handle this: hide the cursor while
+     * scrolled back, rather than drawing it somewhere misleading.
      */
     if (!screen->cursor_visible || screen->view_offset > 0)
         return;
@@ -517,13 +542,14 @@ static void render_one_placement(ghostcon_gles_t *gles, const ghostcon_kitty_gra
 
 /* Matches Ghostty's renderer/image.zig exactly: placements are sorted by (z
  * ascending, then image_id ascending as the tie-break) before drawing, not
- * walked in whatever order they happen to occupy in storage. Without this,
- * two placements sharing a z<0-vs-z>=0 bucket (this renderer's own coarse
- * "behind or in front of text" split, see gles.h) would still stack in an
- * arbitrary, storage-slot-dependent order relative to EACH OTHER instead of
- * by z -- correct for the single-image-per-bucket case (like kitty_zindex's
- * test page) but wrong the moment a scene has multiple negative-z or
- * multiple positive-z images.
+ * walked in whatever order they happen to occupy in storage.
+ *
+ * Without this, two placements sharing a z<0-vs-z>=0 bucket (this
+ * renderer's own coarse "behind or in front of text" split, see gles.h)
+ * would still stack in an arbitrary, storage-slot-dependent order relative
+ * to EACH OTHER instead of by z -- correct for the single-image-per-bucket
+ * case (like kitty_zindex's test page) but wrong the moment a scene has
+ * multiple negative-z or multiple positive-z images.
  */
 static int placement_z_cmp(const void *a, const void *b)
 {

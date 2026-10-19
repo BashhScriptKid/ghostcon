@@ -45,8 +45,10 @@ size_t ghostcon_mouse_encode(const ghostcon_screen_t *screen,
 
     /* SGR distinguishes release purely via the trailing 'M'/'m', so it
      * carries the actual button number through on release too (matches
-     * xterm/kitty/alacritty). Legacy X10 has no such signal -- release is
-     * always base code 3 regardless of which button.
+     * xterm/kitty/alacritty).
+     *
+     * Legacy X10 has no such signal -- release is always base code 3
+     * regardless of which button.
      */
     int base = (action == GC_MOUSE_RELEASE && !screen->mouse_sgr)
                    ? 3 : button_base_code(button);

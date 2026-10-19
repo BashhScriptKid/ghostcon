@@ -1,32 +1,33 @@
-/*
- * pty-ttyN — PTY child process.
+/* pty-ttyN — PTY child process.
  *
- * Holds one PTY master fd, spawns a login session, maintains a ring
- * buffer of output, and serves at most one connected renderer over a
- * Unix socket: on connect, replays the ring buffer, then forwards
- * bytes bidirectionally until the renderer disconnects. The session
- * never notices a renderer coming or going — output forwarding just
- * pauses, ring buffer keeps filling. See PLAN.md "ghost-ptyserv" /
+ * Holds one PTY master fd, spawns a login session, maintains a ring buffer
+ * of output, and serves at most one connected renderer over a Unix socket:
+ * on connect, replays the ring buffer, then forwards bytes bidirectionally
+ * until the renderer disconnects.
+ *
+ * The session never notices a renderer coming or going — output forwarding
+ * just pauses, ring buffer keeps filling. See PLAN.md "ghost-ptyserv" /
  * IMPLEMENTATION continuation.
  *
- * The session is `agetty` (which itself hands off to `login(1)` for
- * the username/password prompt), not a raw shell -- matching how real
- * VTs work and how kmscon's own systemd unit does it ("--login --
- * /sbin/agetty ... - $TERM", `-` meaning "use the already-attached
- * line"). ghost-ptyserv/pty-ttyN run as root (the whole stack does,
- * under pkexec, until a real privilege-separated deployment exists),
- * so without this, whoever connects lands directly in a root shell
- * with no authentication at all -- found live, not caught by review.
- * When the session exits (logout), a fresh one is respawned
- * automatically (with backoff if it keeps failing immediately -- same
- * lesson as undead-head's own restart loop, PLAN.md Phase 1 item 7),
- * instead of this process just exiting and leaving the VT with nothing
- * attached to its PTY at all -- also found live ("exiting bails to
- * blank kernel state").
+ * The session is `agetty` (which itself hands off to `login(1)` for the
+ * username/password prompt), not a raw shell -- matching how real VTs work
+ * and how kmscon's own systemd unit does it ("--login --/sbin/agetty ...
+ *
+ * - $TERM", `-` meaning "use the already-attached line").
+ *   ghost-ptyserv/pty-ttyN run as root (the whole stack does, under pkexec,
+ *   until a real privilege-separated deployment exists), so without this,
+ *   whoever connects lands directly in a root shell with no authentication
+ *   at all -- found live, not caught by review.
+ *
+ * When the session exits (logout), a fresh one is respawned automatically
+ * (with backoff if it keeps failing immediately -- same lesson as
+ * undead-head's own restart loop, PLAN.md Phase 1 item 7), instead of this
+ * process just exiting and leaving the VT with nothing attached to its PTY
+ * at all -- also found live ("exiting bails to blank kernel state").
  *
  * GHOSTCON_PTY_SKIP_LOGIN=1 bypasses agetty and execs the raw shell
- * directly instead -- tests need this, since they assume immediate
- * shell access with no login prompt in the way.
+ * directly instead -- tests need this, since they assume immediate shell
+ * access with no login prompt in the way.
  *
  * Usage: pty-ttyN <vtnum> <socket_path> [shell]
  */
@@ -137,7 +138,8 @@ static bool ringbuf_replay(ringbuf_t *rb, int fd)
 static pid_t spawn_session(const char *shell, int *out_master_fd)
 {
     /* Copy before any setenv(): the caller's pointer may come from
-       getenv(), and setenv() can reallocate environ out from under it. */
+     * getenv(), and setenv() can reallocate environ out from under it.
+     */
     char shell_buf[4096];
     snprintf(shell_buf, sizeof(shell_buf), "%s", shell);
     shell = shell_buf;
@@ -154,15 +156,18 @@ static pid_t spawn_session(const char *shell, int *out_master_fd)
         /* Best-effort self-identification for tools that check
          * TERM_PROGRAM/TERM_PROGRAM_VERSION (the convention several
          * terminals -- iTerm2, VS Code, Ghostty -- use, which fastfetch and
-         * similar already know to read). Not guaranteed to survive: the
-         * non-skip-login path below execs into agetty -> login(1), and
-         * login's PAM environment handling can reset arbitrary inherited
-         * variables depending on system config (TERM specifically survives
-         * because agetty passes it as its own argv, a separate mechanism
-         * from plain env inheritance -- see below). Harmless either way if
-         * it doesn't survive: the process-tree-walk detection (this
-         * process's renamed `comm`, see main()'s prctl(PR_SET_NAME) call)
-         * still gets the name right on its own.
+         * similar already know to read).
+         *
+         * Not guaranteed to survive: the non-skip-login path below execs
+         * into agetty -> login(1), and login's PAM environment handling can
+         * reset arbitrary inherited variables depending on system config
+         * (TERM specifically survives because agetty passes it as its own
+         * argv, a separate mechanism from plain env inheritance -- see
+         * below).
+         *
+         * Harmless either way if it doesn't survive: the process-tree-walk
+         * detection (this process's renamed `comm`, see main()'s
+         * prctl(PR_SET_NAME) call) still gets the name right on its own.
          */
         setenv("TERM_PROGRAM", "ghostcon", 1);
 #ifdef GHOSTCON_VERSION
@@ -199,8 +204,10 @@ static pid_t spawn_session(const char *shell, int *out_master_fd)
                  * claiming it before ghostcon's coverage is actually close
                  * enough would make apps attempt features that then
                  * silently misbehave, worse than xterm-256color's more
-                 * conservative but honest feature set. Revisit once
-                 * ghostcon's OSC/CSI coverage is closer to real Ghostty's.
+                 * conservative but honest feature set.
+                 *
+                 * Revisit once ghostcon's OSC/CSI coverage is closer to
+                 * real Ghostty's.
                  */
             }
             /* "-" = use the already-attached line (our pty slave, via
@@ -323,13 +330,16 @@ int main(int argc, char **argv)
      * agetty/login/shell -- exec doesn't change PPID, so THIS is the
      * process whose comm the shell's actual parent-PID lookup lands on)
      * never execs again after this point, so its `comm` stays whatever the
-     * binary was compiled as ("pty-ttyN") unless renamed here. Tools that
-     * detect the terminal emulator by walking the process tree up from the
-     * shell (fastfetch, neofetch, and similar) stop at the first process
-     * name they don't recognize as a shell/login wrapper -- that's this
-     * one, so it's what shows up as "Terminal:" if left alone. Renaming it
-     * doesn't affect anything that tracks this process by PID or by its
-     * real /proc/ <pid>/exe target (the pidfile-liveness check in
+     * binary was compiled as ("pty-ttyN") unless renamed here.
+     *
+     * Tools that detect the terminal emulator by walking the process tree
+     * up from the shell (fastfetch, neofetch, and similar) stop at the
+     * first process name they don't recognize as a shell/login wrapper
+     * --that's this one, so it's what shows up as "Terminal:" if left
+     * alone.
+     *
+     * Renaming it doesn't affect anything that tracks this process by PID
+     * or by its real /proc/ <pid>/exe target (the pidfile-liveness check in
      * ptyserv/main.c and undead-head's cleanup both use those, never the
      * name).
      */
@@ -343,13 +353,18 @@ int main(int argc, char **argv)
      * vhangup() causes a transient hangup condition on the PTY MASTER side
      * even though the child has NOT actually exited yet (it's
      * mid-procedure, about to reopen its controlling terminal and
-     * continue). Treating that as "the child died" -- as an earlier version
-     * of this file did, via a blocking waitpid() fired straight off
-     * POLLHUP/ read()<=0 on master_fd -- blocks with nothing to reap until
-     * the child eventually exits for some unrelated reason (e.g. login's
-     * own ~60s LOGIN_TIMEOUT), freezing this single-threaded loop,
-     * including the live renderer connection, for the whole wait. Found
-     * live as a "stuck at password" symptom that self-resolved after ~60s.
+     * continue).
+     *
+     * Treating that as "the child died" -- as an earlier version of this
+     * file did, via a blocking waitpid() fired straight off POLLHUP/
+     * read()<=0 on master_fd -- blocks with nothing to reap until the child
+     * eventually exits for some unrelated reason (e.g. login's own ~60s
+     * LOGIN_TIMEOUT), freezing this single-threaded loop, including the
+     * live renderer connection, for the whole wait.
+     *
+     * Found live as a "stuck at password" symptom that self-resolved after
+     * ~60s.
+     *
      * Fixed by only ever reaping via SIGCHLD (kmscon's own proven approach,
      * via its sig_child() callback) -- never via read()<=0 on the pty.
      */
@@ -389,13 +404,15 @@ int main(int argc, char **argv)
 
     /* Resize control socket -- see protocol.h's own doc comment on
      * GHOSTCON_PTY_CTL_SOCKET_FMT for why this is a separate socket rather
-     * than an in-band command on the data socket above. Not fatal if this
-     * fails to bind: the session still works, just without live TIOCSWINSZ
-     * propagation (the pre-existing behavior, unchanged) -- found live: TUI
-     * programs (e.g. a full-screen editor) rendered into a small,
-     * wrong-sized corner because nothing ever called TIOCSWINSZ on this
-     * pty's master at all, not even once at startup, so ioctl(TIOCGWINSZ)
-     * callers got whatever forkpty()'s bare default happened to be.
+     * than an in-band command on the data socket above.
+     *
+     * Not fatal if this fails to bind: the session still works, just
+     * without live TIOCSWINSZ propagation (the pre-existing behavior,
+     * unchanged) -- found live: TUI programs (e.g. a full-screen editor)
+     * rendered into a small, wrong-sized corner because nothing ever called
+     * TIOCSWINSZ on this pty's master at all, not even once at startup, so
+     * ioctl(TIOCGWINSZ) callers got whatever forkpty()'s bare default
+     * happened to be.
      */
     char dir_buf[GHOSTCON_PTYSERV_LINE_MAX];
     snprintf(dir_buf, sizeof(dir_buf), "%s", socket_path);
@@ -416,13 +433,15 @@ int main(int argc, char **argv)
     /* Respawn backoff, same reasoning as undead-head's own restart loop
      * (PLAN.md Phase 1 item 7): a session that keeps dying instantly (e.g.
      * agetty missing, or misconfigured) must not spin tightly forever
-     * respawning. Non-blocking: a plain sleep() here was tried first and
-     * found live to be a real bug, not just an implementation detail --
-     * this is a SINGLE-THREADED event loop that also services the renderer
-     * connection (every keystroke the user types), so a blocking sleep()
-     * (up to 30s, per the cap below) froze the entire session, not just the
-     * respawn: keystrokes typed during that window sat unread in the
-     * renderer socket's kernel buffer instead of being forwarded to the
+     * respawning.
+     *
+     * Non-blocking: a plain sleep() here was tried first and found live to
+     * be a real bug, not just an implementation detail --this is a
+     * SINGLE-THREADED event loop that also services the renderer connection
+     * (every keystroke the user types), so a blocking sleep() (up to 30s,
+     * per the cap below) froze the entire session, not just the respawn:
+     * keystrokes typed during that window sat unread in the renderer
+     * socket's kernel buffer instead of being forwarded to the
      * (not-yet-existing) new shell, then all flushed at once the moment the
      * sleep ended, indistinguishable from the terminal being frozen and
      * abruptly "catching up." Found via a live repro where a typed password
@@ -430,12 +449,13 @@ int main(int argc, char **argv)
      * pty-ttyN process had accumulated a non-trivial backoff value across
      * many quick failed-login deaths earlier in the same debugging session,
      * since it (correctly, per the ghost-ptyserv reliability fix) persists
-     * across everything except its own shell dying. Fixed by tracking a
-     * respawn deadline instead of blocking: master_fd is left out of the
-     * pollfd set while a respawn is pending (it's stale/at-EOF anyway), and
-     * poll()'s own timeout parameter -- not sleep() --is what makes the
-     * loop wait, so listen_fd/renderer_fd stay fully serviced the whole
-     * time.
+     * across everything except its own shell dying.
+     *
+     * Fixed by tracking a respawn deadline instead of blocking: master_fd
+     * is left out of the pollfd set while a respawn is pending (it's
+     * stale/at-EOF anyway), and poll()'s own timeout parameter -- not
+     * sleep() --is what makes the loop wait, so listen_fd/renderer_fd stay
+     * fully serviced the whole time.
      */
     time_t last_death = 0;
     int backoff = 0;
@@ -447,18 +467,21 @@ int main(int argc, char **argv)
      * death: poll() is level-triggered, so if we kept master_fd in the set
      * while the condition persists, POLLHUP would fire again on every
      * single iteration and this loop would busy-spin at 100% CPU (kmscon
-     * avoids this the same way, just via edge-triggered epoll instead --
-     * EV_ET isn't available through plain poll()). Instead, briefly stop
-     * polling master_fd and retry after a short delay. Millisecond
-     * resolution (CLOCK_MONOTONIC, not time_t) and exponential (20ms
-     * doubling to a 500ms cap, reset on the next successful read) rather
-     * than a flat 1s: a flat whole-second cooldown was tried first and
-     * found live to add a noticeable, user-visible lag to every login even
-     * though the freeze itself was fixed -- most hangups are much shorter
-     * than 1s in practice (the vhangup()-then-reopen sequence is typically
-     * near-instant), so starting short and only backing off if it's still
-     * not done keeps the common case snappy while still bounding worst-case
-     * CPU spin the same way the flat version did.
+     * avoids this the same way, just via edge-triggered epoll instead
+     * --EV_ET isn't available through plain poll()).
+     *
+     * Instead, briefly stop polling master_fd and retry after a short
+     * delay.
+     *
+     * Millisecond resolution (CLOCK_MONOTONIC, not time_t) and exponential
+     * (20ms doubling to a 500ms cap, reset on the next successful read)
+     * rather than a flat 1s: a flat whole-second cooldown was tried first
+     * and found live to add a noticeable, user-visible lag to every login
+     * even though the freeze itself was fixed -- most hangups are much
+     * shorter than 1s in practice (the vhangup()-then-reopen sequence is
+     * typically near-instant), so starting short and only backing off if
+     * it's still not done keeps the common case snappy while still bounding
+     * worst-case CPU spin the same way the flat version did.
      */
     bool master_quiet = false;
     long master_quiet_ms = 0;
@@ -470,12 +493,14 @@ int main(int argc, char **argv)
         {
             /* The old master_fd (from the session that just died) is never
              * read again past this point -- close it before it's
-             * overwritten below. Left open, the kernel's devpts can't
-             * free/reuse that pts number (it allocates the lowest
-             * currently-unused slot), so every respawn permanently leaked
-             * one pts allocation, pushing each new login to a higher pts
-             * number forever (found live: pts/3 -> pts/18 across one boot's
-             * worth of logout/login cycles).
+             * overwritten below.
+             *
+             * Left open, the kernel's devpts can't free/reuse that pts
+             * number (it allocates the lowest currently-unused slot), so
+             * every respawn permanently leaked one pts allocation, pushing
+             * each new login to a higher pts number forever (found live:
+             * pts/3 -> pts/18 across one boot's worth of logout/login
+             * cycles).
              */
             close(master_fd);
             child = spawn_session(shell, &master_fd);
@@ -557,19 +582,23 @@ int main(int argc, char **argv)
                 /* This IS a real death, confirmed by the kernel via
                  * SIGCHLD/waitpid -- unlike master_fd's POLLHUP, this
                  * signal cannot fire spuriously while the child is still
-                 * alive. Respawn a fresh session rather than exiting this
-                 * process and leaving the VT's PTY with nothing attached at
-                 * all (found live: "exiting bails it to blank kernel
-                 * state"). The renderer stays connected throughout; it'll
-                 * just see the new login prompt appear as ordinary output.
+                 * alive.
+                 *
+                 * Respawn a fresh session rather than exiting this process
+                 * and leaving the VT's PTY with nothing attached at all
+                 * (found live: "exiting bails it to blank kernel state").
+                 *
+                 * The renderer stays connected throughout; it'll just see
+                 * the new login prompt appear as ordinary output.
                  */
                 /* Tell the renderer this session's screen owner is gone,
                  * over the control socket (same connection RESIZE arrives
                  * on, opposite direction) -- ghostcon-core decides whether
-                 * to act on it (GHOSTCON_CLEAR_ON_LOGOUT). Best-effort: no
-                 * ctl connection or a failed write just means the old
-                 * screen lingers under the new login prompt, same as
-                 * today's behavior.
+                 * to act on it (GHOSTCON_CLEAR_ON_LOGOUT).
+                 *
+                 * Best-effort: no ctl connection or a failed write just
+                 * means the old screen lingers under the new login prompt,
+                 * same as today's behavior.
                  */
                 if (ctl_fd >= 0)
                 {
@@ -603,9 +632,11 @@ int main(int argc, char **argv)
             if (r <= 0)
             {
                 /* NOT necessarily death -- see the vhangup() comment above
-                 * main(). The child's actual death is detected exclusively
-                 * via the SIGCHLD self-pipe handled above; this branch just
-                 * backs off polling master_fd briefly so a persistent (but
+                 * main().
+                 *
+                 * The child's actual death is detected exclusively via the
+                 * SIGCHLD self-pipe handled above; this branch just backs
+                 * off polling master_fd briefly so a persistent (but
                  * transient) hangup condition doesn't busy-spin the loop,
                  * then retries.
                  */
@@ -657,12 +688,13 @@ int main(int argc, char **argv)
             {
                 /* Nowhere to deliver this while a respawn is pending
                  * (master_fd is stale, the old session already died) --drop
-                 * it rather than write to a dead fd. Genuine improvement
-                 * over the old behavior, not a regression: previously this
-                 * same input just sat unread in the renderer socket's
-                 * kernel buffer for the entire blocking sleep() and got
-                 * delivered late/out of context anyway once the shell
-                 * existed again.
+                 * it rather than write to a dead fd.
+                 *
+                 * Genuine improvement over the old behavior, not a
+                 * regression: previously this same input just sat unread in
+                 * the renderer socket's kernel buffer for the entire
+                 * blocking sleep() and got delivered late/out of context
+                 * anyway once the shell existed again.
                  */
                 write_all(master_fd, buf, (size_t)r);
             }

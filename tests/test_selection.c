@@ -1,8 +1,8 @@
-/*
- * test_selection -- ghostcon_selection_t state machine, row-range
- * computation, text extraction, and base64 encode/decode. Uses a real
- * ghostcon_term_t (fed plain text through the normal VT parser, same
- * pattern as tests/test_osc.c) so extract_text exercises real cell
+/* test_selection -- ghostcon_selection_t state machine, row-range
+ * computation, text extraction, and base64 encode/decode.
+ *
+ * Uses a real ghostcon_term_t (fed plain text through the normal VT parser,
+ * same pattern as tests/test_osc.c) so extract_text exercises real cell
  * content rather than hand-poked arrays.
  */
 

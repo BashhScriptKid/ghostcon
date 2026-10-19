@@ -1,10 +1,10 @@
-/*
- * test_supervisor — drives supervisor[ttyN]'s state machine through each
- * scenario in PLAN.md's supervision layer, using tests/fake_renderer.c
- * as a stand-in for ghostcon-core (no real DRM/KMS/VT hardware needed).
- * Observes supervisor's behavior via its stderr log lines, since it has
- * no other externally observable state (no status/query mechanism, by
- * design -- PLAN.md's canary is deliberately dumb).
+/* test_supervisor — drives supervisor[ttyN]'s state machine through each
+ * scenario in PLAN.md's supervision layer, using tests/fake_renderer.c as a
+ * stand-in for ghostcon-core (no real DRM/KMS/VT hardware needed).
+ *
+ * Observes supervisor's behavior via its stderr log lines, since it has no
+ * other externally observable state (no status/query mechanism, by design
+ * -- PLAN.md's canary is deliberately dumb).
  */
 
 #define _DEFAULT_SOURCE
@@ -127,8 +127,10 @@ static bool wait_for_log(int fd, const char *needle, int timeout_ms)
  * sturdy enough here, where a burst -- e.g. "renderer hung" immediately
  * followed by the next instance's own startup lines -- landing in a single
  * read() would otherwise vanish before a later wait_for_log_seq call could
- * see it). On success, *search_from advances to just past the match, so the
- * caller can inspect buf[old *search_from .. new *search_from] for anything
+ * see it).
+ *
+ * On success, *search_from advances to just past the match, so the caller
+ * can inspect buf[old *search_from .. new *search_from] for anything
  * captured alongside the needle (e.g. a trailing pid via sscanf), and the
  * next call won't re-match the same occurrence.
  */
@@ -273,6 +275,7 @@ static void scenario_hang_and_respawn(void)
     /* This scenario hits supervisor's wall_broadcast(vtnum, "hang") path
      * for real -- without this, every meson test run genuinely paged
      * whoever's logged in with a live "renderer hang, recovering" message.
+     *
      * Found live: the user saw one appear in their own terminal
      * mid-session. scenario_startup_timeout_fallback already disables this
      * for its own wall_broadcast() call; this scenario was just missing the
@@ -432,8 +435,8 @@ cleanup:
  * the recovery file records that pty child's REAL pid (not the -1
  * placeholder every recovery file used to contain --see
  * query_pty_child_pid() in supervisor/main.c), and the respawned renderer's
- * ring-buffer replay actually contains output from BEFORE the hang --
- * proving session continuity, not just "a shell appeared."
+ * ring-buffer replay actually contains output from BEFORE the hang
+ * --proving session continuity, not just "a shell appeared."
  */
 static void scenario_hang_preserves_session(void)
 {
@@ -480,9 +483,10 @@ static void scenario_hang_preserves_session(void)
      * supervisor/main.c's file comment: "the startup race timer and the
      * ongoing canary are the SAME mechanism"). 300ms was tight enough to
      * make the FIRST instance look like a startup timeout instead of
-     * reaching ACTIVE (found live). FAKE_RENDERER_HANG_AFTER_MS is
-     * unaffected by this -- it's measured from AFTER the REAL_PTY block
-     * completes, not from process start.
+     * reaching ACTIVE (found live).
+     *
+     * FAKE_RENDERER_HANG_AFTER_MS is unaffected by this -- it's measured
+     * from AFTER the REAL_PTY block completes, not from process start.
      */
     setenv("GHOSTCON_CANARY_DEADLINE_MS", "2000", 1);
     setenv("FAKE_RENDERER_HANG_AFTER_MS", "600", 1);
@@ -640,13 +644,15 @@ cleanup_ptyserv:
      * process (ghost-ptyserv forks one per VT on first registry GET), so
      * killing ghost-ptyserv alone leaves it orphaned and still running,
      * still holding open the copies of this test binary's stdout/stderr it
-     * inherited across the fork/exec chain. Found live: under meson's test
-     * harness (which reads those fds to EOF to capture output) that orphan
-     * kept the pipe open long after this function itself returned, making
-     * the whole test process look hung for the remainder of meson's timeout
-     * even though every scenario had already finished and printed its
-     * result -- a plain terminal run of the same binary never showed this,
-     * since nothing there was blocked reading those fds to EOF.
+     * inherited across the fork/exec chain.
+     *
+     * Found live: under meson's test harness (which reads those fds to EOF
+     * to capture output) that orphan kept the pipe open long after this
+     * function itself returned, making the whole test process look hung for
+     * the remainder of meson's timeout even though every scenario had
+     * already finished and printed its result -- a plain terminal run of
+     * the same binary never showed this, since nothing there was blocked
+     * reading those fds to EOF.
      */
     if (pid1 > 0)
         kill(pid1, SIGKILL);
@@ -665,11 +671,12 @@ cleanup_rundir:
 }
 
 /* Point 6 of PLAN.md's induced-hang checklist: repeated triggers within one
- * rate-limit window should only broadcast once. Doesn't need a real pty
- * child (unlike scenario_hang_preserves_session above) -- just the
- * supervisor cycling through several hang/respawn rounds and
- * GHOSTCON_WALL_DEBUG_LOG counting how many broadcasts it would have made
- * (see wall_broadcast()'s own comment on why this, not
+ * rate-limit window should only broadcast once.
+ *
+ * Doesn't need a real pty child (unlike scenario_hang_preserves_session
+ * above) -- just the supervisor cycling through several hang/respawn rounds
+ * and GHOSTCON_WALL_DEBUG_LOG counting how many broadcasts it would have
+ * made (see wall_broadcast()'s own comment on why this, not
  * GHOSTCON_DISABLE_WALL, is what a rate-limit test needs -- the disable
  * path skips the rate-limit bookkeeping entirely, so it can never be used
  * to test the limiter itself).

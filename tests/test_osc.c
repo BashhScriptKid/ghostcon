@@ -1,11 +1,11 @@
-/*
- * test_osc — verifies the manually-parsed OSC tier (term/stream.c's
+/* test_osc — verifies the manually-parsed OSC tier (term/stream.c's
  * osc_dispatch_manual), since the installed libghostty-vt's OSC C API
  * doesn't expose parameter data for these (see color.h's doc comment).
- * Covers OSC 4/10/11/12/104 (Phase 1 item 8, "implement directly" tier)
- * — both the color-spec parser in isolation and the full set/query
- * round-trip through a real ghostcon_term_t, including query responses
- * written back via the output callback.
+ *
+ * Covers OSC 4/10/11/12/104 (Phase 1 item 8, "implement directly" tier) —
+ * both the color-spec parser in isolation and the full set/query round-trip
+ * through a real ghostcon_term_t, including query responses written back
+ * via the output callback.
  */
 
 #include "ghostcon/term/term.h"
@@ -256,8 +256,9 @@ int main(void)
      * String Terminator -- e.g. U+2733 "✳", encoded E2 9C B3) got truncated
      * mid-payload, discarding the title AND leaking the remaining bytes
      * into the screen as literal printed text (a real app's animated status
-     * title hit this exactly). Both BEL- and ST-terminated forms must
-     * deliver the title intact.
+     * title hit this exactly).
+     *
+     * Both BEL- and ST-terminated forms must deliver the title intact.
      */
     ghostcon_term_feed(&term, (const uint8_t *)"\r\n", 2); /* known column 0 */
     int16_t emoji_row = term.screen.cursor.y;

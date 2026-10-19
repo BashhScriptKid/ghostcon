@@ -92,6 +92,7 @@ bool ghostcon_selection_contains(const ghostcon_selection_t *sel, int16_t x, int
 
 /* Minimal UTF-8 encoder for a single codepoint -- no existing helper in the
  * tree does this (glyph/atlas code works in codepoints, not UTF-8 bytes).
+ *
  * Returns bytes written (1-4), or 0 if `out_len` is too small to fit the
  * encoded codepoint.
  */
@@ -157,11 +158,12 @@ size_t ghostcon_selection_extract_text(ghostcon_screen_t *screen, char *out, siz
              * totally blank, never-written cell still has tag
              * GHOSTCON_CELL_CODEPOINT (0, the default), so has_text()
              * returns true for it with codepoint 0, which would encode as a
-             * literal NUL byte instead of a space. Check both: is_empty()
-             * (c.raw == 0, "nothing was ever written") and an explicit
-             * codepoint-0 cell that DOES have the text tag set but was
-             * written with a NUL (defensive, same net effect either way --
-             * treat as blank).
+             * literal NUL byte instead of a space.
+             *
+             * Check both: is_empty() (c.raw == 0, "nothing was ever
+             * written") and an explicit codepoint-0 cell that DOES have the
+             * text tag set but was written with a NUL (defensive, same net
+             * effect either way --treat as blank).
              */
             if (ghostcon_cell_is_empty(cell) || !ghostcon_cell_has_text(cell) ||
                 ghostcon_cell_get_codepoint(cell) == 0)

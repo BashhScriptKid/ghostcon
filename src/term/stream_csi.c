@@ -12,9 +12,10 @@
  *
  * Split out of stream.c per PLAN.md "Phase 2: table-driven dispatch": the
  * state machine collects params/intermediates and hands completed sequences
- * here via gc_stream_csi_dispatch(). Adding a new sequence is one handler
- * function plus one table line below, NOT another nested switch case in the
- * monolithic state machine.
+ * here via gc_stream_csi_dispatch().
+ *
+ * Adding a new sequence is one handler function plus one table line below,
+ * NOT another nested switch case in the monolithic state machine.
  */
 
 static void
@@ -241,24 +242,26 @@ static void handle_csi_restore_cursor(ghostcon_stream_t *st, ghostcon_screen_t *
     ghostcon_screen_cursor_restore(s);
 }
 
-/* Kitty keyboard protocol --
- * https://sw.kovidgoyal.net/kitty/keyboard-protocol/ Shares the plain 'u'
+/* Kitty keyboard protocol
+ * --https://sw.kovidgoyal.net/kitty/keyboard-protocol/ Shares the plain 'u'
  * final byte with DECRC (CSI u, no intermediate, handled by
  * handle_csi_restore_cursor above) -- distinguished the same way DEC
  * private modes (?) are told apart from ANSI ones, via the leading
- * intermediate byte (see csi_dispatch()'s own doc comment on this). Tracked
- * state (screen->kitty) previously existed but was never actually written
- * to by anything in this parser --core/input.c's key encoder was
+ * intermediate byte (see csi_dispatch()'s own doc comment on this).
+ *
+ * Tracked state (screen->kitty) previously existed but was never actually
+ * written to by anything in this parser --core/input.c's key encoder was
  * permanently hardcoded to legacy mode as a result, ignoring whatever an
  * app actually negotiated.
  */
 
 static void handle_csi_kitty_push(ghostcon_stream_t *st, ghostcon_screen_t *s)
 {
-    /* CSI > flags u -- push `flags` as a new stack entry. Omitted flags
-     * defaults to 0 (fully disabled), matching this parser's general
-     * "absent numeric param defaults to the safe/off value" convention used
-     * throughout.
+    /* CSI > flags u -- push `flags` as a new stack entry.
+     *
+     * Omitted flags defaults to 0 (fully disabled), matching this parser's
+     * general "absent numeric param defaults to the safe/off value"
+     * convention used throughout.
      */
     ghostcon_kitty_push(&s->kitty, (uint8_t)PARAM1(st, 0));
 }
@@ -318,12 +321,14 @@ static void handle_csi_cursor_style(ghostcon_stream_t *st, ghostcon_screen_t *s)
 static void handle_csi_decsca(ghostcon_stream_t *st, ghostcon_screen_t *s)
 {
     /* DECSCA — CSI Ps " q — select character protection attribute. Ghostty
-     * (stream.zig): 0 or 1 param; Ps 0 or 2 → off, Ps 1 → DEC. Note Ghostty
-     * maps Ps=2 to `.off`, NOT ISO — the ISO screen mode is only reachable
-     * from internal callers, never from DECSCA. The screen's protected_mode
-     * is left unchanged on off (Ghostty comment: "NEVER reset to .off
-     * because logic such as eraseChars depends on knowing what the most
-     * recent mode was").
+     * (stream.zig): 0 or 1 param; Ps 0 or 2 → off, Ps 1 → DEC.
+     *
+     * Note Ghostty maps Ps=2 to `.off`, NOT ISO — the ISO screen mode is
+     * only reachable from internal callers, never from DECSCA.
+     *
+     * The screen's protected_mode is left unchanged on off (Ghostty
+     * comment: "NEVER reset to .off because logic such as eraseChars
+     * depends on knowing what the most recent mode was").
      */
     if (!csi_param_count(st, 0, 1)) return;
     int mode = PARAM1(st, 0);
@@ -590,9 +595,10 @@ static void handle_csi_dec_reset(ghostcon_stream_t *st, ghostcon_screen_t *s)
             /* put_char()'s wrap boundary applies margin_region.right
              * unconditionally, without checking left_right_margin --so
              * disabling DECLRMM without also resetting the region left a
-             * stale DECSLRM margin permanently in effect. Found live: this
-             * made every subsequent line wrap at whatever column DECSLRM
-             * last set, indefinitely.
+             * stale DECSLRM margin permanently in effect.
+             *
+             * Found live: this made every subsequent line wrap at whatever
+             * column DECSLRM last set, indefinitely.
              */
             ghostcon_screen_set_margin_region(s, -1, -1);
             break;
@@ -666,9 +672,12 @@ static void handle_csi_sgr(ghostcon_stream_t *st, ghostcon_screen_t *s)
             /* bright_fg_8 is already the absolute 0-15 palette index (e.g.
              * 9 for bright red / SGR 91, matching
              * GHOSTTY_COLOR_NAMED_BRIGHT_RED) -- NOT a 0-7 offset that
-             * needs +8. Adding 8 here double-offset it (9+8=17), which
-             * isn't a named color at all -- it lands inside the 216 color
-             * cube (indices 16-231) at a essentially arbitrary color.
+             * needs +8.
+             *
+             * Adding 8 here double-offset it (9+8=17), which isn't a named
+             * color at all -- it lands inside the 216 color cube (indices
+             * 16-231) at a essentially arbitrary color.
+             *
              * Confirmed against libghostty-vt directly: see PLAN.md for the
              * live repro (bright red rendering as dark blue) and the
              * standalone parser test that caught this.
@@ -738,10 +747,11 @@ static gc_stream_csi_handler_t
 csi_lookup(ghostcon_stream_t *st, uint8_t final_byte)
 {
     /* Intermediate discrimination mirrors Ghostty's `switch
-     * (input.intermediates.len)` structure (stream.zig). The private
-     * markers < = > ? are collected into intermediates when they lead a
-     * sequence, so DEC private, DA2/DA3, XTSHIFTESCAPE, DECSCA, and
-     * DECSED/DECSEL are all told apart here.
+     * (input.intermediates.len)` structure (stream.zig).
+     *
+     * The private markers < = > ? are collected into intermediates when
+     * they lead a sequence, so DEC private, DA2/DA3, XTSHIFTESCAPE, DECSCA,
+     * and DECSED/DECSEL are all told apart here.
      */
     const uint8_t inter_len = st->intermediates_idx;
     const uint8_t inter0 = (inter_len > 0) ? st->intermediates[0] : 0;

@@ -19,11 +19,14 @@
  * The installed libghostty-vt's OSC C API only exposes coarse command
  * classification plus window-title text extraction (verified against both
  * the distro package and a from-source master build with -Demit-lib-vt=true
- * — see color.h's own note). Everything else is parsed by us directly from
- * st->buf, the raw NUL-terminated "N;p1;p2;..." OSC payload we already own
- * from accumulating OSC bytes ourselves in the state machine below. This
- * sidesteps the API's classification ambiguity too: e.g. OSC 4/10/11/12/104
- * (all color operations) collapse into one
+ * — see color.h's own note).
+ *
+ * Everything else is parsed by us directly from st->buf, the raw
+ * NUL-terminated "N;p1;p2;..." OSC payload we already own from accumulating
+ * OSC bytes ourselves in the state machine below.
+ *
+ * This sidesteps the API's classification ambiguity too: e.g. OSC
+ * 4/10/11/12/104 (all color operations) collapse into one
  * GHOSTTY_OSC_COMMAND_COLOR_OPERATION type with no way to tell them apart
  * via the API — we just read the leading number ourselves instead.
  */
@@ -50,11 +53,13 @@ osc_split_fields(char *buf, uint16_t len, char **fields, int max_fields)
 
 /* OSC 52's payload is base64 -- rejects anything that isn't, rather than
  * storing (and later echoing back through a query) arbitrary garbage a
- * misbehaving program sent. Doesn't validate padding placement/length is a
- * multiple of 4 -- xterm itself is lenient about this, and being stricter
- * here would just make a legitimate-but-slightly-malformed payload from
- * some other terminal's app silently vanish instead of being stored as-is,
- * which is more surprising than useful.
+ * misbehaving program sent.
+ *
+ * Doesn't validate padding placement/length is a multiple of 4 -- xterm
+ * itself is lenient about this, and being stricter here would just make a
+ * legitimate-but-slightly-malformed payload from some other terminal's app
+ * silently vanish instead of being stored as-is, which is more surprising
+ * than useful.
  */
 static bool osc52_is_valid_base64(const char *s)
 {
@@ -81,13 +86,16 @@ static int uri_hex_nibble(char c)
 
 /* Decodes an OSC 7 "report PWD" argument: either a bare path, or (the
  * common case, emitted by bash/zsh/fish's OSC 7 hooks) a file://[host]/path
- * URI. The host component is discarded -- this terminal has no notion of
- * "which host a path is valid on" beyond "whichever one is currently
- * attached", and xterm's own recommendation is to accept it without
- * validating against the local hostname. Percent-encoded bytes are decoded;
- * a lone/invalid '%' escape is passed through literally rather than
- * rejecting the whole sequence, matching OSC 7's "best effort, advisory"
- * spirit.
+ * URI.
+ *
+ * The host component is discarded -- this terminal has no notion of "which
+ * host a path is valid on" beyond "whichever one is currently attached",
+ * and xterm's own recommendation is to accept it without validating against
+ * the local hostname.
+ *
+ * Percent-encoded bytes are decoded; a lone/invalid '%' escape is passed
+ * through literally rather than rejecting the whole sequence, matching OSC
+ * 7's "best effort, advisory" spirit.
  */
 static void osc7_decode_pwd(const char *arg, char *out, size_t out_len)
 {
@@ -127,13 +135,16 @@ static void osc_write_response(ghostcon_stream_t *st, const char *body)
         st->output_fn(st->output_userdata, (const uint8_t *)seq, (size_t)n);
 }
 
-/* Handles OSC numbers the manual tier owns. Returns true if `num` was
- * recognized (whether or not the specific field contents were valid — a
- * malformed field is silently ignored per the terminal's usual "never crash
- * on bad input" rule, not treated as "unrecognized OSC"). Returns false for
- * anything this tier doesn't own, so the caller can fall through to the
- * ghostty_osc-based path (window title, and the discard-and-log fallback
- * for truly unrecognized sequences).
+/* Handles OSC numbers the manual tier owns.
+ *
+ * Returns true if `num` was recognized (whether or not the specific field
+ * contents were valid — a malformed field is silently ignored per the
+ * terminal's usual "never crash on bad input" rule, not treated as
+ * "unrecognized OSC").
+ *
+ * Returns false for anything this tier doesn't own, so the caller can fall
+ * through to the ghostty_osc-based path (window title, and the
+ * discard-and-log fallback for truly unrecognized sequences).
  */
 static bool osc_dispatch_manual(ghostcon_stream_t *st, ghostcon_screen_t *s)
 {
@@ -142,8 +153,10 @@ static bool osc_dispatch_manual(ghostcon_stream_t *st, ghostcon_screen_t *s)
      * to be one we own, the caller falls through to the existing
      * ghostty_osc_next() loop over st->buf -- which needs the original
      * semicolons intact (e.g. window title "0;My Title" would parse as
-     * corrupted "0\0My Title" otherwise). Payloads too long for this are
-     * definitely not one of our small numeric OSC types anyway.
+     * corrupted "0\0My Title" otherwise).
+     *
+     * Payloads too long for this are definitely not one of our small
+     * numeric OSC types anyway.
      */
     char copy[1024];
     if (st->osc_len >= sizeof(copy))

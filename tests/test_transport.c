@@ -1,11 +1,10 @@
-/*
- * test_transport — Phase 1 acceptance test for core/transport.c.
+/* test_transport — Phase 1 acceptance test for core/transport.c.
  *
  * Starts a real ghost-ptyserv + pty-ttyN pair (same setup as
- * test_ptyserv.c) and connects to it via ghostcon_transport_connect
- * instead of raw sockets, verifying the registry query + pty child
- * connect + bidirectional byte flow all work through the transport API
- * a real ghostcon-core renderer would use.
+ * test_ptyserv.c) and connects to it via ghostcon_transport_connect instead
+ * of raw sockets, verifying the registry query + pty child connect +
+ * bidirectional byte flow all work through the transport API a real
+ * ghostcon-core renderer would use.
  */
 
 #define _DEFAULT_SOURCE

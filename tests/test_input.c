@@ -1,8 +1,9 @@
-/*
- * test_input — unit tests for core/input.c's pure key-mapping/encoding
- * step (ghostcon_input_evdev_to_ghostty_key / ghostcon_input_encode_key),
- * with no libinput/hardware dependency. See input.h's file comment for
- * why this is split out from the live dispatch loop.
+/* test_input — unit tests for core/input.c's pure key-mapping/encoding step
+ * (ghostcon_input_evdev_to_ghostty_key / ghostcon_input_encode_key), with
+ * no libinput/hardware dependency.
+ *
+ * See input.h's file comment for why this is split out from the live
+ * dispatch loop.
  */
 
 #include "ghostcon/core/input.h"

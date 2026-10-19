@@ -208,23 +208,30 @@ void ghostcon_stream_process_byte(ghostcon_stream_t *st,
 {
     /* 8-bit C1 controls (0x80-0x9F). In ground state these bytes are UTF-8
      * continuation/lead bytes and are handled by the UTF-8 decoder
-     * (matching Ghostty: a stray C1 in ground decodes to U+FFFD). Only
-     * escape-string and CSI/DCS states terminate on C1 -- NOT the opaque
-     * string-payload-accumulation states (OSC/DCS-passthrough/SOS-PM-APC).
+     * (matching Ghostty: a stray C1 in ground decodes to U+FFFD).
+     *
+     * Only escape-string and CSI/DCS states terminate on C1 -- NOT the
+     * opaque string-payload-accumulation states
+     * (OSC/DCS-passthrough/SOS-PM-APC).
+     *
      * Real bug found live: 0x9C is simultaneously the C1 code for ST
      * (String Terminator) and a valid UTF-8 continuation byte -- a UTF-8
      * character whose encoding happens to contain 0x9C as its second or
-     * third byte (e.g. U+2733 "✳", encoded E2 9C B3) arriving
-     * mid-OSC-payload (a window title containing that character, sent by a
-     * real app) got its 0x9C byte mistaken for ST here, silently truncating
-     * the OSC before osc_dispatch() ever ran and discarding the title
-     * --then the OSC's remaining bytes got reprocessed from GROUND state as
-     * if newly typed, printing "leaked" title text directly onto the screen
-     * (a stray orphaned continuation byte first decoding to U+FFFD, then
-     * the rest as literal ASCII). These states are already correctly
-     * BEL/ESC-backslash-terminated on their own (see GC_STREAM_OSC_STRING's
-     * own case below) and must treat C1-range bytes as ordinary opaque
-     * payload, not a termination shortcut.
+     * third byte (e.g.
+     *
+     * U+2733 "✳", encoded E2 9C B3) arriving mid-OSC-payload (a window
+     * title containing that character, sent by a real app) got its 0x9C
+     * byte mistaken for ST here, silently truncating the OSC before
+     * osc_dispatch() ever ran and discarding the title --then the OSC's
+     * remaining bytes got reprocessed from GROUND state as if newly typed,
+     * printing "leaked" title text directly onto the screen (a stray
+     * orphaned continuation byte first decoding to U+FFFD, then the rest as
+     * literal ASCII).
+     *
+     * These states are already correctly BEL/ESC-backslash-terminated on
+     * their own (see GC_STREAM_OSC_STRING's own case below) and must treat
+     * C1-range bytes as ordinary opaque payload, not a termination
+     * shortcut.
      */
     if (c >= 0x80 && c <= 0x9F && st->state != GC_STREAM_GROUND &&
         st->state != GC_STREAM_OSC_STRING &&
@@ -718,13 +725,15 @@ void ghostcon_stream_process_byte(ghostcon_stream_t *st,
         /* Only the 7-bit ESC-backslash form of ST terminates -- same
          * reasoning as DCS_PASSTHROUGH above: a raw 0x9C is also a valid
          * UTF-8 continuation byte, and APC payloads (Kitty graphics base64
-         * data) can contain byte values that overlap it. Sets apc_pending
-         * and returns to GROUND on ESC, mirroring OSC_STRING's own handling
-         * below it -- GROUND's pending-check block (above) is what actually
-         * confirms the '\' and dispatches; without that flag, a real APC
-         * payload's terminator would leak its trailing '\' onto the screen
-         * as literal text (SOS/PM, which nothing here acts on, still just
-         * accumulate-then-drop like before).
+         * data) can contain byte values that overlap it.
+         *
+         * Sets apc_pending and returns to GROUND on ESC, mirroring
+         * OSC_STRING's own handling below it -- GROUND's pending-check
+         * block (above) is what actually confirms the '\' and dispatches;
+         * without that flag, a real APC payload's terminator would leak its
+         * trailing '\' onto the screen as literal text (SOS/PM, which
+         * nothing here acts on, still just accumulate-then-drop like
+         * before).
          */
         if (c == 0x1B)
         {

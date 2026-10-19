@@ -6,7 +6,9 @@
  * "explicitly set to ANSI black via SGR 30/40" — Ghostty's real
  * Style.fg_color/bg_color default to a tagged `.none` ("use terminal
  * default"), which this flat-flags port represents via the FG/BG_DEFAULT
- * bits. Those must be set here, matching this constant's own doc comment
+ * bits.
+ *
+ * Those must be set here, matching this constant's own doc comment
  * ("fg=default, bg=default") — found via the renderer actually exercising
  * color resolution for the first time; Phase 0's tests never checked
  * colors, only codepoints/dirty tracking, so this went unnoticed.

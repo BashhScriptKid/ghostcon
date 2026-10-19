@@ -1,11 +1,12 @@
-/* GENERATED FILE -- do not hand-edit.
- * Produced by tools/gen_symbol_table.py from the Unicode Character
- * Database (UnicodeData.txt). Covers General Category Sm, Sc, Sk, So
- * ("Symbol" categories) -- mirrors Ghostty's UCD-derived isSymbol().
+/* GENERATED FILE -- do not hand-edit. Produced by tools/gen_symbol_table.py
+ * from the Unicode Character Database (UnicodeData.txt).
  *
- * Does NOT include the Private Use Area (Nerd Font icon glyphs) --
- * PUA codepoints are category Co, not Symbol. That carve-out is
- * hand-added in cell.c on top of this table. See gen_symbol_table.py.
+ * Covers General Category Sm, Sc, Sk, So ("Symbol" categories) -- mirrors
+ * Ghostty's UCD-derived isSymbol().
+ *
+ * Does NOT include the Private Use Area (Nerd Font icon glyphs) --PUA
+ * codepoints are category Co, not Symbol. That carve-out is hand-added in
+ * cell.c on top of this table. See gen_symbol_table.py.
  */
 
 #include "ghostcon/term/cell_symbol_table.h"

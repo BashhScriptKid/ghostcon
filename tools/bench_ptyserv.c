@@ -1,19 +1,17 @@
-/*
- * bench_ptyserv -- measures throughput of the REAL ghost-ptyserv +
- * pty-ttyN IPC path (pty master -> pty_child.c's forwarding loop ->
- * Unix domain socket -> ghostcon_transport_read(), the exact chain
- * core/main.c's main loop reads pty output through), isolated from VT
- * parsing and rendering.
+/* bench_ptyserv -- measures throughput of the REAL ghost-ptyserv + pty-ttyN
+ * IPC path (pty master -> pty_child.c's forwarding loop -> Unix domain
+ * socket -> ghostcon_transport_read(), the exact chain core/main.c's main
+ * loop reads pty output through), isolated from VT parsing and rendering.
  *
  * Spawns real ghost-ptyserv/pty-ttyN binaries (same GHOSTCON_PTYSERV_BIN/
  * GHOSTCON_PTY_CHILD_BIN env-var convention tests/test_ptyserv.c and
- * tests/test_undead_head.c already use), connects as a renderer would,
- * and has the real shell inside produce a large burst of output via
- * `dd if=/dev/zero`, timing how fast all of it arrives on the client
- * side. This is the one leg of the pipeline bench_render/bench_parse
- * don't touch at all -- see PLAN.md's benchmarking notes for why all
- * three exist as separate, isolated tools rather than one combined
- * live trace.
+ * tests/test_undead_head.c already use), connects as a renderer would, and
+ * has the real shell inside produce a large burst of output via `dd
+ * if=/dev/zero`, timing how fast all of it arrives on the client side.
+ *
+ * This is the one leg of the pipeline bench_render/bench_parse don't touch
+ * at all -- see PLAN.md's benchmarking notes for why all three exist as
+ * separate, isolated tools rather than one combined live trace.
  *
  * Usage: bench_ptyserv [megabytes]  (default 64)
  *   Requires GHOSTCON_PTYSERV_BIN and GHOSTCON_PTY_CHILD_BIN env vars
@@ -82,8 +80,9 @@ int main(int argc, char **argv)
                         "  (same env var meson's own test harness sets -- see build-release/meson-logs)\n");
         return 1;
     }
-    /* Copy before setenv(): the pointer came from getenv() and environ
-       may be reallocated by the call below. */
+    /* Copy before setenv(): the pointer came from getenv() and environ may
+     * be reallocated by the call below.
+     */
     char ptyserv_bin_buf[4096];
     snprintf(ptyserv_bin_buf, sizeof(ptyserv_bin_buf), "%s", ptyserv_bin);
     ptyserv_bin = ptyserv_bin_buf;
@@ -198,9 +197,11 @@ int main(int argc, char **argv)
      * literal marker text ("echo BENCH_PTYSERV_DONE" is part of what we
      * just typed), searching for the marker without accounting for this
      * would match the ECHO instantly, not dd's actual output (found live: a
-     * 64MB request "completing" in under a millisecond). Drain exactly the
-     * echoed byte count first --local echo mirrors the write 1:1 -- before
-     * starting the timed measurement on dd's real output only.
+     * 64MB request "completing" in under a millisecond).
+     *
+     * Drain exactly the echoed byte count first --local echo mirrors the
+     * write 1:1 -- before starting the timed measurement on dd's real
+     * output only.
      */
     {
         size_t echoed = 0;

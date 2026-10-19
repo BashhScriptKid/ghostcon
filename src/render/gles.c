@@ -35,15 +35,17 @@ static const char *VERT_SRC =
  * only guarantees ~10 bits of relative precision, which quantizes UV
  * lookups into the atlas texture (ATLAS_DIM x ATLAS_DIM, glyph cells only a
  * handful of texels each) enough to jitter/snap glyph edges by a texel or
- * more, independent of GL_LINEAR filtering being set correctly. Ghostty's
- * own desktop-GL renderer (src/renderer/shaders/glsl/ cell_text.f.glsl)
- * sidesteps this the same way in spirit, just via a different mechanism: it
- * samples through sampler2DRect (unnormalized, texel-space coordinates),
- * which has no comparable precision loss to begin with. sampler2DRect isn't
- * available under GLES2 (desktop-GL-only extension), so the portable GLES2
- * equivalent is this explicit highp qualifier instead. v_color stays
- * mediump -- color isn't the affected value, and mediump keeps everything
- * else (varying storage size, GPU register pressure) unchanged from before.
+ * more, independent of GL_LINEAR filtering being set correctly.
+ *
+ * Ghostty's own desktop-GL renderer (src/renderer/shaders/glsl/
+ * cell_text.f.glsl) sidesteps this the same way in spirit, just via a
+ * different mechanism: it samples through sampler2DRect (unnormalized,
+ * texel-space coordinates), which has no comparable precision loss to begin
+ * with. sampler2DRect isn't available under GLES2 (desktop-GL-only
+ * extension), so the portable GLES2 equivalent is this explicit highp
+ * qualifier instead. v_color stays mediump -- color isn't the affected
+ * value, and mediump keeps everything else (varying storage size, GPU
+ * register pressure) unchanged from before.
  */
 /* Luminance-based alpha correction, ported from Ghostty's own
  * cell_text.f.glsl (USE_LINEAR_CORRECTION path). Defaults OFF (config.c's
@@ -63,61 +65,75 @@ static const char *VERT_SRC =
  * ghostcon's GBM/EGL surface is a plain (non-sRGB) format with standard
  * fixed-function blending -- structurally Ghostty's `native` mode already,
  * the same "gamma-incorrect blending" the correction curve exists to
- * reproduce. Applying the curve on top of that (found live: enabled by
- * default for one deploy) over-corrects: partial-coverage pixels get pushed
- * darker to fight a thinning effect that was never present, which reads as
- * thin strokes (built mostly from partial-coverage AA pixels) rendering
- * visibly dimmer than thick ones (built mostly from full-coverage pixels)
- * within the same glyph. Only useful again if ghostcon-core ever gains a
- * real linear-blending framebuffer -- which now exists (see
- * u_linear_blending below), though it turned out to matter far less than
- * expected: see this file's next doc comment for why.
+ * reproduce.
+ *
+ * Applying the curve on top of that (found live: enabled by default for one
+ * deploy) over-corrects: partial-coverage pixels get pushed darker to fight
+ * a thinning effect that was never present, which reads as thin strokes
+ * (built mostly from partial-coverage AA pixels) rendering visibly dimmer
+ * than thick ones (built mostly from full-coverage pixels) within the same
+ * glyph.
+ *
+ * Only useful again if ghostcon-core ever gains a real linear-blending
+ * framebuffer -- which now exists (see u_linear_blending below), though it
+ * turned out to matter far less than expected: see this file's next doc
+ * comment for why.
  */
 /* Color glyph quads (v_is_color_glyph > 0.5 -- e.g. Noto Color Emoji, see
  * atlas.h's ghostcon_glyph_t.is_color) take a THIRD path, checked first:
  * sample u_atlas_color directly as source RGBA color, no mix/tint against
- * v_color at all. Unlike every other glyph, a color emoji's pixels ARE the
- * final color -- there's no single foreground tint to apply, so the
- * mask-and-tint model below doesn't apply here. u_atlas_color is a wholly
- * separate texture/atlas from u_atlas (see atlas.c's color_bitmap) --
- * straight (non-premultiplied) alpha, already converted from FreeType's
+ * v_color at all.
+ *
+ * Unlike every other glyph, a color emoji's pixels ARE the final color
+ * --there's no single foreground tint to apply, so the mask-and-tint model
+ * below doesn't apply here. u_atlas_color is a wholly separate
+ * texture/atlas from u_atlas (see atlas.c's color_bitmap) --straight
+ * (non-premultiplied) alpha, already converted from FreeType's
  * premultiplied BGRA at pack time (atlas.c's ghostcon_atlas_glyph()), so
  * this can go straight to fixed-function GL_BLEND-style output without
- * redoing that math here. Ordinary (non-color) glyph quads (v_is_glyph >
- * 0.5) take a different path from every other quad type (background fills,
- * cursor, selection overlay): `mix(v_bg, v_color.rgb, mask)`, computed
- * entirely in-shader from the mask sampled out of the (now RGB, 3
- * bytes/pixel) atlas, with NO reliance on GL's fixed-function blend. This
- * is what makes real per-subpixel-channel blending possible at all under
- * GLES2: standard alpha blending only has one alpha for every channel, but
- * true subpixel rendering needs a different mix weight per R/G/B channel
- * (that's the entire point of it -- see atlas.c's cleartype packing path).
+ * redoing that math here.
+ *
+ * Ordinary (non-color) glyph quads (v_is_glyph > 0.5) take a different path
+ * from every other quad type (background fills, cursor, selection overlay):
+ * `mix(v_bg, v_color.rgb, mask)`, computed entirely in-shader from the mask
+ * sampled out of the (now RGB, 3 bytes/pixel) atlas, with NO reliance on
+ * GL's fixed-function blend.
+ *
+ * This is what makes real per-subpixel-channel blending possible at all
+ * under GLES2: standard alpha blending only has one alpha for every
+ * channel, but true subpixel rendering needs a different mix weight per
+ * R/G/B channel (that's the entire point of it -- see atlas.c's cleartype
+ * packing path).
+ *
  * Every AA mode other than cleartype stores a replicated mask (R=G=B),
  * which degenerates this exact formula to the plain scalar alpha blend
  * every glyph used before this existed -- PROVIDED v_bg genuinely matches
  * whatever's already under this glyph in the framebuffer, which holds here:
  * machine.c always pushes a cell's background quad (with this same resolved
- * color) before that cell's glyph quad, every frame. That equivalence is
- * also why the old gamma-correction curve (still used below, for non-glyph
- * quads only) has nothing left to do for glyphs -- it existed to compensate
- * for coverage-alpha GL blending, and glyphs no longer go through GL
- * blending at all.
+ * color) before that cell's glyph quad, every frame.
+ *
+ * That equivalence is also why the old gamma-correction curve (still used
+ * below, for non-glyph quads only) has nothing left to do for glyphs -- it
+ * existed to compensate for coverage-alpha GL blending, and glyphs no
+ * longer go through GL blending at all.
  *
  * u_linear_blending (set when egl.c got an sRGB-colorspace surface AND the
  * driver has GL_EXT_sRGB_write_control, both checked live --see
  * core/main.c) matters for BOTH branches even though only non-glyph quads
  * still use GL_BLEND: GL_FRAMEBUFFER_SRGB affects every fragment WRITE to
  * an sRGB-encoded framebuffer, blended or not, auto-converting linear
- * shader output to sRGB on write. This shader's colors (v_color/v_bg, and
- * everything computed from them) are already in sRGB-encoded form --
- * writing them straight through with that hardware auto-conversion active
- * would gamma-encode an already-gamma-encoded value a second time, visibly
- * darkening/ distorting EVERYTHING, glyphs included, not just the GL_BLEND
- * quads. So both branches compute their result exactly as before, then
- * linearize() the final RGB once, right before output, only when
- * u_linear_blending is active -- undoing that pre-encoding so the
- * hardware's forced re-encode on write lands back on the intended sRGB
- * bytes.
+ * shader output to sRGB on write.
+ *
+ * This shader's colors (v_color/v_bg, and everything computed from them)
+ * are already in sRGB-encoded form --writing them straight through with
+ * that hardware auto-conversion active would gamma-encode an
+ * already-gamma-encoded value a second time, visibly darkening/ distorting
+ * EVERYTHING, glyphs included, not just the GL_BLEND quads.
+ *
+ * So both branches compute their result exactly as before, then linearize()
+ * the final RGB once, right before output, only when u_linear_blending is
+ * active -- undoing that pre-encoding so the hardware's forced re-encode on
+ * write lands back on the intended sRGB bytes.
  */
 static const char *FRAG_SRC =
     "precision mediump float;\n"
@@ -173,16 +189,19 @@ static const char *FRAG_SRC =
     "}\n";
 
 /* Blit pass: copies the offscreen sRGB FBO's color texture to the real
- * default framebuffer, one full-viewport triangle. GLES2 has no
- * glBlitFramebuffer (GLES3+/desktop only), so this is the portable
- * equivalent. GL_TEXTURE_SRGB_DECODE_EXT/GL_SKIP_DECODE_EXT on the source
- * texture (set once at creation, see ghostcon_gles_create()) makes
- * texture2D() here return the RAW stored bytes instead of auto-decoding
- * them to linear -- since those bytes are already correctly sRGB-encoded
- * (the main FRAG_SRC's own linearize3() + the hardware's
- * auto-reencode-on-write into the sRGB attachment already produced them),
- * this blit is then a genuine byte-for-byte passthrough into the plain
- * (non-sRGB) default framebuffer, no further conversion needed or wanted.
+ * default framebuffer, one full-viewport triangle.
+ *
+ * GLES2 has no glBlitFramebuffer (GLES3+/desktop only), so this is the
+ * portable equivalent.
+ *
+ * GL_TEXTURE_SRGB_DECODE_EXT/GL_SKIP_DECODE_EXT on the source texture (set
+ * once at creation, see ghostcon_gles_create()) makes texture2D() here
+ * return the RAW stored bytes instead of auto-decoding them to linear
+ * --since those bytes are already correctly sRGB-encoded (the main
+ * FRAG_SRC's own linearize3() + the hardware's auto-reencode-on-write into
+ * the sRGB attachment already produced them), this blit is then a genuine
+ * byte-for-byte passthrough into the plain (non-sRGB) default framebuffer,
+ * no further conversion needed or wanted.
  */
 static const char *BLIT_VERT_SRC =
     "attribute vec2 a_pos;\n"
@@ -217,11 +236,14 @@ struct ghostcon_gles {
     /* Real linear-space rendering: an offscreen sRGB-format FBO everything
      * gets drawn into instead of the default framebuffer, blitted (via a
      * tiny passthrough shader -- GLES2 has no glBlitFramebuffer) to the
-     * real one at the end of every frame. See ghostcon_gles_create()'s doc
-     * comment for why this exists instead of just requesting an sRGB EGL
-     * window surface. Only ever decided at creation time -- not something a
-     * live config reload rebuilds, same "startup-only" precedent already
-     * used for e.g. scrollback_lines/repeat_delay_ms.
+     * real one at the end of every frame.
+     *
+     * See ghostcon_gles_create()'s doc comment for why this exists instead
+     * of just requesting an sRGB EGL window surface.
+     *
+     * Only ever decided at creation time -- not something a live config
+     * reload rebuilds, same "startup-only" precedent already used for e.g.
+     * scrollback_lines/repeat_delay_ms.
      */
     bool linear_blending;
     GLuint srgb_fbo, srgb_color_tex;
@@ -229,6 +251,7 @@ struct ghostcon_gles {
     GLint blit_attr_pos, blit_attr_uv, blit_uniform_tex;
 
     /* Foreground layer: glyphs, cursor, selection (push_glyph / push_rect).
+     *
      * Drawn second, after the background layer and after any below-text
      * Kitty images -- see gles.h's "Arbitrary-texture images" doc comment
      * for why this is now two separate draw calls rather than one combined
@@ -286,9 +309,10 @@ struct ghostcon_gles_queued_image {
 
 /* Kitty graphics image quads -- deliberately its own tiny shader rather
  * than reusing VERT_SRC/FRAG_SRC above: those sample the shared glyph atlas
- * and carry gamma-correction/is_glyph machinery this doesn't need. Plain
- * textured quad, uniform alpha multiplies whatever the texture's own alpha
- * is (1.0 for RGB-format textures, giving a uniform placement opacity
+ * and carry gamma-correction/is_glyph machinery this doesn't need.
+ *
+ * Plain textured quad, uniform alpha multiplies whatever the texture's own
+ * alpha is (1.0 for RGB-format textures, giving a uniform placement opacity
  * either way).
  */
 static const char *IMG_VERT_SRC =
@@ -308,16 +332,19 @@ static const char *IMG_FRAG_SRC =
     "uniform bool u_linear_blending;\n"
     /* Same fix, same reason as FRAG_SRC's own lin1()/u_linear_blending doc
      * comment above: when linear_blending is active, the target is an
-     * sRGB-format FBO that auto-encodes every fragment write. The uploaded
-     * texture holds ordinary sRGB-encoded 0-255 bytes (e.g. a Kitty image's
-     * raw RGB payload) sampled back as-is; writing those straight through
-     * under that auto-encode gets them gamma-encoded a SECOND time, washing
-     * the image out (found live: a checkerboard transmitted as
-     * (220,60,60)/(30,30,140) rendered as (239,133,133)/(96,96,196) --
-     * exactly the shape of a double sRGB encode, which compresses hard near
-     * black and barely moves near white). Pre-linearizing here cancels the
-     * hardware's forced re-encode, same as FRAG_SRC already does for
-     * text/background.
+     * sRGB-format FBO that auto-encodes every fragment write.
+     *
+     * The uploaded texture holds ordinary sRGB-encoded 0-255 bytes (e.g. a
+     * Kitty image's raw RGB payload) sampled back as-is; writing those
+     * straight through under that auto-encode gets them gamma-encoded a
+     * SECOND time, washing the image out (found live: a checkerboard
+     * transmitted as (220,60,60)/(30,30,140) rendered as
+     * (239,133,133)/(96,96,196) --exactly the shape of a double sRGB
+     * encode, which compresses hard near black and barely moves near
+     * white).
+     *
+     * Pre-linearizing here cancels the hardware's forced re-encode, same as
+     * FRAG_SRC already does for text/background.
      */
     "highp float lin1(highp float v) {\n"
     "    return v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4);\n"
@@ -426,9 +453,11 @@ ghostcon_gles_create(uint32_t viewport_w, uint32_t viewport_h, bool want_linear_
     /* Real linear-space rendering via an offscreen sRGB FBO -- see this
      * struct's own doc comment on why (an sRGB EGL window surface was tried
      * and confirmed non-functional on this project's actual dev
-     * hardware/driver). Needs GL_EXT_sRGB (sRGB-format renderable textures)
-     * and GL_EXT_texture_sRGB_decode (GL_SKIP_DECODE_EXT for the blit pass)
-     * -- checked live, not assumed; falls back to plain rendering (this
+     * hardware/driver).
+     *
+     * Needs GL_EXT_sRGB (sRGB-format renderable textures) and
+     * GL_EXT_texture_sRGB_decode (GL_SKIP_DECODE_EXT for the blit pass)
+     * --checked live, not assumed; falls back to plain rendering (this
      * project's behavior before any of this existed) if either is missing
      * or the FBO doesn't complete, not an error.
      */
@@ -661,8 +690,10 @@ void ghostcon_gles_push_rect(ghostcon_gles_t *gles,
      * this — sampling (0,0) always yields mask=(1,1,1). bg == fg here so
      * the gamma correction curve is a guaranteed no-op, and is_glyph=0
      * keeps this on the plain alpha-blended path (needed for e.g. the
-     * selection overlay's partial-alpha tint). Foreground layer -- see
-     * gles.h for why cell backgrounds use push_bg_rect instead.
+     * selection overlay's partial-alpha tint).
+     *
+     * Foreground layer -- see gles.h for why cell backgrounds use
+     * push_bg_rect instead.
      */
     push_quad(gles, x, y, w, h, 0.0f, 0.0f, 0.0f, 0.0f, r, g, b, a, r, g, b, 0.0f, 0.0f, false);
 }
@@ -1009,12 +1040,13 @@ void ghostcon_gles_end(ghostcon_gles_t *gles)
      * (above backgrounds, below glyphs), then the foreground layer
      * (glyphs/cursor/selection), then z>=0 Kitty images (above everything)
      * -- matches Ghostty's three-tier ordering exactly (renderer/image.zig:
-     * kitty_below_bg / kitty_below_text / kitty_above_text). This used to
-     * be one combined bg+glyph batch with images either fully before or
-     * fully after it; that made a z<0 placement permanently invisible,
-     * since "before the batch" meant before its opaque background fills
-     * too, not just before glyphs -- found live via a controlled two-image
-     * z-order test.
+     * kitty_below_bg / kitty_below_text / kitty_above_text).
+     *
+     * This used to be one combined bg+glyph batch with images either fully
+     * before or fully after it; that made a z<0 placement permanently
+     * invisible, since "before the batch" meant before its opaque
+     * background fills too, not just before glyphs -- found live via a
+     * controlled two-image z-order test.
      */
     draw_layer(gles, gles->bg_verts, gles->bg_vert_count);
     draw_queued_images(gles, false);

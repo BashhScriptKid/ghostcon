@@ -19,14 +19,19 @@ struct ghostcon_sixel_state;
  *
  * One shader program, two atlas textures (u_atlas: mask, u_atlas_color:
  * color glyphs -- see atlas.h's doc comment on ghostcon_glyph_t.is_color
- * for why they're separate). A quad is either a solid fill (background
- * cell, cursor block — sampled from a reserved opaque texel at the mask
- * atlas origin), a mask glyph (sampled from u_atlas, alpha = per-pixel
- * coverage, tinted with the foreground color), or a color glyph (sampled
- * from u_atlas_color as direct source color, no tint). All three go through
- * the same textured-quad path per PLAN.md's "Renderer design": draw
- * background quads first, then glyph quads on top with alpha blending. See
- * render/machine.c for turning screen damage into the quad list this
+ * for why they're separate).
+ *
+ * A quad is either a solid fill (background cell, cursor block — sampled
+ * from a reserved opaque texel at the mask atlas origin), a mask glyph
+ * (sampled from u_atlas, alpha = per-pixel coverage, tinted with the
+ * foreground color), or a color glyph (sampled from u_atlas_color as direct
+ * source color, no tint).
+ *
+ * All three go through the same textured-quad path per PLAN.md's "Renderer
+ * design": draw background quads first, then glyph quads on top with alpha
+ * blending.
+ *
+ * See render/machine.c for turning screen damage into the quad list this
  * consumes.
  */
 
@@ -57,8 +62,10 @@ typedef struct ghostcon_gles ghostcon_gles_t;
  * srgb_colorspace field -- this function independently checks for
  * GL_EXT_sRGB_write_control (a current-context GL check egl.c can't do
  * itself) before actually enabling GL_FRAMEBUFFER_SRGB_EXT, so both
- * conditions are required, not just this one. See FRAG_SRC's doc comment in
- * gles.c for what this actually changes (not what you'd guess).
+ * conditions are required, not just this one.
+ *
+ * See FRAG_SRC's doc comment in gles.c for what this actually changes (not
+ * what you'd guess).
  */
 ghostcon_gles_t *ghostcon_gles_create(uint32_t viewport_w, uint32_t viewport_h,
                                        bool want_linear_blending);
@@ -68,66 +75,83 @@ void ghostcon_gles_resize(ghostcon_gles_t *gles, uint32_t w, uint32_t h);
 
 /* Uploads the atlas bitmap to the GPU texture if ghostcon_atlas_dirty() is
  * true (and clears the dirty flag) — UNLESS `force` is set, which uploads
- * unconditionally regardless of the dirty flag. Glyphs are rasterized
- * lazily on first use (see render/machine.c calling ghostcon_atlas_glyph),
- * so this must be called AFTER the frame's render_dirty pass, not before —
- * syncing first uploads a stale/empty atlas and glyphs silently don't
- * appear (no GL error, since the texture is valid, just outdated). Call
- * order: begin -> render_dirty (pushes quads, rasterizes new glyphs into
- * the CPU-side atlas) -> sync_atlas (uploads them) -> end (draws, using the
- * now-current texture). `force=true` is required exactly once per
- * `ghostcon_gles_t` instance, right after creating it (before its first
- * end()) — the dirty flag tracks changes to the CPU-side atlas bitmap,
- * which is a separate, longer-lived object than any one GLES instance's GPU
- * texture. A brand-new instance's texture is created empty (glGenTextures,
- * no data yet); if the atlas bitmap happens to already be "not dirty" at
- * that point (nothing new rasterized since some earlier instance's last
- * sync), a dirty-gated sync_atlas call would skip uploading anything,
- * leaving that fresh texture "incomplete" per the GL spec (never given
- * level-0 data) — sampling it is implementation-defined, and on at least
- * one real driver this silently returned solid opaque alpha, making every
- * glyph quad render as a filled rectangle instead of its actual shape.
+ * unconditionally regardless of the dirty flag.
+ *
+ * Glyphs are rasterized lazily on first use (see render/machine.c calling
+ * ghostcon_atlas_glyph), so this must be called AFTER the frame's
+ * render_dirty pass, not before — syncing first uploads a stale/empty atlas
+ * and glyphs silently don't appear (no GL error, since the texture is
+ * valid, just outdated).
+ *
+ * Call order: begin -> render_dirty (pushes quads, rasterizes new glyphs
+ * into the CPU-side atlas) -> sync_atlas (uploads them) -> end (draws,
+ * using the now-current texture).
+ *
+ * `force=true` is required exactly once per `ghostcon_gles_t` instance,
+ * right after creating it (before its first end()) — the dirty flag tracks
+ * changes to the CPU-side atlas bitmap, which is a separate, longer-lived
+ * object than any one GLES instance's GPU texture.
+ *
+ * A brand-new instance's texture is created empty (glGenTextures, no data
+ * yet); if the atlas bitmap happens to already be "not dirty" at that point
+ * (nothing new rasterized since some earlier instance's last sync), a
+ * dirty-gated sync_atlas call would skip uploading anything, leaving that
+ * fresh texture "incomplete" per the GL spec (never given level-0 data) —
+ * sampling it is implementation-defined, and on at least one real driver
+ * this silently returned solid opaque alpha, making every glyph quad render
+ * as a filled rectangle instead of its actual shape.
+ *
  * Found live, after a VT reacquire (which always creates a fresh
  * ghostcon_gles_t) — see core/main.c's acquire_display().
  */
 void ghostcon_gles_sync_atlas(ghostcon_gles_t *gles, ghostcon_atlas_t *atlas, bool force);
 
 /* Resets the quad batch for a new frame, clearing the framebuffer to (bg_r,
- * bg_g, bg_b) first iff `clear` is true. Pass `clear=true` (paired with the
- * caller redrawing the FULL accumulated dirty region, not just cells
- * changed since the previous call) every frame, not just the first. A
- * tempting-looking optimization — clear only once, then only redraw what's
- * newly dirty, relying on render/machine.c's per-cell background quads to
- * repaint just the changed rows — is WRONG here: core/kms.c's GBM/EGL
- * surface rotates across multiple physical buffers for tear-free
+ * bg_g, bg_b) first iff `clear` is true.
+ *
+ * Pass `clear=true` (paired with the caller redrawing the FULL accumulated
+ * dirty region, not just cells changed since the previous call) every
+ * frame, not just the first.
+ *
+ * A tempting-looking optimization — clear only once, then only redraw
+ * what's newly dirty, relying on render/machine.c's per-cell background
+ * quads to repaint just the changed rows — is WRONG here: core/kms.c's
+ * GBM/EGL surface rotates across multiple physical buffers for tear-free
  * presentation, and each buffer has its own independent history of what's
- * been painted onto it. "Only redraw what changed since the last render()
- * call" implicitly assumes a single continuous buffer; against N rotating
- * buffers, each one only receives the damage from every Nth frame, so
- * already-rendered content silently disappears and reappears on alternating
- * frames. Found live: characters flashed in and out on literally every
- * keystroke, because only the cursor's row was (correctly) marked dirty
- * that frame, but only every-other physical buffer had actually received
- * that specific row's repaint. Proper per-buffer damage tracking would make
- * the incremental version correct, but is real complexity this doesn't need
- * yet — see core/main.c's render_frame() and PLAN.md's own renderer design
- * note ("redrawing all dirty cells each frame is sufficient" for a terminal
- * at this scale, which in practice means every frame, full stop, not just
+ * been painted onto it.
+ *
+ * "Only redraw what changed since the last render() call" implicitly
+ * assumes a single continuous buffer; against N rotating buffers, each one
+ * only receives the damage from every Nth frame, so already-rendered
+ * content silently disappears and reappears on alternating frames.
+ *
+ * Found live: characters flashed in and out on literally every keystroke,
+ * because only the cursor's row was (correctly) marked dirty that frame,
+ * but only every-other physical buffer had actually received that specific
+ * row's repaint.
+ *
+ * Proper per-buffer damage tracking would make the incremental version
+ * correct, but is real complexity this doesn't need yet — see core/main.c's
+ * render_frame() and PLAN.md's own renderer design note ("redrawing all
+ * dirty cells each frame is sufficient" for a terminal at this scale, which
+ * in practice means every frame, full stop, not just
  * first-frame-after-acquire).
  */
 void ghostcon_gles_begin(ghostcon_gles_t *gles, bool clear,
                           float bg_r, float bg_g, float bg_b);
 
 /* Appends an opaque solid-color rect to the FOREGROUND layer (cursor block,
- * selection overlay) -- drawn after glyphs, on top of everything. For cell
- * background fills specifically, use ghostcon_gles_push_bg_rect() below
- * instead: backgrounds and glyphs/cursor/selection are now two separate
- * draw calls (not one combined batch), specifically so a Kitty graphics z<0
- * placement can be sandwiched between them -- see this header's
- * "Arbitrary-texture images" section for why that split exists (real
- * terminals draw z<0 images above cell backgrounds but below glyphs, which
- * a single combined batch can't represent: found live, a z<0 image was
- * always completely hidden under the batch's own opaque background fills).
+ * selection overlay) -- drawn after glyphs, on top of everything.
+ *
+ * For cell background fills specifically, use ghostcon_gles_push_bg_rect()
+ * below instead: backgrounds and glyphs/cursor/selection are now two
+ * separate draw calls (not one combined batch), specifically so a Kitty
+ * graphics z<0 placement can be sandwiched between them -- see this
+ * header's "Arbitrary-texture images" section for why that split exists
+ * (real terminals draw z<0 images above cell backgrounds but below glyphs,
+ * which a single combined batch can't represent: found live, a z<0 image
+ * was always completely hidden under the batch's own opaque background
+ * fills).
  */
 void ghostcon_gles_push_rect(ghostcon_gles_t *gles,
                               float x, float y, float w, float h,
@@ -155,17 +179,21 @@ void ghostcon_gles_push_glyph(ghostcon_gles_t *gles,
 /* Whether glyph edges get the luminance-based alpha correction curve
  * (ported from Ghostty's cell_text.f.glsl) that biases FreeType's raw
  * coverage value to look crisper against the cell's actual background,
- * instead of a naive straight alpha blend. Defaults to on; takes effect on
- * the next ghostcon_gles_end().
+ * instead of a naive straight alpha blend.
+ *
+ * Defaults to on; takes effect on the next ghostcon_gles_end().
  */
 void ghostcon_gles_set_gamma_correct(ghostcon_gles_t *gles, bool enabled);
 
 /* True if ghostcon_gles_create()'s want_linear_blending actually resulted
  * in a working offscreen sRGB FBO + blit pipeline (both the needed
  * extensions present AND the FBO completed) -- decided once at creation
- * time, not something that changes later. False doesn't mean anything is
- * broken; it just means rendering fell back to the plain path, silently,
- * same as an unrecognized antialiasing value falling back to grayscale.
+ * time, not something that changes later.
+ *
+ * False doesn't mean anything is broken; it just means rendering fell back
+ * to the plain path, silently, same as an unrecognized antialiasing value
+ * falling back to grayscale.
+ *
  * Purely informational (e.g. startup logging) --nothing else needs to
  * branch on this, the shader already does.
  */
@@ -181,18 +209,20 @@ void ghostcon_gles_end(ghostcon_gles_t *gles);
  * Deliberately a separate pipeline from the atlas-based batch above: each
  * Kitty image is its own arbitrary-sized GPU texture, not something the
  * shared glyph atlas allocator manages, and GLES2 can't sample a different
- * texture per vertex within one draw call. Each image placement is its own
- * glDrawArrays call, queued and drawn at one of two points in
- * ghostcon_gles_end()'s sequence: push_bg_rect draw call (backgrounds) ->
- * queued below_text images (z<0) -> push_rect/push_glyph draw call
- * (cursor/selection/glyphs) -> queued above_text images (z>=0) -> blit/swap
- * matching Ghostty's own three-tier ordering (renderer/image.zig): z<0 is
- * above cell backgrounds but below glyphs, not below everything -- a single
- * combined bg+glyph batch (this renderer's original design) can't represent
- * that, since ANY draw before the whole batch is a draw before its opaque
- * background fills too. Found live: a z<0 placement rendered as if
- * permanently hidden, because the batch's own background quads painted over
- * it every frame.
+ * texture per vertex within one draw call.
+ *
+ * Each image placement is its own glDrawArrays call, queued and drawn at
+ * one of two points in ghostcon_gles_end()'s sequence: push_bg_rect draw
+ * call (backgrounds) -> queued below_text images (z<0) ->
+ * push_rect/push_glyph draw call (cursor/selection/glyphs) -> queued
+ * above_text images (z>=0) -> blit/swap matching Ghostty's own three-tier
+ * ordering (renderer/image.zig): z<0 is above cell backgrounds but below
+ * glyphs, not below everything -- a single combined bg+glyph batch (this
+ * renderer's original design) can't represent that, since ANY draw before
+ * the whole batch is a draw before its opaque background fills too.
+ *
+ * Found live: a z<0 placement rendered as if permanently hidden, because
+ * the batch's own background quads painted over it every frame.
  */
 
 typedef struct ghostcon_gles_image ghostcon_gles_image_t;
@@ -209,12 +239,13 @@ void ghostcon_gles_image_destroy(ghostcon_gles_image_t *img);
  * and glyph draw calls), above_text=true for z>=0 (drawn after everything
  * else, before the blit/swap). src_w/src_h == 0 means "full image"
  * (src_x/src_y ignored). alpha scales the whole placement's opacity (1.0 =
- * fully opaque). Both queues are drained and cleared by the next
- * ghostcon_gles_end() call; nothing needs to be called to reset them
- * between frames, and queuing can happen any time between
- * ghostcon_gles_begin and ghostcon_gles_end regardless of
- * push_rect/push_glyph call order -- only the tier (above_text) controls
- * where it actually lands in the draw sequence.
+ * fully opaque).
+ *
+ * Both queues are drained and cleared by the next ghostcon_gles_end() call;
+ * nothing needs to be called to reset them between frames, and queuing can
+ * happen any time between ghostcon_gles_begin and ghostcon_gles_end
+ * regardless of push_rect/push_glyph call order -- only the tier
+ * (above_text) controls where it actually lands in the draw sequence.
  */
 void ghostcon_gles_queue_image(ghostcon_gles_t *gles, ghostcon_gles_image_t *img,
                                float x, float y, float w, float h,
@@ -224,16 +255,19 @@ void ghostcon_gles_queue_image(ghostcon_gles_t *gles, ghostcon_gles_image_t *img
 /* Returns a GPU texture for Kitty image `image_id`, uploading from `pixels`
  * on first use and re-uploading whenever `generation` differs from what's
  * currently cached (the term-layer image store bumps its generation counter
- * each time an id is re-transmitted -- see term/kitty_graphics.h). The
- * returned handle is owned by `gles`: never call
+ * each time an id is re-transmitted -- see term/kitty_graphics.h).
+ *
+ * The returned handle is owned by `gles`: never call
  * ghostcon_gles_image_destroy on it, and don't hold onto it past the
  * current frame (a later re-transmission can invalidate and replace it).
+ *
  * Bounded to the same max-image count as the term-layer store; under
  * pressure, evicts whichever cached entry's id doesn't currently resolve
  * via ghostcon_kitty_graphics_find_image first (this needs the same
  * screen's kitty_graphics to check that), falling back to simple
- * oldest-first if every cached entry is still live. Returns NULL on
- * allocation failure.
+ * oldest-first if every cached entry is still live.
+ *
+ * Returns NULL on allocation failure.
  */
 ghostcon_gles_image_t *ghostcon_gles_kitty_tex_get(ghostcon_gles_t *gles,
                                                    const struct ghostcon_kitty_graphics *kg,
@@ -243,9 +277,10 @@ ghostcon_gles_image_t *ghostcon_gles_kitty_tex_get(ghostcon_gles_t *gles,
 /* Same caching contract as ghostcon_gles_kitty_tex_get above, but keyed by
  * sixel placement SLOT (array index into
  * ghostcon_sixel_state_t::placements[], not a client-chosen id --sixel has
- * no ids at all, see term/sixel.h) rather than image id. Pixels are always
- * RGBA (sixel decode always produces RGBA -- see term/sixel.c), so there's
- * no bpp parameter.
+ * no ids at all, see term/sixel.h) rather than image id.
+ *
+ * Pixels are always RGBA (sixel decode always produces RGBA -- see
+ * term/sixel.c), so there's no bpp parameter.
  */
 ghostcon_gles_image_t *ghostcon_gles_sixel_tex_get(ghostcon_gles_t *gles,
                                                    const struct ghostcon_sixel_state *sx,
@@ -253,13 +288,17 @@ ghostcon_gles_image_t *ghostcon_gles_sixel_tex_get(ghostcon_gles_t *gles,
                                                    const uint8_t *pixels, int width, int height);
 
 /* Reads back the just-rendered frame and writes it out as a binary PPM
- * (P6). MUST be called after ghostcon_gles_end() but before the caller's
+ * (P6).
+ *
+ * MUST be called after ghostcon_gles_end() but before the caller's
  * ghostcon_egl_swap() -- glReadPixels reads whatever is currently bound as
  * the draw framebuffer, which is only guaranteed to hold this frame's
  * actual content in that window; past a swap, an EGL surface's backbuffer
  * is free to come back with undefined content (multi-buffered presentation,
- * no EGL_SWAP_BEHAVIOR_PRESERVED guarantee here). Ground-truth pixel
- * capture for comparing against a reference render when a visual difference
- * is hard to describe in words -- see core/main.c's Ctrl+Alt+D dump hotkey.
+ * no EGL_SWAP_BEHAVIOR_PRESERVED guarantee here).
+ *
+ * Ground-truth pixel capture for comparing against a reference render when
+ * a visual difference is hard to describe in words -- see core/main.c's
+ * Ctrl+Alt+D dump hotkey.
  */
 bool ghostcon_gles_screenshot_ppm(ghostcon_gles_t *gles, const char *path);

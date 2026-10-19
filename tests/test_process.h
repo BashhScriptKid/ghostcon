@@ -9,10 +9,11 @@
 /* Process helpers for tests.
  *
  * Tests occasionally need to run a real helper binary (pkill, rm,
- * journalctl). Using system()/popen() routes through a shell, which
- * clang-tidy flags (bugprone-command-processor) and which makes
- * argument quoting fragile. These helpers exec the program directly
- * with an argv array and no shell.
+ * journalctl).
+ *
+ * Using system()/popen() routes through a shell, which clang-tidy flags
+ * (bugprone-command-processor) and which makes argument quoting fragile.
+ * These helpers exec the program directly with an argv array and no shell.
  */
 
 /* Runs argv to completion, discarding stdout/stderr. Returns the

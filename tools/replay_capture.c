@@ -175,8 +175,10 @@ int main(int argc, char **argv)
      * reported symptom is the SAME text appearing on two rows -- a
      * content-placement bug (wrong cursor/scroll math during parsing), not
      * a stale-redraw bug, so it'd show up in the TRUE state itself, not
-     * just the dirty-view/true-view diff above. Scan every row pair within
-     * a few lines of each other for near-duplicate non-blank content.
+     * just the dirty-view/true-view diff above.
+     *
+     * Scan every row pair within a few lines of each other for
+     * near-duplicate non-blank content.
      */
     printf("\n--- content-duplication scan ---\n");
     char lines[512][512];

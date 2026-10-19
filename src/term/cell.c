@@ -6,9 +6,10 @@
  *
  * Based on Markus Kuhn's classic wcwidth() implementation (public domain),
  * used by the majority of terminal emulators. Returns the cell width a
- * codepoint occupies: 0 (combining/zero-width), 1, or 2. Ghostty uses a
- * UCD-derived table; this table mirrors Kuhn's wcwidth wide/fullwidth +
- * combining ranges, matching Ghostty for practical input.
+ * codepoint occupies: 0 (combining/zero-width), 1, or 2.
+ *
+ * Ghostty uses a UCD-derived table; this table mirrors Kuhn's wcwidth
+ * wide/fullwidth + combining ranges, matching Ghostty for practical input.
  */
 
 typedef struct
@@ -148,8 +149,10 @@ uint8_t ghostcon_unicode_width(uint32_t cp)
 /* See cell.h's doc comment. ghostcon_generated_symbol_ranges[] (in
  * cell_symbol_table.gen.c, produced by tools/gen_symbol_table.py from the
  * UCD) covers real Unicode General Category Sm/Sc/Sk/So, matching Ghostty's
- * UCD-derived isSymbol(). Two hand-added carve-outs sit on top of that
- * generated data, for reasons the UCD can't express:
+ * UCD-derived isSymbol().
+ *
+ * Two hand-added carve-outs sit on top of that generated data, for reasons
+ * the UCD can't express:
  *
  * - U+2500-259F (Box Drawing, Block Elements) IS genuinely category So in
  *   the UCD, so it appears in the generated table -- but it must be
