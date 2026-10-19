@@ -32,7 +32,8 @@ scan_line(ghostcon_atlas_t *atlas, const char *text,
           ghostcon_ligature_glyph_t *out_glyphs, int max_glyphs)
 {
     ghostcon_term_t term;
-    if (!ghostcon_term_init(&term, COLS, ROWS, 0)) {
+    if (!ghostcon_term_init(&term, COLS, ROWS, 0))
+    {
         fprintf(stderr, "FAIL: ghostcon_term_init\n");
         failures++;
         return -1;
@@ -51,7 +52,8 @@ main(void)
 {
     ghostcon_atlas_t *atlas = ghostcon_atlas_create(FONT_FAMILY, NULL, NULL, NULL,
                                                       FONT_SIZE, ATLAS_DIM);
-    if (!atlas) {
+    if (!atlas)
+    {
         fprintf(stderr, "FAIL: ghostcon_atlas_create(%s)\n", FONT_FAMILY);
         return 1;
     }
@@ -72,20 +74,25 @@ main(void)
         "a >= b",
     };
     int any_positive = 0;
-    for (size_t i = 0; i < sizeof(positive_cases) / sizeof(positive_cases[0]); i++) {
+    for (size_t i = 0; i < sizeof(positive_cases) / sizeof(positive_cases[0]); i++)
+    {
         ghostcon_ligature_glyph_t glyphs[GHOSTCON_LIGATURE_MAX_RUN_LEN];
         int n = scan_line(atlas, positive_cases[i], glyphs, GHOSTCON_LIGATURE_MAX_RUN_LEN);
         if (n < 0)
             continue; /* scan_line already recorded the failure */
-        if (n > 0) {
+        if (n > 0)
+        {
             printf("PASS: \"%s\" -> %d substituted glyph(s), first at x=%u (glyph %u)\n",
                    positive_cases[i], n, glyphs[0].x, glyphs[0].glyph_index);
             any_positive = 1;
-        } else {
+        }
+        else
+        {
             printf("NOTE: \"%s\" -> no ligature substitution detected\n", positive_cases[i]);
         }
     }
-    if (!any_positive) {
+    if (!any_positive)
+    {
         fprintf(stderr,
                 "FAIL: no positive case produced a ligature run -- either %s has no calt "
                 "ligatures for these sequences, or shaping isn't reaching HarfBuzz\n",
@@ -100,23 +107,28 @@ main(void)
         "hello world",
         "a + b",
     };
-    for (size_t i = 0; i < sizeof(negative_cases) / sizeof(negative_cases[0]); i++) {
+    for (size_t i = 0; i < sizeof(negative_cases) / sizeof(negative_cases[0]); i++)
+    {
         ghostcon_ligature_glyph_t glyphs[GHOSTCON_LIGATURE_MAX_RUN_LEN];
         int n = scan_line(atlas, negative_cases[i], glyphs, GHOSTCON_LIGATURE_MAX_RUN_LEN);
         if (n < 0)
             continue;
-        if (n != 0) {
+        if (n != 0)
+        {
             fprintf(stderr, "FAIL: \"%s\" unexpectedly produced %d substituted glyph(s)\n",
                     negative_cases[i], n);
             failures++;
-        } else {
+        }
+        else
+        {
             printf("PASS: \"%s\" -> no ligature run (expected)\n", negative_cases[i]);
         }
     }
 
     ghostcon_atlas_destroy(atlas);
 
-    if (failures > 0) {
+    if (failures > 0)
+    {
         fprintf(stderr, "FAILED: %d failure(s)\n", failures);
         return 1;
     }

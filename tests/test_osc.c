@@ -25,12 +25,14 @@ check_parse(const char *spec, bool expect_ok, uint8_t r, uint8_t g, uint8_t b, c
 {
     GhosttyColorRgb c = {0, 0, 0};
     bool ok = ghostcon_color_parse_spec(spec, &c);
-    if (ok != expect_ok) {
+    if (ok != expect_ok)
+    {
         fprintf(stderr, "FAIL: parse %s: expected ok=%d, got %d\n", label, expect_ok, ok);
         failures++;
         return;
     }
-    if (expect_ok && (c.r != r || c.g != g || c.b != b)) {
+    if (expect_ok && (c.r != r || c.g != g || c.b != b))
+    {
         fprintf(stderr, "FAIL: parse %s: expected (%d,%d,%d), got (%d,%d,%d)\n",
                 label, r, g, b, c.r, c.g, c.b);
         failures++;
@@ -86,7 +88,8 @@ main(void)
 
     /* --- full OSC round-trip through a real term --- */
     ghostcon_term_t term;
-    if (!ghostcon_term_init(&term, 80, 24, 0)) {
+    if (!ghostcon_term_init(&term, 80, 24, 0))
+    {
         fprintf(stderr, "FAIL: term_init\n");
         return 1;
     }
@@ -391,7 +394,8 @@ main(void)
 
     ghostcon_term_deinit(&term);
 
-    if (failures > 0) {
+    if (failures > 0)
+    {
         fprintf(stderr, "%d check(s) failed\n", failures);
         return 1;
     }

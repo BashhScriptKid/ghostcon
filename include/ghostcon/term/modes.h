@@ -37,18 +37,22 @@ typedef uint64_t ghostcon_modes_t;
 #define GC_MODE_REVERSE_VIDEO 26
 #define GC_MODE_INSERT 27
 
-static inline void ghostcon_modes_set(ghostcon_modes_t *m, int bit) {
+static inline void ghostcon_modes_set(ghostcon_modes_t *m, int bit)
+{
     *m |= ((uint64_t)1 << bit);
 }
 
-static inline void ghostcon_modes_reset(ghostcon_modes_t *m, int bit) {
+static inline void ghostcon_modes_reset(ghostcon_modes_t *m, int bit)
+{
     *m &= ~((uint64_t)1 << bit);
 }
 
-static inline bool ghostcon_modes_get(const ghostcon_modes_t *m, int bit) {
+static inline bool ghostcon_modes_get(const ghostcon_modes_t *m, int bit)
+{
     return (*m >> bit) & 1;
 }
 
-static inline void ghostcon_modes_clear(ghostcon_modes_t *m) {
+static inline void ghostcon_modes_clear(ghostcon_modes_t *m)
+{
     *m = 0;
 }

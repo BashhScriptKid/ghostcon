@@ -26,7 +26,8 @@
  * u_atlas_color/v_is_color_glyph.
  */
 
-typedef struct {
+typedef struct
+{
     float    u0, v0, u1, v1;   /* UV rect, normalized -- in the color atlas
                                    (ghostcon_atlas_color_bitmap()) if is_color,
                                    otherwise the mask atlas (ghostcon_atlas_bitmap()) */

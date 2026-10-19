@@ -16,7 +16,8 @@
 typedef struct ghostcon_display ghostcon_display_t;
 
 /* Hardware cursor configuration */
-typedef struct {
+typedef struct
+{
     char theme[256];
     char default_path[256];
     char link_path[256];

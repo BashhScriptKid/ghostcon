@@ -16,7 +16,8 @@
  * 1" section for the protocol reference this implements against.
  */
 
-typedef enum {
+typedef enum
+{
     GC_MOUSE_LEFT,
     GC_MOUSE_MIDDLE,
     GC_MOUSE_RIGHT,
@@ -25,7 +26,8 @@ typedef enum {
     GC_MOUSE_NONE, /* motion with no button held */
 } ghostcon_mouse_button_t;
 
-typedef enum {
+typedef enum
+{
     GC_MOUSE_PRESS,
     GC_MOUSE_RELEASE,
     GC_MOUSE_MOTION,

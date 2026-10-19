@@ -30,7 +30,8 @@
 
 /* Parse a collected CSI parameter. Returns default if empty. */
 static inline int
-param(ghostcon_stream_t *st, int idx, int def) {
+param(ghostcon_stream_t *st, int idx, int def)
+{
     if (idx < st->params_idx && st->params[idx] != 0)
         return st->params[idx];
     return def;
@@ -45,7 +46,8 @@ param(ghostcon_stream_t *st, int idx, int def) {
  * `else => return`). mirror that here.
  */
 static inline bool
-csi_param_count(ghostcon_stream_t *st, uint8_t minc, uint8_t maxc) {
+csi_param_count(ghostcon_stream_t *st, uint8_t minc, uint8_t maxc)
+{
     return st->params_idx >= minc && st->params_idx <= maxc;
 }
 
@@ -56,7 +58,8 @@ csi_param_count(ghostcon_stream_t *st, uint8_t minc, uint8_t maxc) {
  * still change anything observable.
  */
 static inline int
-clamp_loop_count(int n, int max_useful) {
+clamp_loop_count(int n, int max_useful)
+{
     if (n > max_useful) return max_useful;
     if (n < 0) return 0;
     return n;
@@ -65,7 +68,8 @@ clamp_loop_count(int n, int max_useful) {
 /* Output channel helper */
 
 static inline void
-stream_output(ghostcon_stream_t *st, const char *s) {
+stream_output(ghostcon_stream_t *st, const char *s)
+{
     if (st->output_fn)
         st->output_fn(st->output_userdata, (const uint8_t *)s, strlen(s));
 }

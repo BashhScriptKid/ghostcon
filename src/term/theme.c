@@ -9,7 +9,8 @@
  * ghostcon_color_parse_spec() below instead, same as everywhere else in the
  * codebase that accepts a color-spec string.
  */
-typedef struct {
+typedef struct
+{
     const char *name;
     const char *ansi[16];
     const char *fg, *bg, *cursor;
@@ -17,7 +18,8 @@ typedef struct {
 extern const int GHOSTCON_GHOSTTY_PRESET_COUNT;
 extern const ghostty_theme_preset_t GHOSTCON_GHOSTTY_PRESETS[];
 
-typedef struct {
+typedef struct
+{
     const char *name;
     GhosttyColorRgb ansi[16];
     GhosttyColorRgb fg, bg, cursor;
@@ -88,7 +90,8 @@ ghostcon_theme_apply(ghostcon_palette_t *pal, const char *name)
     if (!name || !name[0])
         return false;
 
-    for (size_t i = 0; i < sizeof(PRESETS) / sizeof(PRESETS[0]); i++) {
+    for (size_t i = 0; i < sizeof(PRESETS) / sizeof(PRESETS[0]); i++)
+    {
         if (strcmp(PRESETS[i].name, name) != 0)
             continue;
         for (int c = 0; c < 16; c++)
@@ -107,12 +110,14 @@ ghostcon_theme_apply(ghostcon_palette_t *pal, const char *name)
      * that one slot unset rather than aborting the whole theme, same
      * "degrade gracefully" convention used elsewhere in this codebase.
      */
-    for (int i = 0; i < GHOSTCON_GHOSTTY_PRESET_COUNT; i++) {
+    for (int i = 0; i < GHOSTCON_GHOSTTY_PRESET_COUNT; i++)
+    {
         const ghostty_theme_preset_t *p = &GHOSTCON_GHOSTTY_PRESETS[i];
         if (strcmp(p->name, name) != 0)
             continue;
         GhosttyColorRgb rgb;
-        for (int c = 0; c < 16; c++) {
+        for (int c = 0; c < 16; c++)
+        {
             if (ghostcon_color_parse_spec(p->ansi[c], &rgb))
                 ghostcon_palette_set(pal, c, rgb);
         }

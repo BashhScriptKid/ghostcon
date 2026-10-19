@@ -20,7 +20,8 @@
  * kms.h, where it was previously defined) so the DRM-free ui.h/display.h
  * layers can share it without pulling in libdrm.
  */
-typedef enum {
+typedef enum
+{
     GC_CURSOR_STATE_DEFAULT,
     GC_CURSOR_STATE_LINK,
     GC_CURSOR_STATE_COUNT,

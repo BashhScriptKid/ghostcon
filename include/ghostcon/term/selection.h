@@ -7,7 +7,8 @@
 
 typedef struct ghostcon_screen ghostcon_screen_t;
 
-typedef enum {
+typedef enum
+{
     GC_SEL_NONE,
     GC_SEL_CHAR,     /* character-wise selection */
     GC_SEL_WORD,     /* word-wise (double-click) */
@@ -15,7 +16,8 @@ typedef enum {
     GC_SEL_RECT,     /* rectangular (alt+click) */
 } ghostcon_sel_kind_t;
 
-typedef struct {
+typedef struct
+{
     int16_t x1, y1;  /* start (inclusive) */
     int16_t x2, y2;  /* end   (inclusive) */
     int16_t cols;    /* grid width at selection time */

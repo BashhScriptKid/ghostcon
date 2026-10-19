@@ -7,7 +7,8 @@ ghostcon_term_init(ghostcon_term_t *term,
 {
     if (!ghostcon_screen_init(&term->screen, cols, rows, scrollback_cap))
         return false;
-    if (!ghostcon_stream_init(&term->stream)) {
+    if (!ghostcon_stream_init(&term->stream))
+    {
         ghostcon_screen_deinit(&term->screen);
         return false;
     }
@@ -17,7 +18,8 @@ ghostcon_term_init(ghostcon_term_t *term,
 }
 
 void
-ghostcon_term_deinit(ghostcon_term_t *term) {
+ghostcon_term_deinit(ghostcon_term_t *term)
+{
     ghostcon_screen_deinit(&term->screen);
     ghostcon_stream_deinit(&term->stream);
 }

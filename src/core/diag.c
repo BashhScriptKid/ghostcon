@@ -41,7 +41,8 @@ crash_handler(int signum)
     char head[2048];
     size_t head_len = 0;
     int head_frames = n < GHOSTCON_DIAG_HEAD_FRAMES ? n : GHOSTCON_DIAG_HEAD_FRAMES;
-    for (int i = 0; i < head_frames && head_len < sizeof(head); i++) {
+    for (int i = 0; i < head_frames && head_len < sizeof(head); i++)
+    {
         int written = snprintf(head + head_len, sizeof(head) - head_len, "%s%s",
                                 i == 0 ? "" : " | ",
                                 symbols ? symbols[i] : "?");

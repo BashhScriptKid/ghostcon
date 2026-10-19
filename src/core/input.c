@@ -26,7 +26,8 @@
 GhosttyKey
 ghostcon_input_evdev_to_ghostty_key(uint32_t evdev_code)
 {
-    switch (evdev_code) {
+    switch (evdev_code)
+    {
     case KEY_GRAVE:      return GHOSTTY_KEY_BACKQUOTE;
     case KEY_BACKSLASH:  return GHOSTTY_KEY_BACKSLASH;
     case KEY_LEFTBRACE:  return GHOSTTY_KEY_BRACKET_LEFT;
@@ -363,7 +364,8 @@ apply_device_config(ghostcon_input_t *input, struct libinput_device *dev)
     if (libinput_device_config_accel_is_available(dev))
         libinput_device_config_accel_set_speed(dev, (double)sensitivity);
 
-    if (touchpad) {
+    if (touchpad)
+    {
         if (libinput_device_config_tap_get_finger_count(dev) > 0)
             libinput_device_config_tap_set_enabled(dev,
                 input->touchpad_tap_to_click ? LIBINPUT_CONFIG_TAP_ENABLED : LIBINPUT_CONFIG_TAP_DISABLED);
@@ -424,39 +426,46 @@ ghostcon_input_open(const char *seat_id, int viewport_w, int viewport_h,
     input->touchpad_tap_to_click = true;
 
     input->udev = udev_new();
-    if (!input->udev) {
+    if (!input->udev)
+    {
         fprintf(stderr, "input: udev_new failed\n");
         goto fail;
     }
 
     input->li = libinput_udev_create_context(&LI_INTERFACE, NULL, input->udev);
-    if (!input->li) {
+    if (!input->li)
+    {
         fprintf(stderr, "input: libinput_udev_create_context failed\n");
         goto fail;
     }
-    if (libinput_udev_assign_seat(input->li, seat_id) != 0) {
+    if (libinput_udev_assign_seat(input->li, seat_id) != 0)
+    {
         fprintf(stderr, "input: libinput_udev_assign_seat(%s) failed\n", seat_id);
         goto fail;
     }
 
     input->xkb_ctx = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
-    if (!input->xkb_ctx) {
+    if (!input->xkb_ctx)
+    {
         fprintf(stderr, "input: xkb_context_new failed\n");
         goto fail;
     }
     input->xkb_keymap = xkb_keymap_new_from_names(input->xkb_ctx, NULL, XKB_KEYMAP_COMPILE_NO_FLAGS);
-    if (!input->xkb_keymap) {
+    if (!input->xkb_keymap)
+    {
         fprintf(stderr, "input: xkb_keymap_new_from_names failed\n");
         goto fail;
     }
     input->xkb_state = xkb_state_new(input->xkb_keymap);
     input->xkb_state_unshifted = xkb_state_new(input->xkb_keymap);
-    if (!input->xkb_state || !input->xkb_state_unshifted) {
+    if (!input->xkb_state || !input->xkb_state_unshifted)
+    {
         fprintf(stderr, "input: xkb_state_new failed\n");
         goto fail;
     }
 
-    if (ghostty_key_encoder_new(NULL, &input->encoder) != GHOSTTY_SUCCESS) {
+    if (ghostty_key_encoder_new(NULL, &input->encoder) != GHOSTTY_SUCCESS)
+    {
         fprintf(stderr, "input: ghostty_key_encoder_new failed\n");
         goto fail;
     }
@@ -603,7 +612,8 @@ ghostcon_input_set_mouse_config(ghostcon_input_t *input, bool enable,
     input->mouse_enable = enable;
     input->mouse_scroll_speed = scroll_speed;
     input->mouse_sensitivity = sensitivity;
-    for (int i = 0; i < input->device_count; i++) {
+    for (int i = 0; i < input->device_count; i++)
+    {
         if (!device_is_touchpad(input->devices[i]))
             apply_device_config(input, input->devices[i]);
     }
@@ -619,7 +629,8 @@ ghostcon_input_set_touchpad_config(ghostcon_input_t *input, bool enable,
     input->touchpad_tap_to_click = tap_to_click;
     input->touchpad_natural_scroll = natural_scroll;
     input->touchpad_sensitivity = sensitivity;
-    for (int i = 0; i < input->device_count; i++) {
+    for (int i = 0; i < input->device_count; i++)
+    {
         if (device_is_touchpad(input->devices[i]))
             apply_device_config(input, input->devices[i]);
     }
@@ -629,7 +640,10 @@ ghostcon_input_set_touchpad_config(ghostcon_input_t *input, bool enable,
  * plausible to rebind copy/paste to; not Ghostty's full W3C key table (see
  * ghostcon_parse_keybinding()'s own doc comment on scope).
  */
-static const struct { const char *name; uint32_t evdev; } KEYBINDING_NAMED_KEYS[] = {
+static const struct
+{
+    const char *name; uint32_t evdev;
+} KEYBINDING_NAMED_KEYS[] = {
     { "insert", KEY_INSERT }, { "space", KEY_SPACE }, { "tab", KEY_TAB },
     { "enter", KEY_ENTER }, { "return", KEY_ENTER }, { "escape", KEY_ESC },
     { "comma", KEY_COMMA }, { "period", KEY_DOT }, { "slash", KEY_SLASH },
@@ -650,19 +664,33 @@ ghostcon_parse_keybinding(const char *spec, GhosttyMods *out_mods, uint32_t *out
     snprintf(buf, sizeof(buf), "%s", spec);
 
     char *saveptr = NULL;
-    for (char *tok = strtok_r(buf, "+", &saveptr); tok; tok = strtok_r(NULL, "+", &saveptr)) {
+    for (char *tok = strtok_r(buf, "+", &saveptr); tok; tok = strtok_r(NULL, "+", &saveptr))
+    {
         for (char *p = tok; *p; p++)
             *p = (char)tolower((unsigned char)*p);
 
-        if (strcmp(tok, "ctrl") == 0) { mods |= GHOSTTY_MODS_CTRL; continue; }
-        if (strcmp(tok, "shift") == 0) { mods |= GHOSTTY_MODS_SHIFT; continue; }
-        if (strcmp(tok, "alt") == 0) { mods |= GHOSTTY_MODS_ALT; continue; }
-        if (strcmp(tok, "super") == 0) { mods |= GHOSTTY_MODS_SUPER; continue; }
+        if (strcmp(tok, "ctrl") == 0)
+        {
+            mods |= GHOSTTY_MODS_CTRL; continue;
+        }
+        if (strcmp(tok, "shift") == 0)
+        {
+            mods |= GHOSTTY_MODS_SHIFT; continue;
+        }
+        if (strcmp(tok, "alt") == 0)
+        {
+            mods |= GHOSTTY_MODS_ALT; continue;
+        }
+        if (strcmp(tok, "super") == 0)
+        {
+            mods |= GHOSTTY_MODS_SUPER; continue;
+        }
 
         if (have_key)
             return false; /* only one key token allowed, and it must be last */
 
-        if (strlen(tok) == 1 && tok[0] >= 'a' && tok[0] <= 'z') {
+        if (strlen(tok) == 1 && tok[0] >= 'a' && tok[0] <= 'z')
+        {
             /* evdev codes follow physical QWERTY layout, NOT alphabetical
              * order (e.g. KEY_A=30, KEY_Z=44, KEY_C=46 -- nowhere near
              * contiguous), so this needs an explicit table, not KEY_A +
@@ -677,7 +705,8 @@ ghostcon_parse_keybinding(const char *spec, GhosttyMods *out_mods, uint32_t *out
             have_key = true;
             continue;
         }
-        if (strlen(tok) == 1 && tok[0] >= '0' && tok[0] <= '9') {
+        if (strlen(tok) == 1 && tok[0] >= '0' && tok[0] <= '9')
+        {
             static const uint32_t DIGIT_EVDEV[10] = {
                 KEY_0, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9,
             };
@@ -687,8 +716,10 @@ ghostcon_parse_keybinding(const char *spec, GhosttyMods *out_mods, uint32_t *out
         }
 
         bool matched = false;
-        for (size_t i = 0; i < sizeof(KEYBINDING_NAMED_KEYS) / sizeof(KEYBINDING_NAMED_KEYS[0]); i++) {
-            if (strcmp(tok, KEYBINDING_NAMED_KEYS[i].name) == 0) {
+        for (size_t i = 0; i < sizeof(KEYBINDING_NAMED_KEYS) / sizeof(KEYBINDING_NAMED_KEYS[0]); i++)
+        {
+            if (strcmp(tok, KEYBINDING_NAMED_KEYS[i].name) == 0)
+            {
                 evdev = KEYBINDING_NAMED_KEYS[i].evdev;
                 have_key = true;
                 matched = true;
@@ -744,7 +775,8 @@ is_vt_switch_combo(uint32_t evdev_code, GhosttyMods mods)
 {
     if (!(mods & GHOSTTY_MODS_CTRL) || !(mods & GHOSTTY_MODS_ALT))
         return false;
-    switch (evdev_code) {
+    switch (evdev_code)
+    {
     case KEY_F1: case KEY_F2: case KEY_F3: case KEY_F4:
     case KEY_F5: case KEY_F6: case KEY_F7: case KEY_F8:
     case KEY_F9: case KEY_F10: case KEY_F11: case KEY_F12:
@@ -770,7 +802,8 @@ handle_scroll_shortcut(ghostcon_screen_t *screen, uint32_t evdev_code,
     if (mods != GHOSTTY_MODS_SHIFT || action != GHOSTTY_KEY_ACTION_PRESS)
         return false;
 
-    switch (evdev_code) {
+    switch (evdev_code)
+    {
     case KEY_UP:       ghostcon_screen_scroll_view(screen, 1); return true;
     case KEY_DOWN:     ghostcon_screen_scroll_view(screen, -1); return true;
     case KEY_PAGEUP:   ghostcon_screen_scroll_view(screen, (int)screen->rows_visible); return true;
@@ -798,7 +831,8 @@ handle_zoom_shortcut(int *zoom_delta, uint32_t evdev_code, GhosttyMods mods,
     if (mods != GHOSTTY_MODS_CTRL || action != GHOSTTY_KEY_ACTION_PRESS)
         return false;
 
-    switch (evdev_code) {
+    switch (evdev_code)
+    {
     case KEY_EQUAL:
     case KEY_KPPLUS:
         *zoom_delta += 1;
@@ -865,7 +899,8 @@ handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
      * otherwise never reach that code.
      */
     if (action == GHOSTTY_KEY_ACTION_RELEASE && input->repeating &&
-        input->repeat_evdev_code == evdev_code) {
+        input->repeat_evdev_code == evdev_code)
+    {
         input->repeating = false;
         if (input->repeat_fd >= 0)
             timerfd_settime(input->repeat_fd, 0, &(struct itimerspec){0}, NULL);
@@ -884,7 +919,8 @@ handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
     char utf8[32] = {0};
     int utf8_len = 0;
     uint32_t unshifted_cp = 0;
-    if (action == GHOSTTY_KEY_ACTION_PRESS) {
+    if (action == GHOSTTY_KEY_ACTION_PRESS)
+    {
         /* xkb_state_key_get_utf8() on input->xkb_state (which has Ctrl
          * currently held for a Ctrl+letter combo) has xkbcommon's own
          * built-in Ctrl-to-control-byte transformation baked in -- it
@@ -935,12 +971,14 @@ handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
      * Press-only.
      */
     if (mods == input->copy_mods && evdev_code == input->copy_evdev &&
-        action == GHOSTTY_KEY_ACTION_PRESS) {
+        action == GHOSTTY_KEY_ACTION_PRESS)
+    {
         copy_selection_to_clipboard(screen);
         return true;
     }
     if (mods == input->paste_mods && evdev_code == input->paste_evdev &&
-        action == GHOSTTY_KEY_ACTION_PRESS) {
+        action == GHOSTTY_KEY_ACTION_PRESS)
+    {
         paste_clipboard_to_pty(screen, transport);
         return true;
     }
@@ -974,7 +1012,8 @@ handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
      * step needed.
      */
     if (action == GHOSTTY_KEY_ACTION_PRESS && input->repeat_fd >= 0 &&
-        xkb_keymap_key_repeats(input->xkb_keymap, xkb_code)) {
+        xkb_keymap_key_repeats(input->xkb_keymap, xkb_code))
+    {
         input->repeating = true;
         input->repeat_evdev_code = evdev_code;
         memcpy(input->repeat_encoded, encoded, written);
@@ -1000,7 +1039,8 @@ handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev,
 static bool
 evdev_button_to_mouse(uint32_t code, ghostcon_mouse_button_t *out)
 {
-    switch (code) {
+    switch (code)
+    {
     case BTN_LEFT:   *out = GC_MOUSE_LEFT;   return true;
     case BTN_MIDDLE: *out = GC_MOUSE_MIDDLE; return true;
     case BTN_RIGHT:  *out = GC_MOUSE_RIGHT;  return true;
@@ -1110,7 +1150,8 @@ handle_pointer_event(ghostcon_input_t *input, struct libinput_event *ev,
 {
     struct libinput_event_pointer *p = libinput_event_get_pointer_event(ev);
 
-    switch (type) {
+    switch (type)
+    {
     case LIBINPUT_EVENT_POINTER_MOTION:
         input->pointer_x += (int)libinput_event_pointer_get_dx(p);
         input->pointer_y += (int)libinput_event_pointer_get_dy(p);
@@ -1234,8 +1275,10 @@ handle_pointer_event(ghostcon_input_t *input, struct libinput_event *ev,
         return true;
 
     ghostcon_mouse_button_t held = GC_MOUSE_NONE;
-    for (int b = 0; b < 3; b++) {
-        if (input->pressed_buttons & (1u << b)) {
+    for (int b = 0; b < 3; b++)
+    {
+        if (input->pressed_buttons & (1u << b))
+        {
             held = (ghostcon_mouse_button_t)b;
             break;
         }
@@ -1255,16 +1298,19 @@ ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport
     out_pointer->left_pressed = false;
     out_pointer->left_released = false;
 
-    if (libinput_dispatch(input->li) != 0) {
+    if (libinput_dispatch(input->li) != 0)
+    {
         fprintf(stderr, "input: libinput_dispatch failed\n");
         return false;
     }
 
     struct libinput_event *ev;
-    while ((ev = libinput_get_event(input->li)) != NULL) {
+    while ((ev = libinput_get_event(input->li)) != NULL)
+    {
         enum libinput_event_type type = libinput_event_get_type(ev);
 
-        if (type == LIBINPUT_EVENT_DEVICE_ADDED) {
+        if (type == LIBINPUT_EVENT_DEVICE_ADDED)
+        {
             /* Tracked (and configured) regardless of `active` -- a device
              * plugged in while this VT isn't focused should still come up
              * correctly configured for whenever it does become active, same
@@ -1272,32 +1318,42 @@ ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport
              * of `active`.
              */
             struct libinput_device *dev = libinput_event_get_device(ev);
-            if (input->device_count < (int)(sizeof(input->devices) / sizeof(input->devices[0]))) {
+            if (input->device_count < (int)(sizeof(input->devices) / sizeof(input->devices[0])))
+            {
                 input->devices[input->device_count++] = libinput_device_ref(dev);
                 apply_device_config(input, dev);
             }
-        } else if (type == LIBINPUT_EVENT_DEVICE_REMOVED) {
+        }
+        else if (type == LIBINPUT_EVENT_DEVICE_REMOVED)
+        {
             struct libinput_device *dev = libinput_event_get_device(ev);
-            for (int i = 0; i < input->device_count; i++) {
-                if (input->devices[i] == dev) {
+            for (int i = 0; i < input->device_count; i++)
+            {
+                if (input->devices[i] == dev)
+                {
                     libinput_device_unref(input->devices[i]);
                     input->devices[i] = input->devices[input->device_count - 1];
                     input->device_count--;
                     break;
                 }
             }
-        } else if (type == LIBINPUT_EVENT_KEYBOARD_KEY) {
+        }
+        else if (type == LIBINPUT_EVENT_KEYBOARD_KEY)
+        {
             if (!handle_keyboard_event(input, ev, transport, screen, out_zoom_delta,
-                                        out_dump_requested, active)) {
+                                        out_dump_requested, active))
+            {
                 libinput_event_destroy(ev);
                 return false;
             }
-        } else if (active &&
+        }
+        else if (active &&
                    (type == LIBINPUT_EVENT_POINTER_MOTION ||
                     type == LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE ||
                     type == LIBINPUT_EVENT_POINTER_BUTTON ||
                     type == LIBINPUT_EVENT_POINTER_SCROLL_WHEEL ||
-                    type == LIBINPUT_EVENT_POINTER_SCROLL_FINGER)) {
+                    type == LIBINPUT_EVENT_POINTER_SCROLL_FINGER))
+        {
             /* Pointer events are skipped entirely (not just their
              * consequences suppressed) when inactive -- unlike keyboard
              * modifier state, there's no equivalent "still worth tracking
@@ -1306,7 +1362,8 @@ ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport
              * already returns from dispatch()'s own top-of-function
              * default.
              */
-            if (!handle_pointer_event(input, ev, type, transport, screen, cell_w, cell_h, out_pointer)) {
+            if (!handle_pointer_event(input, ev, type, transport, screen, cell_w, cell_h, out_pointer))
+            {
                 libinput_event_destroy(ev);
                 return false;
             }

@@ -13,6 +13,28 @@ meson test -C build-release          # currently 21 tests
 
 ---
 
+## 0. Code style
+
+- **Braces: Allman.** Block braces go on their own line for functions,
+  if/for/while/switch, else, do, and struct/enum/union:
+  ```c
+  if (condition)
+  {
+      statement;
+  }
+  ```
+  Initializers, designated initializers, and compound literals keep
+  their K&R `= { ... }` / `(T){ ... }` form. Indentation is 4 spaces.
+  Check or apply with:
+  ```sh
+  python3 tools/format_braces.py --check   # exit 1 if reformatting needed
+  python3 tools/format_braces.py --apply
+  ```
+- **Comments: wrapped block style**, first paragraph on the `/*` line,
+  continuations prefixed ` * `, blank paragraph separators as ` *`,
+  wrapped at 76 columns.
+- `meson test -C build-release` must stay green (currently 21 tests).
+
 ## 1. Where things live now (post-refactor map)
 
 | Concern | Module |

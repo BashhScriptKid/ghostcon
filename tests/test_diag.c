@@ -45,7 +45,8 @@ journal_has_entry(pid_t pid, char *out_buf, size_t out_cap)
              "journalctl -b _PID=%d _COMM=test_diag --no-pager -o export 2>/dev/null",
              (int)pid);
 
-    for (int attempt = 0; attempt < 20; attempt++) {
+    for (int attempt = 0; attempt < 20; attempt++)
+    {
         FILE *p = popen(cmd, "r");
         if (!p)
             return false;
@@ -57,7 +58,8 @@ journal_has_entry(pid_t pid, char *out_buf, size_t out_cap)
 
         if (strstr(buf, "GHOSTCON_COMPONENT=" TEST_COMPONENT) &&
             strstr(buf, "GHOSTCON_VT=42") &&
-            strstr(buf, "GHOSTCON_SIGNAL=6" /* SIGABRT */)) {
+            strstr(buf, "GHOSTCON_SIGNAL=6" /* SIGABRT */))
+        {
             size_t copy_len = n < out_cap - 1 ? n : out_cap - 1;
             memcpy(out_buf, buf, copy_len);
             out_buf[copy_len] = '\0';
@@ -95,7 +97,8 @@ journal_has_entry(pid_t pid, char *out_buf, size_t out_cap)
 void __attribute__((noinline))
 recurse_and_abort(int depth)
 {
-    if (depth <= 0) {
+    if (depth <= 0)
+    {
         abort();
         return;
     }
@@ -108,12 +111,14 @@ int
 main(void)
 {
     pid_t child = fork();
-    if (child < 0) {
+    if (child < 0)
+    {
         fprintf(stderr, "FAIL: fork\n");
         return 1;
     }
 
-    if (child == 0) {
+    if (child == 0)
+    {
         /* Suppress the default core-dump-message noise on stderr for this
          * deliberate, expected crash; diag.c's own handler still runs and
          * does its job regardless.
@@ -125,14 +130,16 @@ main(void)
 
     int status;
     waitpid(child, &status, 0);
-    if (!WIFSIGNALED(status) || WTERMSIG(status) != SIGABRT) {
+    if (!WIFSIGNALED(status) || WTERMSIG(status) != SIGABRT)
+    {
         fprintf(stderr, "FAIL: child did not die of SIGABRT (status=%d)\n", status);
         return 1;
     }
     printf("PASS: child crashed with SIGABRT as expected (diag.c re-raised correctly)\n");
 
     char journal_buf[8192];
-    if (!journal_has_entry(child, journal_buf, sizeof(journal_buf))) {
+    if (!journal_has_entry(child, journal_buf, sizeof(journal_buf)))
+    {
         fprintf(stderr, "FAIL: no matching journald entry found for pid %d\n", (int)child);
         return 1;
     }
@@ -146,7 +153,8 @@ main(void)
      * checks below.
      */
     const char *msg_start = strstr(journal_buf, "MESSAGE=");
-    if (!msg_start) {
+    if (!msg_start)
+    {
         fprintf(stderr, "FAIL: journald entry has no MESSAGE field\n");
         return 1;
     }
@@ -158,14 +166,16 @@ main(void)
     msg_line[copy_len] = '\0';
 
     const char *head = strstr(msg_line, "backtrace head:");
-    if (!head) {
+    if (!head)
+    {
         fprintf(stderr, "FAIL: journald MESSAGE missing \"backtrace head:\": %s\n", msg_line);
         return 1;
     }
     head += strlen("backtrace head:");
     while (*head == ' ')
         head++;
-    if (*head == '\0') {
+    if (*head == '\0')
+    {
         fprintf(stderr, "FAIL: backtrace head is empty: %s\n", msg_line);
         return 1;
     }
@@ -175,7 +185,8 @@ main(void)
      * actually engaging, this specific check would be the one to catch it,
      * unlike a bare-abort() version of this test.
      */
-    if (!strstr(head, "recurse_and_abort")) {
+    if (!strstr(head, "recurse_and_abort"))
+    {
         fprintf(stderr, "FAIL: backtrace head doesn't even reach into the recursive frames -- backtrace() itself may be broken: %s\n", head);
         return 1;
     }
@@ -190,7 +201,8 @@ main(void)
     int seps = 0;
     for (const char *p = head; (p = strstr(p, " | ")); p += 3)
         seps++;
-    if (seps > 7) {
+    if (seps > 7)
+    {
         fprintf(stderr, "FAIL: backtrace head has %d separators (>7) for a %d-deep real stack -- GHOSTCON_DIAG_HEAD_FRAMES truncation not enforced: %s\n",
                 seps, RECURSE_DEPTH, head);
         return 1;

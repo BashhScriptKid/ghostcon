@@ -31,7 +31,8 @@ gc_stream_apc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s)
      * boundary, unlike just bumping cursor.y) then land the cursor just
      * past the placement's right edge.
      */
-    if (move.moved) {
+    if (move.moved)
+    {
         for (int32_t i = 0; i < move.rows; i++)
             ghostcon_screen_linefeed(s);
         int32_t col = move.col;
@@ -98,7 +99,8 @@ gc_stream_dcs_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s)
      * C=1-equivalent suppression key, so this always applies when a
      * placement was actually made.
      */
-    if (move.moved) {
+    if (move.moved)
+    {
         for (int32_t i = 0; i < move.rows; i++)
             ghostcon_screen_linefeed(s);
         int32_t col = move.col;

@@ -31,7 +31,8 @@
 #define GHOSTCON_SIXEL_MAX_TOTAL_BYTES  (128u * 1024u * 1024u) /* across all placements */
 #define GHOSTCON_SIXEL_COLOR_REGISTERS  256
 
-typedef struct {
+typedef struct
+{
     bool     in_use;
     int32_t  width, height;
     uint8_t *pixels; /* owned, width*height*4 bytes, RGBA */
@@ -58,7 +59,8 @@ void ghostcon_sixel_state_deinit(ghostcon_sixel_state_t *st);
  * moved is unconditionally true whenever a valid image was actually decoded
  * and placed.
  */
-typedef struct {
+typedef struct
+{
     bool    moved;
     int32_t rows;
     int32_t col;

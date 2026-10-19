@@ -15,7 +15,8 @@
  * framing on this side either.
  */
 
-typedef struct {
+typedef struct
+{
     int fd; /* connected to the pty child's socket, or -1 if unconnected */
     int ctl_fd; /* connected to the pty child's resize control socket
                     (see ptyserv/protocol.h's GHOSTCON_PTY_CTL_SOCKET_FMT),

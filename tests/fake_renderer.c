@@ -78,11 +78,13 @@ main(int argc, char **argv)
     const char *fd_str = getenv("GHOSTCON_CANARY_FD");
     int canary_fd = fd_str ? atoi(fd_str) : -1;
 
-    if (getenv("FAKE_RENDERER_REAL_PTY")) {
+    if (getenv("FAKE_RENDERER_REAL_PTY"))
+    {
         int vtnum = argc > 1 ? atoi(argv[1]) : 0;
         const char *registry_socket = argc > 3 ? argv[3] : NULL;
         ghostcon_transport_t transport = {0};
-        if (registry_socket && ghostcon_transport_connect(&transport, registry_socket, vtnum)) {
+        if (registry_socket && ghostcon_transport_connect(&transport, registry_socket, vtnum))
+        {
             fprintf(stderr, "PTY_CHILD_PID: %d\n", transport.pty_child_pid);
 
             /* Check BEFORE write, deliberately: this only drains whatever
@@ -95,12 +97,14 @@ main(int argc, char **argv)
              * just proof that some shell somewhere responds to input.
              */
             const char *check = getenv("FAKE_RENDERER_CHECK_MARKER");
-            if (check) {
+            if (check)
+            {
                 char buf[8192];
                 size_t total = 0;
                 bool found = false;
                 long deadline = now_ms() + 1000;
-                while (now_ms() < deadline && total < sizeof(buf) - 1) {
+                while (now_ms() < deadline && total < sizeof(buf) - 1)
+                {
                     struct pollfd pfd = { .fd = transport.fd, .events = POLLIN };
                     int rv = poll(&pfd, 1, 100);
                     if (rv <= 0)
@@ -112,7 +116,8 @@ main(int argc, char **argv)
                         break;
                     total += (size_t)n;
                     buf[total] = '\0';
-                    if (strstr(buf, check)) {
+                    if (strstr(buf, check))
+                    {
                         found = true;
                         break;
                     }
@@ -121,17 +126,21 @@ main(int argc, char **argv)
             }
 
             const char *marker = getenv("FAKE_RENDERER_WRITE_MARKER");
-            if (marker) {
+            if (marker)
+            {
                 size_t len = strlen(marker);
                 ssize_t ignored = ghostcon_transport_write(&transport, (const uint8_t *)marker, len);
                 (void)ignored;
             }
-        } else {
+        }
+        else
+        {
             fprintf(stderr, "REAL_PTY: connect failed\n");
         }
     }
 
-    if (getenv("FAKE_RENDERER_NEVER_HEARTBEAT")) {
+    if (getenv("FAKE_RENDERER_NEVER_HEARTBEAT"))
+    {
         for (;;)
             pause();
     }
@@ -143,17 +152,20 @@ main(int argc, char **argv)
         exit_after = atol(getenv("FAKE_RENDERER_EXIT_AFTER_MS"));
 
     long start = now_ms();
-    for (;;) {
+    for (;;)
+    {
         long elapsed = now_ms() - start;
 
         if (exit_after >= 0 && elapsed >= exit_after)
             return 0;
-        if (hang_after >= 0 && elapsed >= hang_after) {
+        if (hang_after >= 0 && elapsed >= hang_after)
+        {
             for (;;)
                 pause();
         }
 
-        if (canary_fd >= 0) {
+        if (canary_fd >= 0)
+        {
             uint8_t byte = 1;
             ssize_t ignored = write(canary_fd, &byte, 1);
             (void)ignored;

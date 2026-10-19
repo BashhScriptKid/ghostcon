@@ -23,7 +23,8 @@ const GhosttyColorRgb GC_ANSI_COLORS[16] = {
 };
 
 void
-ghostcon_palette_init(ghostcon_palette_t *pal) {
+ghostcon_palette_init(ghostcon_palette_t *pal)
+{
     /* ANSI 0-15 */
     for (int i = 0; i < 16; i++)
         pal->table[i] = GC_ANSI_COLORS[i];
@@ -39,7 +40,8 @@ ghostcon_palette_init(ghostcon_palette_t *pal) {
                 };
 
     /* Grayscale ramp (232-255) */
-    for (int i = 0; i < 24; i++) {
+    for (int i = 0; i < 24; i++)
+    {
         uint8_t v = (uint8_t)(i * 10 + 8);
         pal->table[232 + i] = (GhosttyColorRgb){.r = v, .g = v, .b = v};
     }
@@ -50,15 +52,18 @@ ghostcon_palette_init(ghostcon_palette_t *pal) {
 }
 
 void
-ghostcon_palette_set(ghostcon_palette_t *pal, int idx, GhosttyColorRgb rgb) {
+ghostcon_palette_set(ghostcon_palette_t *pal, int idx, GhosttyColorRgb rgb)
+{
     pal->table[idx] = rgb;
 }
 
 void
-ghostcon_palette_reset(ghostcon_palette_t *pal, uint8_t idx) {
+ghostcon_palette_reset(ghostcon_palette_t *pal, uint8_t idx)
+{
     if (idx < 16)
         pal->table[idx] = GC_ANSI_COLORS[idx];
-    else if (idx < 232) {
+    else if (idx < 232)
+    {
         int r = (idx - 16) / 36;
         int g = ((idx - 16) % 36) / 6;
         int b = (idx - 16) % 6;
@@ -67,26 +72,32 @@ ghostcon_palette_reset(ghostcon_palette_t *pal, uint8_t idx) {
             .g = (uint8_t)(g ? (g * 40 + 55) : 0),
             .b = (uint8_t)(b ? (b * 40 + 55) : 0),
         };
-    } else {
+    }
+    else
+    {
         uint8_t v = (uint8_t)((idx - 232) * 10 + 8);
         pal->table[idx] = (GhosttyColorRgb){.r = v, .g = v, .b = v};
     }
 }
 
 GhosttyColorRgb
-ghostcon_palette_resolve(const ghostcon_palette_t *pal, uint8_t idx) {
+ghostcon_palette_resolve(const ghostcon_palette_t *pal, uint8_t idx)
+{
     return pal->table[idx];
 }
 
-void ghostcon_palette_set_default_fg(ghostcon_palette_t *pal, GhosttyColorRgb c) {
+void ghostcon_palette_set_default_fg(ghostcon_palette_t *pal, GhosttyColorRgb c)
+{
     pal->fg_default = c;
 }
 
-void ghostcon_palette_set_default_bg(ghostcon_palette_t *pal, GhosttyColorRgb c) {
+void ghostcon_palette_set_default_bg(ghostcon_palette_t *pal, GhosttyColorRgb c)
+{
     pal->bg_default = c;
 }
 
-void ghostcon_palette_set_cursor(ghostcon_palette_t *pal, GhosttyColorRgb c) {
+void ghostcon_palette_set_cursor(ghostcon_palette_t *pal, GhosttyColorRgb c)
+{
     pal->cursor_color = c;
 }
 
@@ -114,15 +125,19 @@ static bool
 parse_hex_component(const char *s, int count, uint8_t *out)
 {
     int val = 0;
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < count; i++)
+    {
         int nib = hex_nibble(s[i]);
         if (nib < 0)
             return false;
         val = (val << 4) | nib;
     }
-    if (count == 1) {
+    if (count == 1)
+    {
         *out = (uint8_t)((val << 4) | val);
-    } else {
+    }
+    else
+    {
         int bits = count * 4;
         *out = (uint8_t)(bits > 8 ? (val >> (bits - 8)) : val);
     }
@@ -134,7 +149,8 @@ ghostcon_color_parse_spec(const char *spec, GhosttyColorRgb *out)
 {
     size_t len = strlen(spec);
 
-    if (spec[0] == '#') {
+    if (spec[0] == '#')
+    {
         size_t digits = len - 1;
         if (digits == 0 || digits % 3 != 0 || digits > 12)
             return false;
@@ -148,18 +164,21 @@ ghostcon_color_parse_spec(const char *spec, GhosttyColorRgb *out)
         return true;
     }
 
-    if (strncmp(spec, "rgb:", 4) == 0) {
+    if (strncmp(spec, "rgb:", 4) == 0)
+    {
         const char *p = spec + 4;
         GhosttyColorRgb c;
         uint8_t *comps[3] = { &c.r, &c.g, &c.b };
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 3; i++)
+        {
             const char *start = p;
             while (*p != '\0' && *p != '/')
                 p++;
             int n = (int)(p - start);
             if (n == 0 || n > 4 || !parse_hex_component(start, n, comps[i]))
                 return false;
-            if (i < 2) {
+            if (i < 2)
+            {
                 if (*p != '/')
                     return false;
                 p++;

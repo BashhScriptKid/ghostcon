@@ -16,7 +16,8 @@
 #include "hyperlink.h"
 
 /* Cursor style */
-typedef enum {
+typedef enum
+{
     GC_CURSOR_DEFAULT   = 0,
     GC_CURSOR_BLOCK     = 1,
     GC_CURSOR_UNDERLINE = 2,
@@ -27,7 +28,8 @@ typedef enum {
 } ghostcon_cursor_style_t;
 
 /* Saved cursor (DECSC/DECRC) */
-typedef struct {
+typedef struct
+{
     int16_t x, y;
     ghostcon_cursor_style_t cursor_style;
     bool pending_wrap;
@@ -35,7 +37,8 @@ typedef struct {
 } ghostcon_saved_cursor_t;
 
 /* Cursor state */
-typedef struct {
+typedef struct
+{
     int16_t               x, y;
     ghostcon_cursor_style_t cursor_style;
     bool                  pending_wrap;  /* last-column flag */
@@ -45,20 +48,23 @@ typedef struct {
 } ghostcon_cursor_t;
 
 /* Scroll region (DECSTBM) */
-typedef struct {
+typedef struct
+{
     int16_t top;    /* inclusive, 0-based */
     int16_t bottom; /* inclusive, 0-based */
 } ghostcon_scroll_region_t;
 
 /* Character protection mode (DECSCA) */
-typedef enum {
+typedef enum
+{
     GC_PROTECTED_OFF = 0, /* no protection */
     GC_PROTECTED_ISO,     /* ISO mode: ED/EL always respect protected cells */
     GC_PROTECTED_DEC,     /* DEC mode: only DECSED/DECSEL respect them */
 } ghostcon_protected_mode_t;
 
 /* Saved DEC modes (CSI ? ... s / CSI ? ... r, XTSAVE/XTRESTORE) */
-typedef struct {
+typedef struct
+{
     bool origin_mode;        /* DECOM  */
     bool auto_wrap;          /* DECAWM */
     bool reverse_video;      /* DECSCNM */
@@ -68,19 +74,22 @@ typedef struct {
 } ghostcon_saved_modes_t;
 
 /* Margin (DECSLRM) */
-typedef struct {
+typedef struct
+{
     int16_t left;
     int16_t right;
 } ghostcon_margin_region_t;
 
 /* Tabstop state */
-typedef struct {
+typedef struct
+{
     bool *stops;      /* array of cols booleans (owned) */
     uint16_t cols;
 } ghostcon_tabstops_t;
 
 /* Accumulated dirty region for efficient damage tracking */
-typedef struct {
+typedef struct
+{
     int16_t y_min;  /* first dirty line, -1 if none */
     int16_t y_max;  /* last dirty line,  -1 if none */
 } ghostcon_dirty_region_t;

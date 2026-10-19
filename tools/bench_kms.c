@@ -56,28 +56,33 @@ main(int argc, char **argv)
 {
     const char *drm_node = argc > 1 ? argv[1] : "/dev/dri/card1";
     int frames = argc > 2 ? atoi(argv[2]) : 300;
-    if (frames <= 0) {
+    if (frames <= 0)
+    {
         fprintf(stderr, "usage: %s [drm_node] [frames]\n", argv[0]);
         return 1;
     }
 
     int drm_fd = open(drm_node, O_RDWR | O_CLOEXEC);
-    if (drm_fd < 0) {
+    if (drm_fd < 0)
+    {
         fprintf(stderr, "FAIL: open %s: %m\n", drm_node);
         return 1;
     }
 
     bool have_master = false;
     int last_errno = 0;
-    for (int i = 0; i < DRM_MASTER_RETRIES && !have_master; i++) {
+    for (int i = 0; i < DRM_MASTER_RETRIES && !have_master; i++)
+    {
         if (drmSetMaster(drm_fd) == 0)
             have_master = true;
-        else {
+        else
+        {
             last_errno = errno;
             usleep(DRM_MASTER_RETRY_DELAY_US);
         }
     }
-    if (!have_master) {
+    if (!have_master)
+    {
         /* Report the REAL errno rather than guessing at a cause --found
          * live: this used to unconditionally claim "something else holds
          * master," which was flat wrong (fuser showed nothing holding the
@@ -91,7 +96,8 @@ main(int argc, char **argv)
     printf("bench_kms: acquired DRM master on %s\n", drm_node);
 
     ghostcon_kms_t kms;
-    if (!ghostcon_kms_init(&kms, drm_fd) || !ghostcon_kms_create_scanout_surface(&kms)) {
+    if (!ghostcon_kms_init(&kms, drm_fd) || !ghostcon_kms_create_scanout_surface(&kms))
+    {
         fprintf(stderr, "FAIL: kms init/scanout surface\n");
         drmDropMaster(drm_fd);
         close(drm_fd);
@@ -101,7 +107,8 @@ main(int argc, char **argv)
 
     ghostcon_egl_t egl;
     if (!ghostcon_egl_init_with_gbm(&egl, kms.gbm_dev, kms.gbm_surf, kms.width, kms.height) ||
-        !ghostcon_egl_make_current(&egl)) {
+        !ghostcon_egl_make_current(&egl))
+    {
         fprintf(stderr, "FAIL: egl init\n");
         drmDropMaster(drm_fd);
         close(drm_fd);
@@ -109,7 +116,8 @@ main(int argc, char **argv)
     }
 
     ghostcon_gles_t *gles = ghostcon_gles_create(kms.width, kms.height, false); /* benchmark the common-case path */
-    if (!gles) {
+    if (!gles)
+    {
         fprintf(stderr, "FAIL: gles create\n");
         drmDropMaster(drm_fd);
         close(drm_fd);
@@ -121,7 +129,8 @@ main(int argc, char **argv)
      */
     ghostcon_gles_begin(gles, true, 0.1f, 0.1f, 0.3f);
     ghostcon_gles_end(gles);
-    if (!ghostcon_egl_swap(&egl) || !ghostcon_kms_modeset(&kms)) {
+    if (!ghostcon_egl_swap(&egl) || !ghostcon_kms_modeset(&kms))
+    {
         fprintf(stderr, "FAIL: initial modeset\n");
         drmDropMaster(drm_fd);
         close(drm_fd);
@@ -133,7 +142,8 @@ main(int argc, char **argv)
     double *frame_ms = malloc((size_t)frames * sizeof(double));
     double total_ms = 0.0, min_ms = 1e9, max_ms = 0.0;
 
-    for (int i = 0; i < frames; i++) {
+    for (int i = 0; i < frames; i++)
+    {
         /* Cycle the clear color so it's visually obvious on the real
          * display that frames are actually changing, not just re-committing
          * an identical buffer the driver might special-case.
@@ -145,7 +155,8 @@ main(int argc, char **argv)
         double t0 = now_ms();
         bool ok = ghostcon_egl_swap(&egl) && ghostcon_kms_page_flip(&kms);
         double dt = now_ms() - t0;
-        if (!ok) {
+        if (!ok)
+        {
             fprintf(stderr, "FAIL: frame %d: swap/page_flip failed\n", i);
             break;
         }
@@ -156,10 +167,12 @@ main(int argc, char **argv)
         if (dt > max_ms) max_ms = dt;
     }
 
-    for (int i = 1; i < frames; i++) {
+    for (int i = 1; i < frames; i++)
+    {
         double key = frame_ms[i];
         int j = i - 1;
-        while (j >= 0 && frame_ms[j] > key) {
+        while (j >= 0 && frame_ms[j] > key)
+        {
             frame_ms[j + 1] = frame_ms[j];
             j--;
         }

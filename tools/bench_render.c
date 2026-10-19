@@ -62,14 +62,16 @@ static void
 fill_scrollback(ghostcon_term_t *term, uint16_t cols)
 {
     char *line = malloc((size_t)cols * 32 + 64);
-    for (int i = 0; i < SCROLLBACK_LINES; i++) {
+    for (int i = 0; i < SCROLLBACK_LINES; i++)
+    {
         size_t off = 0;
         /* Cycle through 6 SGR colors and a mix of letters/digits/
          * punctuation so the atlas has real variety to rasterize.
          */
         int color = 31 + (i % 6);
         off += (size_t)snprintf(line + off, cols * 32, "\x1b[%dm", color);
-        for (uint16_t c = 0; c < cols; c++) {
+        for (uint16_t c = 0; c < cols; c++)
+        {
             char ch = (char)('!' + ((i * 7 + c * 13) % 94)); /* printable ASCII range */
             line[off++] = ch;
         }
@@ -87,13 +89,15 @@ main(int argc, char **argv)
     int font_size = argc > 3 ? atoi(argv[3]) : 24;
     int frames = argc > 4 ? atoi(argv[4]) : 300;
 
-    if (cols == 0 || rows == 0 || font_size <= 0 || frames <= 0) {
+    if (cols == 0 || rows == 0 || font_size <= 0 || frames <= 0)
+    {
         fprintf(stderr, "usage: %s [cols] [rows] [font_size] [frames]\n", argv[0]);
         return 1;
     }
 
     ghostcon_atlas_t *atlas = ghostcon_atlas_create(NULL, NULL, NULL, NULL, font_size, ATLAS_DIM);
-    if (!atlas) {
+    if (!atlas)
+    {
         fprintf(stderr, "FAIL: ghostcon_atlas_create\n");
         return 1;
     }
@@ -103,23 +107,27 @@ main(int argc, char **argv)
     uint32_t vh = (uint32_t)(cell_h * rows);
 
     ghostcon_egl_t egl;
-    if (!ghostcon_egl_init(&egl, DRM_RENDER_NODE, vw, vh)) {
+    if (!ghostcon_egl_init(&egl, DRM_RENDER_NODE, vw, vh))
+    {
         fprintf(stderr, "FAIL: ghostcon_egl_init on %s\n", DRM_RENDER_NODE);
         return 1;
     }
-    if (!ghostcon_egl_make_current(&egl)) {
+    if (!ghostcon_egl_make_current(&egl))
+    {
         fprintf(stderr, "FAIL: ghostcon_egl_make_current\n");
         return 1;
     }
 
     ghostcon_gles_t *gles = ghostcon_gles_create(vw, vh, false); /* benchmark the common-case path */
-    if (!gles) {
+    if (!gles)
+    {
         fprintf(stderr, "FAIL: ghostcon_gles_create\n");
         return 1;
     }
 
     ghostcon_term_t term;
-    if (!ghostcon_term_init(&term, cols, rows, SCROLLBACK_LINES)) {
+    if (!ghostcon_term_init(&term, cols, rows, SCROLLBACK_LINES))
+    {
         fprintf(stderr, "FAIL: ghostcon_term_init\n");
         return 1;
     }
@@ -144,7 +152,8 @@ main(int argc, char **argv)
      * costs not representative of steady-state performance.
      */
     int dir = -1;
-    for (int i = 0; i < WARMUP_FRAMES; i++) {
+    for (int i = 0; i < WARMUP_FRAMES; i++)
+    {
         ghostcon_screen_scroll_view(&term.screen, dir);
         dir = -dir;
         ghostcon_gles_begin(gles, true, 0.0f, 0.0f, 0.0f);
@@ -159,7 +168,8 @@ main(int argc, char **argv)
     double *frame_ms = malloc((size_t)frames * sizeof(double));
     double total_ms = 0.0, min_ms = 1e9, max_ms = 0.0;
 
-    for (int i = 0; i < frames; i++) {
+    for (int i = 0; i < frames; i++)
+    {
         /* scroll_view() marks the WHOLE visible grid dirty (see its own doc
          * comment) -- exactly the worst case a fast-scrolling TUI hits
          * every frame: every visible cell's content changed, nothing can be
@@ -189,10 +199,12 @@ main(int argc, char **argv)
      * O(n^2) insertion sort is plenty fast enough here and keeps this file
      * dependency-free.
      */
-    for (int i = 1; i < frames; i++) {
+    for (int i = 1; i < frames; i++)
+    {
         double key = frame_ms[i];
         int j = i - 1;
-        while (j >= 0 && frame_ms[j] > key) {
+        while (j >= 0 && frame_ms[j] > key)
+        {
             frame_ms[j + 1] = frame_ms[j];
             j--;
         }

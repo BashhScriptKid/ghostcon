@@ -36,12 +36,14 @@ spawn_supervisor_with_registry(int *out_stderr_fd, const char *registry_socket)
         return -1;
 
     pid_t pid = fork();
-    if (pid < 0) {
+    if (pid < 0)
+    {
         close(pipefd[0]);
         close(pipefd[1]);
         return -1;
     }
-    if (pid == 0) {
+    if (pid == 0)
+    {
         close(pipefd[0]);
         dup2(pipefd[1], STDERR_FILENO);
         close(pipefd[1]);
@@ -84,7 +86,8 @@ wait_for_log(int fd, const char *needle, int timeout_ms)
     deadline.tv_sec += timeout_ms / 1000;
     deadline.tv_nsec += (long)(timeout_ms % 1000) * 1000000L;
 
-    for (;;) {
+    for (;;)
+    {
         struct timespec now;
         clock_gettime(CLOCK_MONOTONIC, &now);
         long remaining_ms = (deadline.tv_sec - now.tv_sec) * 1000 +
@@ -133,9 +136,11 @@ wait_for_log_seq(int fd, char *buf, size_t buf_cap, size_t *len,
     deadline.tv_sec += timeout_ms / 1000;
     deadline.tv_nsec += (long)(timeout_ms % 1000) * 1000000L;
 
-    for (;;) {
+    for (;;)
+    {
         char *hit = strstr(buf + *search_from, needle);
-        if (hit) {
+        if (hit)
+        {
             *search_from = (size_t)(hit - buf) + strlen(needle);
             return true;
         }
@@ -169,7 +174,8 @@ connect_unix(const char *path)
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
-    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+    {
         close(fd);
         return -1;
     }
@@ -191,16 +197,19 @@ spawn_ghost_ptyserv(const char *registry_socket, int vtnum)
     pid_t pid = fork();
     if (pid < 0)
         return -1;
-    if (pid == 0) {
+    if (pid == 0)
+    {
         char vt_str[16];
         snprintf(vt_str, sizeof(vt_str), "%d", vtnum);
         execl(bin, bin, registry_socket, vt_str, (char *)NULL);
         _exit(127);
     }
 
-    for (int i = 0; i < 50; i++) {
+    for (int i = 0; i < 50; i++)
+    {
         int fd = connect_unix(registry_socket);
-        if (fd >= 0) {
+        if (fd >= 0)
+        {
             close(fd);
             return pid;
         }
@@ -234,16 +243,20 @@ scenario_healthy(void)
 
     int stderr_fd;
     pid_t pid = spawn_supervisor(&stderr_fd);
-    if (pid < 0) {
+    if (pid < 0)
+    {
         fprintf(stderr, "FAIL: healthy: could not spawn supervisor\n");
         failures++;
         return;
     }
 
-    if (!wait_for_log(stderr_fd, "claimed VT, ACTIVE", 2000)) {
+    if (!wait_for_log(stderr_fd, "claimed VT, ACTIVE", 2000))
+    {
         fprintf(stderr, "FAIL: healthy: supervisor never reached ACTIVE\n");
         failures++;
-    } else {
+    }
+    else
+    {
         printf("PASS: healthy renderer reaches ACTIVE\n");
     }
 
@@ -270,7 +283,8 @@ scenario_hang_and_respawn(void)
 
     int stderr_fd;
     pid_t pid = spawn_supervisor(&stderr_fd);
-    if (pid < 0) {
+    if (pid < 0)
+    {
         fprintf(stderr, "FAIL: hang: could not spawn supervisor\n");
         failures++;
         return;
@@ -279,10 +293,13 @@ scenario_hang_and_respawn(void)
     bool ok = wait_for_log(stderr_fd, "claimed VT, ACTIVE", 2000) &&
               wait_for_log(stderr_fd, "renderer hung", 2000) &&
               wait_for_log(stderr_fd, "claimed VT, ACTIVE", 2000);
-    if (!ok) {
+    if (!ok)
+    {
         fprintf(stderr, "FAIL: hang: did not see ACTIVE -> hung -> ACTIVE cycle\n");
         failures++;
-    } else {
+    }
+    else
+    {
         printf("PASS: hung renderer detected and respawned\n");
     }
 
@@ -300,7 +317,8 @@ scenario_clean_exit_respawn(void)
 
     int stderr_fd;
     pid_t pid = spawn_supervisor(&stderr_fd);
-    if (pid < 0) {
+    if (pid < 0)
+    {
         fprintf(stderr, "FAIL: clean-exit: could not spawn supervisor\n");
         failures++;
         return;
@@ -309,10 +327,13 @@ scenario_clean_exit_respawn(void)
     bool ok = wait_for_log(stderr_fd, "claimed VT, ACTIVE", 2000) &&
               wait_for_log(stderr_fd, "renderer exited, respawning", 2000) &&
               wait_for_log(stderr_fd, "claimed VT, ACTIVE", 2000);
-    if (!ok) {
+    if (!ok)
+    {
         fprintf(stderr, "FAIL: clean-exit: did not see ACTIVE -> exit -> ACTIVE cycle\n");
         failures++;
-    } else {
+    }
+    else
+    {
         printf("PASS: clean renderer exit detected and respawned\n");
     }
 
@@ -324,7 +345,8 @@ static void
 scenario_startup_timeout_fallback(void)
 {
     char run_dir[] = "/tmp/ghostcon-test-supervisor-rundir-XXXXXX";
-    if (!mkdtemp(run_dir)) {
+    if (!mkdtemp(run_dir))
+    {
         fprintf(stderr, "FAIL: fallback: mkdtemp\n");
         failures++;
         return;
@@ -340,13 +362,15 @@ scenario_startup_timeout_fallback(void)
 
     int stderr_fd;
     pid_t pid = spawn_supervisor(&stderr_fd);
-    if (pid < 0) {
+    if (pid < 0)
+    {
         fprintf(stderr, "FAIL: fallback: could not spawn supervisor\n");
         failures++;
         goto cleanup;
     }
 
-    if (!wait_for_log(stderr_fd, "falling back", 2000)) {
+    if (!wait_for_log(stderr_fd, "falling back", 2000))
+    {
         fprintf(stderr, "FAIL: fallback: supervisor never reported falling back\n");
         failures++;
         kill_supervisor_tree(pid);
@@ -363,23 +387,30 @@ scenario_startup_timeout_fallback(void)
      * exist yet the instant that line appears.
      */
     FILE *f = NULL;
-    for (int i = 0; i < 20 && !f; i++) {
+    for (int i = 0; i < 20 && !f; i++)
+    {
         f = fopen(recovery_path, "r");
         if (!f)
             usleep(100000);
     }
-    if (!f) {
+    if (!f)
+    {
         fprintf(stderr, "FAIL: fallback: recovery file %s not written\n", recovery_path);
         failures++;
-    } else {
+    }
+    else
+    {
         char buf[512];
         size_t n = fread(buf, 1, sizeof(buf) - 1, f);
         buf[n] = '\0';
         fclose(f);
-        if (!strstr(buf, "startup_timeout")) {
+        if (!strstr(buf, "startup_timeout"))
+        {
             fprintf(stderr, "FAIL: fallback: recovery file missing startup_timeout reason: %s\n", buf);
             failures++;
-        } else {
+        }
+        else
+        {
             printf("PASS: recovery file written with correct reason\n");
         }
     }
@@ -419,7 +450,8 @@ scenario_hang_preserves_session(void)
                        reached before it would otherwise be assigned. */
 
     char run_dir[] = "/tmp/ghostcon-test-supervisor-rundir2-XXXXXX";
-    if (!mkdtemp(run_dir)) {
+    if (!mkdtemp(run_dir))
+    {
         fprintf(stderr, "FAIL: session: mkdtemp\n");
         failures++;
         return;
@@ -427,7 +459,8 @@ scenario_hang_preserves_session(void)
 
     char registry_sock[] = "/tmp/ghostcon-test-supervisor-registry-XXXXXX";
     int tmp_fd = mkstemp(registry_sock);
-    if (tmp_fd < 0) {
+    if (tmp_fd < 0)
+    {
         fprintf(stderr, "FAIL: session: mkstemp\n");
         failures++;
         goto cleanup_rundir;
@@ -436,7 +469,8 @@ scenario_hang_preserves_session(void)
     unlink(registry_sock); /* ghost-ptyserv creates the socket itself */
 
     pid_t ptyserv_pid = spawn_ghost_ptyserv(registry_sock, TEST_VT);
-    if (ptyserv_pid < 0) {
+    if (ptyserv_pid < 0)
+    {
         fprintf(stderr, "FAIL: session: could not start ghost-ptyserv\n");
         failures++;
         goto cleanup_rundir;
@@ -467,7 +501,8 @@ scenario_hang_preserves_session(void)
 
     int stderr_fd;
     pid_t sup_pid = spawn_supervisor_with_registry(&stderr_fd, registry_sock);
-    if (sup_pid < 0) {
+    if (sup_pid < 0)
+    {
         fprintf(stderr, "FAIL: session: could not spawn supervisor\n");
         failures++;
         goto cleanup_ptyserv;
@@ -483,15 +518,19 @@ scenario_hang_preserves_session(void)
         sscanf(log + pos, "%d", &pid1);
     ok = ok && wait_for_log_seq(stderr_fd, log, sizeof(log), &log_len, &pos,
                                 "claimed VT, ACTIVE", 3000);
-    if (!ok) {
+    if (!ok)
+    {
         fprintf(stderr, "FAIL: session: first instance never reached ACTIVE with a real pty child\n");
         failures++;
         goto cleanup_supervisor;
     }
-    if (pid1 <= 0) {
+    if (pid1 <= 0)
+    {
         fprintf(stderr, "FAIL: session: first instance never reported a real PTY_CHILD_PID\n");
         failures++;
-    } else {
+    }
+    else
+    {
         printf("PASS: real pty child spawned (pid %d)\n", pid1);
     }
 
@@ -503,7 +542,8 @@ scenario_hang_preserves_session(void)
      * for the hang side of the same widened deadline).
      */
     if (!wait_for_log_seq(stderr_fd, log, sizeof(log), &log_len, &pos,
-                          "renderer hung", 4000)) {
+                          "renderer hung", 4000))
+    {
         fprintf(stderr, "FAIL: session: hang was never detected\n");
         failures++;
         goto cleanup_supervisor;
@@ -514,10 +554,14 @@ scenario_hang_preserves_session(void)
      * pid captured above, not a fresh lookup that could paper over the
      * process having actually died and something else reusing the pid.
      */
-    if (pid1 > 0) {
-        if (kill(pid1, 0) == 0) {
+    if (pid1 > 0)
+    {
+        if (kill(pid1, 0) == 0)
+        {
             printf("PASS: pty child (pid %d) survived the hung renderer's kill\n", pid1);
-        } else {
+        }
+        else
+        {
             fprintf(stderr, "FAIL: session: pty child (pid %d) did not survive: %s\n", pid1, strerror(errno));
             failures++;
         }
@@ -530,28 +574,37 @@ scenario_hang_preserves_session(void)
     char recovery_path[512];
     snprintf(recovery_path, sizeof(recovery_path), "%s/recovery-tty%d.json", run_dir, TEST_VT);
     FILE *rf = NULL;
-    for (int i = 0; i < 20 && !rf; i++) {
+    for (int i = 0; i < 20 && !rf; i++)
+    {
         rf = fopen(recovery_path, "r");
         if (!rf)
             usleep(100000);
     }
-    if (!rf) {
+    if (!rf)
+    {
         fprintf(stderr, "FAIL: session: recovery file %s not written\n", recovery_path);
         failures++;
-    } else {
+    }
+    else
+    {
         char buf[512];
         size_t n = fread(buf, 1, sizeof(buf) - 1, rf);
         buf[n] = '\0';
         fclose(rf);
         char want[64];
         snprintf(want, sizeof(want), "\"pty_child_pid\":%d", pid1);
-        if (!strstr(buf, "\"reason\":\"hang\"")) {
+        if (!strstr(buf, "\"reason\":\"hang\""))
+        {
             fprintf(stderr, "FAIL: session: recovery file missing hang reason: %s\n", buf);
             failures++;
-        } else if (pid1 > 0 && !strstr(buf, want)) {
+        }
+        else if (pid1 > 0 && !strstr(buf, want))
+        {
             fprintf(stderr, "FAIL: session: recovery file has wrong/missing pty_child_pid (want %s): %s\n", want, buf);
             failures++;
-        } else {
+        }
+        else
+        {
             printf("PASS: recovery file has correct reason and real pty_child_pid\n");
         }
     }
@@ -564,7 +617,8 @@ scenario_hang_preserves_session(void)
      * the FIRST instance's marker, not an instance finding its own echo.
      */
     if (!wait_for_log_seq(stderr_fd, log, sizeof(log), &log_len, &pos,
-                          "REPLAY: marker found", 3000)) {
+                          "REPLAY: marker found", 3000))
+    {
         fprintf(stderr, "FAIL: session: replacement renderer's ring-buffer replay did not contain prior session output\n");
         failures++;
         goto cleanup_supervisor;
@@ -572,10 +626,13 @@ scenario_hang_preserves_session(void)
     printf("PASS: replacement renderer recovered prior session output via ring-buffer replay\n");
 
     if (!wait_for_log_seq(stderr_fd, log, sizeof(log), &log_len, &pos,
-                          "claimed VT, ACTIVE", 2000)) {
+                          "claimed VT, ACTIVE", 2000))
+    {
         fprintf(stderr, "FAIL: session: replacement renderer never reached ACTIVE\n");
         failures++;
-    } else {
+    }
+    else
+    {
         printf("PASS: replacement renderer reached ACTIVE\n");
     }
 
@@ -641,7 +698,8 @@ scenario_wall_rate_limit(void)
 
     int stderr_fd;
     pid_t pid = spawn_supervisor(&stderr_fd);
-    if (pid < 0) {
+    if (pid < 0)
+    {
         fprintf(stderr, "FAIL: wall_rate_limit: could not spawn supervisor\n");
         failures++;
         goto cleanup;
@@ -658,7 +716,8 @@ scenario_wall_rate_limit(void)
     struct timespec deadline;
     clock_gettime(CLOCK_MONOTONIC, &deadline);
     deadline.tv_sec += 3;
-    for (;;) {
+    for (;;)
+    {
         struct timespec now;
         clock_gettime(CLOCK_MONOTONIC, &now);
         long remaining_ms = (deadline.tv_sec - now.tv_sec) * 1000 +
@@ -682,13 +741,18 @@ scenario_wall_rate_limit(void)
     for (const char *p = acc; (p = strstr(p, "would wall-broadcast")); p++)
         broadcast_count++;
 
-    if (hang_count < 2) {
+    if (hang_count < 2)
+    {
         fprintf(stderr, "FAIL: wall_rate_limit: only saw %d hang(s) in the observation window -- test didn't actually exercise repeated hangs\n", hang_count);
         failures++;
-    } else if (broadcast_count != 1) {
+    }
+    else if (broadcast_count != 1)
+    {
         fprintf(stderr, "FAIL: wall_rate_limit: %d hang(s) but %d broadcast(s) -- expected exactly 1 (rate limit not enforced)\n", hang_count, broadcast_count);
         failures++;
-    } else {
+    }
+    else
+    {
         printf("PASS: %d hangs within the rate-limit window produced exactly 1 wall broadcast\n", hang_count);
     }
 
@@ -707,7 +771,8 @@ main(void)
 {
     const char *supervisor_bin = getenv("SUPERVISOR_BIN");
     const char *renderer_bin = getenv("GHOSTCON_CORE_BIN");
-    if (!supervisor_bin || !renderer_bin) {
+    if (!supervisor_bin || !renderer_bin)
+    {
         fprintf(stderr, "FAIL: SUPERVISOR_BIN / GHOSTCON_CORE_BIN not set\n");
         return 1;
     }
@@ -721,7 +786,8 @@ main(void)
     scenario_hang_preserves_session();
     scenario_wall_rate_limit();
 
-    if (failures > 0) {
+    if (failures > 0)
+    {
         fprintf(stderr, "%d scenario(s) failed\n", failures);
         return 1;
     }

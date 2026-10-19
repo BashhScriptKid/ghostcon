@@ -339,7 +339,8 @@ compile_shader(GLenum type, const char *src)
 
     GLint ok = 0;
     glGetShaderiv(sh, GL_COMPILE_STATUS, &ok);
-    if (!ok) {
+    if (!ok)
+    {
         char log[512];
         glGetShaderInfoLog(sh, sizeof(log), NULL, log);
         fprintf(stderr, "gles: shader compile failed: %s\n", log);
@@ -372,7 +373,8 @@ ghostcon_gles_create(uint32_t viewport_w, uint32_t viewport_h, bool want_linear_
 
     GLint linked = 0;
     glGetProgramiv(gles->program, GL_LINK_STATUS, &linked);
-    if (!linked) {
+    if (!linked)
+    {
         char log[512];
         glGetProgramInfoLog(gles->program, sizeof(log), NULL, log);
         fprintf(stderr, "gles: program link failed: %s\n", log);
@@ -393,21 +395,25 @@ ghostcon_gles_create(uint32_t viewport_w, uint32_t viewport_h, bool want_linear_
 
     GLuint ivs = compile_shader(GL_VERTEX_SHADER, IMG_VERT_SRC);
     GLuint ifs = compile_shader(GL_FRAGMENT_SHADER, IMG_FRAG_SRC);
-    if (ivs && ifs) {
+    if (ivs && ifs)
+    {
         gles->img_program = glCreateProgram();
         glAttachShader(gles->img_program, ivs);
         glAttachShader(gles->img_program, ifs);
         glLinkProgram(gles->img_program);
         GLint img_linked = 0;
         glGetProgramiv(gles->img_program, GL_LINK_STATUS, &img_linked);
-        if (img_linked) {
+        if (img_linked)
+        {
             gles->img_attr_pos = glGetAttribLocation(gles->img_program, "a_pos");
             gles->img_attr_uv = glGetAttribLocation(gles->img_program, "a_uv");
             gles->img_uniform_tex = glGetUniformLocation(gles->img_program, "u_tex");
             gles->img_uniform_alpha = glGetUniformLocation(gles->img_program, "u_alpha");
             gles->img_uniform_linear_blending =
                 glGetUniformLocation(gles->img_program, "u_linear_blending");
-        } else {
+        }
+        else
+        {
             char log[512];
             glGetProgramInfoLog(gles->img_program, sizeof(log), NULL, log);
             fprintf(stderr, "gles: image program link failed: %s\n", log);
@@ -427,11 +433,13 @@ ghostcon_gles_create(uint32_t viewport_w, uint32_t viewport_h, bool want_linear_
      * or the FBO doesn't complete, not an error.
      */
     gles->linear_blending = false;
-    if (want_linear_blending) {
+    if (want_linear_blending)
+    {
         const char *gl_exts = (const char *)glGetString(GL_EXTENSIONS);
         bool has_srgb = gl_exts && strstr(gl_exts, "GL_EXT_sRGB");
         bool has_decode_ctrl = gl_exts && strstr(gl_exts, "GL_EXT_texture_sRGB_decode");
-        if (has_srgb && has_decode_ctrl) {
+        if (has_srgb && has_decode_ctrl)
+        {
             glGenTextures(1, &gles->srgb_color_tex);
             glBindTexture(GL_TEXTURE_2D, gles->srgb_color_tex);
             glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB_ALPHA_EXT, (GLsizei)viewport_w, (GLsizei)viewport_h,
@@ -447,17 +455,20 @@ ghostcon_gles_create(uint32_t viewport_w, uint32_t viewport_h, bool want_linear_
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                     GL_TEXTURE_2D, gles->srgb_color_tex, 0);
 
-            if (glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE) {
+            if (glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE)
+            {
                 GLuint bvs = compile_shader(GL_VERTEX_SHADER, BLIT_VERT_SRC);
                 GLuint bfs = compile_shader(GL_FRAGMENT_SHADER, BLIT_FRAG_SRC);
-                if (bvs && bfs) {
+                if (bvs && bfs)
+                {
                     gles->blit_program = glCreateProgram();
                     glAttachShader(gles->blit_program, bvs);
                     glAttachShader(gles->blit_program, bfs);
                     glLinkProgram(gles->blit_program);
                     GLint blit_linked = 0;
                     glGetProgramiv(gles->blit_program, GL_LINK_STATUS, &blit_linked);
-                    if (blit_linked) {
+                    if (blit_linked)
+                    {
                         gles->blit_attr_pos = glGetAttribLocation(gles->blit_program, "a_pos");
                         gles->blit_attr_uv = glGetAttribLocation(gles->blit_program, "a_uv");
                         gles->blit_uniform_tex = glGetUniformLocation(gles->blit_program, "u_tex");
@@ -469,7 +480,8 @@ ghostcon_gles_create(uint32_t viewport_w, uint32_t viewport_h, bool want_linear_
             }
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-            if (!gles->linear_blending) {
+            if (!gles->linear_blending)
+            {
                 glDeleteTextures(1, &gles->srgb_color_tex);
                 glDeleteFramebuffers(1, &gles->srgb_fbo);
                 if (gles->blit_program) glDeleteProgram(gles->blit_program);
@@ -518,7 +530,8 @@ ghostcon_gles_destroy(ghostcon_gles_t *gles)
     glDeleteTextures(1, &gles->atlas_tex);
     glDeleteTextures(1, &gles->atlas_color_tex);
     glDeleteProgram(gles->program);
-    if (gles->linear_blending) {
+    if (gles->linear_blending)
+    {
         glDeleteTextures(1, &gles->srgb_color_tex);
         glDeleteFramebuffers(1, &gles->srgb_fbo);
         glDeleteProgram(gles->blit_program);
@@ -549,7 +562,8 @@ ghostcon_gles_sync_atlas(ghostcon_gles_t *gles, ghostcon_atlas_t *atlas, bool fo
 {
     uint32_t dim = ghostcon_atlas_dim(atlas);
 
-    if (force || ghostcon_atlas_dirty(atlas)) {
+    if (force || ghostcon_atlas_dirty(atlas))
+    {
         glBindTexture(GL_TEXTURE_2D, gles->atlas_tex);
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, (GLsizei)dim, (GLsizei)dim, 0,
@@ -564,7 +578,8 @@ ghostcon_gles_sync_atlas(ghostcon_gles_t *gles, ghostcon_atlas_t *atlas, bool fo
      * is just as "incomplete" (no level-0 data yet) until its own first
      * sync.
      */
-    if (force || ghostcon_atlas_color_dirty(atlas)) {
+    if (force || ghostcon_atlas_color_dirty(atlas))
+    {
         glBindTexture(GL_TEXTURE_2D, gles->atlas_color_tex);
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (GLsizei)dim, (GLsizei)dim, 0,
@@ -592,11 +607,15 @@ ghostcon_gles_begin(ghostcon_gles_t *gles, bool clear, float bg_r, float bg_g, f
     gles->bg_vert_count = 0;
     if (gles->linear_blending)
         glBindFramebuffer(GL_FRAMEBUFFER, gles->srgb_fbo);
-    if (clear) {
-        if (gles->linear_blending) {
+    if (clear)
+    {
+        if (gles->linear_blending)
+        {
             glClearColor(linearize_channel(bg_r), linearize_channel(bg_g),
                          linearize_channel(bg_b), 1.0f);
-        } else {
+        }
+        else
+        {
             glClearColor(bg_r, bg_g, bg_b, 1.0f);
         }
         glClear(GL_COLOR_BUFFER_BIT);
@@ -609,7 +628,8 @@ push_vertex(ghostcon_gles_t *gles, ghostcon_vertex_t v, bool bg)
     ghostcon_vertex_t **arr = bg ? &gles->bg_verts : &gles->verts;
     size_t *count = bg ? &gles->bg_vert_count : &gles->vert_count;
     size_t *cap = bg ? &gles->bg_vert_cap : &gles->vert_cap;
-    if (*count >= *cap) {
+    if (*count >= *cap)
+    {
         *cap *= 2;
         *arr = realloc(*arr, *cap * sizeof(ghostcon_vertex_t));
     }
@@ -729,7 +749,8 @@ draw_image_internal(ghostcon_gles_t *gles, ghostcon_gles_image_t *img,
         return;
 
     float u0 = 0.0f, v0 = 0.0f, u1 = 1.0f, v1 = 1.0f;
-    if (src_w > 0.0f && src_h > 0.0f) {
+    if (src_w > 0.0f && src_h > 0.0f)
+    {
         u0 = src_x / (float)img->width;
         v0 = src_y / (float)img->height;
         u1 = (src_x + src_w) / (float)img->width;
@@ -783,9 +804,11 @@ ghostcon_gles_kitty_tex_get(ghostcon_gles_t *gles,
                            uint32_t image_id, uint32_t generation,
                            const uint8_t *pixels, int width, int height, int bpp)
 {
-    for (size_t i = 0; i < gles->kitty_tex_count; i++) {
+    for (size_t i = 0; i < gles->kitty_tex_count; i++)
+    {
         struct ghostcon_gles_kitty_tex_entry *e = &gles->kitty_tex[i];
-        if (e->image_id == image_id) {
+        if (e->image_id == image_id)
+        {
             if (e->generation == generation)
                 return e->tex;
             /* Re-transmitted under the same id -- swap the texture. */
@@ -796,14 +819,17 @@ ghostcon_gles_kitty_tex_get(ghostcon_gles_t *gles,
         }
     }
 
-    if (gles->kitty_tex_count >= GHOSTCON_KITTY_MAX_IMAGES) {
+    if (gles->kitty_tex_count >= GHOSTCON_KITTY_MAX_IMAGES)
+    {
         /* Under pressure: evict whichever cached id no longer resolves in
          * the current image store (genuinely deleted), else the oldest
          * entry.
          */
         size_t victim = 0;
-        for (size_t i = 0; i < gles->kitty_tex_count; i++) {
-            if (!kg || !ghostcon_kitty_graphics_find_image(kg, gles->kitty_tex[i].image_id)) {
+        for (size_t i = 0; i < gles->kitty_tex_count; i++)
+        {
+            if (!kg || !ghostcon_kitty_graphics_find_image(kg, gles->kitty_tex[i].image_id))
+            {
                 victim = i;
                 break;
             }
@@ -814,7 +840,8 @@ ghostcon_gles_kitty_tex_get(ghostcon_gles_t *gles,
         gles->kitty_tex_count--;
     }
 
-    if (gles->kitty_tex_count >= gles->kitty_tex_cap) {
+    if (gles->kitty_tex_count >= gles->kitty_tex_cap)
+    {
         gles->kitty_tex_cap = gles->kitty_tex_cap ? gles->kitty_tex_cap * 2 : 8;
         gles->kitty_tex = realloc(gles->kitty_tex, gles->kitty_tex_cap * sizeof(*gles->kitty_tex));
     }
@@ -834,9 +861,11 @@ ghostcon_gles_sixel_tex_get(ghostcon_gles_t *gles,
                             int slot, uint32_t generation,
                             const uint8_t *pixels, int width, int height)
 {
-    for (size_t i = 0; i < gles->sixel_tex_count; i++) {
+    for (size_t i = 0; i < gles->sixel_tex_count; i++)
+    {
         struct ghostcon_gles_sixel_tex_entry *e = &gles->sixel_tex[i];
-        if (e->slot == slot) {
+        if (e->slot == slot)
+        {
             if (e->generation == generation)
                 return e->tex;
             /* Slot reused for a different placement (or the same one
@@ -849,15 +878,18 @@ ghostcon_gles_sixel_tex_get(ghostcon_gles_t *gles,
         }
     }
 
-    if (gles->sixel_tex_count >= GHOSTCON_SIXEL_MAX_PLACEMENTS) {
+    if (gles->sixel_tex_count >= GHOSTCON_SIXEL_MAX_PLACEMENTS)
+    {
         /* Same eviction posture as ghostcon_gles_kitty_tex_get above:
          * prefer a cached slot that's no longer actually in use, else
          * oldest-first.
          */
         size_t victim = 0;
-        for (size_t i = 0; i < gles->sixel_tex_count; i++) {
+        for (size_t i = 0; i < gles->sixel_tex_count; i++)
+        {
             int s = gles->sixel_tex[i].slot;
-            if (!sx || s < 0 || s >= GHOSTCON_SIXEL_MAX_PLACEMENTS || !sx->placements[s].in_use) {
+            if (!sx || s < 0 || s >= GHOSTCON_SIXEL_MAX_PLACEMENTS || !sx->placements[s].in_use)
+            {
                 victim = i;
                 break;
             }
@@ -868,7 +900,8 @@ ghostcon_gles_sixel_tex_get(ghostcon_gles_t *gles,
         gles->sixel_tex_count--;
     }
 
-    if (gles->sixel_tex_count >= gles->sixel_tex_cap) {
+    if (gles->sixel_tex_count >= gles->sixel_tex_cap)
+    {
         gles->sixel_tex_cap = gles->sixel_tex_cap ? gles->sixel_tex_cap * 2 : 8;
         gles->sixel_tex = realloc(gles->sixel_tex, gles->sixel_tex_cap * sizeof(*gles->sixel_tex));
     }
@@ -888,7 +921,8 @@ ghostcon_gles_queue_image(ghostcon_gles_t *gles, ghostcon_gles_image_t *img,
                           float src_x, float src_y, float src_w, float src_h,
                           float alpha, bool above_text)
 {
-    if (gles->queued_count >= gles->queued_cap) {
+    if (gles->queued_count >= gles->queued_cap)
+    {
         gles->queued_cap = gles->queued_cap ? gles->queued_cap * 2 : 8;
         gles->queued_images = realloc(gles->queued_images,
                                       gles->queued_cap * sizeof(*gles->queued_images));
@@ -959,7 +993,8 @@ draw_layer(ghostcon_gles_t *gles, const ghostcon_vertex_t *src, size_t count)
 static void
 draw_queued_images(ghostcon_gles_t *gles, bool above_text)
 {
-    for (size_t i = 0; i < gles->queued_count; i++) {
+    for (size_t i = 0; i < gles->queued_count; i++)
+    {
         struct ghostcon_gles_queued_image *q = &gles->queued_images[i];
         if (q->above_text != above_text)
             continue;
@@ -991,7 +1026,8 @@ ghostcon_gles_end(ghostcon_gles_t *gles)
     draw_queued_images(gles, true);
     gles->queued_count = 0;
 
-    if (gles->linear_blending) {
+    if (gles->linear_blending)
+    {
         /* Everything above was drawn into the offscreen sRGB FBO --blit it
          * (a full-viewport textured quad; GLES2 has no glBlitFramebuffer)
          * to the real default framebuffer, which is what the caller's
@@ -1039,7 +1075,8 @@ ghostcon_gles_screenshot_ppm(ghostcon_gles_t *gles, const char *path)
     glReadPixels(0, 0, (GLsizei)w, (GLsizei)h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 
     FILE *f = fopen(path, "wb");
-    if (!f) {
+    if (!f)
+    {
         free(pixels);
         return false;
     }
@@ -1048,9 +1085,11 @@ ghostcon_gles_screenshot_ppm(ghostcon_gles_t *gles, const char *path)
     /* GL's origin is bottom-left; PPM rows are written top-down. */
     uint8_t *row_rgb = malloc((size_t)w * 3);
     bool ok = row_rgb != NULL;
-    for (uint32_t y = 0; ok && y < h; y++) {
+    for (uint32_t y = 0; ok && y < h; y++)
+    {
         const uint8_t *src = pixels + (size_t)(h - 1 - y) * w * 4;
-        for (uint32_t x = 0; x < w; x++) {
+        for (uint32_t x = 0; x < w; x++)
+        {
             row_rgb[x * 3 + 0] = src[x * 4 + 0];
             row_rgb[x * 3 + 1] = src[x * 4 + 1];
             row_rgb[x * 3 + 2] = src[x * 4 + 2];

@@ -8,7 +8,8 @@
 
 #include "ghostcon/term/theme.h"
 
-typedef struct {
+typedef struct
+{
     const char *name;
     const char *ansi[16];
     const char *fg, *bg, *cursor;

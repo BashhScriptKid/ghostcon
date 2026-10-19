@@ -41,7 +41,8 @@
  */
 #define GHOSTCON_ATLAS_COLOR_GLYPH_MAX 160
 
-typedef struct {
+typedef struct
+{
     uint32_t codepoint; /* 0 = empty slot (codepoint 0 / NUL is never rendered) */
     bool     occupied;
     ghostcon_glyph_t glyph;
@@ -126,14 +127,17 @@ static atlas_slot_t *
 slot_find(ghostcon_atlas_t *atlas, uint32_t codepoint, bool *found)
 {
     uint32_t h = codepoint * 2654435761u; /* Knuth multiplicative hash */
-    for (uint32_t i = 0; i < GHOSTCON_ATLAS_MAX_GLYPHS; i++) {
+    for (uint32_t i = 0; i < GHOSTCON_ATLAS_MAX_GLYPHS; i++)
+    {
         uint32_t idx = (h + i) % GHOSTCON_ATLAS_MAX_GLYPHS;
         atlas_slot_t *s = &atlas->slots[idx];
-        if (!s->occupied) {
+        if (!s->occupied)
+        {
             *found = false;
             return s;
         }
-        if (s->codepoint == codepoint) {
+        if (s->codepoint == codepoint)
+        {
             *found = true;
             return s;
         }
@@ -152,7 +156,8 @@ ghostcon_atlas_create(const char *font_family, const char *font_variant,
         return NULL;
 
     atlas->aa_mode = GC_ATLAS_AA_GRAYSCALE;
-    if (antialiasing) {
+    if (antialiasing)
+    {
         if (strcmp(antialiasing, "subpixel") == 0)
             atlas->aa_mode = GC_ATLAS_AA_SUBPIXEL;
         else if (strcmp(antialiasing, "cleartype") == 0)
@@ -179,13 +184,15 @@ ghostcon_atlas_create(const char *font_family, const char *font_variant,
 
     FcResult result;
     FcPattern *match = FcFontMatch(NULL, pat, &result);
-    if (!match) {
+    if (!match)
+    {
         FcPatternDestroy(pat);
         goto fail;
     }
 
     FcChar8 *file_path = NULL;
-    if (FcPatternGetString(match, FC_FILE, 0, &file_path) != FcResultMatch) {
+    if (FcPatternGetString(match, FC_FILE, 0, &file_path) != FcResultMatch)
+    {
         FcPatternDestroy(match);
         FcPatternDestroy(pat);
         goto fail;
@@ -202,19 +209,23 @@ ghostcon_atlas_create(const char *font_family, const char *font_variant,
     FcResult sort_result;
     atlas->fallback_set = FcFontSort(NULL, pat, FcTrue, NULL, &sort_result);
     FcPatternDestroy(pat);
-    if (atlas->fallback_set && atlas->fallback_set->nfont > 0) {
+    if (atlas->fallback_set && atlas->fallback_set->nfont > 0)
+    {
         atlas->fallback_faces = calloc((size_t)atlas->fallback_set->nfont, sizeof(FT_Face));
-        if (!atlas->fallback_faces) {
+        if (!atlas->fallback_faces)
+        {
             FcFontSetDestroy(atlas->fallback_set);
             atlas->fallback_set = NULL;
         }
     }
 
-    if (FT_Init_FreeType(&atlas->ft)) {
+    if (FT_Init_FreeType(&atlas->ft))
+    {
         FcPatternDestroy(match);
         goto fail;
     }
-    if (FT_New_Face(atlas->ft, (const char *)file_path, 0, &atlas->face)) {
+    if (FT_New_Face(atlas->ft, (const char *)file_path, 0, &atlas->face))
+    {
         FcPatternDestroy(match);
         goto fail;
     }
@@ -292,8 +303,10 @@ ghostcon_atlas_destroy(ghostcon_atlas_t *atlas)
         hb_font_destroy(atlas->hb_font);
     free(atlas->bitmap);
     free(atlas->color_bitmap);
-    if (atlas->fallback_set) {
-        for (int i = 0; i < atlas->fallback_set->nfont; i++) {
+    if (atlas->fallback_set)
+    {
+        for (int i = 0; i < atlas->fallback_set->nfont; i++)
+        {
             FT_Face f = atlas->fallback_faces[i];
             if (f && f != GHOSTCON_ATLAS_FACE_FAILED)
                 FT_Done_Face(f);
@@ -322,7 +335,8 @@ pack_bitmap(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t codepoint,
             const uint8_t *bitmap, unsigned width, unsigned rows,
             unsigned pitch, int16_t bearing_x, int16_t bearing_y, float advance)
 {
-    if (atlas->pen_x + width + GHOSTCON_ATLAS_GLYPH_PADDING > atlas->dim) {
+    if (atlas->pen_x + width + GHOSTCON_ATLAS_GLYPH_PADDING > atlas->dim)
+    {
         atlas->pen_x = 0;
         atlas->pen_y += atlas->shelf_h + GHOSTCON_ATLAS_GLYPH_PADDING;
         atlas->shelf_h = 0;
@@ -330,7 +344,8 @@ pack_bitmap(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t codepoint,
     if (atlas->pen_y + rows + GHOSTCON_ATLAS_GLYPH_PADDING > atlas->dim)
         return NULL; /* atlas full */
 
-    for (unsigned row = 0; row < rows; row++) {
+    for (unsigned row = 0; row < rows; row++)
+    {
         uint8_t *dst = atlas->bitmap + (size_t)(atlas->pen_y + row) * atlas->dim * 3
                         + (size_t)atlas->pen_x * 3;
         const uint8_t *src = bitmap + (size_t)row * pitch;
@@ -369,7 +384,8 @@ pack_bitmap_rgba(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t codepoint
                   const uint8_t *bitmap, unsigned width, unsigned rows,
                   unsigned pitch, int16_t bearing_x, int16_t bearing_y, float advance)
 {
-    if (atlas->color_pen_x + width + GHOSTCON_ATLAS_GLYPH_PADDING > atlas->dim) {
+    if (atlas->color_pen_x + width + GHOSTCON_ATLAS_GLYPH_PADDING > atlas->dim)
+    {
         atlas->color_pen_x = 0;
         atlas->color_pen_y += atlas->color_shelf_h + GHOSTCON_ATLAS_GLYPH_PADDING;
         atlas->color_shelf_h = 0;
@@ -377,7 +393,8 @@ pack_bitmap_rgba(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t codepoint
     if (atlas->color_pen_y + rows + GHOSTCON_ATLAS_GLYPH_PADDING > atlas->dim)
         return NULL; /* color atlas full */
 
-    for (unsigned row = 0; row < rows; row++) {
+    for (unsigned row = 0; row < rows; row++)
+    {
         uint8_t *dst = atlas->color_bitmap + (size_t)(atlas->color_pen_y + row) * atlas->dim * 4
                         + (size_t)atlas->color_pen_x * 4;
         const uint8_t *src = bitmap + (size_t)row * pitch;
@@ -422,9 +439,11 @@ best_fixed_size_index(FT_Face face, int target_px)
 {
     int best = 0;
     int best_diff = INT_MAX;
-    for (int i = 0; i < face->num_fixed_sizes; i++) {
+    for (int i = 0; i < face->num_fixed_sizes; i++)
+    {
         int diff = abs((int)face->available_sizes[i].height - target_px);
-        if (diff < best_diff) {
+        if (diff < best_diff)
+        {
             best_diff = diff;
             best = i;
         }
@@ -456,7 +475,8 @@ static FT_Face
 find_face_for_codepoint(ghostcon_atlas_t *atlas, uint32_t codepoint, FT_UInt *out_gidx)
 {
     FT_UInt gidx = FT_Get_Char_Index(atlas->face, codepoint);
-    if (gidx != 0) {
+    if (gidx != 0)
+    {
         *out_gidx = gidx;
         return atlas->face;
     }
@@ -467,14 +487,17 @@ find_face_for_codepoint(ghostcon_atlas_t *atlas, uint32_t codepoint, FT_UInt *ou
     FT_Face first_match = NULL;
     FT_UInt first_match_gidx = 0;
 
-    for (int i = 0; i < atlas->fallback_set->nfont; i++) {
+    for (int i = 0; i < atlas->fallback_set->nfont; i++)
+    {
         FT_Face face = atlas->fallback_faces[i];
         if (face == GHOSTCON_ATLAS_FACE_FAILED)
             continue;
-        if (!face) {
+        if (!face)
+        {
             FcChar8 *path = NULL;
             if (FcPatternGetString(atlas->fallback_set->fonts[i], FC_FILE, 0, &path) != FcResultMatch ||
-                FT_New_Face(atlas->ft, (const char *)path, 0, &face)) {
+                FT_New_Face(atlas->ft, (const char *)path, 0, &face))
+            {
                 atlas->fallback_faces[i] = GHOSTCON_ATLAS_FACE_FAILED;
                 continue;
             }
@@ -484,16 +507,19 @@ find_face_for_codepoint(ghostcon_atlas_t *atlas, uint32_t codepoint, FT_UInt *ou
         FT_UInt g = FT_Get_Char_Index(face, codepoint);
         if (g == 0)
             continue;
-        if (FT_HAS_COLOR(face)) {
+        if (FT_HAS_COLOR(face))
+        {
             *out_gidx = g;
             return face;
         }
-        if (!first_match) {
+        if (!first_match)
+        {
             first_match = face;
             first_match_gidx = g;
         }
     }
-    if (first_match) {
+    if (first_match)
+    {
         *out_gidx = first_match_gidx;
         return first_match;
     }
@@ -529,17 +555,21 @@ ghostcon_atlas_glyph(ghostcon_atlas_t *atlas, uint32_t codepoint)
      * real limit.
      */
     if (atlas->cell_w > 0 && atlas->cell_h > 0 &&
-        atlas->cell_w <= 128 && atlas->cell_h <= 128) {
+        atlas->cell_w <= 128 && atlas->cell_h <= 128)
+    {
         uint8_t box_bitmap[128 * 128];
-        if (ghostcon_box_draw_render(codepoint, atlas->cell_w, atlas->cell_h, box_bitmap)) {
+        if (ghostcon_box_draw_render(codepoint, atlas->cell_w, atlas->cell_h, box_bitmap))
+        {
             /* Procedural glyphs are a plain mask -- replicate into RGB
              * (R=G=B), never real per-subpixel data.
              */
             uint8_t conv[128 * 128 * 3];
-            for (int row = 0; row < atlas->cell_h; row++) {
+            for (int row = 0; row < atlas->cell_h; row++)
+            {
                 const uint8_t *src = box_bitmap + row * atlas->cell_w;
                 uint8_t *dst = conv + (size_t)row * atlas->cell_w * 3;
-                for (int col = 0; col < atlas->cell_w; col++) {
+                for (int col = 0; col < atlas->cell_w; col++)
+                {
                     dst[col * 3 + 0] = dst[col * 3 + 1] = dst[col * 3 + 2] = src[col];
                 }
             }
@@ -577,7 +607,8 @@ load_glyph_into_slot(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t slot_
      * since these fonts aren't scalable. See best_fixed_size_index()'s doc
      * comment above for why an exact size match isn't expected or needed.
      */
-    if (FT_HAS_COLOR(face)) {
+    if (FT_HAS_COLOR(face))
+    {
         FT_Select_Size(face, best_fixed_size_index(face, atlas->font_size_px));
         if (FT_Load_Glyph(face, gidx, FT_LOAD_COLOR | FT_LOAD_RENDER))
             return NULL;
@@ -604,13 +635,16 @@ load_glyph_into_slot(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t slot_
          * rather than per-frame in the shader.
          */
         uint8_t conv[GHOSTCON_ATLAS_COLOR_GLYPH_MAX * GHOSTCON_ATLAS_COLOR_GLYPH_MAX * 4];
-        for (unsigned row = 0; row < cbmp->rows; row++) {
+        for (unsigned row = 0; row < cbmp->rows; row++)
+        {
             const uint8_t *src = cbmp->buffer + (size_t)row * (unsigned)cbmp->pitch;
             uint8_t *dst = conv + (size_t)row * cbmp->width * 4;
-            for (unsigned col = 0; col < cbmp->width; col++) {
+            for (unsigned col = 0; col < cbmp->width; col++)
+            {
                 uint8_t bch = src[col * 4 + 0], gch = src[col * 4 + 1],
                         rch = src[col * 4 + 2], ach = src[col * 4 + 3];
-                if (ach > 0 && ach < 255) {
+                if (ach > 0 && ach < 255)
+                {
                     rch = (uint8_t)((unsigned)rch * 255 / ach);
                     gch = (uint8_t)((unsigned)gch * 255 / ach);
                     bch = (uint8_t)((unsigned)bch * 255 / ach);
@@ -627,7 +661,8 @@ load_glyph_into_slot(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t slot_
     }
 
     FT_Int32 load_flags = FT_LOAD_RENDER;
-    switch (atlas->aa_mode) {
+    switch (atlas->aa_mode)
+    {
     case GC_ATLAS_AA_NONE:                          load_flags |= FT_LOAD_TARGET_MONO; break;
     case GC_ATLAS_AA_SUBPIXEL: case GC_ATLAS_AA_CLEARTYPE: load_flags |= FT_LOAD_TARGET_LCD; break;
     default:                                        load_flags |= FT_LOAD_TARGET_NORMAL; break;
@@ -670,45 +705,57 @@ load_glyph_into_slot(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t slot_
     if (real_width > 128 || bmp->rows > 128)
         return NULL;
     uint8_t conv[128 * 128 * 3];
-    for (unsigned row = 0; row < bmp->rows; row++) {
+    for (unsigned row = 0; row < bmp->rows; row++)
+    {
         const uint8_t *src = bmp->buffer + (size_t)row * (unsigned)bmp->pitch;
         uint8_t *dst = conv + (size_t)row * real_width * 3;
-        switch (bmp->pixel_mode) {
+        switch (bmp->pixel_mode)
+        {
         case FT_PIXEL_MODE_MONO:
-            for (unsigned col = 0; col < real_width; col++) {
+            for (unsigned col = 0; col < real_width; col++)
+            {
                 uint8_t v = (src[col / 8] & (0x80 >> (col % 8))) ? 0xFF : 0x00;
                 dst[col * 3 + 0] = dst[col * 3 + 1] = dst[col * 3 + 2] = v;
             }
             break;
         case FT_PIXEL_MODE_LCD:
-            if (atlas->aa_mode == GC_ATLAS_AA_CLEARTYPE) {
+            if (atlas->aa_mode == GC_ATLAS_AA_CLEARTYPE)
+            {
                 /* Real per-subpixel coverage. FreeType always writes bytes
                  * in physical left-to-right order; map that to R/G/B
                  * according to the panel's actual subpixel order -- getting
                  * this backwards produces visible color fringing instead of
                  * removing it.
                  */
-                for (unsigned col = 0; col < real_width; col++) {
+                for (unsigned col = 0; col < real_width; col++)
+                {
                     uint8_t b0 = src[col * 3 + 0], b1 = src[col * 3 + 1], b2 = src[col * 3 + 2];
-                    if (atlas->bgr_order) {
+                    if (atlas->bgr_order)
+                    {
                         dst[col * 3 + 0] = b2;
                         dst[col * 3 + 1] = b1;
                         dst[col * 3 + 2] = b0;
-                    } else {
+                    }
+                    else
+                    {
                         dst[col * 3 + 0] = b0;
                         dst[col * 3 + 1] = b1;
                         dst[col * 3 + 2] = b2;
                     }
                 }
-            } else { /* GC_ATLAS_AA_SUBPIXEL -- average into a replicated mask */
-                for (unsigned col = 0; col < real_width; col++) {
+            }
+            else
+            { /* GC_ATLAS_AA_SUBPIXEL -- average into a replicated mask */
+                for (unsigned col = 0; col < real_width; col++)
+                {
                     uint8_t v = (uint8_t)(((unsigned)src[col * 3] + src[col * 3 + 1] + src[col * 3 + 2]) / 3);
                     dst[col * 3 + 0] = dst[col * 3 + 1] = dst[col * 3 + 2] = v;
                 }
             }
             break;
         default: /* FT_PIXEL_MODE_GRAY */
-            for (unsigned col = 0; col < real_width; col++) {
+            for (unsigned col = 0; col < real_width; col++)
+            {
                 uint8_t v = src[col];
                 dst[col * 3 + 0] = dst[col * 3 + 1] = dst[col * 3 + 2] = v;
             }
@@ -767,7 +814,8 @@ ghostcon_atlas_shape_run(ghostcon_atlas_t *atlas, const uint32_t *codepoints, in
     int n = (int)glyph_count;
     if (n > max_out)
         n = max_out;
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n; i++)
+    {
         out_glyph_indices[i] = infos[i].codepoint; /* HarfBuzz repurposes this field as glyph index post-shaping */
         out_advances[i] = (float)(positions[i].x_advance) / 64.0f;
     }

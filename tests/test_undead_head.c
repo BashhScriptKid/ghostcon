@@ -36,7 +36,8 @@ connect_unix(const char *path)
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
-    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+    {
         close(fd);
         return -1;
     }
@@ -48,9 +49,11 @@ registry_reachable(const char *registry_sock, int timeout_ms)
 {
     struct timespec start, now;
     clock_gettime(CLOCK_MONOTONIC, &start);
-    for (;;) {
+    for (;;)
+    {
         int fd = connect_unix(registry_sock);
-        if (fd >= 0) {
+        if (fd >= 0)
+        {
             close(fd);
             return true;
         }
@@ -91,12 +94,14 @@ pgrep_once(const char *pattern)
         return -1;
 
     pid_t child = fork();
-    if (child < 0) {
+    if (child < 0)
+    {
         close(pipefd[0]);
         close(pipefd[1]);
         return -1;
     }
-    if (child == 0) {
+    if (child == 0)
+    {
         close(pipefd[0]);
         dup2(pipefd[1], STDOUT_FILENO);
         close(pipefd[1]);
@@ -135,7 +140,8 @@ pgrep_wait_ne(const char *pattern, pid_t exclude, int timeout_ms)
 {
     struct timespec start, now;
     clock_gettime(CLOCK_MONOTONIC, &start);
-    for (;;) {
+    for (;;)
+    {
         pid_t pid = pgrep_once(pattern);
         if (pid > 0 && pid != exclude)
             return pid;
@@ -157,7 +163,8 @@ pgrep_wait(const char *pattern, int timeout_ms)
 {
     struct timespec start, now;
     clock_gettime(CLOCK_MONOTONIC, &start);
-    for (;;) {
+    for (;;)
+    {
         pid_t pid = pgrep_once(pattern);
         if (pid > 0)
             return pid;
@@ -178,14 +185,16 @@ main(void)
     const char *undead_head_bin = getenv("UNDEAD_HEAD_BIN");
     const char *ptyserv_bin = getenv("GHOSTCON_PTYSERV_BIN");
     const char *supervisor_bin = getenv("GHOSTCON_SUPERVISOR_BIN");
-    if (!undead_head_bin || !ptyserv_bin || !supervisor_bin) {
+    if (!undead_head_bin || !ptyserv_bin || !supervisor_bin)
+    {
         fprintf(stderr, "FAIL: UNDEAD_HEAD_BIN / GHOSTCON_PTYSERV_BIN / GHOSTCON_SUPERVISOR_BIN not set\n");
         return 1;
     }
 
     char registry_sock[] = "/tmp/ghostcon-test-undead-registry-XXXXXX";
     int tmp_fd = mkstemp(registry_sock);
-    if (tmp_fd < 0) {
+    if (tmp_fd < 0)
+    {
         fprintf(stderr, "FAIL: mkstemp\n");
         return 1;
     }
@@ -195,11 +204,13 @@ main(void)
     signal(SIGPIPE, SIG_IGN);
 
     pid_t undead_pid = fork();
-    if (undead_pid < 0) {
+    if (undead_pid < 0)
+    {
         fprintf(stderr, "FAIL: fork undead-head\n");
         return 1;
     }
-    if (undead_pid == 0) {
+    if (undead_pid == 0)
+    {
         char vt_str[16];
         snprintf(vt_str, sizeof(vt_str), "%d", TEST_VT);
         execl(undead_head_bin, undead_head_bin, registry_sock, vt_str, (char *)NULL);
@@ -209,20 +220,23 @@ main(void)
 
     int result = 1;
 
-    if (!registry_reachable(registry_sock, 3000)) {
+    if (!registry_reachable(registry_sock, 3000))
+    {
         fprintf(stderr, "FAIL: registry never became reachable\n");
         goto teardown;
     }
     printf("PASS: undead-head brought up ghost-ptyserv (registry reachable)\n");
 
     pid_t ptyserv_pid1 = pgrep_wait(ptyserv_bin, 2000);
-    if (ptyserv_pid1 < 0) {
+    if (ptyserv_pid1 < 0)
+    {
         fprintf(stderr, "FAIL: could not find ghost-ptyserv pid\n");
         goto teardown;
     }
 
     pid_t supervisor_pid_before = pgrep_wait(supervisor_bin, 2000);
-    if (supervisor_pid_before < 0) {
+    if (supervisor_pid_before < 0)
+    {
         fprintf(stderr, "FAIL: could not find supervisor pid\n");
         goto teardown;
     }
@@ -236,21 +250,24 @@ main(void)
     kill(ptyserv_pid1, SIGKILL);
 
     pid_t ptyserv_pid2 = pgrep_wait_ne(ptyserv_bin, ptyserv_pid1, 10000);
-    if (ptyserv_pid2 < 0) {
+    if (ptyserv_pid2 < 0)
+    {
         fprintf(stderr, "FAIL: ghost-ptyserv was not restarted after being killed\n");
         goto teardown;
     }
     printf("PASS: undead-head restarted ghost-ptyserv after it was killed (pid %d -> %d)\n",
            (int)ptyserv_pid1, (int)ptyserv_pid2);
 
-    if (!registry_reachable(registry_sock, 3000)) {
+    if (!registry_reachable(registry_sock, 3000))
+    {
         fprintf(stderr, "FAIL: registry not reachable again after ghost-ptyserv restart\n");
         goto teardown;
     }
     printf("PASS: registry reachable again after restart\n");
 
     pid_t supervisor_pid_after = pgrep_wait(supervisor_bin, 2000);
-    if (supervisor_pid_after != supervisor_pid_before) {
+    if (supervisor_pid_after != supervisor_pid_before)
+    {
         fprintf(stderr,
                 "FAIL: supervisor pid changed (%d -> %d) -- ghost-ptyserv's death "
                 "should not have touched it\n",
@@ -263,7 +280,8 @@ main(void)
     result = 0;
 
 teardown:
-    if (undead_pid > 0) {
+    if (undead_pid > 0)
+    {
         kill(undead_pid, SIGTERM);
         waitpid(undead_pid, NULL, 0);
     }

@@ -25,7 +25,8 @@ symbol_constraint_width(const ghostcon_row_t *row, uint16_t x)
     if (x == (uint16_t)(row->cols - 1))
         return 1; /* screen edge -- no room to borrow */
 
-    if (x > 0) {
+    if (x > 0)
+    {
         uint32_t prev_cp = ghostcon_cell_get_codepoint(row->cells[x - 1]);
         if (ghostcon_cell_is_symbol(prev_cp) && !ghostcon_cell_is_graphics_element(prev_cp))
             return 1; /* keep adjacent symbol glyphs aligned, not overlapping */
@@ -50,12 +51,17 @@ override_bg_from_content(const ghostcon_screen_t *screen, ghostcon_cell_t cell, 
 {
     ghostcon_cell_content_tag_t tag = ghostcon_cell_get_tag(cell);
     GhosttyColorRgb rgb;
-    if (tag == GHOSTCON_CELL_BG_COLOR_PALETTE) {
+    if (tag == GHOSTCON_CELL_BG_COLOR_PALETTE)
+    {
         rgb = ghostcon_palette_resolve(&screen->palette, ghostcon_cell_get_palette_idx(cell));
-    } else if (tag == GHOSTCON_CELL_BG_COLOR_RGB) {
+    }
+    else if (tag == GHOSTCON_CELL_BG_COLOR_RGB)
+    {
         ghostcon_rgb_t raw = ghostcon_cell_get_rgb(cell);
         rgb = (GhosttyColorRgb){ raw.r, raw.g, raw.b };
-    } else {
+    }
+    else
+    {
         return;
     }
 
@@ -84,7 +90,8 @@ resolve_colors(const ghostcon_screen_t *screen, const ghostcon_style_t *style,
     else
         bg_rgb = ghostcon_palette_resolve(&screen->palette, style->bg_palette);
 
-    if (style->flags & GC_STYLE_INVERSE) {
+    if (style->flags & GC_STYLE_INVERSE)
+    {
         GhosttyColorRgb tmp = fg_rgb;
         fg_rgb = bg_rgb;
         bg_rgb = tmp;
@@ -112,7 +119,8 @@ ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
 
     int ascent = ghostcon_atlas_ascent(atlas);
 
-    for (int16_t y = dirty.y_min; y <= dirty.y_max; y++) {
+    for (int16_t y = dirty.y_min; y <= dirty.y_max; y++)
+    {
         ghostcon_row_t *row = ghostcon_screen_row(screen, (uint16_t)y);
         if (!row)
             continue;
@@ -130,10 +138,12 @@ ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
             : 0;
         int next_ligature_override = 0;
 
-        for (uint16_t x = 0; x < row->cols; x++) {
+        for (uint16_t x = 0; x < row->cols; x++)
+        {
             const ghostcon_ligature_glyph_t *ligature = NULL;
             if (next_ligature_override < n_ligature_overrides &&
-                ligature_overrides[next_ligature_override].x == x) {
+                ligature_overrides[next_ligature_override].x == x)
+            {
                 ligature = &ligature_overrides[next_ligature_override];
                 next_ligature_override++;
             }
@@ -170,7 +180,8 @@ ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
              * than risk painting over an unrelated neighboring cell.
              */
             const ghostcon_glyph_t *ligature_glyph = NULL;
-            if (ligature) {
+            if (ligature)
+            {
                 ligature_glyph = ghostcon_atlas_glyph_by_index(atlas, ligature->glyph_index);
                 /* A glyph with no rows/columns draws nothing regardless of
                  * where it's positioned -- found live: the "empty
@@ -187,7 +198,8 @@ ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
                  * the "≠"). Only bounds-check glyphs that would actually
                  * draw something.
                  */
-                if (ligature_glyph && ligature_glyph->width > 0 && ligature_glyph->height > 0) {
+                if (ligature_glyph && ligature_glyph->width > 0 && ligature_glyph->height > 0)
+                {
                     float run_lo = (float)(ligature->run_start * cell_w);
                     float run_hi = (float)((ligature->run_start + ligature->run_len) * cell_w);
                     float natural_gx = px + (float)ligature_glyph->bearing_x;
@@ -221,7 +233,8 @@ ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
             ghostcon_gles_push_bg_rect(gles, px, py, (float)cell_w, (float)cell_h,
                                        bg[0], bg[1], bg[2], 1.0f);
 
-            if (constraint_width == 2) {
+            if (constraint_width == 2)
+            {
                 ghostcon_cell_t next_cell = row->cells[x + 1];
                 const ghostcon_style_t *next_style =
                     ghostcon_style_set_get(screen->styles, ghostcon_cell_get_style(next_cell));
@@ -232,7 +245,8 @@ ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
                                            next_bg[0], next_bg[1], next_bg[2], 1.0f);
             }
 
-            if (style->flags & GC_STYLE_HIDDEN) {
+            if (style->flags & GC_STYLE_HIDDEN)
+            {
                 if (constraint_width == 2)
                     x++;
                 continue;
@@ -249,7 +263,8 @@ ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
             const ghostcon_glyph_t *glyph = is_ligature
                 ? ligature_glyph
                 : ghostcon_atlas_glyph(atlas, cp);
-            if (!glyph) {
+            if (!glyph)
+            {
                 if (constraint_width == 2)
                     x++;
                 continue;
@@ -286,7 +301,8 @@ ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
              * untouched by any of this -- draw_w/draw_h stay at native size
              * and gx/gy stay baseline-anchored, exactly as before.
              */
-            if (is_symbol) {
+            if (is_symbol)
+            {
                 float bound_w = (float)(constraint_width * cell_w);
                 float bound_h = (float)cell_h;
                 float scale = 1.0f;
@@ -294,7 +310,8 @@ ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
                     scale = bound_w / draw_w;
                 if (draw_h * scale > bound_h)
                     scale = bound_h / draw_h;
-                if (scale < 1.0f) {
+                if (scale < 1.0f)
+                {
                     draw_w *= scale;
                     draw_h *= scale;
                 }
@@ -312,7 +329,9 @@ ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
                  */
                 gx = floorf(px + (bound_w - draw_w) / 2.0f);
                 gy = floorf(py + (bound_h - draw_h) / 2.0f);
-            } else if (is_ligature) {
+            }
+            else if (is_ligature)
+            {
                 /* Already verified above to fit within its run's own cell
                  * span at its natural (bearing-based) position --gx/draw_w
                  * computed above are used as-is, unlike the ordinary-glyph
@@ -321,7 +340,9 @@ ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
                  * direction for a glyph like this one, whose bearing
                  * intentionally reaches backward).
                  */
-            } else {
+            }
+            else
+            {
                 /* Ordinary (non-symbol) glyphs can still occasionally
                  * overflow their single cell by a pixel or two --grayscale
                  * AA's rasterizer pads bitmap width for the coverage
@@ -394,7 +415,8 @@ ghostcon_machine_render_cursor(ghostcon_screen_t *screen,
     float px = (float)(x * cell_w);
     float py = (float)(y * cell_h);
 
-    switch (screen->cursor.cursor_style) {
+    switch (screen->cursor.cursor_style)
+    {
     case GC_CURSOR_UNDERLINE:
     case GC_CURSOR_UNDERLINE_BLINK:
         ghostcon_gles_push_rect(gles, px, py + (float)(cell_h - GC_CURSOR_LINE_THICKNESS),
@@ -438,7 +460,8 @@ ghostcon_machine_render_selection(ghostcon_screen_t *screen,
     GhosttyColorRgb c = screen->palette.cursor_color;
     float r = (float)c.r / 255.0f, g = (float)c.g / 255.0f, b = (float)c.b / 255.0f;
 
-    for (int16_t y = ymin; y <= ymax && y < (int16_t)screen->rows_visible; y++) {
+    for (int16_t y = ymin; y <= ymax && y < (int16_t)screen->rows_visible; y++)
+    {
         if (y < 0)
             continue;
         int16_t xstart, xend;
@@ -467,7 +490,8 @@ render_one_placement(ghostcon_gles_t *gles, const ghostcon_kitty_graphics_t *kg,
         return;
 
     float src_x = 0.0f, src_y = 0.0f, src_w = 0.0f, src_h = 0.0f;
-    if (p->crop_w > 0 && p->crop_h > 0) {
+    if (p->crop_w > 0 && p->crop_h > 0)
+    {
         src_x = (float)p->crop_x;
         src_y = (float)p->crop_y;
         src_w = (float)p->crop_w;
@@ -477,7 +501,8 @@ render_one_placement(ghostcon_gles_t *gles, const ghostcon_kitty_graphics_t *kg,
     float natural_w = src_w > 0.0f ? src_w : (float)img->width;
     float natural_h = src_h > 0.0f ? src_h : (float)img->height;
     float draw_w = natural_w, draw_h = natural_h;
-    if (p->cell_cols > 0 && p->cell_rows > 0) {
+    if (p->cell_cols > 0 && p->cell_rows > 0)
+    {
         draw_w = (float)(p->cell_cols * cell_w);
         draw_h = (float)(p->cell_rows * cell_h);
     }
@@ -527,7 +552,8 @@ ghostcon_machine_render_images(ghostcon_screen_t *screen,
     const ghostcon_kitty_graphics_t *kg = ghostcon_screen_active_kitty_graphics(screen);
     const ghostcon_kitty_placement_t *sorted[GHOSTCON_KITTY_MAX_PLACEMENTS];
     int count = 0;
-    for (int i = 0; i < GHOSTCON_KITTY_MAX_PLACEMENTS; i++) {
+    for (int i = 0; i < GHOSTCON_KITTY_MAX_PLACEMENTS; i++)
+    {
         if (kg->placements[i].in_use)
             sorted[count++] = &kg->placements[i];
     }
@@ -543,7 +569,8 @@ ghostcon_machine_render_images(ghostcon_screen_t *screen,
      * image was just stamped into.
      */
     const ghostcon_sixel_state_t *sx = ghostcon_screen_active_sixel_state(screen);
-    for (int i = 0; i < GHOSTCON_SIXEL_MAX_PLACEMENTS; i++) {
+    for (int i = 0; i < GHOSTCON_SIXEL_MAX_PLACEMENTS; i++)
+    {
         const ghostcon_sixel_placement_t *p = &sx->placements[i];
         if (!p->in_use)
             continue;

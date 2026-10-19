@@ -50,23 +50,27 @@ read_whole_file(const char *path, size_t *out_len)
     FILE *f = fopen(path, "rb");
     if (!f)
         return NULL;
-    if (fseek(f, 0, SEEK_END) != 0) {
+    if (fseek(f, 0, SEEK_END) != 0)
+    {
         fclose(f);
         return NULL;
     }
     long len = ftell(f);
-    if (len < 0 || fseek(f, 0, SEEK_SET) != 0) {
+    if (len < 0 || fseek(f, 0, SEEK_SET) != 0)
+    {
         fclose(f);
         return NULL;
     }
     uint8_t *buf = malloc((size_t)len > 0 ? (size_t)len : 1);
-    if (!buf) {
+    if (!buf)
+    {
         fclose(f);
         return NULL;
     }
     size_t n = fread(buf, 1, (size_t)len, f);
     fclose(f);
-    if (n != (size_t)len) {
+    if (n != (size_t)len)
+    {
         free(buf);
         return NULL;
     }
@@ -87,14 +91,16 @@ ghostcon_cursor_load_bmp(const char *path, uint32_t *out_w, uint32_t *out_h)
     if (!buf)
         return NULL;
 
-    if (len < BMP_FILE_HEADER_SIZE + BMP_DIB_HEADER_SIZE || buf[0] != 'B' || buf[1] != 'M') {
+    if (len < BMP_FILE_HEADER_SIZE + BMP_DIB_HEADER_SIZE || buf[0] != 'B' || buf[1] != 'M')
+    {
         free(buf);
         return NULL;
     }
 
     uint32_t pixel_offset = rd_u32le(buf + 10);
     uint32_t dib_size = rd_u32le(buf + 14);
-    if (dib_size < BMP_DIB_HEADER_SIZE) {
+    if (dib_size < BMP_DIB_HEADER_SIZE)
+    {
         free(buf); /* OS/2 or other pre-Windows-3.0 header variant -- not supported */
         return NULL;
     }
@@ -109,33 +115,38 @@ ghostcon_cursor_load_bmp(const char *path, uint32_t *out_w, uint32_t *out_h)
     int32_t height = top_down ? -height_field : height_field;
 
     if (planes != 1 || compression != 0 /* BI_RGB */ || (bpp != 24 && bpp != 32) ||
-        width <= 0 || height <= 0) {
+        width <= 0 || height <= 0)
+    {
         free(buf);
         return NULL;
     }
 
     uint32_t row_size = (((uint32_t)bpp * (uint32_t)width + 31) / 32) * 4;
     size_t need = (size_t)pixel_offset + (size_t)row_size * (size_t)height;
-    if (need > len) {
+    if (need > len)
+    {
         free(buf);
         return NULL;
     }
 
     uint32_t w = (uint32_t)width, h = (uint32_t)height;
     uint32_t *pixels = malloc((size_t)w * h * sizeof(uint32_t));
-    if (!pixels) {
+    if (!pixels)
+    {
         free(buf);
         return NULL;
     }
 
-    for (uint32_t y = 0; y < h; y++) {
+    for (uint32_t y = 0; y < h; y++)
+    {
         /* BMP's default (positive height field) storage is bottom-up;
          * normalize to top-down output regardless of source order.
          */
         uint32_t src_row = top_down ? y : (h - 1 - y);
         const uint8_t *row = buf + pixel_offset + (size_t)src_row * row_size;
         uint32_t *out_row = pixels + (size_t)y * w;
-        for (uint32_t x = 0; x < w; x++) {
+        for (uint32_t x = 0; x < w; x++)
+        {
             const uint8_t *px = row + (size_t)x * (bpp / 8);
             uint8_t b = px[0], g = px[1], r = px[2];
             uint8_t a = (bpp == 32) ? px[3] : 0xFF; /* 24-bit BMP has no alpha -- fully opaque */
@@ -183,10 +194,12 @@ ghostcon_cursor_write_bmp(const char *path, const uint32_t *pixels, uint32_t w, 
     wr_u32le(buf + 30, 0);  /* BI_RGB, uncompressed */
     wr_u32le(buf + 34, row_size * h);
 
-    for (uint32_t y = 0; y < h; y++) {
+    for (uint32_t y = 0; y < h; y++)
+    {
         uint8_t *row = buf + pixel_offset + (size_t)y * row_size;
         const uint32_t *in_row = pixels + (size_t)y * w;
-        for (uint32_t x = 0; x < w; x++) {
+        for (uint32_t x = 0; x < w; x++)
+        {
             uint32_t px = in_row[x];
             row[x * 4 + 0] = (uint8_t)(px & 0xff);         /* B */
             row[x * 4 + 1] = (uint8_t)((px >> 8) & 0xff);  /* G */
@@ -196,7 +209,8 @@ ghostcon_cursor_write_bmp(const char *path, const uint32_t *pixels, uint32_t w, 
     }
 
     FILE *f = fopen(path, "wb");
-    if (!f) {
+    if (!f)
+    {
         free(buf);
         return false;
     }
@@ -252,14 +266,16 @@ decode_xcursor_buf(const uint8_t *buf, size_t len,
     uint32_t best_position = 0;
     bool found = false;
     size_t toc_off = header_size;
-    for (uint32_t i = 0; i < ntoc; i++) {
+    for (uint32_t i = 0; i < ntoc; i++)
+    {
         size_t entry_off = toc_off + (size_t)i * XCURSOR_TOC_ENTRY_SIZE;
         if (entry_off + XCURSOR_TOC_ENTRY_SIZE > len)
             break;
         uint32_t type = rd_u32le(buf + entry_off);
         uint32_t subtype = rd_u32le(buf + entry_off + 4);
         uint32_t position = rd_u32le(buf + entry_off + 8);
-        if (type == XCURSOR_IMAGE_TYPE && (!found || subtype > best_subtype)) {
+        if (type == XCURSOR_IMAGE_TYPE && (!found || subtype > best_subtype))
+        {
             best_subtype = subtype;
             best_position = position;
             found = true;
@@ -316,7 +332,8 @@ ghostcon_cursor_load_xcursor(const char *theme_dir, const char *name,
     snprintf(path, sizeof(path), "%s/%s", theme_dir, name);
     size_t len;
     uint8_t *buf = read_whole_file(path, &len);
-    if (!buf) {
+    if (!buf)
+    {
         snprintf(path, sizeof(path), "%s/cursors/%s", theme_dir, name);
         buf = read_whole_file(path, &len);
         if (!buf)
@@ -338,8 +355,10 @@ ghostcon_cursor_crop_to_content(const uint32_t *src, uint32_t src_w, uint32_t sr
 
     uint32_t min_x = src_w, max_x = 0, min_y = src_h, max_y = 0;
     bool any = false;
-    for (uint32_t y = 0; y < src_h; y++) {
-        for (uint32_t x = 0; x < src_w; x++) {
+    for (uint32_t y = 0; y < src_h; y++)
+    {
+        for (uint32_t x = 0; x < src_w; x++)
+        {
             if ((src[y * src_w + x] >> 24) == 0) /* fully transparent */
                 continue;
             any = true;
@@ -395,11 +414,13 @@ ghostcon_cursor_scale(const uint32_t *src, uint32_t src_w, uint32_t src_h,
     uint32_t step_x = (src_w << 16) / dst_w;
     uint32_t step_y = (src_h << 16) / dst_h;
 
-    for (uint32_t dy = 0; dy < dst_h; dy++) {
+    for (uint32_t dy = 0; dy < dst_h; dy++)
+    {
         uint32_t sy = (dy * step_y) >> 16;
         if (sy >= src_h)
             sy = src_h - 1;
-        for (uint32_t dx = 0; dx < dst_w; dx++) {
+        for (uint32_t dx = 0; dx < dst_w; dx++)
+        {
             uint32_t sx = (dx * step_x) >> 16;
             if (sx >= src_w)
                 sx = src_w - 1;

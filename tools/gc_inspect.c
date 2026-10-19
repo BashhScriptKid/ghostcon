@@ -44,7 +44,8 @@
 static const char *
 tag_name(ghostcon_cell_content_tag_t tag)
 {
-    switch (tag) {
+    switch (tag)
+    {
     case GHOSTCON_CELL_CODEPOINT:          return "codepoint";
     case GHOSTCON_CELL_CODEPOINT_GRAPHEME: return "grapheme";
     case GHOSTCON_CELL_BG_COLOR_PALETTE:   return "bg_palette";
@@ -56,7 +57,8 @@ tag_name(ghostcon_cell_content_tag_t tag)
 static const char *
 wide_name(ghostcon_cell_wide_t wide)
 {
-    switch (wide) {
+    switch (wide)
+    {
     case GHOSTCON_CELL_WIDE_NARROW:      return "narrow";
     case GHOSTCON_CELL_WIDE_WIDE:        return "wide";
     case GHOSTCON_CELL_WIDE_SPACER_TAIL: return "spacer_tail";
@@ -68,7 +70,8 @@ wide_name(ghostcon_cell_wide_t wide)
 static const char *
 semantic_name(ghostcon_cell_semantic_t sem)
 {
-    switch (sem) {
+    switch (sem)
+    {
     case GHOSTCON_CELL_SEMANTIC_OUTPUT: return "output";
     case GHOSTCON_CELL_SEMANTIC_INPUT:  return "input";
     case GHOSTCON_CELL_SEMANTIC_PROMPT: return "prompt";
@@ -79,7 +82,8 @@ semantic_name(ghostcon_cell_semantic_t sem)
 static const char *
 cursor_style_name(ghostcon_cursor_style_t style)
 {
-    switch (style) {
+    switch (style)
+    {
     case GC_CURSOR_DEFAULT:          return "default";
     case GC_CURSOR_BLOCK:            return "block";
     case GC_CURSOR_UNDERLINE:        return "underline";
@@ -98,7 +102,8 @@ cursor_style_name(ghostcon_cursor_style_t style)
 static void
 print_char_field(uint32_t cp)
 {
-    if (cp == 0 || cp < 0x20 || cp == 0x7F) {
+    if (cp == 0 || cp < 0x20 || cp == 0x7F)
+    {
         putchar('\'');
         if (cp == 0)
             putchar(' ');
@@ -109,16 +114,23 @@ print_char_field(uint32_t cp)
     }
 
     char buf[5] = {0};
-    if (cp < 0x80) {
+    if (cp < 0x80)
+    {
         buf[0] = (char)cp;
-    } else if (cp < 0x800) {
+    }
+    else if (cp < 0x800)
+    {
         buf[0] = (char)(0xC0 | (cp >> 6));
         buf[1] = (char)(0x80 | (cp & 0x3F));
-    } else if (cp < 0x10000) {
+    }
+    else if (cp < 0x10000)
+    {
         buf[0] = (char)(0xE0 | (cp >> 12));
         buf[1] = (char)(0x80 | ((cp >> 6) & 0x3F));
         buf[2] = (char)(0x80 | (cp & 0x3F));
-    } else {
+    }
+    else
+    {
         buf[0] = (char)(0xF0 | (cp >> 18));
         buf[1] = (char)(0x80 | ((cp >> 12) & 0x3F));
         buf[2] = (char)(0x80 | ((cp >> 6) & 0x3F));
@@ -158,12 +170,14 @@ dump_cells(ghostcon_screen_t *s)
 
     printf("cwd: \"%s\"\n", s->cwd);
 
-    for (uint16_t y = 0; y < s->rows_visible; y++) {
+    for (uint16_t y = 0; y < s->rows_visible; y++)
+    {
         ghostcon_row_t *row = ghostcon_screen_row(s, y);
         if (!row)
             continue;
 
-        for (uint16_t x = 0; x < row->cols; x++) {
+        for (uint16_t x = 0; x < row->cols; x++)
+        {
             ghostcon_cell_t c = row->cells[x];
             ghostcon_cell_content_tag_t tag = ghostcon_cell_get_tag(c);
 
@@ -177,9 +191,12 @@ dump_cells(ghostcon_screen_t *s)
             /* The content tag's own payload -- the field the old dump paths
              * omitted, and the whole reason this tool exists.
              */
-            if (tag == GHOSTCON_CELL_BG_COLOR_PALETTE) {
+            if (tag == GHOSTCON_CELL_BG_COLOR_PALETTE)
+            {
                 printf(" content=PALETTE:%u", ghostcon_cell_get_palette_idx(c));
-            } else if (tag == GHOSTCON_CELL_BG_COLOR_RGB) {
+            }
+            else if (tag == GHOSTCON_CELL_BG_COLOR_RGB)
+            {
                 ghostcon_rgb_t rgb = ghostcon_cell_get_rgb(c);
                 printf(" content=RGB:#%02x%02x%02x", rgb.r, rgb.g, rgb.b);
             }
@@ -204,7 +221,8 @@ static bool
 feed_file(ghostcon_term_t *term, const char *path)
 {
     FILE *f = strcmp(path, "-") == 0 ? stdin : fopen(path, "rb");
-    if (!f) {
+    if (!f)
+    {
         fprintf(stderr, "gc-inspect: %s: %s\n", path, strerror(errno));
         return false;
     }
@@ -237,36 +255,53 @@ main(int argc, char **argv)
     int offset = 0;
     const char *path = NULL;
 
-    for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--dump-cells") == 0) {
+    for (int i = 1; i < argc; i++)
+    {
+        if (strcmp(argv[i], "--dump-cells") == 0)
+        {
             continue; /* default (and only) output mode */
-        } else if (strcmp(argv[i], "--cols") == 0 && i + 1 < argc) {
+        }
+        else if (strcmp(argv[i], "--cols") == 0 && i + 1 < argc)
+        {
             cols = (uint16_t)strtoul(argv[++i], NULL, 10);
-        } else if (strcmp(argv[i], "--rows") == 0 && i + 1 < argc) {
+        }
+        else if (strcmp(argv[i], "--rows") == 0 && i + 1 < argc)
+        {
             rows = (uint16_t)strtoul(argv[++i], NULL, 10);
-        } else if (strcmp(argv[i], "--scrollback") == 0 && i + 1 < argc) {
+        }
+        else if (strcmp(argv[i], "--scrollback") == 0 && i + 1 < argc)
+        {
             scrollback = (uint16_t)strtoul(argv[++i], NULL, 10);
-        } else if (strcmp(argv[i], "--offset") == 0 && i + 1 < argc) {
+        }
+        else if (strcmp(argv[i], "--offset") == 0 && i + 1 < argc)
+        {
             offset = (int)strtol(argv[++i], NULL, 10);
-        } else if (argv[i][0] == '-' && argv[i][1] != '\0') {
+        }
+        else if (argv[i][0] == '-' && argv[i][1] != '\0')
+        {
             usage(argv[0]);
             return 2;
-        } else {
+        }
+        else
+        {
             path = argv[i];
         }
     }
 
-    if (!path) {
+    if (!path)
+    {
         usage(argv[0]);
         return 2;
     }
-    if (cols == 0 || rows == 0) {
+    if (cols == 0 || rows == 0)
+    {
         fprintf(stderr, "gc-inspect: cols/rows must be > 0\n");
         return 2;
     }
 
     ghostcon_term_t term;
-    if (!ghostcon_term_init(&term, cols, rows, scrollback)) {
+    if (!ghostcon_term_init(&term, cols, rows, scrollback))
+    {
         fprintf(stderr, "gc-inspect: term_init failed\n");
         return 1;
     }
@@ -276,7 +311,8 @@ main(int argc, char **argv)
      * stream treats as "drop".
      */
     bool ok = feed_file(&term, path);
-    if (ok) {
+    if (ok)
+    {
         if (offset > 0)
             ghostcon_screen_scroll_view(&term.screen, offset);
         dump_cells(&term.screen);

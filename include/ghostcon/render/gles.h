@@ -30,7 +30,8 @@ struct ghostcon_sixel_state;
  * consumes.
  */
 
-typedef struct {
+typedef struct
+{
     float x, y;         /* screen-space pixel position, top-left origin */
     float u, v;
     float r, g, b, a;

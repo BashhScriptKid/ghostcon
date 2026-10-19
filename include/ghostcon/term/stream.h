@@ -7,7 +7,8 @@
 
 /* Stream state — ECMA-48 / DEC VT state machine */
 
-typedef enum {
+typedef enum
+{
     GC_STREAM_GROUND,
     GC_STREAM_ESC,
     GC_STREAM_ESC_INTERMEDIATE,

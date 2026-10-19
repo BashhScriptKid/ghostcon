@@ -12,7 +12,8 @@
  * the main API surface for ghostcon-core.
  */
 
-typedef struct {
+typedef struct
+{
     ghostcon_screen_t screen;
     ghostcon_stream_t stream;
     uint16_t cols, rows;
@@ -68,6 +69,7 @@ void ghostcon_term_set_notify(ghostcon_term_t *term,
 /* Accessors */
 
 static inline ghostcon_screen_t *
-ghostcon_term_screen(ghostcon_term_t *term) {
+ghostcon_term_screen(ghostcon_term_t *term)
+{
     return &term->screen;
 }

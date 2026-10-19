@@ -15,7 +15,8 @@
 #define GC_STYLE_DEFAULT_ID 0
 
 /* Bitfield flags for style attributes */
-typedef enum {
+typedef enum
+{
     GC_STYLE_BOLD              = (1 << 0),
     GC_STYLE_DIM               = (1 << 1),
     GC_STYLE_ITALIC            = (1 << 2),
@@ -33,7 +34,8 @@ typedef enum {
 } ghostcon_style_flag_t;
 
 /* Underline style (stored separately from flags) */
-typedef enum {
+typedef enum
+{
     GC_STYLE_UL_NONE,
     GC_STYLE_UL_SINGLE,
     GC_STYLE_UL_DOUBLE,
@@ -43,7 +45,8 @@ typedef enum {
 } ghostcon_style_underline_t;
 
 /* Full style descriptor */
-typedef struct {
+typedef struct
+{
     uint16_t           flags;             /* bitmask of ghostcon_style_flag_t */
     uint8_t            fg_palette;        /* foreground palette index (0-255) */
     uint8_t            bg_palette;        /* background palette index (0-255) */
@@ -57,7 +60,8 @@ typedef struct {
 /* Default style constant — empty, fg=default, bg=default */
 extern const ghostcon_style_t GHOSTCON_STYLE_DEFAULT;
 
-static inline bool ghostcon_style_eq(const ghostcon_style_t *a, const ghostcon_style_t *b) {
+static inline bool ghostcon_style_eq(const ghostcon_style_t *a, const ghostcon_style_t *b)
+{
     return a->flags == b->flags &&
            a->fg_palette == b->fg_palette &&
            a->bg_palette == b->bg_palette &&

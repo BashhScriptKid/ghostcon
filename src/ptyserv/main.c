@@ -31,7 +31,8 @@
 
 #define MAX_VTS 64
 
-typedef struct {
+typedef struct
+{
     int vtnum;
     pid_t pid;
     char socket_path[GHOSTCON_PTYSERV_LINE_MAX];
@@ -62,14 +63,16 @@ resolve_sibling_path(char *out, size_t out_len, const char *name)
 {
     char self_path[4096];
     ssize_t n = readlink("/proc/self/exe", self_path, sizeof(self_path) - 1);
-    if (n <= 0) {
+    if (n <= 0)
+    {
         snprintf(out, out_len, "%s", name);
         return;
     }
     self_path[n] = '\0';
 
     char *slash = strrchr(self_path, '/');
-    if (!slash) {
+    if (!slash)
+    {
         snprintf(out, out_len, "%s", name);
         return;
     }
@@ -152,7 +155,8 @@ write_pid_file(const char *path, pid_t pid)
 static vt_entry_t *
 find_vt(int vtnum)
 {
-    for (int i = 0; i < g_nvts; i++) {
+    for (int i = 0; i < g_nvts; i++)
+    {
         if (g_vts[i].vtnum == vtnum)
             return &g_vts[i];
     }
@@ -180,7 +184,8 @@ spawn_pty_child(int vtnum)
      * behind a socket the registry no longer points to.
      */
     pid_t existing = read_live_pid_file(pid_path);
-    if (existing > 0) {
+    if (existing > 0)
+    {
         e->pid = existing;
         g_nvts++;
         return true;
@@ -188,11 +193,13 @@ spawn_pty_child(int vtnum)
     unlink(pid_path); /* stale (dead pid, or pid recycled) -- clear it before spawning fresh */
 
     pid_t pid = fork();
-    if (pid < 0) {
+    if (pid < 0)
+    {
         perror("fork");
         return false;
     }
-    if (pid == 0) {
+    if (pid == 0)
+    {
         char vtnum_str[16];
         snprintf(vtnum_str, sizeof(vtnum_str), "%d", vtnum);
         execlp(g_pty_child_path, g_pty_child_path, vtnum_str, e->socket_path,
@@ -221,11 +228,13 @@ listen_unix(const char *path)
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
 
-    if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+    {
         close(fd);
         return -1;
     }
-    if (listen(fd, 16) < 0) {
+    if (listen(fd, 16) < 0)
+    {
         close(fd);
         return -1;
     }
@@ -237,7 +246,8 @@ handle_client(int client_fd)
 {
     char line[GHOSTCON_PTYSERV_LINE_MAX];
     ssize_t r = read(client_fd, line, sizeof(line) - 1);
-    if (r <= 0) {
+    if (r <= 0)
+    {
         close(client_fd);
         return;
     }
@@ -247,14 +257,20 @@ handle_client(int client_fd)
     char reply[GHOSTCON_PTYSERV_LINE_MAX];
     size_t reply_len;
 
-    if (!ghostcon_ptyserv_parse_get(line, &vtnum)) {
+    if (!ghostcon_ptyserv_parse_get(line, &vtnum))
+    {
         reply_len = (size_t)snprintf(reply, sizeof(reply), "ERR bad request\n");
-    } else {
+    }
+    else
+    {
         vt_entry_t *e = find_vt(vtnum);
-        if (!e) {
+        if (!e)
+        {
             reply_len = (size_t)snprintf(reply, sizeof(reply),
                                           "ERR unknown vt %d\n", vtnum);
-        } else {
+        }
+        else
+        {
             reply_len = ghostcon_ptyserv_format_ok(reply, sizeof(reply),
                                                     (int)e->pid, e->socket_path);
         }
@@ -268,7 +284,8 @@ handle_client(int client_fd)
 int
 main(int argc, char **argv)
 {
-    if (argc < 3) {
+    if (argc < 3)
+    {
         fprintf(stderr, "usage: %s <registry_socket_path> <vtnum> [vtnum...]\n",
                 argv[0]);
         return 2;
@@ -282,9 +299,12 @@ main(int argc, char **argv)
     strncpy(g_registry_dir, dirname(dir_buf), sizeof(g_registry_dir) - 1);
 
     const char *env_pty_child = getenv("GHOSTCON_PTY_CHILD_BIN");
-    if (env_pty_child && *env_pty_child) {
+    if (env_pty_child && *env_pty_child)
+    {
         g_pty_child_path = env_pty_child;
-    } else {
+    }
+    else
+    {
         resolve_sibling_path(g_pty_child_path_buf, sizeof(g_pty_child_path_buf), "pty-ttyN");
         g_pty_child_path = g_pty_child_path_buf;
     }
@@ -302,9 +322,11 @@ main(int argc, char **argv)
 
     signal(SIGPIPE, SIG_IGN);
 
-    for (int i = 2; i < argc && g_nvts < MAX_VTS; i++) {
+    for (int i = 2; i < argc && g_nvts < MAX_VTS; i++)
+    {
         int vtnum = atoi(argv[i]);
-        if (!spawn_pty_child(vtnum)) {
+        if (!spawn_pty_child(vtnum))
+        {
             fprintf(stderr, "ghost-ptyserv: failed to spawn pty child for vt %d\n",
                     vtnum);
             return 1;
@@ -312,15 +334,18 @@ main(int argc, char **argv)
     }
 
     int listen_fd = listen_unix(registry_socket);
-    if (listen_fd < 0) {
+    if (listen_fd < 0)
+    {
         fprintf(stderr, "ghost-ptyserv: failed to listen on %s: %s\n",
                 registry_socket, strerror(errno));
         return 1;
     }
 
-    for (;;) {
+    for (;;)
+    {
         int client_fd = accept(listen_fd, NULL, NULL);
-        if (client_fd < 0) {
+        if (client_fd < 0)
+        {
             if (errno == EINTR)
                 continue;
             break;

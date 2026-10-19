@@ -17,7 +17,8 @@ static void
 check_encode(const char *name, const char *out, size_t n,
              const char *expected, size_t expected_len)
 {
-    if (n != expected_len || memcmp(out, expected, expected_len) != 0) {
+    if (n != expected_len || memcmp(out, expected, expected_len) != 0)
+    {
         fprintf(stderr, "FAIL: %s: got %zu bytes:", name, n);
         for (size_t i = 0; i < n; i++)
             fprintf(stderr, " %02x", (unsigned char)out[i]);
@@ -35,7 +36,8 @@ static void
 check_mapping(uint32_t evdev_code, GhosttyKey expected, const char *name)
 {
     GhosttyKey got = ghostcon_input_evdev_to_ghostty_key(evdev_code);
-    if (got != expected) {
+    if (got != expected)
+    {
         fprintf(stderr, "FAIL: mapping %s: got %d, expected %d\n", name, got, expected);
         failures++;
         return;
@@ -52,7 +54,8 @@ main(void)
     check_mapping(0xFFFF, GHOSTTY_KEY_UNIDENTIFIED, "unknown code");
 
     GhosttyKeyEncoder enc;
-    if (ghostty_key_encoder_new(NULL, &enc) != GHOSTTY_SUCCESS) {
+    if (ghostty_key_encoder_new(NULL, &enc) != GHOSTTY_SUCCESS)
+    {
         fprintf(stderr, "FAIL: ghostty_key_encoder_new\n");
         return 1;
     }
@@ -125,7 +128,8 @@ main(void)
         else { fprintf(stderr, "FAIL: parse_keybinding: two key tokens rejected\n"); failures++; }
     }
 
-    if (failures > 0) {
+    if (failures > 0)
+    {
         fprintf(stderr, "%d test(s) failed\n", failures);
         return 1;
     }

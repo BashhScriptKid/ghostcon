@@ -50,7 +50,8 @@ gc_log_domain_matches(const char *spec, const char *domain)
         return 0;
     size_t dlen = strlen(domain);
     const char *p = spec;
-    for (;;) {
+    for (;;)
+    {
         const char *tok = p;
         while (*p && *p != ',')
             p++;

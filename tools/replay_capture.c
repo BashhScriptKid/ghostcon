@@ -30,8 +30,12 @@ static void
 row_to_text(ghostcon_screen_t *screen, uint16_t y, char *out, uint16_t cols)
 {
     ghostcon_row_t *row = ghostcon_screen_row(screen, y);
-    for (uint16_t x = 0; x < cols; x++) {
-        if (!row) { out[x] = '?'; continue; }
+    for (uint16_t x = 0; x < cols; x++)
+    {
+        if (!row)
+        {
+            out[x] = '?'; continue;
+        }
         ghostcon_cell_t cell = row->cells[x];
         uint32_t cp = ghostcon_cell_get_codepoint(cell);
         out[x] = (cp >= 32 && cp < 127) ? (char)cp : (cp == 0 ? ' ' : '#');
@@ -42,7 +46,8 @@ row_to_text(ghostcon_screen_t *screen, uint16_t y, char *out, uint16_t cols)
 int
 main(int argc, char **argv)
 {
-    if (argc < 2) {
+    if (argc < 2)
+    {
         fprintf(stderr, "usage: %s <capture_file> [cols] [rows]\n", argv[0]);
         return 1;
     }
@@ -52,12 +57,16 @@ main(int argc, char **argv)
     if (read_chunk <= 0) read_chunk = READ_CHUNK;
 
     FILE *f = fopen(argv[1], "rb");
-    if (!f) { perror("fopen"); return 1; }
+    if (!f)
+    {
+        perror("fopen"); return 1;
+    }
     fseek(f, 0, SEEK_END);
     long fsize = ftell(f);
     fseek(f, 0, SEEK_SET);
     uint8_t *data = malloc((size_t)fsize);
-    if (fread(data, 1, (size_t)fsize, f) != (size_t)fsize) {
+    if (fread(data, 1, (size_t)fsize, f) != (size_t)fsize)
+    {
         fprintf(stderr, "FAIL: short read\n");
         return 1;
     }
@@ -65,7 +74,8 @@ main(int argc, char **argv)
     printf("replay_capture: %ld bytes, simulating %ux%u terminal\n", fsize, cols, rows);
 
     ghostcon_term_t term;
-    if (!ghostcon_term_init(&term, cols, rows, 2000)) {
+    if (!ghostcon_term_init(&term, cols, rows, 2000))
+    {
         fprintf(stderr, "FAIL: term_init\n");
         return 1;
     }
@@ -74,7 +84,8 @@ main(int argc, char **argv)
      * per row, updated only for rows the dirty region covers.
      */
     char **dirty_view = malloc(rows * sizeof(char *));
-    for (uint16_t y = 0; y < rows; y++) {
+    for (uint16_t y = 0; y < rows; y++)
+    {
         dirty_view[y] = malloc((size_t)cols + 1);
         memset(dirty_view[y], ' ', cols);
         dirty_view[y][cols] = '\0';
@@ -85,14 +96,17 @@ main(int argc, char **argv)
     int chunk_idx = 0;
     int first_mismatch_chunk = -1;
 
-    while (off < fsize) {
+    while (off < fsize)
+    {
         long n = fsize - off;
         if (n > read_chunk) n = read_chunk;
         ghostcon_term_feed(&term, data + off, (size_t)n);
 
         ghostcon_dirty_region_t dirty = ghostcon_screen_get_dirty(&term.screen);
-        if (dirty.y_min >= 0) {
-            for (int16_t y = dirty.y_min; y <= dirty.y_max && y < (int16_t)rows; y++) {
+        if (dirty.y_min >= 0)
+        {
+            for (int16_t y = dirty.y_min; y <= dirty.y_max && y < (int16_t)rows; y++)
+            {
                 if (y < 0) continue;
                 row_to_text(&term.screen, (uint16_t)y, dirty_view[y], cols);
             }
@@ -130,9 +144,11 @@ main(int argc, char **argv)
      * the screen's true final content (unconditional read-back).
      */
     int mismatches = 0;
-    for (uint16_t y = 0; y < rows; y++) {
+    for (uint16_t y = 0; y < rows; y++)
+    {
         row_to_text(&term.screen, y, true_line, cols);
-        if (strcmp(dirty_view[y], true_line) != 0) {
+        if (strcmp(dirty_view[y], true_line) != 0)
+        {
             mismatches++;
             printf("\nMISMATCH row %u:\n", y);
             printf("  dirty-tracked view: [%s]\n", dirty_view[y]);
@@ -140,12 +156,15 @@ main(int argc, char **argv)
         }
     }
 
-    if (mismatches == 0) {
+    if (mismatches == 0)
+    {
         printf("\nNo mismatches -- dirty-tracked rendering matches true state for "
                "every row across all %d chunks. The bug (if reproduced by this "
                "capture at all) isn't a missing mark_dirty() call in screen.c's "
                "row-mutation paths.\n", chunk_idx);
-    } else {
+    }
+    else
+    {
         printf("\n%d row(s) would render stale under real dirty-tracked rendering "
                "-- this IS the bug, reproduced offline. Re-run with instrumentation "
                "around whichever screen.c function processes the byte range near "
@@ -165,13 +184,19 @@ main(int argc, char **argv)
     for (uint16_t y = 0; y < rows && y < 512; y++)
         row_to_text(&term.screen, y, lines[y], cols);
     int dup_found = 0;
-    for (uint16_t y = 0; y < rows; y++) {
+    for (uint16_t y = 0; y < rows; y++)
+    {
         /* Skip blank/whitespace-only rows -- not interesting. */
         bool blank = true;
-        for (uint16_t x = 0; x < cols; x++) if (lines[y][x] != ' ') { blank = false; break; }
+        for (uint16_t x = 0; x < cols; x++) if (lines[y][x] != ' ')
+        {
+            blank = false; break;
+        }
         if (blank) continue;
-        for (uint16_t dy = 1; dy <= 3 && y + dy < rows; dy++) {
-            if (strcmp(lines[y], lines[y + dy]) == 0) {
+        for (uint16_t dy = 1; dy <= 3 && y + dy < rows; dy++)
+        {
+            if (strcmp(lines[y], lines[y + dy]) == 0)
+            {
                 printf("DUPLICATE: row %u and row %u are identical:\n  [%s]\n",
                        y, y + dy, lines[y]);
                 dup_found++;

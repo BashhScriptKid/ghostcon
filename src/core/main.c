@@ -81,7 +81,8 @@
 #define POLL_INTERVAL_MS 1000 /* canary heartbeat cadence when otherwise idle */
 #define SYNC_OUTPUT_TIMEOUT_MS 200.0 /* safety net -- see render gate's doc comment on mode 2026 */
 
-typedef struct {
+typedef struct
+{
     int vt_num;
     const char *drm_node;
     int canary_fd;
@@ -269,10 +270,13 @@ apply_keybindings(app_t *app)
     GhosttyMods copy_mods, paste_mods;
     uint32_t copy_evdev, paste_evdev;
     if (ghostcon_parse_keybinding(app->copy_to_clipboard_binding, &copy_mods, &copy_evdev) &&
-        ghostcon_parse_keybinding(app->paste_from_clipboard_binding, &paste_mods, &paste_evdev)) {
+        ghostcon_parse_keybinding(app->paste_from_clipboard_binding, &paste_mods, &paste_evdev))
+    {
         ghostcon_input_set_clipboard_bindings(app->input, copy_mods, copy_evdev,
                                                paste_mods, paste_evdev);
-    } else {
+    }
+    else
+    {
         fprintf(stderr, "ghostcon-core: invalid [keybindings] entry -- keeping previous bindings\n");
     }
 }
@@ -320,7 +324,8 @@ apply_theme_config(app_t *app)
         ghostcon_palette_set_default_fg(pal, rgb);
     if (app->color_cursor[0] && ghostcon_color_parse_spec(app->color_cursor, &rgb))
         ghostcon_palette_set_cursor(pal, rgb);
-    for (int i = 0; i < 16; i++) {
+    for (int i = 0; i < 16; i++)
+    {
         if (app->color[i][0] && ghostcon_color_parse_spec(app->color[i], &rgb))
             ghostcon_palette_set(pal, i, rgb);
     }
@@ -410,7 +415,8 @@ acquire_display(app_t *app)
      */
     uint32_t width = 0, height = 0;
     GC_LOG(vt, "acquire request");
-    if (!ghostcon_display_acquire(app->disp, app->cell_h, app->atlas, &width, &height)) {
+    if (!ghostcon_display_acquire(app->disp, app->cell_h, app->atlas, &width, &height))
+    {
         GC_LOG(vt, "acquire FAILED");
         return false;
     }
@@ -486,10 +492,12 @@ term_title_callback(void *userdata, const char *title)
      * either choice as acceptable as long as it's deliberate, and
      * truncation is the safe one.
      */
-    if (app->argv0 && app->argv0_len > 0) {
+    if (app->argv0 && app->argv0_len > 0)
+    {
         char full[256];
         int n = snprintf(full, sizeof(full), "ghostcon@tty%d -- %s", app->vt_num, title);
-        if (n > 0) {
+        if (n > 0)
+        {
             size_t copy_len = (size_t)n < app->argv0_len ? (size_t)n : app->argv0_len;
             memcpy(app->argv0, full, copy_len);
             memset(app->argv0 + copy_len, 0, app->argv0_len - copy_len);
@@ -568,7 +576,8 @@ apply_font_size(app_t *app, int new_size, bool force)
                                                           app->font_variant, app->antialiasing,
                                                           app->subpixel_order,
                                                           new_size, ATLAS_DIM);
-    if (!new_atlas) {
+    if (!new_atlas)
+    {
         fprintf(stderr, "ghostcon-core: font_size change to %d failed, keeping %d\n",
                 new_size, app->font_size);
         return false;
@@ -580,7 +589,8 @@ apply_font_size(app_t *app, int new_size, bool force)
     ghostcon_atlas_cell_size(app->atlas, &app->cell_w, &app->cell_h);
     ghostcon_stream_set_cell_size(&app->term.stream, app->cell_w, app->cell_h);
 
-    if (ghostcon_display_is_acquired(app->disp)) {
+    if (ghostcon_display_is_acquired(app->disp))
+    {
         uint16_t new_cols = (uint16_t)(ghostcon_display_width(app->disp) / (uint32_t)app->cell_w);
         uint16_t new_rows = (uint16_t)(ghostcon_display_height(app->disp) / (uint32_t)app->cell_h);
         if (!ghostcon_term_resize(&app->term, new_cols, new_rows))
@@ -622,7 +632,8 @@ static bool
 apply_config_reload(app_t *app)
 {
     ghostcon_config_t new_cfg;
-    if (!ghostcon_config_load(app->config_path, &new_cfg)) {
+    if (!ghostcon_config_load(app->config_path, &new_cfg))
+    {
         fprintf(stderr, "ghostcon-core: %s changed but failed to parse -- keeping previous values\n",
                 app->config_path);
         return false;
@@ -648,13 +659,15 @@ apply_config_reload(app_t *app)
     snprintf(app->subpixel_order, sizeof(app->subpixel_order), "%s", new_cfg.subpixel_order);
     bool need_render = apply_font_size(app, new_cfg.font_size, font_config_changed);
 
-    if (app->gamma_correct != new_cfg.gamma_correct) {
+    if (app->gamma_correct != new_cfg.gamma_correct)
+    {
         app->gamma_correct = new_cfg.gamma_correct;
         ghostcon_display_set_gamma_correct(app->disp, app->gamma_correct);
         need_render = true;
     }
 
-    if (app->ligatures != new_cfg.ligatures) {
+    if (app->ligatures != new_cfg.ligatures)
+    {
         app->ligatures = new_cfg.ligatures;
         need_render = true;
     }
@@ -672,7 +685,8 @@ apply_config_reload(app_t *app)
     snprintf(app->color_cursor, sizeof(app->color_cursor), "%s", new_cfg.color_cursor);
     for (int i = 0; i < 16; i++)
         snprintf(app->color[i], sizeof(app->color[i]), "%s", new_cfg.color[i]);
-    if (theme_changed) {
+    if (theme_changed)
+    {
         apply_theme_config(app);
         need_render = true;
     }
@@ -725,7 +739,8 @@ apply_config_reload(app_t *app)
 int
 main(int argc, char **argv)
 {
-    if (argc < 2) {
+    if (argc < 2)
+    {
         fprintf(stderr, "usage: %s <vtnum> [drm_node] [registry_socket]\n", argv[0]);
         return 2;
     }
@@ -833,7 +848,8 @@ main(int argc, char **argv)
     ghostcon_diag_init("ghostcon-core", app.vt_num);
 
     app.vt = ghostcon_vtctl_open(app.vt_num);
-    if (!app.vt) {
+    if (!app.vt)
+    {
         fprintf(stderr, "ghostcon-core: vtctl_open(%d) failed\n", app.vt_num);
         return 1;
     }
@@ -842,7 +858,8 @@ main(int argc, char **argv)
                                        app.font_variant, app.antialiasing,
                                        app.subpixel_order,
                                        app.font_size, ATLAS_DIM);
-    if (!app.atlas) {
+    if (!app.atlas)
+    {
         fprintf(stderr, "ghostcon-core: atlas_create failed\n");
         ghostcon_vtctl_close(app.vt);
         return 1;
@@ -850,7 +867,8 @@ main(int argc, char **argv)
     ghostcon_atlas_cell_size(app.atlas, &app.cell_w, &app.cell_h);
 
     app.disp = ghostcon_display_create(app.drm_node, app.vt_num, app.gamma_correct);
-    if (!app.disp) {
+    if (!app.disp)
+    {
         fprintf(stderr, "ghostcon-core: display_create failed\n");
         ghostcon_atlas_destroy(app.atlas);
         ghostcon_vtctl_close(app.vt);
@@ -858,8 +876,10 @@ main(int argc, char **argv)
     }
     push_cursor_config(&app); /* backend replays cursor sprites on each acquire */
 
-    if (ghostcon_vtctl_state(app.vt) == GC_VT_STATE_ACTIVE) {
-        if (!acquire_display(&app)) {
+    if (ghostcon_vtctl_state(app.vt) == GC_VT_STATE_ACTIVE)
+    {
+        if (!acquire_display(&app))
+        {
             fprintf(stderr, "ghostcon-core: initial display acquire failed\n");
             /* Not fatal — the VT may become active later via a real switch,
              * at which point the vtctl signal path retries.
@@ -875,13 +895,15 @@ main(int argc, char **argv)
      * this being provisional.
      */
     uint16_t cols = 80, rows = 24;
-    if (ghostcon_display_is_acquired(app.disp)) {
+    if (ghostcon_display_is_acquired(app.disp))
+    {
         cols = (uint16_t)(ghostcon_display_width(app.disp) / (uint32_t)app.cell_w);
         rows = (uint16_t)(ghostcon_display_height(app.disp) / (uint32_t)app.cell_h);
     }
     if (scrollback_lines > 65535)
         scrollback_lines = 65535; /* ghostcon_term_init()'s scrollback_cap is uint16_t */
-    if (!ghostcon_term_init(&app.term, cols, rows, (uint16_t)scrollback_lines)) {
+    if (!ghostcon_term_init(&app.term, cols, rows, (uint16_t)scrollback_lines))
+    {
         fprintf(stderr, "ghostcon-core: term_init failed\n");
         release_display(&app);
         ghostcon_atlas_destroy(app.atlas);
@@ -892,14 +914,16 @@ main(int argc, char **argv)
     ghostcon_stream_set_cell_size(&app.term.stream, app.cell_w, app.cell_h);
 
     bool transport_connected = false;
-    for (int i = 0; i < 50 && !transport_connected; i++) {
+    for (int i = 0; i < 50 && !transport_connected; i++)
+    {
         transport_connected = ghostcon_transport_connect(&app.transport, registry_socket, app.vt_num);
         if (!transport_connected)
             usleep(20000);
     }
     GC_LOG(pty, "connect to pty child for vt %d: %s",
             app.vt_num, transport_connected ? "ok" : "FAILED");
-    if (!transport_connected) {
+    if (!transport_connected)
+    {
         fprintf(stderr, "ghostcon-core: could not connect to pty child for vt %d\n", app.vt_num);
         ghostcon_term_deinit(&app.term);
         release_display(&app);
@@ -930,13 +954,15 @@ main(int argc, char **argv)
      */
 
     bool running = true;
-    while (running) {
+    while (running)
+    {
         struct pollfd fds[6];
         int nfds = 0;
         int vtctl_idx = nfds++;
         fds[vtctl_idx] = (struct pollfd){ .fd = ghostcon_vtctl_signal_fd(app.vt), .events = POLLIN };
         int config_watch_idx = -1;
-        if (app.config_watch_fd >= 0) {
+        if (app.config_watch_fd >= 0)
+        {
             config_watch_idx = nfds++;
             fds[config_watch_idx] = (struct pollfd){ .fd = app.config_watch_fd, .events = POLLIN };
         }
@@ -948,7 +974,8 @@ main(int argc, char **argv)
          * RESIZE going the other direction.
          */
         int ctl_idx = -1;
-        if (app.transport.ctl_fd >= 0) {
+        if (app.transport.ctl_fd >= 0)
+        {
             ctl_idx = nfds++;
             fds[ctl_idx] = (struct pollfd){ .fd = app.transport.ctl_fd, .events = POLLIN };
         }
@@ -970,7 +997,8 @@ main(int argc, char **argv)
          */
         int input_idx = -1;
         int repeat_idx = -1;
-        if (app.input) {
+        if (app.input)
+        {
             input_idx = nfds++;
             fds[input_idx] = (struct pollfd){ .fd = ghostcon_input_fd(app.input), .events = POLLIN };
             /* -1 when timerfd_create() failed at input_open() time --key
@@ -978,20 +1006,23 @@ main(int argc, char **argv)
              * to the ctl_fd/CLEAR path above.
              */
             int rfd = ghostcon_input_repeat_fd(app.input);
-            if (rfd >= 0) {
+            if (rfd >= 0)
+            {
                 repeat_idx = nfds++;
                 fds[repeat_idx] = (struct pollfd){ .fd = rfd, .events = POLLIN };
             }
         }
 
         int rv = poll(fds, (nfds_t)nfds, POLL_INTERVAL_MS);
-        if (rv < 0) {
+        if (rv < 0)
+        {
             if (errno == EINTR)
                 continue;
             break;
         }
 
-        if (app.canary_fd >= 0) {
+        if (app.canary_fd >= 0)
+        {
             uint8_t heartbeat = 1;
             ssize_t ignored = write(app.canary_fd, &heartbeat, 1);
             (void)ignored; /* best-effort — supervisor's poll() is what matters */
@@ -999,25 +1030,32 @@ main(int argc, char **argv)
 
         bool need_render = false;
 
-        if (config_watch_idx >= 0 && (fds[config_watch_idx].revents & POLLIN)) {
-            if (ghostcon_config_watch_check(app.config_watch_fd, app.config_path)) {
+        if (config_watch_idx >= 0 && (fds[config_watch_idx].revents & POLLIN))
+        {
+            if (ghostcon_config_watch_check(app.config_watch_fd, app.config_path))
+            {
                 GC_LOG(config, "config file change detected");
                 if (apply_config_reload(&app))
                     need_render = true;
             }
         }
 
-        if (fds[vtctl_idx].revents & POLLIN) {
+        if (fds[vtctl_idx].revents & POLLIN)
+        {
             ghostcon_vt_state_t before = ghostcon_vtctl_state(app.vt);
             ghostcon_vtctl_process_pending(app.vt, vtctl_pre_ack, &app);
             ghostcon_vt_state_t after = ghostcon_vtctl_state(app.vt);
             GC_LOG(vt, "vt state %d -> %d", (int)before, (int)after);
 
-            if (before != GC_VT_STATE_ACTIVE && after == GC_VT_STATE_ACTIVE) {
-                if (!acquire_display(&app)) {
+            if (before != GC_VT_STATE_ACTIVE && after == GC_VT_STATE_ACTIVE)
+            {
+                if (!acquire_display(&app))
+                {
                     GC_LOG(vt, "reacquire FAILED, retrying on next switch");
                     fprintf(stderr, "ghostcon-core: reacquire failed, will keep retrying on next switch\n");
-                } else {
+                }
+                else
+                {
                     /* The terminal grid was sized at startup from
                      * app.kms.width/height -- but if the VT wasn't already
                      * active at process start (the normal case: you switch
@@ -1040,7 +1078,8 @@ main(int argc, char **argv)
                     uint16_t new_rows = (uint16_t)(ghostcon_display_height(app.disp) / (uint32_t)app.cell_h);
                     GC_LOG(vt, "grid %ux%u (was %ux%u)",
                             new_cols, new_rows, app.term.cols, app.term.rows);
-                    if (new_cols != app.term.cols || new_rows != app.term.rows) {
+                    if (new_cols != app.term.cols || new_rows != app.term.rows)
+                    {
                         if (!ghostcon_term_resize(&app.term, new_cols, new_rows))
                             fprintf(stderr, "ghostcon-core: term_resize to %ux%u failed\n",
                                     new_cols, new_rows);
@@ -1084,12 +1123,15 @@ main(int argc, char **argv)
                     app.term.screen.dirty.y_max = (int16_t)(app.term.screen.rows_visible - 1);
                     need_render = true;
                 }
-            } else if (before == GC_VT_STATE_ACTIVE && after != GC_VT_STATE_ACTIVE) {
+            }
+            else if (before == GC_VT_STATE_ACTIVE && after != GC_VT_STATE_ACTIVE)
+            {
                 release_display(&app);
             }
         }
 
-        if (fds[transport_idx].revents & (POLLIN | POLLHUP | POLLERR)) {
+        if (fds[transport_idx].revents & (POLLIN | POLLHUP | POLLERR))
+        {
             /* Drain everything currently queued, not just one 4096-byte
              * read -- t->fd is nonblocking (see transport.c's connect), so
              * this loop costs nothing extra once the socket runs dry.
@@ -1104,10 +1146,12 @@ main(int argc, char **argv)
              */
             bool got_data = false;
             size_t total_drained = 0;
-            for (;;) {
+            for (;;)
+            {
                 uint8_t buf[65536];
                 ssize_t n = ghostcon_transport_read(&app.transport, buf, sizeof(buf));
-                if (n > 0) {
+                if (n > 0)
+                {
                     ghostcon_term_feed(&app.term, buf, (size_t)n);
                     got_data = true;
                     total_drained += (size_t)n;
@@ -1127,19 +1171,22 @@ main(int argc, char **argv)
                 running = false;
                 break;
             }
-            if (got_data) {
+            if (got_data)
+            {
                 GC_LOG(pty, "drained %zu bytes", total_drained);
                 need_render = true;
             }
         }
 
-        if (ctl_idx >= 0 && (fds[ctl_idx].revents & (POLLIN | POLLHUP | POLLERR))) {
+        if (ctl_idx >= 0 && (fds[ctl_idx].revents & (POLLIN | POLLHUP | POLLERR)))
+        {
             bool got_clear = false;
             ghostcon_transport_read_ctl(&app.transport, &got_clear);
             if (got_clear)
                 GC_LOG(pty, "CLEAR received, clear_on_logout=%d",
                         app.clear_on_logout ? 1 : 0);
-            if (got_clear && app.clear_on_logout) {
+            if (got_clear && app.clear_on_logout)
+            {
                 ghostcon_screen_erase_display(&app.term.screen, GC_ERASE_DISPLAY_ALL);
                 ghostcon_screen_erase_display(&app.term.screen, GC_ERASE_DISPLAY_SCROLLBACK);
                 app.term.screen.cursor.x = 0;
@@ -1148,7 +1195,8 @@ main(int argc, char **argv)
             }
         }
 
-        if (input_idx >= 0 && (fds[input_idx].revents & POLLIN)) {
+        if (input_idx >= 0 && (fds[input_idx].revents & POLLIN))
+        {
             ghostcon_input_sync_modes(app.input, &app.term.screen);
             int zoom_delta = 0;
             ghostcon_input_pointer_t pointer = {0};
@@ -1166,7 +1214,8 @@ main(int argc, char **argv)
              */
             if (pointer.moved)
                 GC_LOG(input, "pointer moved to (%d,%d)", pointer.x, pointer.y);
-            if (pointer.moved && ghostcon_display_is_acquired(app.disp)) {
+            if (pointer.moved && ghostcon_display_is_acquired(app.disp))
+            {
                 /* Hardware cursor movement is deliberately NOT folded into
                  * need_render/render_frame() -- see kms.h's own doc comment
                  * on ghostcon_kms_move_cursor() for why: the whole point of
@@ -1240,13 +1289,15 @@ main(int argc, char **argv)
              * apply_font_size already handles a failed rebuild gracefully
              * regardless, this is just to keep the common case sane).
              */
-            if (zoom_delta != 0) {
+            if (zoom_delta != 0)
+            {
                 int new_size = ghostcon_ui_compute_zoom(app.font_size, zoom_delta,
                                                          app.zoom_step,
                                                          ZOOM_MIN_FONT_SIZE,
                                                          ZOOM_MAX_FONT_SIZE);
                 int old_size = app.font_size;
-                if (apply_font_size(&app, new_size, false)) {
+                if (apply_font_size(&app, new_size, false))
+                {
                     GC_LOG(input, "zoom %d -> %d", old_size, app.font_size);
                     need_render = true;
                 }
@@ -1259,15 +1310,19 @@ main(int argc, char **argv)
              * action, one dump at a time, no need for the per-vtN
              * namespacing the ctl sockets use.
              */
-            if (dump_requested) {
+            if (dump_requested)
+            {
                 GC_LOG(input, "screen dump requested (Ctrl+Alt+D)");
                 app.screenshot_requested = true;
                 need_render = true;
                 FILE *df = fopen("/tmp/ghostcon-dump.txt", "w");
-                if (df) {
+                if (df)
+                {
                     ghostcon_screen_dump(df, &app.term.screen);
                     fclose(df);
-                } else {
+                }
+                else
+                {
                     fprintf(stderr, "ghostcon-core: dump requested but "
                                     "/tmp/ghostcon-dump.txt couldn't be opened: %s\n",
                             strerror(errno));
@@ -1280,7 +1335,8 @@ main(int argc, char **argv)
             }
         }
 
-        if (repeat_idx >= 0 && (fds[repeat_idx].revents & POLLIN)) {
+        if (repeat_idx >= 0 && (fds[repeat_idx].revents & POLLIN))
+        {
             if (!ghostcon_input_repeat_fire(app.input, &app.transport))
                 fprintf(stderr, "ghostcon-core: repeat-fire transport write error (continuing)\n");
         }
@@ -1288,7 +1344,8 @@ main(int argc, char **argv)
         if (need_render)
             app.render_deferred = true;
 
-        if (app.render_deferred && ghostcon_display_is_acquired(app.disp)) {
+        if (app.render_deferred && ghostcon_display_is_acquired(app.disp))
+        {
             /* Mode 2026 (Synchronized Output): an app mid-batch (cursor
              * moved, some cells rewritten, more still pending) wants us to
              * hold off presenting until it sends ?2026l -- otherwise a
@@ -1305,7 +1362,8 @@ main(int argc, char **argv)
              * notices the timeout has elapsed.
              */
             bool still_withholding = app.term.screen.synchronized_output;
-            if (still_withholding) {
+            if (still_withholding)
+            {
                 struct timespec now;
                 clock_gettime(CLOCK_MONOTONIC, &now);
                 double elapsed_ms =
@@ -1315,11 +1373,13 @@ main(int argc, char **argv)
                 GC_LOG(vt, "render withheld for sync-output batch (%.1f ms)", elapsed_ms);
             }
 
-            if (!still_withholding) {
+            if (!still_withholding)
+            {
                 app.render_deferred = false;
                 if (!ghostcon_display_render_frame(app.disp, &app.term.screen,
                                                     app.atlas, app.cell_w, app.cell_h,
-                                                    app.ligatures, app.screenshot_requested)) {
+                                                    app.ligatures, app.screenshot_requested))
+                {
                     GC_LOG(drm, "present failed, releasing display");
                     fprintf(stderr, "ghostcon-core: render_frame failed, releasing display\n");
                     release_display(&app);

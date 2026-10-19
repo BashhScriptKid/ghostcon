@@ -11,7 +11,10 @@
  * combining ranges, matching Ghostty for practical input.
  */
 
-typedef struct { uint32_t lo, hi; } gc_width_range_t;
+typedef struct
+{
+    uint32_t lo, hi;
+} gc_width_range_t;
 
 /* Combining / zero-width marks and controls (from Markus Kuhn). */
 static const gc_width_range_t gc_combining[] = {
@@ -95,20 +98,27 @@ static const gc_width_range_t gc_wide[] = {
 };
 
 uint8_t
-ghostcon_unicode_width(uint32_t cp) {
+ghostcon_unicode_width(uint32_t cp)
+{
     /* Control characters (excluding space) have no display width */
     if (cp == 0) return 0;
     if (cp < 0x20 || (cp >= 0x7F && cp < 0xA0)) return 0;
 
     /* Combining marks and zero-width characters */
     size_t lo = 0, hi = sizeof(gc_combining) / sizeof(gc_combining[0]);
-    while (lo < hi) {
+    while (lo < hi)
+    {
         size_t mid = (lo + hi) / 2;
-        if (cp < gc_combining[mid].lo) {
+        if (cp < gc_combining[mid].lo)
+        {
             hi = mid;
-        } else if (cp > gc_combining[mid].hi) {
+        }
+        else if (cp > gc_combining[mid].hi)
+        {
             lo = mid + 1;
-        } else {
+        }
+        else
+        {
             return 0;
         }
     }
@@ -116,13 +126,19 @@ ghostcon_unicode_width(uint32_t cp) {
     /* East Asian wide/fullwidth */
     lo = 0;
     hi = sizeof(gc_wide) / sizeof(gc_wide[0]);
-    while (lo < hi) {
+    while (lo < hi)
+    {
         size_t mid = (lo + hi) / 2;
-        if (cp < gc_wide[mid].lo) {
+        if (cp < gc_wide[mid].lo)
+        {
             hi = mid;
-        } else if (cp > gc_wide[mid].hi) {
+        }
+        else if (cp > gc_wide[mid].hi)
+        {
             lo = mid + 1;
-        } else {
+        }
+        else
+        {
             return 2;
         }
     }
@@ -147,21 +163,30 @@ ghostcon_unicode_width(uint32_t cp) {
  *   same fit-to-cell treatment in practice.
  */
 bool
-ghostcon_cell_is_symbol(uint32_t cp) {
-    if (cp >= 0x2500 && cp <= 0x259F) {
+ghostcon_cell_is_symbol(uint32_t cp)
+{
+    if (cp >= 0x2500 && cp <= 0x259F)
+    {
         return false;
     }
-    if (cp >= 0xE000 && cp <= 0xF8FF) {
+    if (cp >= 0xE000 && cp <= 0xF8FF)
+    {
         return true;
     }
     size_t lo = 0, hi = ghostcon_generated_symbol_ranges_count;
-    while (lo < hi) {
+    while (lo < hi)
+    {
         size_t mid = (lo + hi) / 2;
-        if (cp < ghostcon_generated_symbol_ranges[mid].lo) {
+        if (cp < ghostcon_generated_symbol_ranges[mid].lo)
+        {
             hi = mid;
-        } else if (cp > ghostcon_generated_symbol_ranges[mid].hi) {
+        }
+        else if (cp > ghostcon_generated_symbol_ranges[mid].hi)
+        {
             lo = mid + 1;
-        } else {
+        }
+        else
+        {
             return true;
         }
     }
@@ -169,7 +194,8 @@ ghostcon_cell_is_symbol(uint32_t cp) {
 }
 
 bool
-ghostcon_cell_is_graphics_element(uint32_t cp) {
+ghostcon_cell_is_graphics_element(uint32_t cp)
+{
     return (cp >= 0x1FB00 && cp <= 0x1FBFF) ||
            (cp >= 0x1CC00 && cp <= 0x1CEBF) ||
            (cp >= 0xE0B0 && cp <= 0xE0D7);

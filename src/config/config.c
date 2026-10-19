@@ -109,7 +109,8 @@ ghostcon_config_load(const char *path, ghostcon_config_t *cfg)
         return false; /* file exists but doesn't parse -- a real error */
 
     toml_table_t *general = toml_table_in(root, "general");
-    if (general) {
+    if (general)
+    {
         load_string(general, "drm_node",                 cfg->drm_node,               sizeof(cfg->drm_node)      );
         load_string(general, "run_dir",                  cfg->run_dir,                sizeof(cfg->run_dir)       );
         load_int   (general, "canary_deadline_ms",      &cfg->canary_deadline_ms                                 );
@@ -131,19 +132,22 @@ ghostcon_config_load(const char *path, ghostcon_config_t *cfg)
     }
 
     toml_table_t *colors = toml_table_in(root, "colors");
-    if (colors) {
+    if (colors)
+    {
         load_string(colors, "background", cfg->color_background, sizeof(cfg->color_background));
         load_string(colors, "foreground", cfg->color_foreground, sizeof(cfg->color_foreground));
         load_string(colors, "cursor",     cfg->color_cursor,     sizeof(cfg->color_cursor)    );
         char key[8];
-        for (int i = 0; i < 16; i++) {
+        for (int i = 0; i < 16; i++)
+        {
             snprintf(key, sizeof(key), "color%d", i);
             load_string(colors, key, cfg->color[i], sizeof(cfg->color[i]));
         }
     }
 
     toml_table_t *cursor = toml_table_in(root, "cursor");
-    if (cursor) {
+    if (cursor)
+    {
         load_string(cursor, "theme",                cfg->cursor_theme,              sizeof(cfg->cursor_theme)          );
         load_string(cursor, "default",              cfg->cursor_default_path,       sizeof(cfg->cursor_default_path)   );
         load_string(cursor, "link",                 cfg->cursor_link_path,          sizeof(cfg->cursor_link_path)      );
@@ -154,20 +158,23 @@ ghostcon_config_load(const char *path, ghostcon_config_t *cfg)
     }
 
     toml_table_t *keybindings = toml_table_in(root, "keybindings");
-    if (keybindings) {
+    if (keybindings)
+    {
         load_string(keybindings, "copy_to_clipboard",    cfg->copy_to_clipboard_binding,    sizeof(cfg->copy_to_clipboard_binding)   );
         load_string(keybindings, "paste_from_clipboard", cfg->paste_from_clipboard_binding, sizeof(cfg->paste_from_clipboard_binding));
     }
 
     toml_table_t *mouse = toml_table_in(root, "mouse");
-    if (mouse) {
+    if (mouse)
+    {
         load_bool  (mouse, "enable",       &cfg->mouse_enable      );
         load_double(mouse, "scroll_speed", &cfg->mouse_scroll_speed);
         load_double(mouse, "sensitivity",  &cfg->mouse_sensitivity );
     }
 
     toml_table_t *touchpad = toml_table_in(root, "touchpad");
-    if (touchpad) {
+    if (touchpad)
+    {
         load_bool  (touchpad, "enable",         &cfg->touchpad_enable        );
         load_double(touchpad, "scroll_speed",   &cfg->touchpad_scroll_speed  );
         load_bool  (touchpad, "tap_to_click",   &cfg->touchpad_tap_to_click  );
@@ -253,7 +260,8 @@ ghostcon_config_watch_open(const char *path)
      * this function's own header doc comment). IN_MODIFY is a cheap extra
      * safety net for tools that do neither.
      */
-    if (inotify_add_watch(fd, dir, IN_CLOSE_WRITE | IN_MOVED_TO | IN_MODIFY) < 0) {
+    if (inotify_add_watch(fd, dir, IN_CLOSE_WRITE | IN_MOVED_TO | IN_MODIFY) < 0)
+    {
         close(fd);
         return -1;
     }
@@ -270,17 +278,20 @@ ghostcon_config_watch_check(int inotify_fd, const char *path)
     /* Aligned so the buffer can be reinterpreted as a sequence of
      * variable-length struct inotify_event records, per inotify(7).
      */
-    union {
+    union
+    {
         char buf[4096];
         struct inotify_event align;
     } u;
 
-    for (;;) {
+    for (;;)
+    {
         ssize_t n = read(inotify_fd, u.buf, sizeof(u.buf));
         if (n <= 0)
             break; /* EAGAIN (nothing more pending) or a real error -- either way, done */
 
-        for (char *p = u.buf; p < u.buf + n; ) {
+        for (char *p = u.buf; p < u.buf + n; )
+        {
             struct inotify_event *ev = (struct inotify_event *)(void *)p;
             if (ev->len > 0 && strcmp(ev->name, base) == 0)
                 matched = true;

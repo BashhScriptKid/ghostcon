@@ -40,22 +40,28 @@ ghostcon_ui_update_selection(ghostcon_screen_t *screen,
     int16_t row = (int16_t)(pointer->y / cell_h);
     bool need_render = false;
 
-    if (pointer->left_pressed) {
+    if (pointer->left_pressed)
+    {
         ghostcon_selection_start(&screen->selection, col, row,
                                  GC_SEL_CHAR, screen->cols);
         need_render = true;
     }
-    if (pointer->moved && screen->selection.pending) {
+    if (pointer->moved && screen->selection.pending)
+    {
         ghostcon_selection_update(&screen->selection, col, row);
         need_render = true;
     }
-    if (pointer->left_released && screen->selection.pending) {
+    if (pointer->left_released && screen->selection.pending)
+    {
         ghostcon_selection_finish(&screen->selection);
         ghostcon_selection_t *sel = &screen->selection;
-        if (sel->x1 == sel->x2 && sel->y1 == sel->y2) {
+        if (sel->x1 == sel->x2 && sel->y1 == sel->y2)
+        {
             GC_LOG(selection, "release without drag -> cleared");
             ghostcon_selection_clear(sel);
-        } else {
+        }
+        else
+        {
             GC_LOG(selection, "finished (%d,%d)-(%d,%d)",
                     sel->x1, sel->y1, sel->x2, sel->y2);
         }
@@ -86,7 +92,8 @@ ghostcon_ui_extract_command_token(const char *title, char *out, size_t out_len)
 {
     if (!out || out_len == 0)
         return;
-    if (!title || !*title) {
+    if (!title || !*title)
+    {
         out[0] = '\0';
         return;
     }
@@ -94,7 +101,8 @@ ghostcon_ui_extract_command_token(const char *title, char *out, size_t out_len)
     size_t word_len = strcspn(title, " \t");
     const char *word_end = title + word_len;
     const char *slash = NULL;
-    for (const char *p = title; p < word_end; p++) {
+    for (const char *p = title; p < word_end; p++)
+    {
         if (*p == '/')
             slash = p;
     }
@@ -120,7 +128,8 @@ ghostcon_ui_build_comm_name(int vt_num, const char *token, char *out)
     int budget = 14 - prefix_len;
     size_t token_len = token ? strlen(token) : 0;
 
-    if (budget <= 0) {
+    if (budget <= 0)
+    {
         char combined[128];
         snprintf(combined, sizeof(combined), "%.*s%s", prefix_len, prefix, token ? token : "");
         size_t n = strlen(combined);
@@ -130,13 +139,15 @@ ghostcon_ui_build_comm_name(int vt_num, const char *token, char *out)
         return;
     }
 
-    if ((int)token_len <= budget) {
+    if ((int)token_len <= budget)
+    {
         snprintf(out, 16, "%.*s%s", prefix_len, prefix, token ? token : "");
         return;
     }
 
     int keep = budget - 3;
-    if (keep <= 0) {
+    if (keep <= 0)
+    {
         char combined[128];
         snprintf(combined, sizeof(combined), "%.*s%s", prefix_len, prefix, token ? token : "");
         size_t n = strlen(combined);

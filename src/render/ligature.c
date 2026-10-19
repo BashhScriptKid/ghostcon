@@ -15,14 +15,16 @@
 static const char ligature_trigger_chars[] = "!#$%&*+-./:<=>?@^|~";
 
 static bool
-is_ligature_trigger(uint32_t cp) {
+is_ligature_trigger(uint32_t cp)
+{
     if (cp == 0 || cp > 0x7F)
         return false;
     return memchr(ligature_trigger_chars, (int)cp, sizeof(ligature_trigger_chars) - 1) != NULL;
 }
 
 static uint32_t
-cell_codepoint_or_zero(ghostcon_cell_t cell) {
+cell_codepoint_or_zero(ghostcon_cell_t cell)
+{
     ghostcon_cell_content_tag_t tag = ghostcon_cell_get_tag(cell);
     return (tag == GHOSTCON_CELL_CODEPOINT || tag == GHOSTCON_CELL_CODEPOINT_GRAPHEME)
         ? ghostcon_cell_get_codepoint(cell) : 0;
@@ -35,9 +37,11 @@ ghostcon_ligature_scan_row(const ghostcon_row_t *row, ghostcon_atlas_t *atlas,
     int n_out = 0;
     uint16_t x = 0;
 
-    while (x < row->cols && n_out < max_glyphs) {
+    while (x < row->cols && n_out < max_glyphs)
+    {
         uint32_t cp = cell_codepoint_or_zero(row->cells[x]);
-        if (!is_ligature_trigger(cp)) {
+        if (!is_ligature_trigger(cp))
+        {
             x++;
             continue;
         }
@@ -47,7 +51,8 @@ ghostcon_ligature_scan_row(const ghostcon_row_t *row, ghostcon_atlas_t *atlas,
         uint32_t cps[GHOSTCON_LIGATURE_MAX_RUN_LEN];
         int run_len = 0;
 
-        while (x < row->cols && run_len < GHOSTCON_LIGATURE_MAX_RUN_LEN) {
+        while (x < row->cols && run_len < GHOSTCON_LIGATURE_MAX_RUN_LEN)
+        {
             ghostcon_cell_t c = row->cells[x];
             uint32_t c_cp = cell_codepoint_or_zero(c);
             if (!is_ligature_trigger(c_cp) || ghostcon_cell_get_style(c) != style)
@@ -73,10 +78,13 @@ ghostcon_ligature_scan_row(const ghostcon_row_t *row, ghostcon_atlas_t *atlas,
          * mismatch (an actual multi-codepoint collapse or reordering) is
          * left unreported rather than guessed at.
          */
-        if (shaped == run_len) {
-            for (int i = 0; i < run_len && n_out < max_glyphs; i++) {
+        if (shaped == run_len)
+        {
+            for (int i = 0; i < run_len && n_out < max_glyphs; i++)
+            {
                 uint32_t plain = ghostcon_atlas_plain_glyph_index(atlas, cps[i]);
-                if (out_gidx[i] != plain && out_gidx[i] != 0) {
+                if (out_gidx[i] != plain && out_gidx[i] != 0)
+                {
                     out_glyphs[n_out++] = (ghostcon_ligature_glyph_t){
                         .x = (uint16_t)(run_start + i),
                         .glyph_index = out_gidx[i],

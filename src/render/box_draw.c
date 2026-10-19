@@ -22,27 +22,32 @@ fill_rect(uint8_t *alpha, int cell_w, int cell_h,
 static bool
 render_block_element(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
 {
-    if (cp == 0x2580) { /* upper half block */
+    if (cp == 0x2580)
+    { /* upper half block */
         fill_rect(alpha, cell_w, cell_h, 0, 0, cell_w, cell_h / 2, 255);
         return true;
     }
-    if (cp >= 0x2581 && cp <= 0x2588) { /* lower N eighths (2588 = full) */
+    if (cp >= 0x2581 && cp <= 0x2588)
+    { /* lower N eighths (2588 = full) */
         int n = (int)(cp - 0x2580); /* 1..8 */
         int y0 = cell_h - (cell_h * n) / 8;
         fill_rect(alpha, cell_w, cell_h, 0, y0, cell_w, cell_h, 255);
         return true;
     }
-    if (cp >= 0x2589 && cp <= 0x258F) { /* left N eighths, descending */
+    if (cp >= 0x2589 && cp <= 0x258F)
+    { /* left N eighths, descending */
         int n = (int)(0x2590 - cp); /* 258F->1 .. 2589->7 */
         int x1 = (cell_w * n) / 8;
         fill_rect(alpha, cell_w, cell_h, 0, 0, x1, cell_h, 255);
         return true;
     }
-    if (cp == 0x2590) { /* right half block */
+    if (cp == 0x2590)
+    { /* right half block */
         fill_rect(alpha, cell_w, cell_h, cell_w / 2, 0, cell_w, cell_h, 255);
         return true;
     }
-    if (cp >= 0x2591 && cp <= 0x2593) {
+    if (cp >= 0x2591 && cp <= 0x2593)
+    {
         /* Shades: flat partial coverage rather than a dither pattern
          * --simpler, and blends fg/bg proportionally much like a real
          * terminal renderer's shade characters do at typical font sizes; a
@@ -53,15 +58,18 @@ render_block_element(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
         fill_rect(alpha, cell_w, cell_h, 0, 0, cell_w, cell_h, shade[cp - 0x2591]);
         return true;
     }
-    if (cp == 0x2594) { /* upper one eighth block */
+    if (cp == 0x2594)
+    { /* upper one eighth block */
         fill_rect(alpha, cell_w, cell_h, 0, 0, cell_w, cell_h / 8, 255);
         return true;
     }
-    if (cp == 0x2595) { /* right one eighth block */
+    if (cp == 0x2595)
+    { /* right one eighth block */
         fill_rect(alpha, cell_w, cell_h, cell_w - cell_w / 8, 0, cell_w, cell_h, 255);
         return true;
     }
-    if (cp >= 0x2596 && cp <= 0x259F) { /* quadrants */
+    if (cp >= 0x2596 && cp <= 0x259F)
+    { /* quadrants */
         static const uint8_t mask[10] = { 4, 8, 1, 13, 9, 7, 11, 2, 6, 14 };
         uint8_t m = mask[cp - 0x2596];
         int cx = cell_w / 2, cy = cell_h / 2;
@@ -115,7 +123,8 @@ render_sextant(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
  * regression).
  */
 
-typedef struct {
+typedef struct
+{
     uint32_t cp;
     uint8_t up, right, down, left; /* 0=none, 1=light, 2=heavy */
 } box_line_t;
@@ -173,8 +182,10 @@ render_box_line(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
         return false;
 
     const box_line_t *l = NULL;
-    for (size_t i = 0; i < BOX_LINES_COUNT; i++) {
-        if (BOX_LINES[i].cp == cp) {
+    for (size_t i = 0; i < BOX_LINES_COUNT; i++)
+    {
+        if (BOX_LINES[i].cp == cp)
+        {
             l = &BOX_LINES[i];
             break;
         }
@@ -219,7 +230,8 @@ render_rounded_corner(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
 {
     /* sx/sy: which side of center this corner's arms extend toward. */
     int sx, sy;
-    switch (cp) {
+    switch (cp)
+    {
     case 0x256d: sx = 1;  sy = 1;  break; /* ╭ down+right */
     case 0x256e: sx = -1; sy = 1;  break; /* ╮ down+left */
     case 0x256f: sx = -1; sy = -1; break; /* ╯ up+left */
@@ -251,10 +263,12 @@ render_rounded_corner(uint32_t cp, int cell_w, int cell_h, uint8_t *alpha)
      */
     int r_in = r - half_t, r_out = r + half_t;
     long r_in_sq = (long)r_in * r_in, r_out_sq = (long)r_out * r_out;
-    for (int y = 0; y < cell_h; y++) {
+    for (int y = 0; y < cell_h; y++)
+    {
         if ((sy > 0 && y < cy) || (sy < 0 && y > cy))
             continue;
-        for (int x = 0; x < cell_w; x++) {
+        for (int x = 0; x < cell_w; x++)
+        {
             if ((sx > 0 && x < cx) || (sx < 0 && x > cx))
                 continue;
             long dx = x - cx, dy = y - cy;

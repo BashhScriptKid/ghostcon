@@ -37,8 +37,10 @@ osc_split_fields(char *buf, uint16_t len, char **fields, int max_fields)
 {
     int n = 0;
     fields[n++] = buf;
-    for (uint16_t i = 0; i < len && n < max_fields; i++) {
-        if (buf[i] == ';') {
+    for (uint16_t i = 0; i < len && n < max_fields; i++)
+    {
+        if (buf[i] == ';')
+        {
             buf[i] = '\0';
             fields[n++] = buf + i + 1;
         }
@@ -59,7 +61,8 @@ osc52_is_valid_base64(const char *s)
 {
     if (s[0] == '\0')
         return false;
-    for (const char *p = s; *p; p++) {
+    for (const char *p = s; *p; p++)
+    {
         char c = *p;
         bool ok = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
                   (c >= '0' && c <= '9') || c == '+' || c == '/' || c == '=';
@@ -92,17 +95,21 @@ static void
 osc7_decode_pwd(const char *arg, char *out, size_t out_len)
 {
     const char *path = arg;
-    if (strncmp(arg, "file://", 7) == 0) {
+    if (strncmp(arg, "file://", 7) == 0)
+    {
         const char *rest = arg + 7;
         const char *slash = strchr(rest, '/');
         path = slash ? slash : rest;
     }
     size_t oi = 0;
-    for (size_t i = 0; path[i] != '\0' && oi + 1 < out_len; i++) {
-        if (path[i] == '%') {
+    for (size_t i = 0; path[i] != '\0' && oi + 1 < out_len; i++)
+    {
+        if (path[i] == '%')
+        {
             int hi = uri_hex_nibble(path[i + 1]);
             int lo = hi >= 0 ? uri_hex_nibble(path[i + 2]) : -1;
-            if (hi >= 0 && lo >= 0) {
+            if (hi >= 0 && lo >= 0)
+            {
                 out[oi++] = (char)((hi << 4) | lo);
                 i += 2;
                 continue;
@@ -155,20 +162,25 @@ osc_dispatch_manual(ghostcon_stream_t *st, ghostcon_screen_t *s)
         return false;
     long num = strtol(fields[0], NULL, 10);
 
-    switch (num) {
+    switch (num)
+    {
     case 4: /* set/query palette entry(ies): 4;idx;spec[;idx;spec...] */
-        for (int i = 1; i + 1 < nfields; i += 2) {
+        for (int i = 1; i + 1 < nfields; i += 2)
+        {
             long idx = strtol(fields[i], NULL, 10);
             if (idx < 0 || idx > 255)
                 continue;
             const char *spec = fields[i + 1];
-            if (strcmp(spec, "?") == 0) {
+            if (strcmp(spec, "?") == 0)
+            {
                 GhosttyColorRgb c = ghostcon_palette_resolve(&s->palette, (uint8_t)idx);
                 char colorspec[24], body[48];
                 ghostcon_color_format_spec(c, colorspec, sizeof(colorspec));
                 snprintf(body, sizeof(body), "4;%ld;%s", idx, colorspec);
                 osc_write_response(st, body);
-            } else {
+            }
+            else
+            {
                 GhosttyColorRgb c;
                 if (ghostcon_color_parse_spec(spec, &c))
                     ghostcon_palette_set(&s->palette, (int)idx, c);
@@ -179,9 +191,11 @@ osc_dispatch_manual(ghostcon_stream_t *st, ghostcon_screen_t *s)
     case 10: /* set/query default foreground */
     case 11: /* set/query default background */
     case 12: /* set/query cursor color */
-        if (nfields >= 2) {
+        if (nfields >= 2)
+        {
             const char *spec = fields[1];
-            if (strcmp(spec, "?") == 0) {
+            if (strcmp(spec, "?") == 0)
+            {
                 GhosttyColorRgb c = num == 10 ? s->palette.fg_default
                                    : num == 11 ? s->palette.bg_default
                                    : s->palette.cursor_color;
@@ -189,9 +203,12 @@ osc_dispatch_manual(ghostcon_stream_t *st, ghostcon_screen_t *s)
                 ghostcon_color_format_spec(c, colorspec, sizeof(colorspec));
                 snprintf(body, sizeof(body), "%ld;%s", num, colorspec);
                 osc_write_response(st, body);
-            } else {
+            }
+            else
+            {
                 GhosttyColorRgb c;
-                if (ghostcon_color_parse_spec(spec, &c)) {
+                if (ghostcon_color_parse_spec(spec, &c))
+                {
                     if (num == 10)
                         ghostcon_palette_set_default_fg(&s->palette, c);
                     else if (num == 11)
@@ -204,11 +221,15 @@ osc_dispatch_manual(ghostcon_stream_t *st, ghostcon_screen_t *s)
         return true;
 
     case 104: /* reset palette entry(ies): 104[;idx[;idx...]] -- no args = reset all */
-        if (nfields == 1) {
+        if (nfields == 1)
+        {
             for (int i = 0; i < 256; i++)
                 ghostcon_palette_reset(&s->palette, (uint8_t)i);
-        } else {
-            for (int i = 1; i < nfields; i++) {
+        }
+        else
+        {
+            for (int i = 1; i < nfields; i++)
+            {
                 long idx = strtol(fields[i], NULL, 10);
                 if (idx >= 0 && idx <= 255)
                     ghostcon_palette_reset(&s->palette, (uint8_t)idx);
@@ -224,8 +245,10 @@ osc_dispatch_manual(ghostcon_stream_t *st, ghostcon_screen_t *s)
     case 133: /* FinalTerm semantic prompt: 133;<letter>[;args...] */
     case 633: /* VSCode shell integration: superset of 133's letters,
                  plus its own property-report sub-commands */
-        if (nfields >= 2) {
-            switch (fields[1][0]) {
+        if (nfields >= 2)
+        {
+            switch (fields[1][0])
+            {
             case 'A': /* prompt start */
                 s->semantic_current = GHOSTCON_CELL_SEMANTIC_PROMPT;
                 break;
@@ -261,11 +284,15 @@ osc_dispatch_manual(ghostcon_stream_t *st, ghostcon_screen_t *s)
         return true;
 
     case 8: /* hyperlink: 8;params;uri (uri empty = end current link) */
-        if (nfields >= 3) {
+        if (nfields >= 3)
+        {
             const char *uri = fields[2];
-            if (uri[0] == '\0') {
+            if (uri[0] == '\0')
+            {
                 s->cursor.hyperlink_id = GC_HYPERLINK_ID_NONE;
-            } else {
+            }
+            else
+            {
                 s->cursor.hyperlink_id = ghostcon_hyperlink_set_add(s->hyperlinks, uri);
             }
         }
@@ -287,13 +314,17 @@ osc_dispatch_manual(ghostcon_stream_t *st, ghostcon_screen_t *s)
                 verbatim -- OSC 52's own wire format already is base64, so
                 there's nothing to decode. A non-base64 payload is rejected
                 outright rather than stored as garbage. */
-        if (nfields >= 3) {
+        if (nfields >= 3)
+        {
             const char *payload = fields[2];
-            if (strcmp(payload, "?") == 0) {
+            if (strcmp(payload, "?") == 0)
+            {
                 char resp[sizeof(s->clipboard) + 8];
                 snprintf(resp, sizeof(resp), "52;c;%s", s->clipboard);
                 osc_write_response(st, resp);
-            } else if (osc52_is_valid_base64(payload)) {
+            }
+            else if (osc52_is_valid_base64(payload))
+            {
                 snprintf(s->clipboard, sizeof(s->clipboard), "%s", payload);
             }
         }
@@ -307,7 +338,8 @@ osc_dispatch_manual(ghostcon_stream_t *st, ghostcon_screen_t *s)
 /* OSC dispatch */
 
 void
-gc_stream_osc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+gc_stream_osc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     if (osc_dispatch_manual(st, s))
         return;
 
@@ -323,7 +355,8 @@ gc_stream_osc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s) {
     GhosttyOscCommand cmd = ghostty_osc_end(parser, terminator);
     GhosttyOscCommandType type = ghostty_osc_command_type(cmd);
 
-    switch (type) {
+    switch (type)
+    {
     case GHOSTTY_OSC_COMMAND_CHANGE_WINDOW_TITLE:
     case GHOSTTY_OSC_COMMAND_CHANGE_WINDOW_ICON: {
         const char *str = NULL;

@@ -2,7 +2,8 @@
 #include "conftest.h"
 
 /* Shortcut: feed a string using strlen */
-static void feed(ghostcon_term_t *t, const char *s) {
+static void feed(ghostcon_term_t *t, const char *s)
+{
     ghostcon_term_feed(t, (const uint8_t *)s, strlen(s));
 }
 
@@ -13,7 +14,8 @@ static void feed(ghostcon_term_t *t, const char *s) {
  * git-pull-request octicon U+F407) plus boundary/negative cases.
  */
 
-TEST(cell_is_symbol_classification) {
+TEST(cell_is_symbol_classification)
+{
     ASSERT(ghostcon_cell_is_symbol(0x2299), "U+2299 CIRCLED DOT OPERATOR (Math Operators)");
     ASSERT(ghostcon_cell_is_symbol(0x25C9), "U+25C9 FISHEYE (Geometric Shapes)");
     ASSERT(ghostcon_cell_is_symbol(0x25CE), "U+25CE BULLSEYE (Geometric Shapes)");
@@ -34,7 +36,8 @@ TEST(cell_is_symbol_classification) {
 
 /* Basic text */
 
-TEST(basic_text) {
+TEST(basic_text)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "Hello!");
@@ -46,7 +49,8 @@ TEST(basic_text) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(text_multi_line) {
+TEST(text_multi_line)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     /* Use \r\n — LF alone doesn't CR in a real terminal */
@@ -60,7 +64,8 @@ TEST(text_multi_line) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(text_fill_line) {
+TEST(text_fill_line)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     char buf[81];
@@ -73,10 +78,12 @@ TEST(text_fill_line) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(text_full_screen) {
+TEST(text_full_screen)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
-    for (int i = 0; i < 24 * 80; i++) {
+    for (int i = 0; i < 24 * 80; i++)
+    {
         uint8_t c = (uint8_t)(' ' + (i % 95));
         ghostcon_term_feed(&t, &c, 1);
     }
@@ -86,7 +93,8 @@ TEST(text_full_screen) {
 
 /* Cursor movement */
 
-TEST(cursor_up) {
+TEST(cursor_up)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[5;10H");  /* cursor to 5,10 (1-based) */
@@ -100,7 +108,8 @@ TEST(cursor_up) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(cursor_down) {
+TEST(cursor_down)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[5;5H");
@@ -114,7 +123,8 @@ TEST(cursor_down) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(cursor_up_down_scroll_region_no_origin_mode) {
+TEST(cursor_up_down_scroll_region_no_origin_mode)
+{
     /* CUU/CUD clamp to the scroll region only under origin mode (DECOM) --
      * with it off (the default, and the common case: most apps never set
      * DECOM), they must clamp to the FULL screen, not the scroll region.
@@ -137,7 +147,8 @@ TEST(cursor_up_down_scroll_region_no_origin_mode) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(cursor_up_down_scroll_region_with_origin_mode) {
+TEST(cursor_up_down_scroll_region_with_origin_mode)
+{
     /* Same setup, but WITH origin mode on: now CUU/CUD correctly DO clamp
      * to the scroll region -- this is the one case the pre-fix code
      * accidentally got right, so it must stay correct.
@@ -154,7 +165,8 @@ TEST(cursor_up_down_scroll_region_with_origin_mode) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(cursor_next_line_below_scroll_region_does_not_scroll) {
+TEST(cursor_next_line_below_scroll_region_does_not_scroll)
+{
     /* CNL (CSI E) real bug: incrementing cursor.y then checking `>
      * scroll_region.bottom` fired even when the cursor started BELOW the
      * scroll region entirely (e.g. a fixed status/input area a TUI
@@ -175,7 +187,8 @@ TEST(cursor_next_line_below_scroll_region_does_not_scroll) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(cursor_next_line_at_scroll_region_bottom_still_scrolls) {
+TEST(cursor_next_line_at_scroll_region_bottom_still_scrolls)
+{
     /* Regression guard: the one case that must still scroll (cursor
      * genuinely at the region's bottom edge) keeps working after the fix
      * above.
@@ -192,17 +205,20 @@ TEST(cursor_next_line_at_scroll_region_bottom_still_scrolls) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(tabs_debug_scratch) {
+TEST(tabs_debug_scratch)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[H" "a\tb\tc\td\r\n");
     feed(&t, "\x1b[2;1H" "\x1b[3G" "\x1b" "H");
     feed(&t, "\x1b[2;1H" "X\tY (custom stop at col 3 should apply after clearing defaults)\r\n");
     feed(&t, "\x1b[3g");
-    for (int y = 0; y < 4; y++) {
+    for (int y = 0; y < 4; y++)
+    {
         ghostcon_row_t *r = ghostcon_screen_row(&t.screen, (uint16_t)y);
         fprintf(stderr, "row %d: [", y);
-        for (int x = 0; x < 40; x++) {
+        for (int x = 0; x < 40; x++)
+        {
             uint32_t cp = ghostcon_cell_get_codepoint(r->cells[x]);
             fprintf(stderr, "%c", cp ? (char)cp : '.');
         }
@@ -211,7 +227,8 @@ TEST(tabs_debug_scratch) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(cursor_left_right) {
+TEST(cursor_left_right)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     /* CUP format: ESC [ row ; col H (ECMA-48) */
@@ -232,7 +249,8 @@ TEST(cursor_left_right) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(cursor_position) {
+TEST(cursor_position)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[H");      /* home */
@@ -248,7 +266,8 @@ TEST(cursor_position) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(cursor_save_restore) {
+TEST(cursor_save_restore)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "ABC");
@@ -261,7 +280,8 @@ TEST(cursor_save_restore) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(cursor_next_prev_line) {
+TEST(cursor_next_prev_line)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[5;20H");
@@ -272,7 +292,8 @@ TEST(cursor_next_prev_line) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(cursor_horizontal_abs) {
+TEST(cursor_horizontal_abs)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[5;30HAAAAA");
@@ -285,7 +306,8 @@ TEST(cursor_horizontal_abs) {
 
 /* Erase */
 
-TEST(erase_display_from_cursor) {
+TEST(erase_display_from_cursor)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     /* Write content then 0J from a specific position */
@@ -303,7 +325,8 @@ TEST(erase_display_from_cursor) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(erase_display_to_cursor) {
+TEST(erase_display_to_cursor)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "AAAAA");
@@ -320,7 +343,8 @@ TEST(erase_display_to_cursor) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(erase_display_all) {
+TEST(erase_display_all)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "AAAAABBBBBCCCCC");
@@ -330,7 +354,8 @@ TEST(erase_display_all) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(erase_display_saved) {
+TEST(erase_display_saved)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "AAAAABBBBBCCCCC");
@@ -339,7 +364,8 @@ TEST(erase_display_saved) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(erase_line_from_cursor) {
+TEST(erase_line_from_cursor)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "AAAAABBBBB");
@@ -352,7 +378,8 @@ TEST(erase_line_from_cursor) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(erase_line_to_cursor) {
+TEST(erase_line_to_cursor)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "AAAAABBBBB");
@@ -364,7 +391,8 @@ TEST(erase_line_to_cursor) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(erase_line_all) {
+TEST(erase_line_all)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "AAAAABBBBB");
@@ -376,7 +404,8 @@ TEST(erase_line_all) {
 
 /* Line wrapping */
 
-TEST(wrapping_basic) {
+TEST(wrapping_basic)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     char buf[82];
@@ -389,7 +418,8 @@ TEST(wrapping_basic) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(wrapping_disabled) {
+TEST(wrapping_disabled)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[?7l");      /* reset auto-wrap (DECAWM) */
@@ -402,7 +432,8 @@ TEST(wrapping_disabled) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(wrapping_reenable) {
+TEST(wrapping_reenable)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[?7l");      /* disable wrap */
@@ -416,7 +447,8 @@ TEST(wrapping_reenable) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(wrap_flag_scroll_clears) {
+TEST(wrap_flag_scroll_clears)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[24;1H");     /* bottom row */
@@ -430,7 +462,8 @@ TEST(wrap_flag_scroll_clears) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(el_right_resets_wrap) {
+TEST(el_right_resets_wrap)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     char buf[82];
@@ -444,7 +477,8 @@ TEST(el_right_resets_wrap) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(ed_complete_clears_wrap) {
+TEST(ed_complete_clears_wrap)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     char buf[82];
@@ -460,7 +494,8 @@ TEST(ed_complete_clears_wrap) {
 
 /* Scroll regions */
 
-TEST(scroll_region_basic) {
+TEST(scroll_region_basic)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[5;15r");    /* scroll region rows 5-15 (1-based) = 4-14 (0-based) */
@@ -479,7 +514,8 @@ TEST(scroll_region_basic) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(scroll_region_reset) {
+TEST(scroll_region_reset)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[5;15r");
@@ -493,7 +529,8 @@ TEST(scroll_region_reset) {
 
 /* Alt screen */
 
-TEST(alt_screen_basic) {
+TEST(alt_screen_basic)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "NormalScreen");
@@ -509,7 +546,8 @@ TEST(alt_screen_basic) {
 
 /* Tab stops */
 
-TEST(tab_stops_basic) {
+TEST(tab_stops_basic)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "A\tB");
@@ -519,7 +557,8 @@ TEST(tab_stops_basic) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(tab_stops_clear_set) {
+TEST(tab_stops_clear_set)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[3g");       /* clear all tabs (3g) */
@@ -530,7 +569,8 @@ TEST(tab_stops_clear_set) {
 
 /* SGR attributes */
 
-TEST(sgr_bold) {
+TEST(sgr_bold)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[1mBold\x1b[m");
@@ -539,7 +579,8 @@ TEST(sgr_bold) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(sgr_italic) {
+TEST(sgr_italic)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[3mItalic\x1b[23m");
@@ -551,7 +592,8 @@ TEST(sgr_italic) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(sgr_underline) {
+TEST(sgr_underline)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[4mUnder\x1b[24m");
@@ -559,7 +601,8 @@ TEST(sgr_underline) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(sgr_reverse) {
+TEST(sgr_reverse)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[7mInv\x1b[27m");
@@ -567,7 +610,8 @@ TEST(sgr_reverse) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(sgr_strikethrough) {
+TEST(sgr_strikethrough)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[9mStrike\x1b[29m");
@@ -575,7 +619,8 @@ TEST(sgr_strikethrough) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(sgr_reset_all) {
+TEST(sgr_reset_all)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[1;3;4;7mTest");
@@ -583,14 +628,16 @@ TEST(sgr_reset_all) {
     feed(&t, "\x1b[mMore");    /* SGR 0 = reset all */
     /* Check cursor style after reset — should have no flags */
     ghostcon_style_id_t sid = t.screen.cursor.style_id;
-    if (sid != GC_STYLE_DEFAULT_ID) {
+    if (sid != GC_STYLE_DEFAULT_ID)
+    {
         const ghostcon_style_t *s = ghostcon_style_set_get(t.screen.styles, sid);
         if (s->flags != 0) FAIL("flags not cleared after SGR 0");
     }
     ghostcon_term_deinit(&t);
 }
 
-TEST(sgr_256_colors) {
+TEST(sgr_256_colors)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[38;5;196mRed"); /* 256-color fg = 196 (red) */
@@ -601,7 +648,8 @@ TEST(sgr_256_colors) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(sgr_truecolor) {
+TEST(sgr_truecolor)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[38;2;255;128;64mRGB");
@@ -611,7 +659,8 @@ TEST(sgr_truecolor) {
 
 /* OSC sequences */
 
-TEST(osc_window_title) {
+TEST(osc_window_title)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     /* OSC 0 = set window title (and icon name) */
@@ -620,7 +669,8 @@ TEST(osc_window_title) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(osc_bel_terminated) {
+TEST(osc_bel_terminated)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b]2;mytitle\x07"); /* OSC 2 with BEL */
@@ -629,7 +679,8 @@ TEST(osc_bel_terminated) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(osc_st_terminated) {
+TEST(osc_st_terminated)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     /* OSC 2 terminated by ST (ESC \) */
@@ -639,7 +690,8 @@ TEST(osc_st_terminated) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(osc_invalid_ignored) {
+TEST(osc_invalid_ignored)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     /* Random bytes in OSC — should not crash */
@@ -650,7 +702,8 @@ TEST(osc_invalid_ignored) {
 
 /* Modes */
 
-TEST(dec_private_modes) {
+TEST(dec_private_modes)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     /* Save cursor, set DEC origin mode, move cursor — should affect coordinate system */
@@ -660,7 +713,8 @@ TEST(dec_private_modes) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(dec_private_modes_reset) {
+TEST(dec_private_modes_reset)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[?6h");      /* DECOM set */
@@ -668,7 +722,8 @@ TEST(dec_private_modes_reset) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(ansi_mode_irm) {
+TEST(ansi_mode_irm)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "ABC");
@@ -681,7 +736,8 @@ TEST(ansi_mode_irm) {
 
 /* Synchronized output */
 
-TEST(synchronized_output) {
+TEST(synchronized_output)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[?2026h");   /* begin sync */
@@ -694,7 +750,8 @@ TEST(synchronized_output) {
 
 /* DCS passthrough */
 
-TEST(dcs_passthrough) {
+TEST(dcs_passthrough)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1bP0;1;2q\x1b\\Hello");
@@ -705,11 +762,13 @@ TEST(dcs_passthrough) {
 
 /* Scrollback */
 
-TEST(scrollback_basic) {
+TEST(scrollback_basic)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     /* Write more than visible rows — use \r\n */
-    for (int i = 0; i < 30; i++) {
+    for (int i = 0; i < 30; i++)
+    {
         uint8_t buf[32];
         int n = snprintf((char *)buf, sizeof(buf), "Line%d\r\n", i);
         ghostcon_term_feed(&t, buf, n);
@@ -719,10 +778,12 @@ TEST(scrollback_basic) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(scrollback_size) {
+TEST(scrollback_size)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 100), "init small sb");
-    for (int i = 0; i < 150; i++) {
+    for (int i = 0; i < 150; i++)
+    {
         uint8_t buf[32];
         int n = snprintf((char *)buf, sizeof(buf), "Line%d\r\n", i);
         ghostcon_term_feed(&t, buf, n);
@@ -734,7 +795,8 @@ TEST(scrollback_size) {
 
 /* Edge cases */
 
-TEST(empty_input) {
+TEST(empty_input)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "");
@@ -742,7 +804,8 @@ TEST(empty_input) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(null_bytes) {
+TEST(null_bytes)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     ghostcon_term_feed(&t, (const uint8_t *)"\x00\x00Hello\x00\x00", 9);
@@ -750,7 +813,8 @@ TEST(null_bytes) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(ctrl_characters) {
+TEST(ctrl_characters)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     /* Control characters below 0x20 should not produce visible output */
@@ -759,7 +823,8 @@ TEST(ctrl_characters) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(invalid_escape_discard) {
+TEST(invalid_escape_discard)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     /* ESC followed by invalid final byte. feed() can't be used because of \0 in string. */
@@ -768,7 +833,8 @@ TEST(invalid_escape_discard) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(csi_missing_params) {
+TEST(csi_missing_params)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     /* CSI with empty params */
@@ -777,7 +843,8 @@ TEST(csi_missing_params) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(long_input_stream) {
+TEST(long_input_stream)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     /* Stream of 10KB — should not crash */
@@ -789,10 +856,12 @@ TEST(long_input_stream) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(repeated_resize) {
+TEST(repeated_resize)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
-    for (int i = 0; i < 50; i++) {
+    for (int i = 0; i < 50; i++)
+    {
         int w = 40 + (i % 40);
         int h = 10 + (i % 15);
         ASSERT(ghostcon_term_resize(&t, w, h), "resize");
@@ -802,7 +871,8 @@ TEST(repeated_resize) {
 
 /* Insert/Delete/Erase chars */
 
-TEST(insert_chars) {
+TEST(insert_chars)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "ABCDE");         /* cursor at (5,0) */
@@ -819,7 +889,8 @@ TEST(insert_chars) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(insert_chars_zero_clamp) {
+TEST(insert_chars_zero_clamp)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "ABC");
@@ -831,7 +902,8 @@ TEST(insert_chars_zero_clamp) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(delete_chars) {
+TEST(delete_chars)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "ABCDE");
@@ -844,7 +916,8 @@ TEST(delete_chars) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(insert_delete_chars_cursor_past_margin_is_noop) {
+TEST(insert_delete_chars_cursor_past_margin_is_noop)
+{
     /* Hardening regression: absolute CUP is NOT constrained to
      * margin_region.right (only to cols-1 -- see
      * ghostcon_screen_cursor_set()), so an app can legitimately position
@@ -868,7 +941,8 @@ TEST(insert_delete_chars_cursor_past_margin_is_noop) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(erase_display_scroll_complete_no_double_free) {
+TEST(erase_display_scroll_complete_no_double_free)
+{
     /* Fuzzer-found (hardening plan #5, libFuzzer over ghostcon_term_feed):
      * minimized to 4 bytes, ESC[4J (GC_ERASE_DISPLAY_SCROLL_COMPLETE).
      * push_history() steals a row's cells by struct-copying the pointer
@@ -887,7 +961,8 @@ TEST(erase_display_scroll_complete_no_double_free) {
     ghostcon_term_deinit(&t); /* would double-free under ASAN if regressed */
 }
 
-TEST(reverse_index_above_scroll_region_does_not_go_negative) {
+TEST(reverse_index_above_scroll_region_does_not_go_negative)
+{
     /* Fuzzer-found (hardening plan #5): minimized to 9 bytes --ESC[3r
      * (DECSTBM, homes cursor to screen row 0 since origin mode is off,
      * which sits ABOVE the new scroll region's top of row 2), then C1 RI
@@ -909,7 +984,8 @@ TEST(reverse_index_above_scroll_region_does_not_go_negative) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(cursor_relative_move_huge_param_does_not_reverse_direction) {
+TEST(cursor_relative_move_huge_param_does_not_reverse_direction)
+{
     /* Fuzzer-found (hardening plan #5): minimized to 9 bytes --ESC[64614aS
      * (HPR with a huge count, same handler as CUF, then a literal 'S').
      * ghostcon_screen_cursor_right()/_left()/_up()/ _down() all cast the
@@ -942,7 +1018,8 @@ TEST(cursor_relative_move_huge_param_does_not_reverse_direction) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(scroll_region_huge_param_is_clamped_to_screen) {
+TEST(scroll_region_huge_param_is_clamped_to_screen)
+{
     /* Hardening regression: DECSTBM/DECSLRM only guarded against a
      * negative* top/bottom/left/right (which only ever happens via an
      * int16_t wrap from a huge param) -- a mid-range param like 30000 on a
@@ -966,7 +1043,8 @@ TEST(scroll_region_huge_param_is_clamped_to_screen) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(insert_delete_lines_huge_param_is_clamped_not_corrupted) {
+TEST(insert_delete_lines_huge_param_is_clamped_not_corrupted)
+{
     /* Hardening regression: an earlier version of both handlers cast an
      * unclamped n (up to UINT16_MAX) straight into int16_t loop-bound
      * arithmetic (e.g. `top + (int16_t)n`) -- for n >= 32768 that cast
@@ -992,7 +1070,8 @@ TEST(insert_delete_lines_huge_param_is_clamped_not_corrupted) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(csi_loop_handlers_huge_param_does_not_hang) {
+TEST(csi_loop_handlers_huge_param_does_not_hang)
+{
     /* REP/CNL/CPL/CHT/CBT drive a per-step loop directly off a raw CSI
      * param (up to UINT16_MAX). Locks in that a huge count is clamped to
      * something bounded by the screen instead of looping 65535 times
@@ -1014,7 +1093,8 @@ TEST(csi_loop_handlers_huge_param_does_not_hang) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(erase_chars) {
+TEST(erase_chars)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "ABCDE");
@@ -1030,7 +1110,8 @@ TEST(erase_chars) {
 
 /* Insert/Delete lines */
 
-TEST(insert_lines) {
+TEST(insert_lines)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "AA"); feed(&t, "\r\n");
@@ -1046,7 +1127,8 @@ TEST(insert_lines) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(delete_lines) {
+TEST(delete_lines)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[3;1H"); feed(&t, "CC");
@@ -1062,7 +1144,8 @@ TEST(delete_lines) {
 
 /* Scroll up/down */
 
-TEST(scroll_up) {
+TEST(scroll_up)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "AAAAA"); feed(&t, "\r\n");
@@ -1077,7 +1160,8 @@ TEST(scroll_up) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(scroll_down) {
+TEST(scroll_down)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "AAAAA"); feed(&t, "\r\n");
@@ -1092,7 +1176,8 @@ TEST(scroll_down) {
 
 /* SCOSC / SCORC (CSI s / CSI u) */
 
-TEST(save_restore_cursor_csi) {
+TEST(save_restore_cursor_csi)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "ABC");
@@ -1106,7 +1191,8 @@ TEST(save_restore_cursor_csi) {
 
 /* DECSLRM (CSI s with params) + DECLRMM (mode 69) */
 
-TEST(set_left_right_margin) {
+TEST(set_left_right_margin)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[?69h");     /* DECLRMM on */
@@ -1116,7 +1202,8 @@ TEST(set_left_right_margin) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(set_left_right_margin_requires_mode) {
+TEST(set_left_right_margin_requires_mode)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[3;7s");     /* no DECLRMM -> DECSLRM ignored */
@@ -1127,7 +1214,8 @@ TEST(set_left_right_margin_requires_mode) {
 
 /* CSI intermediate discrimination */
 
-TEST(decsca) {
+TEST(decsca)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[1\"q");     /* DECSCA protect on */
@@ -1142,7 +1230,8 @@ TEST(decsca) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(decscusr) {
+TEST(decscusr)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[ q");       /* DECSCUSR default (no param) */
@@ -1158,7 +1247,8 @@ TEST(decscusr) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(decscusr_without_space) {
+TEST(decscusr_without_space)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[5 q");      /* establish a style */
@@ -1169,7 +1259,8 @@ TEST(decscusr_without_space) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(xtshiftescape) {
+TEST(xtshiftescape)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[>1s");      /* XTSHIFTESCAPE on */
@@ -1185,7 +1276,8 @@ TEST(xtshiftescape) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(decsel) {
+TEST(decsel)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[1\"q");     /* DECSCA protect on */
@@ -1202,7 +1294,8 @@ TEST(decsel) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(decsel_plain_erases_protected) {
+TEST(decsel_plain_erases_protected)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[1\"q");
@@ -1215,7 +1308,8 @@ TEST(decsel_plain_erases_protected) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(decsed) {
+TEST(decsed)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[1\"q");
@@ -1233,7 +1327,8 @@ TEST(decsed) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(decsca_mode2_is_off) {
+TEST(decsca_mode2_is_off)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[1\"q");     /* DECSCA 1 = DEC protect on */
@@ -1247,7 +1342,8 @@ TEST(decsca_mode2_is_off) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(save_restore_mode) {
+TEST(save_restore_mode)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[?6h");      /* DECOM on */
@@ -1268,7 +1364,8 @@ TEST(save_restore_mode) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(save_mode_not_margin) {
+TEST(save_mode_not_margin)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[?6s");      /* save mode — must NOT set margins */
@@ -1277,7 +1374,8 @@ TEST(save_mode_not_margin) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(decrqm_parses_without_side_effects) {
+TEST(decrqm_parses_without_side_effects)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[?69h");     /* set a mode */
@@ -1295,7 +1393,8 @@ TEST(decrqm_parses_without_side_effects) {
 
 /* Missing CSI finals: REP, CHT, CBT, HPA(`), VPA(d), HPR(a), VPR(e) */
 
-TEST(repeat_character) {
+TEST(repeat_character)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "X");
@@ -1311,7 +1410,8 @@ TEST(repeat_character) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(repeat_zero_uses_one) {
+TEST(repeat_zero_uses_one)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "A");
@@ -1322,7 +1422,8 @@ TEST(repeat_zero_uses_one) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(repeat_no_previous) {
+TEST(repeat_no_previous)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[3b");        /* no previous char → no-op */
@@ -1330,7 +1431,8 @@ TEST(repeat_no_previous) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(cursor_horizontal_tab) {
+TEST(cursor_horizontal_tab)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[9;1H");      /* row 9 col 1 (1-based) = y=8, x=0 */
@@ -1341,7 +1443,8 @@ TEST(cursor_horizontal_tab) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(cursor_backward_tab) {
+TEST(cursor_backward_tab)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[1;17H");     /* col 17 (1-based) = x=16 */
@@ -1351,7 +1454,8 @@ TEST(cursor_backward_tab) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(hpa_backtick) {
+TEST(hpa_backtick)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "Hello");
@@ -1363,7 +1467,8 @@ TEST(hpa_backtick) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(vpa_cursor_row) {
+TEST(vpa_cursor_row)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "A");
@@ -1375,7 +1480,8 @@ TEST(vpa_cursor_row) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(hpr_cursor_forward) {
+TEST(hpr_cursor_forward)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[1;1H");
@@ -1384,7 +1490,8 @@ TEST(hpr_cursor_forward) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(vpr_cursor_down) {
+TEST(vpr_cursor_down)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[1;1H");
@@ -1395,7 +1502,8 @@ TEST(vpr_cursor_down) {
 
 /* Output channel: DA1, DA2, DA3, DSR, DECRQM */
 
-TEST(da1_response) {
+TEST(da1_response)
+{
     ghostcon_term_t t;
     gc_test_output_t out = { .len = 0 };
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
@@ -1405,7 +1513,8 @@ TEST(da1_response) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(da2_response) {
+TEST(da2_response)
+{
     ghostcon_term_t t;
     gc_test_output_t out = { .len = 0 };
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
@@ -1415,7 +1524,8 @@ TEST(da2_response) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(da3_response) {
+TEST(da3_response)
+{
     ghostcon_term_t t;
     gc_test_output_t out = { .len = 0 };
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
@@ -1425,7 +1535,8 @@ TEST(da3_response) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(dsr_operating_status) {
+TEST(dsr_operating_status)
+{
     ghostcon_term_t t;
     gc_test_output_t out = { .len = 0 };
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
@@ -1435,7 +1546,8 @@ TEST(dsr_operating_status) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(dsr_cursor_position) {
+TEST(dsr_cursor_position)
+{
     ghostcon_term_t t;
     gc_test_output_t out = { .len = 0 };
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
@@ -1447,7 +1559,8 @@ TEST(dsr_cursor_position) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(decrqm_ansi) {
+TEST(decrqm_ansi)
+{
     ghostcon_term_t t;
     gc_test_output_t out = { .len = 0 };
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
@@ -1463,7 +1576,8 @@ TEST(decrqm_ansi) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(decrqm_dec) {
+TEST(decrqm_dec)
+{
     ghostcon_term_t t;
     gc_test_output_t out = { .len = 0 };
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
@@ -1475,7 +1589,8 @@ TEST(decrqm_dec) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(decrqm_unknown) {
+TEST(decrqm_unknown)
+{
     ghostcon_term_t t;
     gc_test_output_t out = { .len = 0 };
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
@@ -1487,7 +1602,8 @@ TEST(decrqm_unknown) {
 
 /* CSI parameter robustness */
 
-TEST(csi_too_many_params) {
+TEST(csi_too_many_params)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     /* 30 params >= GC_STREAM_MAX_PARAMS (24) — Ghostty drops the entire
@@ -1498,7 +1614,8 @@ TEST(csi_too_many_params) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(csi_param_count_strict) {
+TEST(csi_param_count_strict)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "A");
@@ -1513,7 +1630,8 @@ TEST(csi_param_count_strict) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(dec_origin_mode_homes_cursor) {
+TEST(dec_origin_mode_homes_cursor)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[5;10H");     /* move away */
@@ -1526,7 +1644,8 @@ TEST(dec_origin_mode_homes_cursor) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(csi_param_overflow) {
+TEST(csi_param_overflow)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     /* 18-digit param wraps at u16 (Ghostty *|/+|) -> 65535, clamped */
@@ -1537,7 +1656,8 @@ TEST(csi_param_overflow) {
 
 /* UTF-8 decoding */
 
-TEST(utf8_basic) {
+TEST(utf8_basic)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "h\xC3\xA9" "llo");   /* héllo */
@@ -1550,7 +1670,8 @@ TEST(utf8_basic) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(utf8_wide_char) {
+TEST(utf8_wide_char)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "A\xE4\xB8\xAD");   /* A中 */
@@ -1564,7 +1685,8 @@ TEST(utf8_wide_char) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(utf8_wide_split_across_feed) {
+TEST(utf8_wide_split_across_feed)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "A");
@@ -1577,7 +1699,8 @@ TEST(utf8_wide_split_across_feed) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(utf8_combining) {
+TEST(utf8_combining)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "e\xCC\x81");   /* e + combining acute */
@@ -1588,7 +1711,8 @@ TEST(utf8_combining) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(utf8_combining_after_wide) {
+TEST(utf8_combining_after_wide)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\xE4\xB8\xAD" "\xCC\x81");   /* 中 + combining acute */
@@ -1600,7 +1724,8 @@ TEST(utf8_combining_after_wide) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(utf8_invalid_replaced) {
+TEST(utf8_invalid_replaced)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\xFF\x80");   /* invalid lead + lone continuation */
@@ -1610,7 +1735,8 @@ TEST(utf8_invalid_replaced) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(utf8_incomplete_then_ascii) {
+TEST(utf8_incomplete_then_ascii)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\xC3" "x");   /* truncated 2-byte lead then 'x' */
@@ -1620,7 +1746,8 @@ TEST(utf8_incomplete_then_ascii) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(utf8_partially_invalid_ghostty_parity) {
+TEST(utf8_partially_invalid_ghostty_parity)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     /* Mirror of Ghostty's UTF8Decoder "Partially invalid utf-8" test:
@@ -1639,7 +1766,8 @@ TEST(utf8_partially_invalid_ghostty_parity) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(utf8_wide_at_margin) {
+TEST(utf8_wide_at_margin)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     /* 79 'A's fill cols 0-78 (cursor at 79, pending wrap), then a wide char
@@ -1661,7 +1789,8 @@ TEST(utf8_wide_at_margin) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(utf8_wide_last_col_direct) {
+TEST(utf8_wide_last_col_direct)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\x1b[1;80H");   /* cursor to col 79 (row 1, col 80) */
@@ -1673,7 +1802,8 @@ TEST(utf8_wide_last_col_direct) {
     ghostcon_term_deinit(&t);
 }
 
-TEST(utf8_lone_c1_replaced) {
+TEST(utf8_lone_c1_replaced)
+{
     ghostcon_term_t t;
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     /* A lone 8-bit C1 byte in ground is invalid UTF-8 -> U+FFFD */
@@ -1685,6 +1815,7 @@ TEST(utf8_lone_c1_replaced) {
 
 /* Main — runs all registered tests */
 
-int main(void) {
+int main(void)
+{
     return gc_test_run_all();
 }

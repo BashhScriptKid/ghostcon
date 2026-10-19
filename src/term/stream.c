@@ -7,7 +7,8 @@
 /* Lifecycle */
 
 bool
-ghostcon_stream_init(ghostcon_stream_t *st) {
+ghostcon_stream_init(ghostcon_stream_t *st)
+{
     memset(st, 0, sizeof(*st));
     st->state = GC_STREAM_GROUND;
     st->buf = st->local_buf;
@@ -16,7 +17,8 @@ ghostcon_stream_init(ghostcon_stream_t *st) {
 }
 
 void
-ghostcon_stream_deinit(ghostcon_stream_t *st) {
+ghostcon_stream_deinit(ghostcon_stream_t *st)
+{
     if (st->buf && st->buf != st->local_buf)
         free(st->buf);
     memset(st, 0, sizeof(*st));
@@ -24,27 +26,31 @@ ghostcon_stream_deinit(ghostcon_stream_t *st) {
 
 void
 ghostcon_stream_set_output(ghostcon_stream_t *st,
-                           ghostcon_output_fn fn, void *userdata) {
+                           ghostcon_output_fn fn, void *userdata)
+{
     st->output_fn = fn;
     st->output_userdata = userdata;
 }
 
 void
 ghostcon_stream_set_title(ghostcon_stream_t *st,
-                          ghostcon_title_fn fn, void *userdata) {
+                          ghostcon_title_fn fn, void *userdata)
+{
     st->title_fn = fn;
     st->title_userdata = userdata;
 }
 
 void
 ghostcon_stream_set_notify(ghostcon_stream_t *st,
-                           ghostcon_notify_fn fn, void *userdata) {
+                           ghostcon_notify_fn fn, void *userdata)
+{
     st->notify_fn = fn;
     st->notify_userdata = userdata;
 }
 
 void
-ghostcon_stream_set_cell_size(ghostcon_stream_t *st, int32_t cell_w, int32_t cell_h) {
+ghostcon_stream_set_cell_size(ghostcon_stream_t *st, int32_t cell_w, int32_t cell_h)
+{
     st->cell_w = cell_w;
     st->cell_h = cell_h;
 }
@@ -109,28 +115,37 @@ static const uint8_t utf8_transitions[108] = {
  * the caller must retry the same byte).
  */
 static inline bool
-utf8_next(ghostcon_stream_t *st, uint8_t byte, uint32_t *cp) {
+utf8_next(ghostcon_stream_t *st, uint8_t byte, uint32_t *cp)
+{
     const uint8_t cls = utf8_char_classes[byte];
     const uint8_t initial_state = st->utf8_state;
 
-    if (st->utf8_state != UTF8_ACCEPT) {
+    if (st->utf8_state != UTF8_ACCEPT)
+    {
         st->utf8_acc = (st->utf8_acc << 6) | (byte & 0x3F);
-    } else {
+    }
+    else
+    {
         st->utf8_acc = ((uint32_t)0xFF >> cls) & byte;
     }
 
     st->utf8_state = utf8_transitions[st->utf8_state + cls];
 
-    if (st->utf8_state == UTF8_ACCEPT) {
+    if (st->utf8_state == UTF8_ACCEPT)
+    {
         *cp = st->utf8_acc;
         st->utf8_acc = 0;
         return true;
-    } else if (st->utf8_state == UTF8_REJECT) {
+    }
+    else if (st->utf8_state == UTF8_REJECT)
+    {
         st->utf8_acc = 0;
         st->utf8_state = UTF8_ACCEPT;
         *cp = 0xFFFD; /* replacement character */
         return initial_state == UTF8_ACCEPT;
-    } else {
+    }
+    else
+    {
         *cp = 0xFFFFFFFF; /* none — mid-sequence */
         return true;
     }
@@ -138,9 +153,11 @@ utf8_next(ghostcon_stream_t *st, uint8_t byte, uint32_t *cp) {
 
 /* Execute a C0 control character (mirrors Ghostty's stream.execute). */
 static void
-stream_execute_c0(ghostcon_stream_t *st, ghostcon_screen_t *s, uint8_t c) {
+stream_execute_c0(ghostcon_stream_t *st, ghostcon_screen_t *s, uint8_t c)
+{
     (void)st;
-    switch (c) {
+    switch (c)
+    {
     case 0x07: /* BEL */ break;
     case 0x08: /* BS */ ghostcon_screen_cursor_left(s, 1); break;
     case 0x09: /* HT */ ghostcon_screen_tab(s); break;
@@ -158,12 +175,15 @@ stream_execute_c0(ghostcon_stream_t *st, ghostcon_screen_t *s, uint8_t c) {
  * ignored, everything else printed.
  */
 static void
-stream_handle_codepoint(ghostcon_stream_t *st, ghostcon_screen_t *s, uint32_t cp) {
-    if (cp == 0x1B) {
+stream_handle_codepoint(ghostcon_stream_t *st, ghostcon_screen_t *s, uint32_t cp)
+{
+    if (cp == 0x1B)
+    {
         st->state = GC_STREAM_ESC;
         return;
     }
-    if (cp < 0x20) {
+    if (cp < 0x20)
+    {
         stream_execute_c0(st, s, (uint8_t)cp);
         return;
     }
@@ -172,7 +192,8 @@ stream_handle_codepoint(ghostcon_stream_t *st, ghostcon_screen_t *s, uint32_t cp
 }
 
 void
-ghostcon_stream_reset(ghostcon_stream_t *st) {
+ghostcon_stream_reset(ghostcon_stream_t *st)
+{
     st->state = GC_STREAM_GROUND;
     st->intermediates_idx = 0;
     st->params_idx = 0;
@@ -219,8 +240,10 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
         st->state != GC_STREAM_OSC_STRING &&
         st->state != GC_STREAM_DCS_PASSTHROUGH &&
         st->state != GC_STREAM_DCS_PASSTHROUGH_ESC &&
-        st->state != GC_STREAM_SOS_PM_APC_STRING) {
-        switch (c) {
+        st->state != GC_STREAM_SOS_PM_APC_STRING)
+    {
+        switch (c)
+        {
         case 0x84: /* IND */ ghostcon_screen_linefeed(s); return;
         case 0x85: /* NEL */ ghostcon_screen_carriage_return(s); ghostcon_screen_linefeed(s); return;
         case 0x88: /* HTS */ ghostcon_screen_tab_set(s); return;
@@ -237,14 +260,17 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
         }
     }
 
-    switch (st->state) {
+    switch (st->state)
+    {
 
     /* ============================================================== */
     case GC_STREAM_GROUND:
     /* ============================================================== */
         /* Check for pending ST (ESC \) terminator for OSC */
-        if (st->osc_pending) {
-            if (c == '\\') {
+        if (st->osc_pending)
+        {
+            if (c == '\\')
+            {
                 st->osc_terminated_by_bel = false;
                 gc_stream_osc_dispatch(st, s);
                 st->osc_len = 0;
@@ -252,7 +278,8 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
             st->osc_pending = false;
             if (c == '\\') break;
         }
-        if (st->apc_pending) {
+        if (st->apc_pending)
+        {
             if (c == '\\' && !st->apc_overflow)
                 gc_stream_apc_dispatch(st, s);
             st->apc_pending = false;
@@ -283,27 +310,39 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
     /* ============================================================== */
         st->state = GC_STREAM_GROUND;
 
-        if (c == '[') {
+        if (c == '[')
+        {
             st->state = GC_STREAM_CSI_ENTRY;
-        } else if (c == ']') {
+        }
+        else if (c == ']')
+        {
             st->state = GC_STREAM_OSC_STRING;
             st->osc_len = 0;
-        } else if (c == 'P') {
+        }
+        else if (c == 'P')
+        {
             st->state = GC_STREAM_DCS_ENTRY;
             st->dcs_len = 0;
-        } else if (c == 'X' || c == '^' || c == '_') {
+        }
+        else if (c == 'X' || c == '^' || c == '_')
+        {
             st->state = GC_STREAM_SOS_PM_APC_STRING;
             st->apc_introducer = (char)c;
             st->apc_len = 0;
             st->apc_overflow = false;
-        } else if (c >= 0x20 && c <= 0x2F) {
+        }
+        else if (c >= 0x20 && c <= 0x2F)
+        {
             /* Intermediate byte */
             st->intermediates[0] = c;
             st->intermediates_idx = 1;
             st->state = GC_STREAM_ESC_INTERMEDIATE;
-        } else if (c >= 0x30 && c <= 0x7E) {
+        }
+        else if (c >= 0x30 && c <= 0x7E)
+        {
             /* Final byte — dispatch */
-            switch (c) {
+            switch (c)
+            {
             case '7': ghostcon_screen_cursor_save(s); break;
             case '8': ghostcon_screen_cursor_restore(s); break;
             case 'D': ghostcon_screen_linefeed(s); break;
@@ -327,15 +366,23 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
             default:
                 break;
             }
-        } else if (c == '[') {
+        }
+        else if (c == '[')
+        {
             st->state = GC_STREAM_CSI_ENTRY;
-        } else if (c == ']') {
+        }
+        else if (c == ']')
+        {
             st->state = GC_STREAM_OSC_STRING;
             st->osc_len = 0;
-        } else if (c == 'P') {
+        }
+        else if (c == 'P')
+        {
             st->state = GC_STREAM_DCS_ENTRY;
             st->dcs_len = 0;
-        } else if (c == 'X' || c == '^' || c == '_') {
+        }
+        else if (c == 'X' || c == '^' || c == '_')
+        {
             /* SOS, PM, APC */
             st->state = GC_STREAM_SOS_PM_APC_STRING;
             st->apc_introducer = (char)c;
@@ -347,13 +394,18 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
     /* ============================================================== */
     case GC_STREAM_ESC_INTERMEDIATE:
     /* ============================================================== */
-        if (c >= 0x20 && c <= 0x2F) {
+        if (c >= 0x20 && c <= 0x2F)
+        {
             if (st->intermediates_idx < GC_STREAM_MAX_INTERMEDIATES)
                 st->intermediates[st->intermediates_idx++] = c;
-        } else if (c >= 0x30 && c <= 0x7E) {
+        }
+        else if (c >= 0x30 && c <= 0x7E)
+        {
             st->state = GC_STREAM_GROUND;
             /* Dispatch with intermediates */
-        } else {
+        }
+        else
+        {
             st->state = GC_STREAM_GROUND;
         }
         break;
@@ -366,33 +418,45 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
         st->param_acc = 0;
         st->param_acc_idx = 0;
 
-        if (c >= 0x30 && c <= 0x3F) {
+        if (c >= 0x30 && c <= 0x3F)
+        {
             /* Parameter byte */
             st->state = GC_STREAM_CSI_PARAM;
-            if (c >= 0x3C && c <= 0x3F) {
+            if (c >= 0x3C && c <= 0x3F)
+            {
                 /* Private marker (< = > ?): Ghostty's parser collects these
                  * into the intermediate array when they lead the sequence
                  * (csi_entry .collect -> csi_param). They are NOT params.
                  */
                 if (st->intermediates_idx < GC_STREAM_MAX_INTERMEDIATES)
                     st->intermediates[st->intermediates_idx++] = c;
-            } else if (c >= '0' && c <= '9') {
+            }
+            else if (c >= '0' && c <= '9')
+            {
                 st->param_acc = c - '0';
                 st->param_acc_idx = 1;
-            } else if (c == ';') {
+            }
+            else if (c == ';')
+            {
                 st->params[0] = 0;
                 st->params_idx = 1;
             }
-        } else if (c >= 0x20 && c <= 0x2F) {
+        }
+        else if (c >= 0x20 && c <= 0x2F)
+        {
             st->state = GC_STREAM_CSI_INTERMEDIATE;
             if (st->intermediates_idx < GC_STREAM_MAX_INTERMEDIATES)
                 st->intermediates[st->intermediates_idx++] = c;
-        } else if (c >= 0x40 && c <= 0x7E) {
+        }
+        else if (c >= 0x40 && c <= 0x7E)
+        {
             /* Final byte */
             st->state = GC_STREAM_GROUND;
             gc_stream_csi_handler_t handler = gc_stream_csi_dispatch(st, c);
             if (handler) handler(st, s);
-        } else {
+        }
+        else
+        {
             st->state = GC_STREAM_GROUND;
         }
         break;
@@ -400,27 +464,35 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
     /* ============================================================== */
     case GC_STREAM_CSI_PARAM:
     /* ============================================================== */
-        if (c >= '0' && c <= '9') {
+        if (c >= '0' && c <= '9')
+        {
             /* Wrapping accumulation matching Ghostty's `*|`/`+|` (u16
              * wrap). Use u32 intermediate so a huge digit run can't
              * overflow int.
              */
             st->param_acc = (uint16_t)((uint32_t)st->param_acc * 10 + (c - '0'));
             st->param_acc_idx++;
-        } else if (c == ';') {
-            if (st->params_idx < GC_STREAM_MAX_PARAMS) {
+        }
+        else if (c == ';')
+        {
+            if (st->params_idx < GC_STREAM_MAX_PARAMS)
+            {
                 st->params[st->params_idx++] = st->param_acc;
             }
             st->param_acc = 0;
             st->param_acc_idx = 0;
-        } else if (c >= 0x20 && c <= 0x2F) {
+        }
+        else if (c >= 0x20 && c <= 0x2F)
+        {
             /* Flush current param */
             if (st->params_idx < GC_STREAM_MAX_PARAMS)
                 st->params[st->params_idx++] = st->param_acc;
             st->state = GC_STREAM_CSI_INTERMEDIATE;
             if (st->intermediates_idx < GC_STREAM_MAX_INTERMEDIATES)
                 st->intermediates[st->intermediates_idx++] = c;
-        } else if (c >= 0x40 && c <= 0x7E) {
+        }
+        else if (c >= 0x40 && c <= 0x7E)
+        {
             /* Flush current param */
             if (st->params_idx < GC_STREAM_MAX_PARAMS)
                 st->params[st->params_idx++] = st->param_acc;
@@ -428,13 +500,17 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
             st->state = GC_STREAM_GROUND;
             gc_stream_csi_handler_t handler = gc_stream_csi_dispatch(st, c);
             if (handler) handler(st, s);
-        } else if (c >= 0x3C && c <= 0x3F) {
+        }
+        else if (c >= 0x3C && c <= 0x3F)
+        {
             /* Private marker mid-params: Ghostty ignores the whole sequence
              * (csi_param 0x3C-0x3F -> csi_ignore). Private markers are only
              * valid as the first byte, handled in CSI_ENTRY.
              */
             st->state = GC_STREAM_CSI_IGNORE;
-        } else {
+        }
+        else
+        {
             st->state = GC_STREAM_CSI_IGNORE;
         }
         break;
@@ -442,14 +518,19 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
     /* ============================================================== */
     case GC_STREAM_CSI_INTERMEDIATE:
     /* ============================================================== */
-        if (c >= 0x20 && c <= 0x2F) {
+        if (c >= 0x20 && c <= 0x2F)
+        {
             if (st->intermediates_idx < GC_STREAM_MAX_INTERMEDIATES)
                 st->intermediates[st->intermediates_idx++] = c;
-        } else if (c >= 0x40 && c <= 0x7E) {
+        }
+        else if (c >= 0x40 && c <= 0x7E)
+        {
             st->state = GC_STREAM_GROUND;
             gc_stream_csi_handler_t handler = gc_stream_csi_dispatch(st, c);
             if (handler) handler(st, s);
-        } else {
+        }
+        else
+        {
             st->state = GC_STREAM_CSI_IGNORE;
         }
         break;
@@ -464,21 +545,29 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
     /* ============================================================== */
     case GC_STREAM_OSC_STRING:
     /* ============================================================== */
-        if (c == 0x07) {
+        if (c == 0x07)
+        {
             /* BEL terminated — dispatch immediately */
             st->osc_terminated_by_bel = true;
             gc_stream_osc_dispatch(st, s);
             st->osc_len = 0;
             st->state = GC_STREAM_GROUND;
-        } else if (c == 0x1B) {
+        }
+        else if (c == 0x1B)
+        {
             /* Potentially ST (ESC \) — flag and wait for next byte */
             st->osc_pending = true;
             st->state = GC_STREAM_GROUND;
-        } else if (c < 0x20 && c != 0x09 && c != 0x0A) {
+        }
+        else if (c < 0x20 && c != 0x09 && c != 0x0A)
+        {
             /* C0 controls (except TAB/LF) terminate OSC */
             st->state = GC_STREAM_GROUND;
-        } else {
-            if (st->osc_len < st->buf_cap - 1) {
+        }
+        else
+        {
+            if (st->osc_len < st->buf_cap - 1)
+            {
                 st->buf[st->osc_len++] = (char)c;
                 st->buf[st->osc_len] = '\0';
             }
@@ -492,17 +581,24 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
         st->params_idx = 0;
         st->param_acc = 0;
 
-        if (c >= 0x30 && c <= 0x3F) {
+        if (c >= 0x30 && c <= 0x3F)
+        {
             st->state = GC_STREAM_DCS_PARAM;
-        } else if (c >= 0x20 && c <= 0x2F) {
+        }
+        else if (c >= 0x20 && c <= 0x2F)
+        {
             st->state = GC_STREAM_DCS_INTERMEDIATE;
             if (st->intermediates_idx < GC_STREAM_MAX_INTERMEDIATES)
                 st->intermediates[st->intermediates_idx++] = c;
-        } else if (c >= 0x40 && c <= 0x7E) {
+        }
+        else if (c >= 0x40 && c <= 0x7E)
+        {
             st->state = GC_STREAM_DCS_PASSTHROUGH;
             st->dcs_len = 0;
             st->dcs_final = (char)c;
-        } else {
+        }
+        else
+        {
             st->state = GC_STREAM_GROUND;
         }
         break;
@@ -510,13 +606,18 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
     /* ============================================================== */
     case GC_STREAM_DCS_PARAM:
     /* ============================================================== */
-        if (c >= '0' && c <= '9') {
+        if (c >= '0' && c <= '9')
+        {
             st->param_acc = (uint16_t)((uint32_t)st->param_acc * 10 + (c - '0'));
-        } else if (c == ';') {
+        }
+        else if (c == ';')
+        {
             if (st->params_idx < GC_STREAM_MAX_PARAMS)
                 st->params[st->params_idx++] = st->param_acc;
             st->param_acc = 0;
-        } else if (c >= 0x20 && c <= 0x2F) {
+        }
+        else if (c >= 0x20 && c <= 0x2F)
+        {
             /* Flush the pending param -- matches CSI_PARAM's own final-byte
              * handling (see that state's own comment); without this, a DCS
              * param string with no trailing ';' before the final byte (e.g.
@@ -528,13 +629,17 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
             st->state = GC_STREAM_DCS_INTERMEDIATE;
             if (st->intermediates_idx < GC_STREAM_MAX_INTERMEDIATES)
                 st->intermediates[st->intermediates_idx++] = c;
-        } else if (c >= 0x40 && c <= 0x7E) {
+        }
+        else if (c >= 0x40 && c <= 0x7E)
+        {
             if (st->params_idx < GC_STREAM_MAX_PARAMS)
                 st->params[st->params_idx++] = st->param_acc;
             st->state = GC_STREAM_DCS_PASSTHROUGH;
             st->dcs_len = 0;
             st->dcs_final = (char)c;
-        } else {
+        }
+        else
+        {
             st->state = GC_STREAM_GROUND;
         }
         break;
@@ -542,14 +647,19 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
     /* ============================================================== */
     case GC_STREAM_DCS_INTERMEDIATE:
     /* ============================================================== */
-        if (c >= 0x20 && c <= 0x2F) {
+        if (c >= 0x20 && c <= 0x2F)
+        {
             if (st->intermediates_idx < GC_STREAM_MAX_INTERMEDIATES)
                 st->intermediates[st->intermediates_idx++] = c;
-        } else if (c >= 0x40 && c <= 0x7E) {
+        }
+        else if (c >= 0x40 && c <= 0x7E)
+        {
             st->state = GC_STREAM_DCS_PASSTHROUGH;
             st->dcs_len = 0;
             st->dcs_final = (char)c;
-        } else {
+        }
+        else
+        {
             st->state = GC_STREAM_GROUND;
         }
         break;
@@ -563,10 +673,14 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
          * real bug this caused with an emoji mid-OSC-payload; DCS payloads
          * can equally contain UTF-8 text, so the same fix applies here).
          */
-        if (c == 0x1B) {
+        if (c == 0x1B)
+        {
             st->state = GC_STREAM_DCS_PASSTHROUGH_ESC;
-        } else {
-            if (st->dcs_len + 1 >= st->buf_cap && !gc_stream_dcs_buf_grow(st)) {
+        }
+        else
+        {
+            if (st->dcs_len + 1 >= st->buf_cap && !gc_stream_dcs_buf_grow(st))
+            {
                 /* At GHOSTCON_STREAM_DCS_MAX_BUF or allocation failed
                  * --reject rather than silently truncate-and-accept a
                  * corrupt/incomplete image (same posture as apc_overflow
@@ -583,13 +697,18 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
     /* ============================================================== */
     case GC_STREAM_DCS_PASSTHROUGH_ESC:
     /* ============================================================== */
-        if (c == '\\') {
+        if (c == '\\')
+        {
             /* ST (ESC \) terminates */
             st->state = GC_STREAM_GROUND;
             gc_stream_dcs_dispatch(st, s);
-        } else if (c == 0x1B) {
+        }
+        else if (c == 0x1B)
+        {
             /* Double ESC — stay in this state */
-        } else {
+        }
+        else
+        {
             /* Not ST — return to passthrough */
             st->state = GC_STREAM_DCS_PASSTHROUGH;
         }
@@ -616,14 +735,20 @@ ghostcon_stream_process_byte(ghostcon_stream_t *st,
          * as literal text (SOS/PM, which nothing here acts on, still just
          * accumulate-then-drop like before).
          */
-        if (c == 0x1B) {
+        if (c == 0x1B)
+        {
             st->apc_pending = true;
             st->state = GC_STREAM_GROUND;
-        } else if (st->apc_introducer == '_') {
-            if (st->apc_len < st->buf_cap - 1) {
+        }
+        else if (st->apc_introducer == '_')
+        {
+            if (st->apc_len < st->buf_cap - 1)
+            {
                 st->buf[st->apc_len++] = (char)c;
                 st->buf[st->apc_len] = '\0';
-            } else {
+            }
+            else
+            {
                 st->apc_overflow = true;
             }
         }

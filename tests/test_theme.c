@@ -20,7 +20,8 @@ static int failures = 0;
 } while (0)
 
 static bool
-rgb_eq(GhosttyColorRgb a, GhosttyColorRgb b) {
+rgb_eq(GhosttyColorRgb a, GhosttyColorRgb b)
+{
     return a.r == b.r && a.g == b.g && a.b == b.b;
 }
 
@@ -31,7 +32,8 @@ main(void)
         "base16-dark", "base16-light", "solarized-dark", "solarized-light",
     };
 
-    for (size_t i = 0; i < sizeof(presets) / sizeof(presets[0]); i++) {
+    for (size_t i = 0; i < sizeof(presets) / sizeof(presets[0]); i++)
+    {
         ghostcon_palette_t pal;
         ghostcon_palette_init(&pal);
         bool ok = ghostcon_theme_apply(&pal, presets[i]);
@@ -84,7 +86,8 @@ main(void)
     CHECK(ghostcon_theme_apply(&pal, NULL) == false, "NULL theme name returns false");
     CHECK(ghostcon_theme_apply(&pal, "") == false, "empty theme name returns false");
 
-    if (failures) {
+    if (failures)
+    {
         fprintf(stderr, "%d failure(s)\n", failures);
         return 1;
     }

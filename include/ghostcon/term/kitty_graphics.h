@@ -58,7 +58,8 @@ typedef void (*ghostcon_kitty_output_fn)(void *userdata,
 #define GHOSTCON_KITTY_MAX_IMAGE_BYTES (16u * 1024u * 1024u)  /* per-image decoded cap */
 #define GHOSTCON_KITTY_MAX_TOTAL_BYTES (128u * 1024u * 1024u) /* across all stored images */
 
-typedef struct {
+typedef struct
+{
     bool     in_use;
     uint32_t id;
     int32_t  width, height;
@@ -79,7 +80,8 @@ typedef struct {
     size_t   recv_len;
 } ghostcon_kitty_image_t;
 
-typedef struct {
+typedef struct
+{
     bool     in_use;
     uint32_t image_id;
     uint32_t placement_id; /* 0 = anonymous */
@@ -153,7 +155,8 @@ const ghostcon_kitty_image_t *ghostcon_kitty_graphics_find_image(
  * moved=false means don't move it at all (C=1 was set, or the placement
  * wasn't a screen-anchored one).
  */
-typedef struct {
+typedef struct
+{
     bool    moved;
     int32_t rows;
     int32_t col;

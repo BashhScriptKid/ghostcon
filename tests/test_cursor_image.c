@@ -21,10 +21,12 @@ static int failures = 0;
 } while (0)
 
 /* Hand-writes a minimal little-endian value into a byte buffer. */
-static void put_u32(uint8_t *p, uint32_t v) {
+static void put_u32(uint8_t *p, uint32_t v)
+{
     p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); p[2] = (uint8_t)(v >> 16); p[3] = (uint8_t)(v >> 24);
 }
-static void put_u16(uint8_t *p, uint16_t v) {
+static void put_u16(uint8_t *p, uint16_t v)
+{
     p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8);
 }
 
@@ -53,8 +55,10 @@ write_synthetic_bmp(const char *path, uint32_t argb00, uint32_t argb10,
     uint8_t *row1 = row0 + 8;
     uint32_t vals[4] = { argb00, argb10, argb01, argb11 };
     uint8_t *rows[2] = { row0, row1 };
-    for (int y = 0; y < 2; y++) {
-        for (int x = 0; x < 2; x++) {
+    for (int y = 0; y < 2; y++)
+    {
+        for (int x = 0; x < 2; x++)
+        {
             uint32_t v = vals[y * 2 + x];
             uint8_t *px = rows[y] + x * 4;
             px[0] = (uint8_t)(v & 0xff);         /* B */
@@ -65,7 +69,10 @@ write_synthetic_bmp(const char *path, uint32_t argb00, uint32_t argb10,
     }
 
     FILE *f = fopen(path, "wb");
-    if (f) { fwrite(buf, 1, sizeof(buf), f); fclose(f); }
+    if (f)
+    {
+        fwrite(buf, 1, sizeof(buf), f); fclose(f);
+    }
 }
 
 /* Hand-constructs a minimal valid Xcursor file: one TOC entry pointing at
@@ -114,7 +121,10 @@ write_synthetic_xcursor(const char *path, uint32_t hot_x, uint32_t hot_y,
     pixels[3] = argb11;
 
     FILE *f = fopen(path, "wb");
-    if (f) { fwrite(buf, 1, sizeof(buf), f); fclose(f); }
+    if (f)
+    {
+        fwrite(buf, 1, sizeof(buf), f); fclose(f);
+    }
 }
 
 int
@@ -123,7 +133,8 @@ main(void)
     char dir_template[] = "/tmp/ghostcon-test-cursor-XXXXXX";
     char *dir = mkdtemp(dir_template);
     CHECK(dir != NULL, "mkdtemp for cursor image test");
-    if (!dir) {
+    if (!dir)
+    {
         fprintf(stderr, "cannot continue without a temp dir\n");
         return 1;
     }
@@ -136,7 +147,8 @@ main(void)
     uint32_t w = 0, h = 0;
     uint32_t *pixels = ghostcon_cursor_load_bmp(bmp_path, &w, &h);
     CHECK(pixels != NULL, "BMP decode succeeds");
-    if (pixels) {
+    if (pixels)
+    {
         CHECK(w == 2 && h == 2, "BMP decoded dimensions");
         CHECK(pixels[0] == 0xFFFF0000, "BMP top-left pixel (red)");
         CHECK(pixels[1] == 0xFF00FF00, "BMP top-right pixel (green)");
@@ -154,7 +166,8 @@ main(void)
     uint32_t rw = 0, rh = 0;
     uint32_t *roundtrip = ghostcon_cursor_load_bmp(roundtrip_path, &rw, &rh);
     CHECK(roundtrip != NULL, "BMP round-trip decode succeeds");
-    if (roundtrip) {
+    if (roundtrip)
+    {
         CHECK(rw == 2 && rh == 2, "BMP round-trip dimensions");
         CHECK(memcmp(roundtrip, original, sizeof(original)) == 0, "BMP round-trip pixels match exactly");
         free(roundtrip);
@@ -172,7 +185,8 @@ main(void)
     uint32_t xw = 0, xh = 0, hot_x = 99, hot_y = 99;
     uint32_t *xpixels = ghostcon_cursor_load_xcursor(dir, "xtest", &xw, &xh, &hot_x, &hot_y);
     CHECK(xpixels != NULL, "Xcursor decode succeeds");
-    if (xpixels) {
+    if (xpixels)
+    {
         CHECK(xw == 2 && xh == 2, "Xcursor decoded dimensions");
         CHECK(hot_x == 1 && hot_y == 1, "Xcursor decoded hotspot");
         CHECK(xpixels[0] == 0xFFAA0000, "Xcursor pixel 0");
@@ -188,7 +202,8 @@ main(void)
      */
     char mkdir_cmd[600];
     snprintf(mkdir_cmd, sizeof(mkdir_cmd), "mkdir -p '%s'", cursors_dir);
-    if (system(mkdir_cmd) == 0) {
+    if (system(mkdir_cmd) == 0)
+    {
         char nested_path[600];
         snprintf(nested_path, sizeof(nested_path), "%s/nested", cursors_dir);
         write_synthetic_xcursor(nested_path, 0, 0, 0xFFAA0000, 0xFF00AA00, 0xFF0000AA, 0xFF444444);
@@ -278,7 +293,8 @@ main(void)
               "crop_to_content leaves the hotspot untouched when it returns NULL");
     }
 
-    if (failures > 0) {
+    if (failures > 0)
+    {
         fprintf(stderr, "%d check(s) failed\n", failures);
         return 1;
     }

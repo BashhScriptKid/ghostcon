@@ -11,7 +11,8 @@
  * optimization can be adopted later if needed.
  */
 
-typedef struct {
+typedef struct
+{
     ghostcon_cell_t *cells;   /* array of cells, length = cols         */
     uint16_t         cols;     /* number of columns (allocated length)  */
     bool             dirty;    /* needs redraw                          */

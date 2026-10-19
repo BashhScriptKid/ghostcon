@@ -17,7 +17,8 @@
  * kms.c owns the DRM master).
  */
 
-typedef struct {
+typedef struct
+{
     int drm_fd;
     struct gbm_device  *gbm_dev;
     struct gbm_surface *gbm_surf;

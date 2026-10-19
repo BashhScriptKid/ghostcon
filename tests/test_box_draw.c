@@ -17,7 +17,8 @@ static int failures = 0;
 static void
 check(const char *name, bool cond)
 {
-    if (!cond) {
+    if (!cond)
+    {
         fprintf(stderr, "FAIL: %s\n", name);
         failures++;
     }
@@ -104,7 +105,8 @@ main(void)
     check("heavy-up: top edge filled", alpha[CELL_W / 2] == 255);
     check("heavy-up: bottom edge empty", alpha[(CELL_H - 1) * CELL_W + CELL_W / 2] == 0);
 
-    if (failures > 0) {
+    if (failures > 0)
+    {
         fprintf(stderr, "%d check(s) failed\n", failures);
         return 1;
     }

@@ -104,7 +104,8 @@ main(void)
     buf[n] = '\0';
     CHECK(strcmp(buf, "\x1b[<65;1;1M") == 0, "SGR wheel-down button code");
 
-    if (failures > 0) {
+    if (failures > 0)
+    {
         fprintf(stderr, "%d check(s) failed\n", failures);
         return 1;
     }

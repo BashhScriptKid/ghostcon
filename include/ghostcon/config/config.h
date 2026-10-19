@@ -27,7 +27,8 @@
  * live vs. only on next respawn).
  */
 
-typedef struct {
+typedef struct
+{
     char drm_node[256];
     char run_dir[256];
     int  canary_deadline_ms;

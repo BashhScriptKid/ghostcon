@@ -3,7 +3,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
-typedef struct {
+typedef struct
+{
     uint32_t lo, hi;
 } ghostcon_cp_range_t;
 

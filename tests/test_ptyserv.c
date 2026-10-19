@@ -33,7 +33,8 @@ connect_unix(const char *path)
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
-    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+    {
         close(fd);
         return -1;
     }
@@ -49,7 +50,8 @@ wait_for_substring(int fd, const char *needle, int timeout_ms)
     char acc[8192];
     size_t acc_len = 0;
 
-    for (;;) {
+    for (;;)
+    {
         struct pollfd pfd = { .fd = fd, .events = POLLIN };
         int rv = poll(&pfd, 1, timeout_ms);
         if (rv <= 0)
@@ -70,14 +72,16 @@ int
 main(void)
 {
     const char *ptyserv_bin = getenv("GHOSTCON_PTYSERV_BIN");
-    if (!ptyserv_bin) {
+    if (!ptyserv_bin)
+    {
         fprintf(stderr, "FAIL: GHOSTCON_PTYSERV_BIN not set\n");
         return 1;
     }
 
     char registry_sock[] = "/tmp/ghostcon-test-registry-XXXXXX";
     int tmp_fd = mkstemp(registry_sock);
-    if (tmp_fd < 0) {
+    if (tmp_fd < 0)
+    {
         fprintf(stderr, "FAIL: mkstemp\n");
         return 1;
     }
@@ -87,11 +91,13 @@ main(void)
     signal(SIGPIPE, SIG_IGN);
 
     pid_t ptyserv_pid = fork();
-    if (ptyserv_pid < 0) {
+    if (ptyserv_pid < 0)
+    {
         fprintf(stderr, "FAIL: fork ghost-ptyserv\n");
         return 1;
     }
-    if (ptyserv_pid == 0) {
+    if (ptyserv_pid == 0)
+    {
         char vt_str[16];
         snprintf(vt_str, sizeof(vt_str), "%d", TEST_VT);
         execl(ptyserv_bin, ptyserv_bin, registry_sock, vt_str, (char *)NULL);
@@ -101,12 +107,14 @@ main(void)
 
     /* Give ghost-ptyserv + its pty child a moment to bind their sockets. */
     int registry_fd = -1;
-    for (int i = 0; i < 50 && registry_fd < 0; i++) {
+    for (int i = 0; i < 50 && registry_fd < 0; i++)
+    {
         registry_fd = connect_unix(registry_sock);
         if (registry_fd < 0)
             usleep(20000);
     }
-    if (registry_fd < 0) {
+    if (registry_fd < 0)
+    {
         fprintf(stderr, "FAIL: could not connect to registry socket\n");
         kill(ptyserv_pid, SIGKILL);
         return 1;
@@ -119,7 +127,8 @@ main(void)
     char resp[GHOSTCON_PTYSERV_LINE_MAX];
     ssize_t r = read(registry_fd, resp, sizeof(resp) - 1);
     close(registry_fd);
-    if (r <= 0) {
+    if (r <= 0)
+    {
         fprintf(stderr, "FAIL: no response from registry\n");
         kill(ptyserv_pid, SIGKILL);
         return 1;
@@ -128,7 +137,8 @@ main(void)
 
     int pty_child_pid;
     char pty_socket[GHOSTCON_PTYSERV_LINE_MAX];
-    if (!ghostcon_ptyserv_parse_ok(resp, &pty_child_pid, pty_socket)) {
+    if (!ghostcon_ptyserv_parse_ok(resp, &pty_child_pid, pty_socket))
+    {
         fprintf(stderr, "FAIL: bad registry response: %s\n", resp);
         kill(ptyserv_pid, SIGKILL);
         return 1;
@@ -140,12 +150,14 @@ main(void)
      * binds slightly after the fork).
      */
     int renderer_fd = -1;
-    for (int i = 0; i < 50 && renderer_fd < 0; i++) {
+    for (int i = 0; i < 50 && renderer_fd < 0; i++)
+    {
         renderer_fd = connect_unix(pty_socket);
         if (renderer_fd < 0)
             usleep(20000);
     }
-    if (renderer_fd < 0) {
+    if (renderer_fd < 0)
+    {
         fprintf(stderr, "FAIL: could not connect to pty child socket\n");
         kill(ptyserv_pid, SIGKILL);
         kill(pty_child_pid, SIGKILL);
@@ -155,7 +167,8 @@ main(void)
     /* Bidirectional byte flow: send a shell command, expect its output. */
     const char *cmd = "echo HELLO_GHOSTCON\n";
     write(renderer_fd, cmd, strlen(cmd));
-    if (!wait_for_substring(renderer_fd, "HELLO_GHOSTCON", 3000)) {
+    if (!wait_for_substring(renderer_fd, "HELLO_GHOSTCON", 3000))
+    {
         fprintf(stderr, "FAIL: did not see command output\n");
         kill(ptyserv_pid, SIGKILL);
         kill(pty_child_pid, SIGKILL);
@@ -170,13 +183,15 @@ main(void)
     usleep(50000);
 
     int renderer_fd2 = connect_unix(pty_socket);
-    if (renderer_fd2 < 0) {
+    if (renderer_fd2 < 0)
+    {
         fprintf(stderr, "FAIL: could not reconnect to pty child socket\n");
         kill(ptyserv_pid, SIGKILL);
         kill(pty_child_pid, SIGKILL);
         return 1;
     }
-    if (!wait_for_substring(renderer_fd2, "HELLO_GHOSTCON", 3000)) {
+    if (!wait_for_substring(renderer_fd2, "HELLO_GHOSTCON", 3000))
+    {
         fprintf(stderr, "FAIL: ring buffer did not replay prior output\n");
         kill(ptyserv_pid, SIGKILL);
         kill(pty_child_pid, SIGKILL);
@@ -198,12 +213,14 @@ main(void)
     waitpid(ptyserv_pid, NULL, 0);
 
     pid_t ptyserv_pid2 = fork();
-    if (ptyserv_pid2 < 0) {
+    if (ptyserv_pid2 < 0)
+    {
         fprintf(stderr, "FAIL: fork second ghost-ptyserv\n");
         kill(pty_child_pid, SIGKILL);
         return 1;
     }
-    if (ptyserv_pid2 == 0) {
+    if (ptyserv_pid2 == 0)
+    {
         char vt_str[16];
         snprintf(vt_str, sizeof(vt_str), "%d", TEST_VT);
         execl(ptyserv_bin, ptyserv_bin, registry_sock, vt_str, (char *)NULL);
@@ -212,12 +229,14 @@ main(void)
     }
 
     int registry_fd2 = -1;
-    for (int i = 0; i < 50 && registry_fd2 < 0; i++) {
+    for (int i = 0; i < 50 && registry_fd2 < 0; i++)
+    {
         registry_fd2 = connect_unix(registry_sock);
         if (registry_fd2 < 0)
             usleep(20000);
     }
-    if (registry_fd2 < 0) {
+    if (registry_fd2 < 0)
+    {
         fprintf(stderr, "FAIL: could not connect to registry socket after ghost-ptyserv restart\n");
         kill(ptyserv_pid2, SIGKILL);
         kill(pty_child_pid, SIGKILL);
@@ -228,7 +247,8 @@ main(void)
     char resp2[GHOSTCON_PTYSERV_LINE_MAX];
     ssize_t r2 = read(registry_fd2, resp2, sizeof(resp2) - 1);
     close(registry_fd2);
-    if (r2 <= 0) {
+    if (r2 <= 0)
+    {
         fprintf(stderr, "FAIL: no response from restarted registry\n");
         kill(ptyserv_pid2, SIGKILL);
         kill(pty_child_pid, SIGKILL);
@@ -238,13 +258,15 @@ main(void)
 
     int pty_child_pid2;
     char pty_socket2[GHOSTCON_PTYSERV_LINE_MAX];
-    if (!ghostcon_ptyserv_parse_ok(resp2, &pty_child_pid2, pty_socket2)) {
+    if (!ghostcon_ptyserv_parse_ok(resp2, &pty_child_pid2, pty_socket2))
+    {
         fprintf(stderr, "FAIL: bad registry response after restart: %s\n", resp2);
         kill(ptyserv_pid2, SIGKILL);
         kill(pty_child_pid, SIGKILL);
         return 1;
     }
-    if (pty_child_pid2 != pty_child_pid || strcmp(pty_socket2, pty_socket) != 0) {
+    if (pty_child_pid2 != pty_child_pid || strcmp(pty_socket2, pty_socket) != 0)
+    {
         fprintf(stderr,
                 "FAIL: restarted ghost-ptyserv did not reuse the existing pty-ttyN "
                 "(pid %d -> %d, socket %s -> %s) -- spawned a duplicate instead\n",
@@ -261,7 +283,8 @@ main(void)
      */
     const char *cmd2 = "echo STILL_ALIVE_GHOSTCON\n";
     write(renderer_fd2, cmd2, strlen(cmd2));
-    if (!wait_for_substring(renderer_fd2, "STILL_ALIVE_GHOSTCON", 3000)) {
+    if (!wait_for_substring(renderer_fd2, "STILL_ALIVE_GHOSTCON", 3000))
+    {
         fprintf(stderr, "FAIL: live session did not survive ghost-ptyserv restart\n");
         kill(ptyserv_pid2, SIGKILL);
         kill(pty_child_pid, SIGKILL);

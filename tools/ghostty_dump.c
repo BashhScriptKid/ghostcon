@@ -64,7 +64,8 @@ dump_cell(GhosttyTerminal term, uint16_t x, uint16_t y)
 int
 main(int argc, char **argv)
 {
-    if (argc != 4) {
+    if (argc != 4)
+    {
         fprintf(stderr, "usage: %s COLS ROWS INPUT\n", argv[0]);
         return 2;
     }
@@ -72,13 +73,15 @@ main(int argc, char **argv)
     uint16_t cols = (uint16_t)strtoul(argv[1], NULL, 10);
     uint16_t rows = (uint16_t)strtoul(argv[2], NULL, 10);
     const char *path = argv[3];
-    if (cols == 0 || rows == 0) {
+    if (cols == 0 || rows == 0)
+    {
         fprintf(stderr, "cols/rows must be > 0\n");
         return 2;
     }
 
     FILE *f = fopen(path, "rb");
-    if (!f) {
+    if (!f)
+    {
         perror("fopen");
         return 2;
     }
@@ -86,14 +89,16 @@ main(int argc, char **argv)
     long len = ftell(f);
     fseek(f, 0, SEEK_SET);
     uint8_t *buf = malloc((size_t)len > 0 ? (size_t)len : 1);
-    if (len > 0 && fread(buf, 1, (size_t)len, f) != (size_t)len) {
+    if (len > 0 && fread(buf, 1, (size_t)len, f) != (size_t)len)
+    {
         perror("fread");
         return 2;
     }
     fclose(f);
 
     GhosttyTerminal term = NULL;
-    if (ghostty_terminal_new(NULL, &term, cols, rows) != GHOSTTY_SUCCESS) {
+    if (ghostty_terminal_new(NULL, &term, cols, rows) != GHOSTTY_SUCCESS)
+    {
         fprintf(stderr, "ghostty_terminal_new failed\n");
         return 1;
     }
@@ -102,7 +107,8 @@ main(int argc, char **argv)
      * identically on both sides.
      */
     const size_t chunk = 256;
-    for (long off = 0; off < len; off += (long)chunk) {
+    for (long off = 0; off < len; off += (long)chunk)
+    {
         size_t n = (size_t)len - (size_t)off;
         if (n > chunk) n = chunk;
         ghostty_terminal_vt_write(term, buf + off, n);
@@ -125,7 +131,8 @@ main(int argc, char **argv)
     printf("cursor_y=%u\n", cy);
     printf("pending_wrap=%u\n", pending);
 
-    for (uint16_t y = 0; y < out_rows; y++) {
+    for (uint16_t y = 0; y < out_rows; y++)
+    {
         GhosttyPoint pt;
         pt.tag = GHOSTTY_POINT_TAG_ACTIVE;
         pt.value.coordinate.x = 0;
@@ -133,7 +140,8 @@ main(int argc, char **argv)
 
         GhosttyGridRef ref = { .size = sizeof(ref) };
         uint32_t wrap = 0;
-        if (ghostty_terminal_grid_ref(term, pt, &ref) == GHOSTTY_SUCCESS) {
+        if (ghostty_terminal_grid_ref(term, pt, &ref) == GHOSTTY_SUCCESS)
+        {
             GhosttyRow row = 0;
             if (ghostty_grid_ref_row(&ref, &row) == GHOSTTY_SUCCESS)
                 ghostty_row_get(row, GHOSTTY_ROW_DATA_WRAP, &wrap);

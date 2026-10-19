@@ -45,7 +45,8 @@
  * fails if called twice).
  */
 
-typedef enum {
+typedef enum
+{
     GC_VT_STATE_INACTIVE, /* released — do not touch DRM master */
     GC_VT_STATE_ACTIVE,   /* acquired — safe to hold DRM master */
 } ghostcon_vt_state_t;

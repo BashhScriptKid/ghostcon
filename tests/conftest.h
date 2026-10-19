@@ -12,7 +12,8 @@
 typedef void (*gc_test_fn)(void);
 
 /* Internal test registry */
-typedef struct {
+typedef struct
+{
     const char *name;
     gc_test_fn  fn;
 } gc_test_entry_t;
@@ -28,16 +29,19 @@ static int             gc_test_fail_line = 0;
 
 /* Register a test (called via TEST macro) */
 static inline void
-gc_test_register(const char *name, gc_test_fn fn) {
+gc_test_register(const char *name, gc_test_fn fn)
+{
     if (gc_test_count < GC_TEST_MAX)
         gc_test_registry[gc_test_count++] = (gc_test_entry_t){name, fn};
 }
 
 /* Test runner: run all registered tests */
 static inline int
-gc_test_run_all(void) {
+gc_test_run_all(void)
+{
     printf("--- conformance test suite ---\n\n");
-    for (int i = 0; i < gc_test_count; i++) {
+    for (int i = 0; i < gc_test_count; i++)
+    {
         gc_test_fail_msg = NULL;
         printf("  %s ... ", gc_test_registry[i].name);
         fflush(stdout);
@@ -45,7 +49,8 @@ gc_test_run_all(void) {
         if (setjmp(gc_test_jmp) == 0)
             gc_test_registry[i].fn();
 
-        if (gc_test_fail_msg) {
+        if (gc_test_fail_msg)
+        {
             printf("FAIL\n");
             if (gc_test_fail_line)
                 printf("    at %s:%d: %s\n", __FILE__,
@@ -53,7 +58,9 @@ gc_test_run_all(void) {
             else
                 printf("    %s\n", gc_test_fail_msg);
             gc_test_failed++;
-        } else {
+        }
+        else
+        {
             printf("ok\n");
             gc_test_passed++;
         }
@@ -199,13 +206,15 @@ gc_test_run_all(void) {
 
 #define GC_TEST_OUTPUT_BUF_SIZE 256
 
-typedef struct {
+typedef struct
+{
     char buf[GC_TEST_OUTPUT_BUF_SIZE];
     size_t len;
 } gc_test_output_t;
 
 static void
-gc_test_output_fn(void *userdata, const uint8_t *data, size_t len) {
+gc_test_output_fn(void *userdata, const uint8_t *data, size_t len)
+{
     gc_test_output_t *out = (gc_test_output_t *)userdata;
     size_t remaining = GC_TEST_OUTPUT_BUF_SIZE - out->len;
     size_t to_copy = (len < remaining) ? len : remaining;
@@ -216,7 +225,8 @@ gc_test_output_fn(void *userdata, const uint8_t *data, size_t len) {
 }
 
 /* Reset output buffer to empty */
-static inline void gc_test_output_reset(gc_test_output_t *out) {
+static inline void gc_test_output_reset(gc_test_output_t *out)
+{
     out->buf[0] = '\0';
     out->len = 0;
 }

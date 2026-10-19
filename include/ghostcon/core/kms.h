@@ -26,7 +26,8 @@
  * master on `drm_path`'s fd before calling ghostcon_kms_init.
  */
 
-typedef struct {
+typedef struct
+{
     int fd; /* not owned — caller (core/vtctl.c) manages master/VT lifecycle */
 
     uint32_t connector_id;
@@ -39,14 +40,17 @@ typedef struct {
     /* Cached atomic property IDs, resolved once at init by name so we never
      * re-walk drmModeObjectGetProperties() per frame.
      */
-    struct {
+    struct
+    {
         uint32_t crtc_id, fb_id, src_x, src_y, src_w, src_h,
                  crtc_x, crtc_y, crtc_w, crtc_h;
     } plane_props;
-    struct {
+    struct
+    {
         uint32_t mode_id, active;
     } crtc_props;
-    struct {
+    struct
+    {
         uint32_t crtc_id;
     } connector_props;
 
@@ -61,7 +65,8 @@ typedef struct {
      * cursor plane we're now using ourselves.
      */
     uint32_t cursor_plane_id;
-    struct {
+    struct
+    {
         uint32_t crtc_id, fb_id, src_x, src_y, src_w, src_h,
                  crtc_x, crtc_y, crtc_w, crtc_h;
     } cursor_plane_props;

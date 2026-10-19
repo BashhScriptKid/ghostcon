@@ -88,7 +88,9 @@ wait_enter(void)
     printf("\r\n" ESC "[90m-- done, press Enter to continue --" ESC "[0m");
     fflush(stdout);
     int c;
-    while ((c = getchar()) != '\n' && c != EOF) { }
+    while ((c = getchar()) != '\n' && c != EOF)
+    {
+    }
 }
 
 /* Pages */
@@ -103,8 +105,10 @@ page_cr_redraw(void)
 {
     banner("cr_redraw", "Bare \\r progress-line redraw interleaved with scrolling log lines.");
     static const char spin[] = "|/-\\";
-    for (int i = 0; i < 40; i++) {
-        if (i % 5 == 0) {
+    for (int i = 0; i < 40; i++)
+    {
+        if (i % 5 == 0)
+        {
             /* End the previous spinner line (which deliberately never
              * emitted its own \n, so it could be overwritten in place)
              * before starting this new log line -- otherwise it gets
@@ -132,7 +136,8 @@ page_scroll_status_bar(void)
     banner("scroll_status_bar", "Scroll region excludes bottom 2 rows; status area redrawn via CNL each tick.");
     printf(ESC "[1;22r");   /* reserve the last 2 of 24 rows */
     printf(ESC "[H");
-    for (int i = 0; i < 30; i++) {
+    for (int i = 0; i < 30; i++)
+    {
         printf("scrolling content line %d\r\n", i);
         /* Save the in-region cursor position before jumping down to redraw
          * the reserved status/input area, and restore it right after --
@@ -161,10 +166,12 @@ static void
 page_sync_output(void)
 {
     banner("sync_output", "Large (>4KB) screen diff wrapped in CSI ?2026h ... ?2026l.");
-    for (int rep = 0; rep < 3; rep++) {
+    for (int rep = 0; rep < 3; rep++)
+    {
         printf(ESC "[?2026h");
         printf(ESC "[2J" ESC "[H");
-        for (int y = 0; y < 20; y++) {
+        for (int y = 0; y < 20; y++)
+        {
             printf(ESC "[%d;1H", y + 1);
             for (int x = 0; x < 70; x++)
                 putchar('A' + ((x + y + rep) % 26));
@@ -186,7 +193,8 @@ page_alt_screen(void)
     printf("cursor should return to right after this line\r\n> ");
     fflush(stdout);
     usleep(300000);
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 4; i++)
+    {
         printf(ESC "[?1049h");
         printf(ESC "[2J" ESC "[H");
         printf("-- inside alt screen, iteration %d --\r\n", i);
@@ -275,7 +283,8 @@ page_dectcem_toggle(void)
     banner("dectcem_toggle", "Rapid cursor show/hide (?25h/l), common while a spinner animates.");
     printf(ESC "[H" "watch the cursor: ");
     fflush(stdout);
-    for (int i = 0; i < 20; i++) {
+    for (int i = 0; i < 20; i++)
+    {
         printf(ESC "[?25l");
         fflush(stdout);
         usleep(80000);
@@ -332,7 +341,8 @@ page_mouse_reporting(void)
 {
     banner("mouse_reporting", "Enable/disable each mouse mode (no synthetic events -- move the mouse if you want to check reports).");
     const int modes[] = { 1000, 1002, 1003 };
-    for (size_t i = 0; i < sizeof(modes) / sizeof(modes[0]); i++) {
+    for (size_t i = 0; i < sizeof(modes) / sizeof(modes[0]); i++)
+    {
         printf(ESC "[?%dh" ESC "[?1006h", modes[i]);
         printf("mode %d + SGR (1006) enabled -- move the mouse now\r\n", modes[i]);
         fflush(stdout);
@@ -419,7 +429,8 @@ page_combined_stress(void)
     banner("combined_stress", "Sync-output wrapping a scroll-region status-bar redraw wrapping alt-screen dips.");
     printf(ESC "[1;20r");
     printf(ESC "[H");
-    for (int i = 0; i < 15; i++) {
+    for (int i = 0; i < 15; i++)
+    {
         printf(ESC "[?2026h");
         printf("content line %d\r\n", i);
         printf(ESC "7");     /* save cursor -- see page_scroll_status_bar's own comment */
@@ -431,7 +442,8 @@ page_combined_stress(void)
         fflush(stdout);
         usleep(70000);
 
-        if (i == 7) {
+        if (i == 7)
+        {
             printf(ESC "[?1049h");
             printf(ESC "[2J" ESC "[H" "-- brief alt-screen dip mid-stress --\r\n");
             fflush(stdout);
@@ -445,7 +457,8 @@ page_combined_stress(void)
 
 /* ------------------------------------------------------------------ */
 
-typedef struct {
+typedef struct
+{
     const char *name;
     const char *desc;
     void (*fn)(void);
@@ -495,16 +508,20 @@ run_page(const page_t *p, bool interactive)
 int
 main(int argc, char **argv)
 {
-    if (argc > 1 && (strcmp(argv[1], "--list") == 0 || strcmp(argv[1], "-l") == 0)) {
+    if (argc > 1 && (strcmp(argv[1], "--list") == 0 || strcmp(argv[1], "-l") == 0))
+    {
         list_pages();
         return 0;
     }
 
     disable_echo();
 
-    if (argc > 1 && strcmp(argv[1], "--all") != 0) {
-        for (size_t i = 0; i < NUM_PAGES; i++) {
-            if (strcmp(argv[1], pages[i].name) == 0) {
+    if (argc > 1 && strcmp(argv[1], "--all") != 0)
+    {
+        for (size_t i = 0; i < NUM_PAGES; i++)
+        {
+            if (strcmp(argv[1], pages[i].name) == 0)
+            {
                 run_page(&pages[i], false);
                 printf("\r\n");
                 return 0;

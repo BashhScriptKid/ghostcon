@@ -11,7 +11,8 @@
 /* Default 16 ANSI colors (xterm-compatible) */
 extern const GhosttyColorRgb GC_ANSI_COLORS[16];
 
-typedef struct {
+typedef struct
+{
     GhosttyColorRgb table[GC_PALETTE_SIZE];
     GhosttyColorRgb fg_default;   /* default foreground */
     GhosttyColorRgb bg_default;   /* default background */

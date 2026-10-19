@@ -24,7 +24,8 @@
 int
 main(int argc, char **argv)
 {
-    if (argc != 3) {
+    if (argc != 3)
+    {
         fprintf(stderr, "usage: %s <theme_dir> <output_dir>\n", argv[0]);
         return 2;
     }
@@ -47,18 +48,22 @@ main(int argc, char **argv)
     char cursors_dir[1024];
     snprintf(cursors_dir, sizeof(cursors_dir), "%s/cursors", theme_dir);
     DIR *d = opendir(cursors_dir);
-    if (!d) {
+    if (!d)
+    {
         snprintf(cursors_dir, sizeof(cursors_dir), "%s", theme_dir);
         d = opendir(cursors_dir);
     }
-    if (!d) {
+    if (!d)
+    {
         fprintf(stderr, "xcursor2bmp: cannot open %s/cursors (or %s)\n", theme_dir, theme_dir);
         return 1;
     }
 
-    if (mkdir(output_dir, 0755) != 0) {
+    if (mkdir(output_dir, 0755) != 0)
+    {
         struct stat st;
-        if (stat(output_dir, &st) != 0 || !S_ISDIR(st.st_mode)) {
+        if (stat(output_dir, &st) != 0 || !S_ISDIR(st.st_mode))
+        {
             fprintf(stderr, "xcursor2bmp: cannot create output dir %s\n", output_dir);
             closedir(d);
             return 1;
@@ -68,13 +73,15 @@ main(int argc, char **argv)
 
     int converted = 0, skipped = 0;
     struct dirent *ent;
-    while ((ent = readdir(d)) != NULL) {
+    while ((ent = readdir(d)) != NULL)
+    {
         if (ent->d_name[0] == '.')
             continue; /* skip ., .., and hidden files */
 
         uint32_t w, h, hot_x, hot_y;
         uint32_t *pixels = ghostcon_cursor_load_xcursor(theme_dir, ent->d_name, &w, &h, &hot_x, &hot_y);
-        if (!pixels) {
+        if (!pixels)
+        {
             fprintf(stderr, "xcursor2bmp: skipping %s (not a valid Xcursor file)\n", ent->d_name);
             skipped++;
             continue;
@@ -82,11 +89,14 @@ main(int argc, char **argv)
 
         char out_path[1200];
         snprintf(out_path, sizeof(out_path), "%s/%s.bmp", output_dir, ent->d_name);
-        if (ghostcon_cursor_write_bmp(out_path, pixels, w, h)) {
+        if (ghostcon_cursor_write_bmp(out_path, pixels, w, h))
+        {
             printf("xcursor2bmp: %s -> %s (%ux%u, hotspot %u,%u)\n",
                    ent->d_name, out_path, w, h, hot_x, hot_y);
             converted++;
-        } else {
+        }
+        else
+        {
             fprintf(stderr, "xcursor2bmp: failed to write %s\n", out_path);
             skipped++;
         }

@@ -45,7 +45,8 @@
 int
 main(int argc, char **argv)
 {
-    if (argc < 2) {
+    if (argc < 2)
+    {
         fprintf(stderr, "usage: %s <out.ppm> [cols] [rows] [font_size] [settle_ms] -- <cmd> [args...]\n", argv[0]);
         return 1;
     }
@@ -61,16 +62,24 @@ main(int argc, char **argv)
     bool ligatures = getenv("HEADLESS_PROBE_LIGATURES") != NULL;
 
     int cmd_idx = -1;
-    for (int i = 8; i < argc; i++) {
-        if (strcmp(argv[i], "--") == 0) { cmd_idx = i + 1; break; }
+    for (int i = 8; i < argc; i++)
+    {
+        if (strcmp(argv[i], "--") == 0)
+        {
+            cmd_idx = i + 1; break;
+        }
     }
-    if (cmd_idx < 0 || cmd_idx >= argc) {
+    if (cmd_idx < 0 || cmd_idx >= argc)
+    {
         fprintf(stderr, "missing -- <cmd>\n");
         return 1;
     }
 
     ghostcon_atlas_t *atlas = ghostcon_atlas_create(font_family, font_variant, NULL, NULL, font_size, ATLAS_DIM);
-    if (!atlas) { fprintf(stderr, "FAIL: atlas_create\n"); return 1; }
+    if (!atlas)
+    {
+        fprintf(stderr, "FAIL: atlas_create\n"); return 1;
+    }
     int cell_w, cell_h;
     ghostcon_atlas_cell_size(atlas, &cell_w, &cell_h);
     uint16_t cols = (uint16_t)(target_vw / (uint32_t)cell_w);
@@ -82,15 +91,20 @@ main(int argc, char **argv)
     bool start_small = getenv("HEADLESS_PROBE_RESIZE_AFTER") != NULL;
     struct winsize ws = start_small
         ? (struct winsize){ .ws_row = 24, .ws_col = 80 }
-        : (struct winsize){ .ws_row = rows, .ws_col = cols,
-                            .ws_xpixel = (unsigned short)vw, .ws_ypixel = (unsigned short)vh };
+        : (struct winsize)
+        {
+            .ws_row = rows, .ws_col = cols,
+                            .ws_xpixel = (unsigned short)vw, .ws_ypixel = (unsigned short)vh
+        };
     int master_fd;
     pid_t child = forkpty(&master_fd, NULL, NULL, &ws);
-    if (child < 0) {
+    if (child < 0)
+    {
         perror("forkpty");
         return 1;
     }
-    if (child == 0) {
+    if (child == 0)
+    {
         const char *term = getenv("HEADLESS_PROBE_TERM");
         setenv("TERM", term ? term : "xterm-256color", 1);
         execvp(argv[cmd_idx], &argv[cmd_idx]);
@@ -102,7 +116,8 @@ main(int argc, char **argv)
      * settles (no output for a bit) or settle_ms total elapses.
      */
     ghostcon_term_t term;
-    if (!ghostcon_term_init(&term, cols, rows, 0)) {
+    if (!ghostcon_term_init(&term, cols, rows, 0))
+    {
         fprintf(stderr, "FAIL: ghostcon_term_init\n");
         return 1;
     }
@@ -111,7 +126,8 @@ main(int argc, char **argv)
     int flags = fcntl(master_fd, F_GETFL, 0);
     fcntl(master_fd, F_SETFL, flags | O_NONBLOCK);
 
-    if (start_small) {
+    if (start_small)
+    {
         /* Give the child a moment to start up at the placeholder size, then
          * deliver a REAL size change (not a same-size no-op) --this is what
          * a real windowed terminal typically does (pty created at a
@@ -128,15 +144,21 @@ main(int argc, char **argv)
     double deadline_ms = settle_ms;
     struct pollfd pfd = { .fd = master_fd, .events = POLLIN };
     uint8_t buf[65536];
-    for (;;) {
+    for (;;)
+    {
         int r = poll(&pfd, 1, 200);
-        if (r < 0) { if (errno == EINTR) continue; break; }
-        if (r == 0) {
+        if (r < 0)
+        {
+            if (errno == EINTR) continue; break;
+        }
+        if (r == 0)
+        {
             deadline_ms -= 200;
             if (deadline_ms <= 0) break;
             continue;
         }
-        if (pfd.revents & (POLLIN | POLLHUP)) {
+        if (pfd.revents & (POLLIN | POLLHUP))
+        {
             ssize_t n = read(master_fd, buf, sizeof(buf));
             if (n <= 0) break;
             if (raw_f) fwrite(buf, 1, (size_t)n, raw_f);
@@ -144,7 +166,8 @@ main(int argc, char **argv)
         }
     }
 
-    if (getenv("HEADLESS_PROBE_WINCH")) {
+    if (getenv("HEADLESS_PROBE_WINCH"))
+    {
         /* Real windowed terminals commonly deliver a SIGWINCH shortly after
          * a program starts (window creation/focus) even when the size
          * doesn't actually change; this synthetic pty never does. Test
@@ -152,11 +175,19 @@ main(int argc, char **argv)
          */
         kill(child, SIGWINCH);
         double extra_ms = 2000;
-        for (;;) {
+        for (;;)
+        {
             int r = poll(&pfd, 1, 200);
-            if (r < 0) { if (errno == EINTR) continue; break; }
-            if (r == 0) { extra_ms -= 200; if (extra_ms <= 0) break; continue; }
-            if (pfd.revents & (POLLIN | POLLHUP)) {
+            if (r < 0)
+            {
+                if (errno == EINTR) continue; break;
+            }
+            if (r == 0)
+            {
+                extra_ms -= 200; if (extra_ms <= 0) break; continue;
+            }
+            if (pfd.revents & (POLLIN | POLLHUP))
+            {
                 ssize_t n = read(master_fd, buf, sizeof(buf));
                 if (n <= 0) break;
                 if (raw_f) fwrite(buf, 1, (size_t)n, raw_f);
@@ -170,16 +201,21 @@ main(int argc, char **argv)
         ghostcon_screen_mark_dirty(&term.screen, y);
 
     ghostcon_egl_t egl;
-    if (!ghostcon_egl_init(&egl, DRM_RENDER_NODE, vw, vh)) {
+    if (!ghostcon_egl_init(&egl, DRM_RENDER_NODE, vw, vh))
+    {
         fprintf(stderr, "FAIL: egl_init on %s\n", DRM_RENDER_NODE);
         return 1;
     }
-    if (!ghostcon_egl_make_current(&egl)) {
+    if (!ghostcon_egl_make_current(&egl))
+    {
         fprintf(stderr, "FAIL: egl_make_current\n");
         return 1;
     }
     ghostcon_gles_t *gles = ghostcon_gles_create(vw, vh, false);
-    if (!gles) { fprintf(stderr, "FAIL: gles_create\n"); return 1; }
+    if (!gles)
+    {
+        fprintf(stderr, "FAIL: gles_create\n"); return 1;
+    }
 
     GhosttyColorRgb bg_rgb = term.screen.palette.bg_default;
     ghostcon_gles_begin(gles, true,
@@ -192,7 +228,8 @@ main(int argc, char **argv)
     ghostcon_gles_sync_atlas(gles, atlas, false);
     ghostcon_gles_end(gles);
 
-    if (!ghostcon_gles_screenshot_ppm(gles, out_path)) {
+    if (!ghostcon_gles_screenshot_ppm(gles, out_path))
+    {
         fprintf(stderr, "FAIL: screenshot_ppm\n");
         return 1;
     }

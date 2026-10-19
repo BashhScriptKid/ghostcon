@@ -21,7 +21,8 @@ const ghostcon_style_t GHOSTCON_STYLE_DEFAULT = {
 #define STYLE_SET_MIN_CAPACITY 16
 
 /* A single entry in the hash table */
-typedef struct {
+typedef struct
+{
     ghostcon_style_id_t id;       /* 0 = empty slot (id 0 is reserved for default) */
     uint16_t            refcount;
     ghostcon_style_t    style;
@@ -34,11 +35,13 @@ struct ghostcon_style_set {
 };
 
 static uint32_t
-hash_style(const ghostcon_style_t *s) {
+hash_style(const ghostcon_style_t *s)
+{
     /* Simple FNV-1a hash over the style bytes */
     uint32_t h = 2166136261u;
     const uint8_t *p = (const uint8_t *)s;
-    for (size_t i = 0; i < sizeof(ghostcon_style_t); i++) {
+    for (size_t i = 0; i < sizeof(ghostcon_style_t); i++)
+    {
         h ^= p[i];
         h *= 16777619u;
     }
@@ -46,7 +49,8 @@ hash_style(const ghostcon_style_t *s) {
 }
 
 ghostcon_style_set_t *
-ghostcon_style_set_create(uint16_t capacity) {
+ghostcon_style_set_create(uint16_t capacity)
+{
     if (capacity < STYLE_SET_MIN_CAPACITY)
         capacity = STYLE_SET_MIN_CAPACITY;
 
@@ -55,7 +59,8 @@ ghostcon_style_set_create(uint16_t capacity) {
         return NULL;
 
     set->entries = (style_entry_t *)calloc(capacity, sizeof(style_entry_t));
-    if (!set->entries) {
+    if (!set->entries)
+    {
         free(set);
         return NULL;
     }
@@ -66,7 +71,8 @@ ghostcon_style_set_create(uint16_t capacity) {
 }
 
 void
-ghostcon_style_set_destroy(ghostcon_style_set_t *set) {
+ghostcon_style_set_destroy(ghostcon_style_set_t *set)
+{
     if (!set)
         return;
     free(set->entries);
@@ -75,14 +81,16 @@ ghostcon_style_set_destroy(ghostcon_style_set_t *set) {
 
 /* Find an entry by style, return index or -1 if not found */
 static int16_t
-find_entry(const ghostcon_style_set_t *set, const ghostcon_style_t *style) {
+find_entry(const ghostcon_style_set_t *set, const ghostcon_style_t *style)
+{
     if (set->capacity == 0)
         return -1;
 
     uint32_t h = hash_style(style);
     uint16_t idx = h % set->capacity;
 
-    for (uint16_t i = 0; i < set->capacity; i++) {
+    for (uint16_t i = 0; i < set->capacity; i++)
+    {
         uint16_t slot = (idx + i) % set->capacity;
         style_entry_t *e = &set->entries[slot];
         if (e->id == 0)
@@ -95,7 +103,8 @@ find_entry(const ghostcon_style_set_t *set, const ghostcon_style_t *style) {
 
 /* Grow the table to new_capacity */
 static bool
-grow_table(ghostcon_style_set_t *set, uint16_t new_capacity) {
+grow_table(ghostcon_style_set_t *set, uint16_t new_capacity)
+{
     style_entry_t *old = set->entries;
     uint16_t old_cap = set->capacity;
 
@@ -108,14 +117,18 @@ grow_table(ghostcon_style_set_t *set, uint16_t new_capacity) {
     set->count = 0;
 
     /* Rehash all entries */
-    for (uint16_t i = 0; i < old_cap; i++) {
-        if (old[i].id != 0) {
+    for (uint16_t i = 0; i < old_cap; i++)
+    {
+        if (old[i].id != 0)
+        {
             /* Re-add */
             uint32_t h = hash_style(&old[i].style);
             uint16_t idx = h % new_capacity;
-            for (uint16_t j = 0; j < new_capacity; j++) {
+            for (uint16_t j = 0; j < new_capacity; j++)
+            {
                 uint16_t slot = (idx + j) % new_capacity;
-                if (new[slot].id == 0) {
+                if (new[slot].id == 0)
+                {
                     new[slot] = old[i];
                     set->count++;
                     break;
@@ -129,20 +142,23 @@ grow_table(ghostcon_style_set_t *set, uint16_t new_capacity) {
 }
 
 ghostcon_style_id_t
-ghostcon_style_set_add(ghostcon_style_set_t *set, const ghostcon_style_t *style) {
+ghostcon_style_set_add(ghostcon_style_set_t *set, const ghostcon_style_t *style)
+{
     /* Default style always maps to ID 0 */
     if (ghostcon_style_eq(style, &GHOSTCON_STYLE_DEFAULT))
         return GC_STYLE_DEFAULT_ID;
 
     /* Check if already exists */
     int16_t existing = find_entry(set, style);
-    if (existing >= 0) {
+    if (existing >= 0)
+    {
         set->entries[existing].refcount++;
         return set->entries[existing].id;
     }
 
     /* Grow if load factor > 0.75 */
-    if (set->count >= (uint16_t)(set->capacity * 0.75f)) {
+    if (set->count >= (uint16_t)(set->capacity * 0.75f))
+    {
         if (!grow_table(set, set->capacity * 2))
             return GC_STYLE_DEFAULT_ID;
     }
@@ -151,16 +167,21 @@ ghostcon_style_set_add(ghostcon_style_set_t *set, const ghostcon_style_t *style)
     uint32_t h = hash_style(style);
     uint16_t idx = h % set->capacity;
 
-    for (uint16_t i = 0; i < set->capacity; i++) {
+    for (uint16_t i = 0; i < set->capacity; i++)
+    {
         uint16_t slot = (idx + i) % set->capacity;
-        if (set->entries[slot].id == 0) {
+        if (set->entries[slot].id == 0)
+        {
             /* Assign next available ID (skipping 0) */
             ghostcon_style_id_t new_id = GC_STYLE_DEFAULT_ID + 1;
-            while (new_id <= GC_STYLE_ID_MAX) {
+            while (new_id <= GC_STYLE_ID_MAX)
+            {
                 bool used = false;
                 /* Check if any existing entry uses this id */
-                for (uint16_t j = 0; j < set->capacity; j++) {
-                    if (set->entries[j].id == new_id) {
+                for (uint16_t j = 0; j < set->capacity; j++)
+                {
+                    if (set->entries[j].id == new_id)
+                    {
                         used = true;
                         break;
                     }
@@ -182,12 +203,15 @@ ghostcon_style_set_add(ghostcon_style_set_t *set, const ghostcon_style_t *style)
 }
 
 void
-ghostcon_style_set_ref(ghostcon_style_set_t *set, ghostcon_style_id_t id) {
+ghostcon_style_set_ref(ghostcon_style_set_t *set, ghostcon_style_id_t id)
+{
     if (id == GC_STYLE_DEFAULT_ID)
         return;
 
-    for (uint16_t i = 0; i < set->capacity; i++) {
-        if (set->entries[i].id == id) {
+    for (uint16_t i = 0; i < set->capacity; i++)
+    {
+        if (set->entries[i].id == id)
+        {
             set->entries[i].refcount++;
             return;
         }
@@ -195,15 +219,19 @@ ghostcon_style_set_ref(ghostcon_style_set_t *set, ghostcon_style_id_t id) {
 }
 
 void
-ghostcon_style_set_unref(ghostcon_style_set_t *set, ghostcon_style_id_t id) {
+ghostcon_style_set_unref(ghostcon_style_set_t *set, ghostcon_style_id_t id)
+{
     if (id == GC_STYLE_DEFAULT_ID)
         return;
 
-    for (uint16_t i = 0; i < set->capacity; i++) {
-        if (set->entries[i].id == id) {
+    for (uint16_t i = 0; i < set->capacity; i++)
+    {
+        if (set->entries[i].id == id)
+        {
             if (set->entries[i].refcount > 0)
                 set->entries[i].refcount--;
-            if (set->entries[i].refcount == 0) {
+            if (set->entries[i].refcount == 0)
+            {
                 set->entries[i].id = 0;
                 set->count--;
             }
@@ -213,11 +241,13 @@ ghostcon_style_set_unref(ghostcon_style_set_t *set, ghostcon_style_id_t id) {
 }
 
 const ghostcon_style_t *
-ghostcon_style_set_get(const ghostcon_style_set_t *set, ghostcon_style_id_t id) {
+ghostcon_style_set_get(const ghostcon_style_set_t *set, ghostcon_style_id_t id)
+{
     if (id == GC_STYLE_DEFAULT_ID)
         return &GHOSTCON_STYLE_DEFAULT;
 
-    for (uint16_t i = 0; i < set->capacity; i++) {
+    for (uint16_t i = 0; i < set->capacity; i++)
+    {
         if (set->entries[i].id == id)
             return &set->entries[i].style;
     }

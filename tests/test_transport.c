@@ -28,7 +28,8 @@ wait_for_substring(ghostcon_transport_t *t, const char *needle, int timeout_ms)
     char acc[8192];
     size_t acc_len = 0;
 
-    for (;;) {
+    for (;;)
+    {
         struct pollfd pfd = { .fd = ghostcon_transport_fd(t), .events = POLLIN };
         int rv = poll(&pfd, 1, timeout_ms);
         if (rv <= 0)
@@ -50,14 +51,16 @@ int
 main(void)
 {
     const char *ptyserv_bin = getenv("GHOSTCON_PTYSERV_BIN");
-    if (!ptyserv_bin) {
+    if (!ptyserv_bin)
+    {
         fprintf(stderr, "FAIL: GHOSTCON_PTYSERV_BIN not set\n");
         return 1;
     }
 
     char registry_sock[] = "/tmp/ghostcon-test-transport-registry-XXXXXX";
     int tmp_fd = mkstemp(registry_sock);
-    if (tmp_fd < 0) {
+    if (tmp_fd < 0)
+    {
         fprintf(stderr, "FAIL: mkstemp\n");
         return 1;
     }
@@ -67,11 +70,13 @@ main(void)
     signal(SIGPIPE, SIG_IGN);
 
     pid_t ptyserv_pid = fork();
-    if (ptyserv_pid < 0) {
+    if (ptyserv_pid < 0)
+    {
         fprintf(stderr, "FAIL: fork ghost-ptyserv\n");
         return 1;
     }
-    if (ptyserv_pid == 0) {
+    if (ptyserv_pid == 0)
+    {
         char vt_str[16];
         snprintf(vt_str, sizeof(vt_str), "%d", TEST_VT);
         execl(ptyserv_bin, ptyserv_bin, registry_sock, vt_str, (char *)NULL);
@@ -81,12 +86,14 @@ main(void)
 
     ghostcon_transport_t t;
     bool connected = false;
-    for (int i = 0; i < 50 && !connected; i++) {
+    for (int i = 0; i < 50 && !connected; i++)
+    {
         connected = ghostcon_transport_connect(&t, registry_sock, TEST_VT);
         if (!connected)
             usleep(20000);
     }
-    if (!connected) {
+    if (!connected)
+    {
         fprintf(stderr, "FAIL: could not connect transport\n");
         kill(ptyserv_pid, SIGKILL);
         unlink(registry_sock);
@@ -96,7 +103,8 @@ main(void)
 
     const char *cmd = "echo TRANSPORT_OK\n";
     ghostcon_transport_write(&t, (const uint8_t *)cmd, strlen(cmd));
-    if (!wait_for_substring(&t, "TRANSPORT_OK", 3000)) {
+    if (!wait_for_substring(&t, "TRANSPORT_OK", 3000))
+    {
         fprintf(stderr, "FAIL: did not see command output over transport\n");
         ghostcon_transport_close(&t);
         kill(t.pty_child_pid, SIGKILL);

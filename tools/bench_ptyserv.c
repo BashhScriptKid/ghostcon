@@ -56,7 +56,8 @@ connect_unix(const char *path)
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
-    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+    {
         close(fd);
         return -1;
     }
@@ -67,13 +68,15 @@ int
 main(int argc, char **argv)
 {
     int megabytes = argc > 1 ? atoi(argv[1]) : 64;
-    if (megabytes <= 0) {
+    if (megabytes <= 0)
+    {
         fprintf(stderr, "usage: %s [megabytes]\n", argv[0]);
         return 1;
     }
 
     const char *ptyserv_bin = getenv("GHOSTCON_PTYSERV_BIN");
-    if (!ptyserv_bin) {
+    if (!ptyserv_bin)
+    {
         fprintf(stderr, "FAIL: set GHOSTCON_PTYSERV_BIN to the built ghost-ptyserv binary\n"
                         "  (same env var meson's own test harness sets -- see build-release/meson-logs)\n");
         return 1;
@@ -82,15 +85,22 @@ main(int argc, char **argv)
 
     char registry_sock[] = "/tmp/ghostcon-bench-registry-XXXXXX";
     int tmp_fd = mkstemp(registry_sock);
-    if (tmp_fd < 0) { fprintf(stderr, "FAIL: mkstemp\n"); return 1; }
+    if (tmp_fd < 0)
+    {
+        fprintf(stderr, "FAIL: mkstemp\n"); return 1;
+    }
     close(tmp_fd);
     unlink(registry_sock);
 
     signal(SIGPIPE, SIG_IGN);
 
     pid_t ptyserv_pid = fork();
-    if (ptyserv_pid < 0) { fprintf(stderr, "FAIL: fork ghost-ptyserv\n"); return 1; }
-    if (ptyserv_pid == 0) {
+    if (ptyserv_pid < 0)
+    {
+        fprintf(stderr, "FAIL: fork ghost-ptyserv\n"); return 1;
+    }
+    if (ptyserv_pid == 0)
+    {
         char vt_str[16];
         snprintf(vt_str, sizeof(vt_str), "%d", TEST_VT);
         execl(ptyserv_bin, ptyserv_bin, registry_sock, vt_str, (char *)NULL);
@@ -99,12 +109,14 @@ main(int argc, char **argv)
     }
 
     int registry_fd = -1;
-    for (int i = 0; i < 50 && registry_fd < 0; i++) {
+    for (int i = 0; i < 50 && registry_fd < 0; i++)
+    {
         registry_fd = connect_unix(registry_sock);
         if (registry_fd < 0)
             usleep(20000);
     }
-    if (registry_fd < 0) {
+    if (registry_fd < 0)
+    {
         fprintf(stderr, "FAIL: could not connect to registry socket\n");
         kill(ptyserv_pid, SIGKILL);
         return 1;
@@ -117,7 +129,8 @@ main(int argc, char **argv)
     char resp[GHOSTCON_PTYSERV_LINE_MAX];
     ssize_t r = read(registry_fd, resp, sizeof(resp) - 1);
     close(registry_fd);
-    if (r <= 0) {
+    if (r <= 0)
+    {
         fprintf(stderr, "FAIL: no response from registry\n");
         kill(ptyserv_pid, SIGKILL);
         return 1;
@@ -126,19 +139,22 @@ main(int argc, char **argv)
 
     int pty_child_pid;
     char pty_socket[GHOSTCON_PTYSERV_LINE_MAX];
-    if (!ghostcon_ptyserv_parse_ok(resp, &pty_child_pid, pty_socket)) {
+    if (!ghostcon_ptyserv_parse_ok(resp, &pty_child_pid, pty_socket))
+    {
         fprintf(stderr, "FAIL: bad registry response: %s\n", resp);
         kill(ptyserv_pid, SIGKILL);
         return 1;
     }
 
     int renderer_fd = -1;
-    for (int i = 0; i < 50 && renderer_fd < 0; i++) {
+    for (int i = 0; i < 50 && renderer_fd < 0; i++)
+    {
         renderer_fd = connect_unix(pty_socket);
         if (renderer_fd < 0)
             usleep(20000);
     }
-    if (renderer_fd < 0) {
+    if (renderer_fd < 0)
+    {
         fprintf(stderr, "FAIL: could not connect to pty child socket\n");
         kill(ptyserv_pid, SIGKILL);
         kill(pty_child_pid, SIGKILL);
@@ -206,10 +222,12 @@ main(int argc, char **argv)
     size_t tail_len = 0;
     size_t marker_len = strlen(marker);
     bool done = false;
-    while (!done) {
+    while (!done)
+    {
         struct pollfd pfd = { .fd = renderer_fd, .events = POLLIN };
         int rv = poll(&pfd, 1, 5000);
-        if (rv <= 0) {
+        if (rv <= 0)
+        {
             fprintf(stderr, "FAIL: timed out waiting for completion marker\n");
             break;
         }
@@ -236,7 +254,8 @@ main(int argc, char **argv)
     }
     double elapsed_ms = now_ms() - t0;
 
-    if (done) {
+    if (done)
+    {
         double mb = (double)total_read / (1024.0 * 1024.0);
         printf("\n--- results ---\n");
         printf("bytes received: %zu (%.2f MB)\n", total_read, mb);

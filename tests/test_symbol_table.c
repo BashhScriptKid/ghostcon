@@ -18,19 +18,22 @@
 #endif
 
 static bool
-is_symbol_category(const char *cat) {
+is_symbol_category(const char *cat)
+{
     return strcmp(cat, "Sm") == 0 || strcmp(cat, "Sc") == 0 ||
            strcmp(cat, "Sk") == 0 || strcmp(cat, "So") == 0;
 }
 
 static bool
-expected_is_symbol(uint32_t cp, bool ucd_symbol) {
+expected_is_symbol(uint32_t cp, bool ucd_symbol)
+{
     if (cp >= 0x2500 && cp <= 0x259F) return false; /* box draw/block elements */
     if (cp >= 0xE000 && cp <= 0xF8FF) return true;  /* PUA (Nerd Font icons) */
     return ucd_symbol;
 }
 
-TEST(symbol_table_matches_ucd) {
+TEST(symbol_table_matches_ucd)
+{
     FILE *f = fopen(GHOSTCON_UCD_PATH, "r");
     ASSERT(f != NULL, "failed to open vendored UnicodeData.txt");
 
@@ -43,12 +46,14 @@ TEST(symbol_table_matches_ucd) {
     uint32_t first_bad_cp = 0;
     bool first_bad_got = false, first_bad_expected = false;
 
-    while (fgets(line, sizeof(line), f)) {
+    while (fgets(line, sizeof(line), f))
+    {
         char *fields[16];
         int nf = 0;
         char *p = line;
         char *tok;
-        while (nf < 16 && (tok = strsep(&p, ";")) != NULL) {
+        while (nf < 16 && (tok = strsep(&p, ";")) != NULL)
+        {
             fields[nf++] = tok;
         }
         if (nf < 3) continue;
@@ -61,7 +66,8 @@ TEST(symbol_table_matches_ucd) {
         bool is_first = name_len >= 8 && strcmp(name + name_len - 8, ", First>") == 0;
         bool is_last = name_len >= 7 && strcmp(name + name_len - 7, ", Last>") == 0;
 
-        if (is_first) {
+        if (is_first)
+        {
             pending_first_cp = (long)cp;
             snprintf(pending_first_cat, sizeof(pending_first_cat), "%s", cat);
             continue;
@@ -69,7 +75,8 @@ TEST(symbol_table_matches_ucd) {
 
         uint32_t range_lo = cp, range_hi = cp;
         const char *use_cat = cat;
-        if (is_last) {
+        if (is_last)
+        {
             ASSERT(pending_first_cp >= 0, "Last> entry with no preceding First>");
             range_lo = (uint32_t)pending_first_cp;
             range_hi = cp;
@@ -78,12 +85,15 @@ TEST(symbol_table_matches_ucd) {
         }
 
         bool ucd_symbol = is_symbol_category(use_cat);
-        for (uint32_t c = range_lo; c <= range_hi; c++) {
+        for (uint32_t c = range_lo; c <= range_hi; c++)
+        {
             bool expected = expected_is_symbol(c, ucd_symbol);
             bool got = ghostcon_cell_is_symbol(c);
             checked++;
-            if (got != expected) {
-                if (mismatches == 0) {
+            if (got != expected)
+            {
+                if (mismatches == 0)
+                {
                     first_bad_cp = c;
                     first_bad_got = got;
                     first_bad_expected = expected;
@@ -97,7 +107,8 @@ TEST(symbol_table_matches_ucd) {
 
     ASSERT(checked > 250000, "sanity: expected to sweep a substantial fraction of the UCD");
 
-    if (mismatches > 0) {
+    if (mismatches > 0)
+    {
         char buf[256];
         snprintf(buf, sizeof(buf),
                  "%ld/%ld codepoints mismatched; first at U+%04X: got %s, expected %s",
@@ -108,6 +119,7 @@ TEST(symbol_table_matches_ucd) {
     }
 }
 
-int main(void) {
+int main(void)
+{
     return gc_test_run_all();
 }

@@ -93,7 +93,8 @@ static void
 query_cell_size(void)
 {
     struct winsize ws;
-    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_row > 0 && ws.ws_ypixel > 0) {
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_row > 0 && ws.ws_ypixel > 0)
+    {
         g_cell_h = ws.ws_ypixel / ws.ws_row;
         if (ws.ws_col > 0 && ws.ws_xpixel > 0)
             g_cell_w = ws.ws_xpixel / ws.ws_col;
@@ -162,7 +163,9 @@ wait_enter(void)
     printf("\r\n" ESC "[90m-- done, press Enter to continue --" ESC "[0m");
     fflush(stdout);
     int c;
-    while ((c = getchar()) != '\n' && c != EOF) { }
+    while ((c = getchar()) != '\n' && c != EOF)
+    {
+    }
 }
 
 /* base64 */
@@ -177,7 +180,8 @@ b64_encode(const uint8_t *data, size_t len, size_t *out_len)
     char *out = malloc(olen + 1);
     size_t i = 0, o = 0;
 
-    while (i + 3 <= len) {
+    while (i + 3 <= len)
+    {
         uint32_t v = ((uint32_t)data[i] << 16) | ((uint32_t)data[i + 1] << 8) | data[i + 2];
         out[o++] = b64_table[(v >> 18) & 0x3F];
         out[o++] = b64_table[(v >> 12) & 0x3F];
@@ -186,13 +190,16 @@ b64_encode(const uint8_t *data, size_t len, size_t *out_len)
         i += 3;
     }
     size_t rem = len - i;
-    if (rem == 1) {
+    if (rem == 1)
+    {
         uint32_t v = (uint32_t)data[i] << 16;
         out[o++] = b64_table[(v >> 18) & 0x3F];
         out[o++] = b64_table[(v >> 12) & 0x3F];
         out[o++] = '=';
         out[o++] = '=';
-    } else if (rem == 2) {
+    }
+    else if (rem == 2)
+    {
         uint32_t v = ((uint32_t)data[i] << 16) | ((uint32_t)data[i + 1] << 8);
         out[o++] = b64_table[(v >> 18) & 0x3F];
         out[o++] = b64_table[(v >> 12) & 0x3F];
@@ -207,7 +214,8 @@ b64_encode(const uint8_t *data, size_t len, size_t *out_len)
 
 /* Minimal PNG encoder (stored/uncompressed DEFLATE -- no zlib) */
 
-typedef struct {
+typedef struct
+{
     uint8_t *data;
     size_t len, cap;
 } buf_t;
@@ -215,7 +223,8 @@ typedef struct {
 static void
 buf_append(buf_t *b, const void *p, size_t n)
 {
-    if (b->len + n > b->cap) {
+    if (b->len + n > b->cap)
+    {
         b->cap = (b->len + n) * 2 + 64;
         b->data = realloc(b->data, b->cap);
     }
@@ -235,8 +244,10 @@ crc32_of(const uint8_t *buf, size_t len)
 {
     static uint32_t table[256];
     static bool init = false;
-    if (!init) {
-        for (uint32_t n = 0; n < 256; n++) {
+    if (!init)
+    {
+        for (uint32_t n = 0; n < 256; n++)
+        {
             uint32_t c = n;
             for (int k = 0; k < 8; k++)
                 c = (c & 1) ? (0xEDB88320u ^ (c >> 1)) : (c >> 1);
@@ -254,7 +265,8 @@ static uint32_t
 adler32_of(const uint8_t *data, size_t len)
 {
     uint32_t a = 1, b = 0;
-    for (size_t i = 0; i < len; i++) {
+    for (size_t i = 0; i < len; i++)
+    {
         a = (a + data[i]) % 65521;
         b = (b + a) % 65521;
     }
@@ -281,7 +293,8 @@ build_png(int w, int h, bool rgba, const uint8_t *pixels, size_t *out_len)
     size_t raw_len = (size_t)(bpp * w + 1) * (size_t)h;
     uint8_t *raw = malloc(raw_len);
     size_t p = 0;
-    for (int y = 0; y < h; y++) {
+    for (int y = 0; y < h; y++)
+    {
         raw[p++] = 0; /* filter: None */
         memcpy(raw + p, pixels + (size_t)y * (size_t)w * (size_t)bpp, (size_t)w * (size_t)bpp);
         p += (size_t)w * (size_t)bpp;
@@ -292,7 +305,8 @@ build_png(int w, int h, bool rgba, const uint8_t *pixels, size_t *out_len)
     buf_append(&z, zh, 2);
 
     size_t off = 0;
-    do {
+    do
+    {
         size_t take = raw_len - off;
         if (take > 65535)
             take = 65535;
@@ -342,8 +356,10 @@ gen_checkerboard(uint8_t *px, int w, int h, int bpp, int cell,
                   uint8_t r1, uint8_t g1, uint8_t b1,
                   uint8_t r2, uint8_t g2, uint8_t b2)
 {
-    for (int y = 0; y < h; y++) {
-        for (int x = 0; x < w; x++) {
+    for (int y = 0; y < h; y++)
+    {
+        for (int x = 0; x < w; x++)
+        {
             bool on = ((x / cell) + (y / cell)) % 2 == 0;
             uint8_t *p = px + ((size_t)y * (size_t)w + (size_t)x) * (size_t)bpp;
             p[0] = on ? r1 : r2;
@@ -360,8 +376,10 @@ gen_gradient(uint8_t *px, int w, int h, int bpp)
 {
     int wd = w > 1 ? w - 1 : 1;
     int hd = h > 1 ? h - 1 : 1;
-    for (int y = 0; y < h; y++) {
-        for (int x = 0; x < w; x++) {
+    for (int y = 0; y < h; y++)
+    {
+        for (int x = 0; x < w; x++)
+        {
             uint8_t *p = px + ((size_t)y * (size_t)w + (size_t)x) * (size_t)bpp;
             p[0] = (uint8_t)((x * 255) / wd);
             p[1] = (uint8_t)((y * 255) / hd);
@@ -376,8 +394,10 @@ static void
 gen_alpha_ramp(uint8_t *px, int w, int h)
 {
     int wd = w > 1 ? w - 1 : 1;
-    for (int y = 0; y < h; y++) {
-        for (int x = 0; x < w; x++) {
+    for (int y = 0; y < h; y++)
+    {
+        for (int x = 0; x < w; x++)
+        {
             uint8_t *p = px + ((size_t)y * (size_t)w + (size_t)x) * 4;
             p[0] = 255; p[1] = 60; p[2] = 60;
             p[3] = (uint8_t)((x * 255) / wd);
@@ -397,7 +417,8 @@ kitty_send(const char *keys, const uint8_t *payload, size_t len)
     size_t off = 0;
     bool is_first = true;
 
-    do {
+    do
+    {
         size_t take = b64_len - off;
         if (take > KITTY_CHUNK)
             take = KITTY_CHUNK;
@@ -424,7 +445,8 @@ static void
 emit_sixel_run(const uint8_t *bits, int width)
 {
     int i = 0;
-    while (i < width) {
+    while (i < width)
+    {
         int j = i + 1;
         while (j < width && bits[j] == bits[i])
             j++;
@@ -445,7 +467,8 @@ sixel_send(int width, int height, const uint8_t *idx,
            const uint8_t palette[][3], int ncolors)
 {
     printf(ESC "Pq" "\"1;1;%d;%d", width, height);
-    for (int c = 0; c < ncolors; c++) {
+    for (int c = 0; c < ncolors; c++)
+    {
         printf("#%d;2;%d;%d;%d", c,
                (palette[c][0] * 100 + 127) / 255,
                (palette[c][1] * 100 + 127) / 255,
@@ -453,16 +476,21 @@ sixel_send(int width, int height, const uint8_t *idx,
     }
 
     uint8_t *bits = malloc((size_t)width);
-    for (int y0 = 0; y0 < height; y0 += 6) {
+    for (int y0 = 0; y0 < height; y0 += 6)
+    {
         int rows = height - y0;
         if (rows > 6)
             rows = 6;
-        for (int c = 0; c < ncolors; c++) {
+        for (int c = 0; c < ncolors; c++)
+        {
             bool any = false;
-            for (int x = 0; x < width; x++) {
+            for (int x = 0; x < width; x++)
+            {
                 uint8_t b = 0;
-                for (int r = 0; r < rows; r++) {
-                    if (idx[(size_t)(y0 + r) * (size_t)width + (size_t)x] == c) {
+                for (int r = 0; r < rows; r++)
+                {
+                    if (idx[(size_t)(y0 + r) * (size_t)width + (size_t)x] == c)
+                    {
                         b |= (uint8_t)(1u << r);
                         any = true;
                     }
@@ -513,12 +541,14 @@ page_kitty_shm(void)
     snprintf(shm_name, sizeof shm_name, "/ghostcon-bench-shm-%d", (int)getpid());
 
     int fd = shm_open(shm_name, O_CREAT | O_RDWR | O_EXCL, 0600);
-    if (fd < 0) {
+    if (fd < 0)
+    {
         printf("\r\n  shm_open failed: %s\r\n", strerror(errno));
         free(px);
         return;
     }
-    if (ftruncate(fd, (off_t)len) != 0) {
+    if (ftruncate(fd, (off_t)len) != 0)
+    {
         printf("\r\n  ftruncate failed: %s\r\n", strerror(errno));
         close(fd);
         shm_unlink(shm_name);
@@ -527,7 +557,8 @@ page_kitty_shm(void)
     }
     void *map = mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     close(fd);
-    if (map == MAP_FAILED) {
+    if (map == MAP_FAILED)
+    {
         printf("\r\n  mmap failed: %s\r\n", strerror(errno));
         shm_unlink(shm_name);
         free(px);
@@ -575,7 +606,8 @@ page_kitty_temp_file(void)
     snprintf(path, sizeof path, "/tmp/tty-graphics-protocol-bench-%d.data", (int)getpid());
 
     FILE *f = fopen(path, "wb");
-    if (!f) {
+    if (!f)
+    {
         printf("\r\n  fopen failed: %s\r\n", strerror(errno));
         free(px);
         return;
@@ -583,7 +615,8 @@ page_kitty_temp_file(void)
     size_t written = fwrite(px, 1, len, f);
     fclose(f);
     free(px);
-    if (written != len) {
+    if (written != len)
+    {
         printf("\r\n  short write to %s\r\n", path);
         unlink(path);
         return;
@@ -632,7 +665,8 @@ page_kitty_cache_file(void)
     snprintf(path, sizeof path, "/tmp/ghostcon-bench-cache.data");
 
     FILE *f = fopen(path, "wb");
-    if (!f) {
+    if (!f)
+    {
         printf("\r\n  fopen failed: %s\r\n", strerror(errno));
         free(px);
         return;
@@ -640,7 +674,8 @@ page_kitty_cache_file(void)
     size_t written = fwrite(px, 1, len, f);
     fclose(f);
     free(px);
-    if (written != len) {
+    if (written != len)
+    {
         printf("\r\n  short write to %s\r\n", path);
         unlink(path);
         return;
@@ -772,7 +807,8 @@ page_kitty_delete(void)
 {
     banner("kitty_delete", "Kitty graphics: transmit+display several images, then delete one by id (a=d,d=i).");
     int w = 32, h = 32, bpp = 3;
-    for (int n = 0; n < 3; n++) {
+    for (int n = 0; n < 3; n++)
+    {
         uint8_t *px = malloc((size_t)w * (size_t)h * (size_t)bpp);
         gen_checkerboard(px, w, h, bpp, 4, (uint8_t)(60 + n * 60), 40, 200, 20, 20, 40);
         char keys[128];
@@ -911,7 +947,8 @@ page_combined_stress(void)
 
 /* Dispatch */
 
-typedef struct {
+typedef struct
+{
     const char *name;
     const char *desc;
     void (*fn)(void);
@@ -956,7 +993,8 @@ run_page(const page_t *p, bool interactive)
 int
 main(int argc, char **argv)
 {
-    if (argc > 1 && (strcmp(argv[1], "--list") == 0 || strcmp(argv[1], "-l") == 0)) {
+    if (argc > 1 && (strcmp(argv[1], "--list") == 0 || strcmp(argv[1], "-l") == 0))
+    {
         list_pages();
         return 0;
     }
@@ -981,9 +1019,12 @@ main(int argc, char **argv)
 
     query_cell_size();
 
-    if (argc > 1 && strcmp(argv[1], "--all") != 0) {
-        for (size_t i = 0; i < NUM_PAGES; i++) {
-            if (strcmp(argv[1], pages[i].name) == 0) {
+    if (argc > 1 && strcmp(argv[1], "--all") != 0)
+    {
+        for (size_t i = 0; i < NUM_PAGES; i++)
+        {
+            if (strcmp(argv[1], pages[i].name) == 0)
+            {
                 run_page(&pages[i], false);
                 printf("\r\n");
                 return 0;

@@ -68,7 +68,8 @@ main(void)
     strcpy(path, PATH_TEMPLATE);
     int fd = mkstemp(path);
     CHECK(fd >= 0, "mkstemp for partial config");
-    if (fd >= 0) {
+    if (fd >= 0)
+    {
         const char *contents = "[general]\ndrm_node = \"/dev/dri/card2\"\n";
         write(fd, contents, strlen(contents));
         close(fd);
@@ -86,7 +87,8 @@ main(void)
     strcpy(path, PATH_TEMPLATE);
     fd = mkstemp(path);
     CHECK(fd >= 0, "mkstemp for full config");
-    if (fd >= 0) {
+    if (fd >= 0)
+    {
         const char *contents =
             "[general]\n"
             "drm_node = \"/dev/dri/card3\"\n"
@@ -187,7 +189,8 @@ main(void)
     strcpy(path, PATH_TEMPLATE);
     fd = mkstemp(path);
     CHECK(fd >= 0, "mkstemp for malformed config");
-    if (fd >= 0) {
+    if (fd >= 0)
+    {
         const char *contents = "[general\ndrm_node = \n";
         write(fd, contents, strlen(contents));
         close(fd);
@@ -289,7 +292,8 @@ main(void)
         }
     }
 
-    if (failures > 0) {
+    if (failures > 0)
+    {
         fprintf(stderr, "%d check(s) failed\n", failures);
         return 1;
     }

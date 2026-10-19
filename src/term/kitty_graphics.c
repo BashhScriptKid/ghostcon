@@ -46,7 +46,8 @@ decode_png_rgba(const uint8_t *data, size_t len, int32_t *out_w, int32_t *out_h)
         return NULL;
 
     if (image.width == 0 || image.height == 0 ||
-        image.width > GHOSTCON_KITTY_MAX_DIM || image.height > GHOSTCON_KITTY_MAX_DIM) {
+        image.width > GHOSTCON_KITTY_MAX_DIM || image.height > GHOSTCON_KITTY_MAX_DIM)
+    {
         png_image_free(&image);
         return NULL;
     }
@@ -54,18 +55,21 @@ decode_png_rgba(const uint8_t *data, size_t len, int32_t *out_w, int32_t *out_h)
     image.format = PNG_FORMAT_RGBA;
     size_t stride = PNG_IMAGE_ROW_STRIDE(image);
     size_t total = PNG_IMAGE_BUFFER_SIZE(image, stride);
-    if (total == 0 || total > GHOSTCON_KITTY_MAX_IMAGE_BYTES) {
+    if (total == 0 || total > GHOSTCON_KITTY_MAX_IMAGE_BYTES)
+    {
         png_image_free(&image);
         return NULL;
     }
 
     uint8_t *buf = malloc(total);
-    if (!buf) {
+    if (!buf)
+    {
         png_image_free(&image);
         return NULL;
     }
 
-    if (!png_image_finish_read(&image, NULL, buf, (png_int_32)stride, NULL)) {
+    if (!png_image_finish_read(&image, NULL, buf, (png_int_32)stride, NULL))
+    {
         free(buf);
         png_image_free(&image);
         return NULL;
@@ -102,17 +106,22 @@ b64_decode(const char *in, size_t len, uint8_t *out, size_t out_cap)
 {
     size_t o = 0;
     size_t i = 0;
-    while (i < len) {
+    while (i < len)
+    {
         int v[4];
         int pad = 0;
-        for (int k = 0; k < 4; k++) {
+        for (int k = 0; k < 4; k++)
+        {
             if (i >= len)
                 return SIZE_MAX; /* truncated group */
             uint8_t c = (uint8_t)in[i++];
-            if (c == '=') {
+            if (c == '=')
+            {
                 v[k] = 0;
                 pad++;
-            } else {
+            }
+            else
+            {
                 if (pad)
                     return SIZE_MAX; /* '=' followed by data */
                 int d = b64_val(c);
@@ -126,7 +135,8 @@ b64_decode(const char *in, size_t len, uint8_t *out, size_t out_cap)
         uint32_t triple = ((uint32_t)v[0] << 18) | ((uint32_t)v[1] << 12) |
                            ((uint32_t)v[2] << 6) | (uint32_t)v[3];
         int nbytes = 3 - pad;
-        for (int k = 0; k < nbytes; k++) {
+        for (int k = 0; k < nbytes; k++)
+        {
             if (o >= out_cap)
                 return SIZE_MAX;
             out[o++] = (uint8_t)(triple >> (16 - 8 * k));
@@ -171,7 +181,8 @@ read_shm_segment(const char *name, size_t max_len, size_t *out_len)
         return NULL;
 
     struct stat st;
-    if (fstat(fd, &st) != 0 || st.st_size <= 0 || (size_t)st.st_size > max_len) {
+    if (fstat(fd, &st) != 0 || st.st_size <= 0 || (size_t)st.st_size > max_len)
+    {
         close(fd);
         shm_unlink(name);
         return NULL;
@@ -180,7 +191,8 @@ read_shm_segment(const char *name, size_t max_len, size_t *out_len)
     size_t len = (size_t)st.st_size;
     void *map = mmap(NULL, len, PROT_READ, MAP_SHARED, fd, 0);
     close(fd);
-    if (map == MAP_FAILED) {
+    if (map == MAP_FAILED)
+    {
         shm_unlink(name);
         return NULL;
     }
@@ -212,9 +224,11 @@ static bool
 read_full(int fd, uint8_t *buf, size_t len)
 {
     size_t got = 0;
-    while (got < len) {
+    while (got < len)
+    {
         ssize_t n = read(fd, buf + got, len - got);
-        if (n < 0) {
+        if (n < 0)
+        {
             if (errno == EINTR)
                 continue;
             return false;
@@ -265,7 +279,8 @@ read_local_file(const char *client_path, size_t max_len, size_t *out_len,
     snprintf(fd_path, sizeof fd_path, "/proc/self/fd/%d", fd);
     char real_path[4096];
     ssize_t real_len = readlink(fd_path, real_path, sizeof(real_path) - 1);
-    if (real_len <= 0) {
+    if (real_len <= 0)
+    {
         close(fd);
         return NULL;
     }
@@ -273,17 +288,20 @@ read_local_file(const char *client_path, size_t max_len, size_t *out_len,
 
     if (!strncmp(real_path, "/proc/", 6) ||
         !strncmp(real_path, "/sys/", 5) ||
-        (!strncmp(real_path, "/dev/", 5) && strncmp(real_path, "/dev/shm/", 9) != 0)) {
+        (!strncmp(real_path, "/dev/", 5) && strncmp(real_path, "/dev/shm/", 9) != 0))
+    {
         close(fd);
         return NULL;
     }
 
     bool in_temp_dir = path_in_dir("/tmp", real_path) || path_in_dir("/dev/shm", real_path);
-    if (!in_temp_dir) {
+    if (!in_temp_dir)
+    {
         close(fd);
         return NULL;
     }
-    if (require_temp_naming) {
+    if (require_temp_naming)
+    {
         /* t=t only: Kitty's own naming convention for files it creates for
          * this exact purpose. Without this, "must be under /tmp" alone
          * would let a hostile client ask the terminal to read+DELETE any
@@ -296,7 +314,8 @@ read_local_file(const char *client_path, size_t max_len, size_t *out_len,
          */
         const char *base = strrchr(real_path, '/');
         base = base ? base + 1 : real_path;
-        if (!strstr(base, "tty-graphics-protocol")) {
+        if (!strstr(base, "tty-graphics-protocol"))
+        {
             close(fd);
             return NULL;
         }
@@ -304,7 +323,8 @@ read_local_file(const char *client_path, size_t max_len, size_t *out_len,
 
     struct stat st;
     if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode) || st.st_size <= 0 ||
-        (size_t)st.st_size > max_len) {
+        (size_t)st.st_size > max_len)
+    {
         close(fd);
         if (delete_after)
             unlink(real_path);
@@ -318,7 +338,8 @@ read_local_file(const char *client_path, size_t max_len, size_t *out_len,
     if (delete_after)
         unlink(real_path);
 
-    if (!ok) {
+    if (!ok)
+    {
         free(buf);
         return NULL;
     }
@@ -354,7 +375,8 @@ read_cache_file(const char *client_path, size_t max_len, size_t *out_len)
 
 /* Control-data (key=value,key=value,...) parsing */
 
-typedef struct {
+typedef struct
+{
     char   action;    /* 'a' key value, 0 if absent (defaults to 't') */
     char   medium;    /* 't' key value, 0 if absent (defaults to 'd') */
     int32_t format;   /* 'f', -1 if absent (defaults to 32) */
@@ -383,14 +405,16 @@ parse_i64(const char *s, size_t len, int64_t *out)
         return false;
     bool neg = false;
     size_t i = 0;
-    if (s[0] == '-') {
+    if (s[0] == '-')
+    {
         neg = true;
         i = 1;
         if (len == 1)
             return false;
     }
     int64_t v = 0;
-    for (; i < len; i++) {
+    for (; i < len; i++)
+    {
         if (s[i] < '0' || s[i] > '9')
             return false;
         if (v > (INT64_MAX - 9) / 10)
@@ -432,9 +456,11 @@ kitty_parse_control(char *control)
 
     char *save = NULL;
     for (char *tok = strtok_r(control, ",", &save); tok;
-         tok = strtok_r(NULL, ",", &save)) {
+         tok = strtok_r(NULL, ",", &save))
+    {
         char *eq = strchr(tok, '=');
-        if (!eq) {
+        if (!eq)
+        {
             c.valid = false;
             continue;
         }
@@ -444,41 +470,76 @@ kitty_parse_control(char *control)
         size_t val_len = strlen(val);
         int64_t iv;
 
-        if (strcmp(key, "a") == 0 && val_len == 1) {
+        if (strcmp(key, "a") == 0 && val_len == 1)
+        {
             c.action = val[0];
-        } else if (strcmp(key, "t") == 0 && val_len == 1) {
+        }
+        else if (strcmp(key, "t") == 0 && val_len == 1)
+        {
             c.medium = val[0];
-        } else if (strcmp(key, "d") == 0 && val_len >= 1) {
+        }
+        else if (strcmp(key, "d") == 0 && val_len >= 1)
+        {
             c.delete_mode = val[0];
-        } else if (strcmp(key, "f") == 0 && parse_i64(val, val_len, &iv)) {
+        }
+        else if (strcmp(key, "f") == 0 && parse_i64(val, val_len, &iv))
+        {
             c.format = (int32_t)iv;
-        } else if (strcmp(key, "s") == 0 && parse_i64(val, val_len, &iv)) {
+        }
+        else if (strcmp(key, "s") == 0 && parse_i64(val, val_len, &iv))
+        {
             c.width = (int32_t)iv;
-        } else if (strcmp(key, "v") == 0 && parse_i64(val, val_len, &iv)) {
+        }
+        else if (strcmp(key, "v") == 0 && parse_i64(val, val_len, &iv))
+        {
             c.height = (int32_t)iv;
-        } else if (strcmp(key, "i") == 0 && parse_i64(val, val_len, &iv)) {
+        }
+        else if (strcmp(key, "i") == 0 && parse_i64(val, val_len, &iv))
+        {
             c.image_id = iv;
-        } else if (strcmp(key, "p") == 0 && parse_i64(val, val_len, &iv)) {
+        }
+        else if (strcmp(key, "p") == 0 && parse_i64(val, val_len, &iv))
+        {
             c.placement_id = iv;
-        } else if (strcmp(key, "m") == 0 && parse_i64(val, val_len, &iv)) {
+        }
+        else if (strcmp(key, "m") == 0 && parse_i64(val, val_len, &iv))
+        {
             c.more = (int32_t)iv;
-        } else if (strcmp(key, "q") == 0 && parse_i64(val, val_len, &iv)) {
+        }
+        else if (strcmp(key, "q") == 0 && parse_i64(val, val_len, &iv))
+        {
             c.quiet = (int32_t)iv;
-        } else if (strcmp(key, "z") == 0 && parse_i64(val, val_len, &iv)) {
+        }
+        else if (strcmp(key, "z") == 0 && parse_i64(val, val_len, &iv))
+        {
             c.z = (int32_t)iv;
-        } else if (strcmp(key, "x") == 0 && parse_i64(val, val_len, &iv)) {
+        }
+        else if (strcmp(key, "x") == 0 && parse_i64(val, val_len, &iv))
+        {
             c.crop_x = (int32_t)iv;
-        } else if (strcmp(key, "y") == 0 && parse_i64(val, val_len, &iv)) {
+        }
+        else if (strcmp(key, "y") == 0 && parse_i64(val, val_len, &iv))
+        {
             c.crop_y = (int32_t)iv;
-        } else if (strcmp(key, "w") == 0 && parse_i64(val, val_len, &iv)) {
+        }
+        else if (strcmp(key, "w") == 0 && parse_i64(val, val_len, &iv))
+        {
             c.crop_w = (int32_t)iv;
-        } else if (strcmp(key, "h") == 0 && parse_i64(val, val_len, &iv)) {
+        }
+        else if (strcmp(key, "h") == 0 && parse_i64(val, val_len, &iv))
+        {
             c.crop_h = (int32_t)iv;
-        } else if (strcmp(key, "c") == 0 && parse_i64(val, val_len, &iv)) {
+        }
+        else if (strcmp(key, "c") == 0 && parse_i64(val, val_len, &iv))
+        {
             c.cell_cols = (int32_t)iv;
-        } else if (strcmp(key, "r") == 0 && parse_i64(val, val_len, &iv)) {
+        }
+        else if (strcmp(key, "r") == 0 && parse_i64(val, val_len, &iv))
+        {
             c.cell_rows = (int32_t)iv;
-        } else if (strcmp(key, "C") == 0 && parse_i64(val, val_len, &iv)) {
+        }
+        else if (strcmp(key, "C") == 0 && parse_i64(val, val_len, &iv))
+        {
             c.no_cursor_move = (int32_t)iv;
         }
         /* Unrecognized keys (I=, o=, etc.) are accepted and ignored
@@ -518,10 +579,13 @@ kitty_ack(ghostcon_kitty_output_fn output_fn, void *userdata,
 
     char buf[192];
     int n;
-    if (placement_id > 0) {
+    if (placement_id > 0)
+    {
         n = snprintf(buf, sizeof buf, "\x1b_Gi=%u,p=%lld;%s\x1b\\",
                      image_id, (long long)placement_id, status);
-    } else {
+    }
+    else
+    {
         n = snprintf(buf, sizeof buf, "\x1b_Gi=%u;%s\x1b\\", image_id, status);
     }
     if (n > 0)
@@ -544,7 +608,8 @@ free_image(ghostcon_kitty_graphics_t *kg, ghostcon_kitty_image_t *img)
 {
     if (!img->in_use)
         return;
-    if (img->pixels) {
+    if (img->pixels)
+    {
         kg->total_bytes -= img->pixel_len;
         free(img->pixels);
     }
@@ -556,14 +621,17 @@ static ghostcon_kitty_image_t *
 alloc_image_slot(ghostcon_kitty_graphics_t *kg, uint32_t id)
 {
     ghostcon_kitty_image_t *existing = find_image(kg, id);
-    if (existing) {
+    if (existing)
+    {
         free_image(kg, existing);
         existing->in_use = true;
         existing->id = id;
         return existing;
     }
-    for (int i = 0; i < GHOSTCON_KITTY_MAX_IMAGES; i++) {
-        if (!kg->images[i].in_use) {
+    for (int i = 0; i < GHOSTCON_KITTY_MAX_IMAGES; i++)
+    {
+        if (!kg->images[i].in_use)
+        {
             kg->images[i].in_use = true;
             kg->images[i].id = id;
             return &kg->images[i];
@@ -576,7 +644,8 @@ static void
 delete_placements_for_image(ghostcon_kitty_graphics_t *kg, uint32_t image_id,
                             int64_t placement_id /* -1 = all placements of this image */)
 {
-    for (int i = 0; i < GHOSTCON_KITTY_MAX_PLACEMENTS; i++) {
+    for (int i = 0; i < GHOSTCON_KITTY_MAX_PLACEMENTS; i++)
+    {
         ghostcon_kitty_placement_t *p = &kg->placements[i];
         if (!p->in_use || p->image_id != image_id)
             continue;
@@ -589,15 +658,19 @@ delete_placements_for_image(ghostcon_kitty_graphics_t *kg, uint32_t image_id,
 static ghostcon_kitty_placement_t *
 alloc_placement_slot(ghostcon_kitty_graphics_t *kg, uint32_t image_id, uint32_t placement_id)
 {
-    for (int i = 0; i < GHOSTCON_KITTY_MAX_PLACEMENTS; i++) {
+    for (int i = 0; i < GHOSTCON_KITTY_MAX_PLACEMENTS; i++)
+    {
         if (kg->placements[i].in_use &&
             kg->placements[i].image_id == image_id &&
-            kg->placements[i].placement_id == placement_id) {
+            kg->placements[i].placement_id == placement_id)
+        {
             return &kg->placements[i]; /* replace existing placement */
         }
     }
-    for (int i = 0; i < GHOSTCON_KITTY_MAX_PLACEMENTS; i++) {
-        if (!kg->placements[i].in_use) {
+    for (int i = 0; i < GHOSTCON_KITTY_MAX_PLACEMENTS; i++)
+    {
+        if (!kg->placements[i].in_use)
+        {
             memset(&kg->placements[i], 0, sizeof kg->placements[i]);
             kg->placements[i].in_use = true;
             return &kg->placements[i];
@@ -627,7 +700,8 @@ ghostcon_kitty_graphics_init(ghostcon_kitty_graphics_t *kg)
 void
 ghostcon_kitty_graphics_deinit(ghostcon_kitty_graphics_t *kg)
 {
-    for (int i = 0; i < GHOSTCON_KITTY_MAX_IMAGES; i++) {
+    for (int i = 0; i < GHOSTCON_KITTY_MAX_IMAGES; i++)
+    {
         free(kg->images[i].pixels);
         free(kg->images[i].recv_buf);
     }
@@ -688,8 +762,10 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
     int32_t resolved_cell_cols = ctl->cell_cols, resolved_cell_rows = ctl->cell_rows;
     int32_t resolved_no_cursor_move = ctl->no_cursor_move;
     int64_t resolved_placement_id = ctl->placement_id;
-    if (resolved_id < 0) {
-        if (kg->active_transfer_id < 0) {
+    if (resolved_id < 0)
+    {
+        if (kg->active_transfer_id < 0)
+        {
             kitty_ack(output_fn, userdata, quiet, 0, -1, "error=EINVAL:missing or invalid i=");
             return;
         }
@@ -705,7 +781,8 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
         resolved_no_cursor_move = kg->active_transfer_no_cursor_move;
         resolved_placement_id = kg->active_transfer_placement_id;
     }
-    if (resolved_id > UINT32_MAX) {
+    if (resolved_id > UINT32_MAX)
+    {
         kitty_ack(output_fn, userdata, quiet, 0, -1, "error=EINVAL:missing or invalid i=");
         return;
     }
@@ -713,7 +790,8 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
     also_display = resolved_display;
 
     if (ctl->medium && ctl->medium != 'd' && ctl->medium != 's' &&
-        ctl->medium != 't' && ctl->medium != 'f') {
+        ctl->medium != 't' && ctl->medium != 'f')
+    {
         kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
                   "error=EBADF:unsupported transmission medium");
         return;
@@ -721,7 +799,8 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
     bool from_shm = ctl->medium == 's';
     bool from_temp_file = ctl->medium == 't';
     bool from_cache_file = ctl->medium == 'f';
-    if ((from_shm || from_temp_file || from_cache_file) && ctl->more == 1) {
+    if ((from_shm || from_temp_file || from_cache_file) && ctl->more == 1)
+    {
         /* Chunked path/name assembly is legal per spec (a path is just
          * another base64 payload, mechanically chunkable like anything
          * else) but never useful in practice -- shm segment names and file
@@ -749,17 +828,24 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
      */
     int32_t bpp;
     bool is_png;
-    if (continuing) {
+    if (continuing)
+    {
         bpp = img->bpp;
         is_png = (bpp == 0);
-    } else {
+    }
+    else
+    {
         int32_t fmt = ctl->format >= 0 ? ctl->format : 32;
         is_png = (fmt == 100);
-        if (is_png) {
+        if (is_png)
+        {
             bpp = 0; /* unknown until decode -- PNG carries its own dimensions */
-        } else {
+        }
+        else
+        {
             bpp = (fmt == 24) ? 3 : (fmt == 32) ? 4 : -1;
-            if (bpp < 0) {
+            if (bpp < 0)
+            {
                 kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
                           "error=EBADF:unsupported format");
                 return;
@@ -780,25 +866,33 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
      */
     int32_t width = 0, height = 0;
     size_t expected_len;
-    if (is_png) {
+    if (is_png)
+    {
         expected_len = GHOSTCON_KITTY_MAX_IMAGE_BYTES;
-    } else {
-        if (continuing) {
+    }
+    else
+    {
+        if (continuing)
+        {
             width = img->width;
             height = img->height;
-        } else {
+        }
+        else
+        {
             width = ctl->width;
             height = ctl->height;
             if (width <= 0 || height <= 0 ||
                 (uint32_t)width > GHOSTCON_KITTY_MAX_DIM ||
-                (uint32_t)height > GHOSTCON_KITTY_MAX_DIM) {
+                (uint32_t)height > GHOSTCON_KITTY_MAX_DIM)
+            {
                 kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
                           "error=EINVAL:missing or out-of-range s=/v=");
                 return;
             }
         }
         expected_len = (size_t)width * (size_t)height * (size_t)bpp;
-        if (expected_len > GHOSTCON_KITTY_MAX_IMAGE_BYTES) {
+        if (expected_len > GHOSTCON_KITTY_MAX_IMAGE_BYTES)
+        {
             kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
                       "error=EINVAL:image too large");
             return;
@@ -807,20 +901,23 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
 
     uint8_t *decoded;
     size_t decoded_len;
-    if (from_shm || from_temp_file || from_cache_file) {
+    if (from_shm || from_temp_file || from_cache_file)
+    {
         /* payload/payload_len here is the base64-encoded shm segment name
          * or file PATH (per spec, the payload is always base64 regardless
          * of medium -- only what it MEANS differs), not image bytes.
          */
         size_t name_cap = b64_decoded_max(payload_len);
         uint8_t *name_buf = malloc(name_cap + 1);
-        if (!name_buf) {
+        if (!name_buf)
+        {
             kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
                       "error=ENOMEM:allocation failed");
             return;
         }
         size_t name_len = payload_len ? b64_decode(payload, payload_len, name_buf, name_cap) : 0;
-        if (name_len == SIZE_MAX) {
+        if (name_len == SIZE_MAX)
+        {
             free(name_buf);
             kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
                       "error=EINVAL:malformed base64 payload");
@@ -832,7 +929,8 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
          * shm_open()/openFile(), and for the same reason (a NUL would
          * silently truncate the string the syscall actually sees).
          */
-        if (strlen((char *)name_buf) != name_len) {
+        if (strlen((char *)name_buf) != name_len)
+        {
             free(name_buf);
             kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
                       "error=EINVAL:invalid shared-memory/file path");
@@ -845,22 +943,27 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
         else
             decoded = read_cache_file((char *)name_buf, GHOSTCON_KITTY_MAX_IMAGE_BYTES, &decoded_len);
         free(name_buf);
-        if (!decoded) {
+        if (!decoded)
+        {
             kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
                       from_shm ? "error=EBADF:unable to read shared memory segment"
                                : "error=EBADF:unable to read file");
             return;
         }
-    } else {
+    }
+    else
+    {
         size_t decoded_cap = b64_decoded_max(payload_len);
         decoded = decoded_cap ? malloc(decoded_cap) : NULL;
-        if (decoded_cap && !decoded) {
+        if (decoded_cap && !decoded)
+        {
             kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
                       "error=ENOMEM:allocation failed");
             return;
         }
         decoded_len = payload_len ? b64_decode(payload, payload_len, decoded, decoded_cap) : 0;
-        if (decoded_len == SIZE_MAX) {
+        if (decoded_len == SIZE_MAX)
+        {
             free(decoded);
             kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
                       "error=EINVAL:malformed base64 payload");
@@ -870,9 +973,11 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
 
     bool more = ctl->more == 1;
 
-    if (!continuing) {
+    if (!continuing)
+    {
         img = alloc_image_slot(kg, id);
-        if (!img) {
+        if (!img)
+        {
             free(decoded);
             kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
                       "error=ENOSPC:too many images");
@@ -881,9 +986,11 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
         img->width = width;
         img->height = height;
         img->bpp = bpp;
-        if (more) {
+        if (more)
+        {
             img->recv_buf = malloc(expected_len ? expected_len : 1);
-            if (!img->recv_buf) {
+            if (!img->recv_buf)
+            {
                 free(decoded);
                 free_image(kg, img);
                 kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
@@ -906,8 +1013,10 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
         }
     }
 
-    if (more) {
-        if (img->recv_len + decoded_len > expected_len) {
+    if (more)
+    {
+        if (img->recv_len + decoded_len > expected_len)
+        {
             free(decoded);
             free_image(kg, img);
             kg->active_transfer_id = -1;
@@ -929,8 +1038,10 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
      */
     uint8_t *final_pixels;
     size_t final_len;
-    if (img->receiving) {
-        if (!is_png && img->recv_len + decoded_len != expected_len) {
+    if (img->receiving)
+    {
+        if (!is_png && img->recv_len + decoded_len != expected_len)
+        {
             free(decoded);
             free_image(kg, img);
             kg->active_transfer_id = -1;
@@ -946,8 +1057,11 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
         img->recv_buf = NULL;
         img->receiving = false;
         kg->active_transfer_id = -1;
-    } else {
-        if (!is_png && decoded_len != expected_len) {
+    }
+    else
+    {
+        if (!is_png && decoded_len != expected_len)
+        {
             free(decoded);
             free_image(kg, img);
             kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
@@ -958,11 +1072,13 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
         final_len = decoded_len;
     }
 
-    if (is_png) {
+    if (is_png)
+    {
         int32_t png_w = 0, png_h = 0;
         uint8_t *rgba = decode_png_rgba(final_pixels, final_len, &png_w, &png_h);
         free(final_pixels);
-        if (!rgba) {
+        if (!rgba)
+        {
             free_image(kg, img);
             kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
                       "error=EINVAL:invalid or unsupported PNG data");
@@ -975,7 +1091,8 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
         bpp = 4;
     }
 
-    if (kg->total_bytes + final_len > GHOSTCON_KITTY_MAX_TOTAL_BYTES) {
+    if (kg->total_bytes + final_len > GHOSTCON_KITTY_MAX_TOTAL_BYTES)
+    {
         free(final_pixels);
         free_image(kg, img);
         kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
@@ -991,10 +1108,12 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
     img->generation++;
     kg->total_bytes += final_len;
 
-    if (also_display) {
+    if (also_display)
+    {
         ghostcon_kitty_placement_t *p = alloc_placement_slot(
             kg, id, resolved_placement_id > 0 ? (uint32_t)resolved_placement_id : 0);
-        if (!p) {
+        if (!p)
+        {
             kitty_ack(output_fn, userdata, quiet, id, resolved_placement_id,
                       "error=ENOSPC:too many placements");
             return;
@@ -1013,7 +1132,8 @@ handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
 
         int32_t draw_w_px = p->crop_w > 0 ? p->crop_w : img->width;
         int32_t draw_h_px = p->crop_h > 0 ? p->crop_h : img->height;
-        if (p->cell_cols > 0 && p->cell_rows > 0) {
+        if (p->cell_cols > 0 && p->cell_rows > 0)
+        {
             draw_w_px = p->cell_cols * cell_w;
             draw_h_px = p->cell_rows * cell_h;
         }
@@ -1033,13 +1153,15 @@ handle_placement(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
 {
     int32_t quiet = ctl->quiet >= 0 ? ctl->quiet : 0;
 
-    if (ctl->image_id < 0 || ctl->image_id > UINT32_MAX) {
+    if (ctl->image_id < 0 || ctl->image_id > UINT32_MAX)
+    {
         kitty_ack(output_fn, userdata, quiet, 0, -1, "error=EINVAL:missing or invalid i=");
         return;
     }
     uint32_t id = (uint32_t)ctl->image_id;
     ghostcon_kitty_image_t *img = find_image(kg, id);
-    if (!img || !img->pixels) {
+    if (!img || !img->pixels)
+    {
         kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
                   "error=ENOENT:no image with that id");
         return;
@@ -1049,8 +1171,10 @@ handle_placement(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
     int32_t cy = ctl->crop_y >= 0 ? ctl->crop_y : 0;
     int32_t cw = ctl->crop_w >= 0 ? ctl->crop_w : 0;
     int32_t ch = ctl->crop_h >= 0 ? ctl->crop_h : 0;
-    if (cw > 0 && ch > 0) {
-        if (cx < 0 || cy < 0 || cx + cw > img->width || cy + ch > img->height) {
+    if (cw > 0 && ch > 0)
+    {
+        if (cx < 0 || cy < 0 || cx + cw > img->width || cy + ch > img->height)
+        {
             kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
                       "error=EINVAL:crop rect out of bounds");
             return;
@@ -1059,7 +1183,8 @@ handle_placement(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
 
     ghostcon_kitty_placement_t *p = alloc_placement_slot(
         kg, id, ctl->placement_id > 0 ? (uint32_t)ctl->placement_id : 0);
-    if (!p) {
+    if (!p)
+    {
         kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
                   "error=ENOSPC:too many placements");
         return;
@@ -1075,7 +1200,8 @@ handle_placement(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl,
 
     int32_t draw_w_px = cw > 0 ? cw : img->width;
     int32_t draw_h_px = ch > 0 ? ch : img->height;
-    if (p->cell_cols > 0 && p->cell_rows > 0) {
+    if (p->cell_cols > 0 && p->cell_rows > 0)
+    {
         draw_w_px = p->cell_cols * cell_w;
         draw_h_px = p->cell_rows * cell_h;
     }
@@ -1094,18 +1220,21 @@ handle_delete(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl)
      * either. No kitty_ack() calls anywhere in this function is
      * intentional, not an oversight.
      */
-    if (ctl->delete_mode == 'a') {
+    if (ctl->delete_mode == 'a')
+    {
         for (int i = 0; i < GHOSTCON_KITTY_MAX_IMAGES; i++)
             free_image(kg, &kg->images[i]);
         memset(kg->placements, 0, sizeof kg->placements);
         return;
     }
-    if (ctl->delete_mode == 'i') {
+    if (ctl->delete_mode == 'i')
+    {
         if (ctl->image_id < 0 || ctl->image_id > UINT32_MAX)
             return;
         uint32_t id = (uint32_t)ctl->image_id;
         delete_placements_for_image(kg, id, ctl->placement_id);
-        if (ctl->placement_id < 0) {
+        if (ctl->placement_id < 0)
+        {
             ghostcon_kitty_image_t *img = find_image(kg, id);
             if (img)
                 free_image(kg, img);
@@ -1120,7 +1249,8 @@ handle_delete(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl)
 const ghostcon_kitty_image_t *
 ghostcon_kitty_graphics_find_image(const ghostcon_kitty_graphics_t *kg, uint32_t id)
 {
-    for (int i = 0; i < GHOSTCON_KITTY_MAX_IMAGES; i++) {
+    for (int i = 0; i < GHOSTCON_KITTY_MAX_IMAGES; i++)
+    {
         const ghostcon_kitty_image_t *img = &kg->images[i];
         if (img->in_use && img->id == id && img->pixels)
             return img;
@@ -1162,7 +1292,8 @@ ghostcon_kitty_graphics_handle(ghostcon_kitty_graphics_t *kg,
     control_copy[control_len] = '\0';
 
     kitty_control_t ctl = kitty_parse_control(control_copy);
-    if (!ctl.valid) {
+    if (!ctl.valid)
+    {
         kitty_ack(output_fn, output_userdata, ctl.quiet >= 0 ? ctl.quiet : 0,
                  ctl.image_id > 0 ? (uint32_t)ctl.image_id : 0, ctl.placement_id,
                  "error=EINVAL:malformed control data");
@@ -1170,7 +1301,8 @@ ghostcon_kitty_graphics_handle(ghostcon_kitty_graphics_t *kg,
     }
 
     char action = ctl.action ? ctl.action : 't';
-    switch (action) {
+    switch (action)
+    {
     case 't':
         handle_transmit(kg, &ctl, payload, payload_len, false,
                         cursor_col, cursor_row, cell_w, cell_h,

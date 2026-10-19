@@ -20,8 +20,10 @@ ghostcon_sixel_state_deinit(ghostcon_sixel_state_t *st)
 static ghostcon_sixel_placement_t *
 alloc_placement_slot(ghostcon_sixel_state_t *st)
 {
-    for (int i = 0; i < GHOSTCON_SIXEL_MAX_PLACEMENTS; i++) {
-        if (!st->placements[i].in_use) {
+    for (int i = 0; i < GHOSTCON_SIXEL_MAX_PLACEMENTS; i++)
+    {
+        if (!st->placements[i].in_use)
+        {
             memset(&st->placements[i], 0, sizeof st->placements[i]);
             st->placements[i].in_use = true;
             return &st->placements[i];
@@ -46,7 +48,8 @@ alloc_placement_slot(ghostcon_sixel_state_t *st)
     return victim;
 }
 
-typedef struct {
+typedef struct
+{
     uint8_t r, g, b;
     bool    defined;
 } color_reg_t;
@@ -66,7 +69,8 @@ parse_color_intro(const char **p, const char *end, color_reg_t *regs,
     const char *s = *p;
     long vals[5];
     int nvals = 0;
-    while (nvals < 5) {
+    while (nvals < 5)
+    {
         char *after;
         long v = strtol(s, &after, 10);
         if (after == s)
@@ -89,7 +93,8 @@ parse_color_intro(const char **p, const char *end, color_reg_t *regs,
         return; /* select only, no (re)definition */
 
     long pu = vals[1], px = vals[2], py = vals[3], pz = vals[4];
-    if (pu == 2) {
+    if (pu == 2)
+    {
         /* RGB, each component 0-100 percent */
         px = px < 0 ? 0 : px > 100 ? 100 : px;
         py = py < 0 ? 0 : py > 100 ? 100 : py;
@@ -98,7 +103,9 @@ parse_color_intro(const char **p, const char *end, color_reg_t *regs,
         regs[pc].g = (uint8_t)((py * 255 + 50) / 100);
         regs[pc].b = (uint8_t)((pz * 255 + 50) / 100);
         regs[pc].defined = true;
-    } else if (pu == 1) {
+    }
+    else if (pu == 1)
+    {
         /* HLS: hue 0-360, lightness/saturation 0-100 */
         double h = (double)(((px % 360) + 360) % 360);
         double l = (double)(py < 0 ? 0 : py > 100 ? 100 : py) / 100.0;
@@ -108,12 +115,30 @@ parse_color_intro(const char **p, const char *end, color_reg_t *regs,
         double hp_mod2 = hp - 2.0 * (double)((long)(hp / 2.0)); /* fmod(hp, 2) */
         double x = c * (1.0 - (hp_mod2 > 1.0 ? 2.0 - hp_mod2 : hp_mod2));
         double r1, g1, b1;
-        if (hp < 1)      { r1 = c; g1 = x; b1 = 0; }
-        else if (hp < 2) { r1 = x; g1 = c; b1 = 0; }
-        else if (hp < 3) { r1 = 0; g1 = c; b1 = x; }
-        else if (hp < 4) { r1 = 0; g1 = x; b1 = c; }
-        else if (hp < 5) { r1 = x; g1 = 0; b1 = c; }
-        else             { r1 = c; g1 = 0; b1 = x; }
+        if (hp < 1)
+        {
+            r1 = c; g1 = x; b1 = 0;
+        }
+        else if (hp < 2)
+        {
+            r1 = x; g1 = c; b1 = 0;
+        }
+        else if (hp < 3)
+        {
+            r1 = 0; g1 = c; b1 = x;
+        }
+        else if (hp < 4)
+        {
+            r1 = 0; g1 = x; b1 = c;
+        }
+        else if (hp < 5)
+        {
+            r1 = x; g1 = 0; b1 = c;
+        }
+        else
+        {
+            r1 = c; g1 = 0; b1 = x;
+        }
         double m = l - c / 2.0;
         regs[pc].r = (uint8_t)(((r1 + m) * 255.0) + 0.5);
         regs[pc].g = (uint8_t)(((g1 + m) * 255.0) + 0.5);
@@ -175,11 +200,13 @@ ghostcon_sixel_decode(ghostcon_sixel_state_t *st,
                     else break;
                 }
                 if (n >= 4) { declared_w = (int32_t)vals[2]; declared_h = (int32_t)vals[3]; }
-            } else if (c == '#') {
+            }
+            else if (c == '#') {
                 p++;
                 while (p < end && ((*p >= '0' && *p <= '9') || *p == ';'))
                     p++;
-            } else if (c == '!') {
+            }
+            else if (c == '!') {
                 p++;
                 char *after;
                 long rep = strtol(p, &after, 10);
@@ -188,20 +215,24 @@ ghostcon_sixel_decode(ghostcon_sixel_state_t *st,
                     x += (int32_t)(rep > 0 ? rep : 1);
                     p++;
                 }
-            } else if (c >= 0x3F && c <= 0x7E) {
+            }
+            else if (c >= 0x3F && c <= 0x7E) {
                 x++;
                 p++;
-            } else if (c == '$') {
+            }
+            else if (c == '$') {
                 if (x > max_x) max_x = x;
                 x = 0;
                 p++;
-            } else if (c == '-') {
+            }
+            else if (c == '-') {
                 if (x > max_x) max_x = x;
                 y0 += 6;
                 if (y0 > max_y_band_end) max_y_band_end = y0;
                 x = 0;
                 p++;
-            } else {
+            }
+            else {
                 p++;
             }
         }
@@ -241,10 +272,14 @@ ghostcon_sixel_decode(ghostcon_sixel_state_t *st,
     /* Fill with the P2-determined default: transparent (alpha 0) or opaque
      * black -- see the P2 doc comment above.
      */
-    if (transparent_bg) {
+    if (transparent_bg)
+    {
         memset(pixels, 0, pixel_len);
-    } else {
-        for (size_t i = 0; i < pixel_len; i += 4) {
+    }
+    else
+    {
+        for (size_t i = 0; i < pixel_len; i += 4)
+        {
             pixels[i + 0] = 0; pixels[i + 1] = 0; pixels[i + 2] = 0; pixels[i + 3] = 255;
         }
     }
@@ -262,12 +297,15 @@ ghostcon_sixel_decode(ghostcon_sixel_state_t *st,
 
     const char *p = body, *end = body + body_len;
     int32_t x = 0, y0 = 0;
-    while (p < end) {
+    while (p < end)
+    {
         char c = *p;
-        if (c == '"') {
+        if (c == '"')
+        {
             p++;
             int n = 0;
-            while (n < 4 && p < end) {
+            while (n < 4 && p < end)
+            {
                 char *after;
                 strtol(p, &after, 10);
                 if (after == p) break;
@@ -276,24 +314,34 @@ ghostcon_sixel_decode(ghostcon_sixel_state_t *st,
                 if (p < end && *p == ';') p++;
                 else break;
             }
-        } else if (c == '#') {
+        }
+        else if (c == '#')
+        {
             p++;
             parse_color_intro(&p, end, regs, &current_reg);
-        } else if (c == '!') {
+        }
+        else if (c == '!')
+        {
             p++;
             char *after;
             long rep = strtol(p, &after, 10);
             if (after == p) rep = 1;
             p = after;
-            if (p < end && *p >= 0x3F && *p <= 0x7E) {
+            if (p < end && *p >= 0x3F && *p <= 0x7E)
+            {
                 uint8_t bits = (uint8_t)(*p - 0x3F);
                 color_reg_t *reg = &regs[current_reg];
-                for (long k = 0; k < rep; k++) {
-                    if (x >= 0 && x < width) {
-                        for (int r = 0; r < 6; r++) {
-                            if (bits & (1u << r)) {
+                for (long k = 0; k < rep; k++)
+                {
+                    if (x >= 0 && x < width)
+                    {
+                        for (int r = 0; r < 6; r++)
+                        {
+                            if (bits & (1u << r))
+                            {
                                 int32_t py = y0 + r;
-                                if (py >= 0 && py < height) {
+                                if (py >= 0 && py < height)
+                                {
                                     size_t off = ((size_t)py * (size_t)width + (size_t)x) * 4;
                                     pixels[off + 0] = reg->r;
                                     pixels[off + 1] = reg->g;
@@ -307,14 +355,20 @@ ghostcon_sixel_decode(ghostcon_sixel_state_t *st,
                 }
                 p++;
             }
-        } else if (c >= 0x3F && c <= 0x7E) {
+        }
+        else if (c >= 0x3F && c <= 0x7E)
+        {
             uint8_t bits = (uint8_t)(c - 0x3F);
-            if (x >= 0 && x < width) {
+            if (x >= 0 && x < width)
+            {
                 color_reg_t *reg = &regs[current_reg];
-                for (int r = 0; r < 6; r++) {
-                    if (bits & (1u << r)) {
+                for (int r = 0; r < 6; r++)
+                {
+                    if (bits & (1u << r))
+                    {
                         int32_t py = y0 + r;
-                        if (py >= 0 && py < height) {
+                        if (py >= 0 && py < height)
+                        {
                             size_t off = ((size_t)py * (size_t)width + (size_t)x) * 4;
                             pixels[off + 0] = reg->r;
                             pixels[off + 1] = reg->g;
@@ -326,19 +380,26 @@ ghostcon_sixel_decode(ghostcon_sixel_state_t *st,
             }
             x++;
             p++;
-        } else if (c == '$') {
+        }
+        else if (c == '$')
+        {
             x = 0;
             p++;
-        } else if (c == '-') {
+        }
+        else if (c == '-')
+        {
             y0 += 6;
             x = 0;
             p++;
-        } else {
+        }
+        else
+        {
             p++; /* whitespace/unrecognized -- ignore */
         }
     }
 
-    if (st->total_bytes + pixel_len > GHOSTCON_SIXEL_MAX_TOTAL_BYTES) {
+    if (st->total_bytes + pixel_len > GHOSTCON_SIXEL_MAX_TOTAL_BYTES)
+    {
         free(pixels);
         return;
     }
@@ -353,7 +414,8 @@ ghostcon_sixel_decode(ghostcon_sixel_state_t *st,
     placement->generation++;
     st->total_bytes += pixel_len;
 
-    if (out_move && cell_w > 0 && cell_h > 0) {
+    if (out_move && cell_w > 0 && cell_h > 0)
+    {
         int32_t rows = (height + cell_h - 1) / cell_h;
         int32_t cols = (width + cell_w - 1) / cell_w;
         out_move->moved = true;

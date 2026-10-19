@@ -77,7 +77,8 @@ currently_active(int fd, int vt_num, bool *out_active)
 ghostcon_vtctl_t *
 ghostcon_vtctl_open(int vt_num)
 {
-    if (g_instance) {
+    if (g_instance)
+    {
         fprintf(stderr, "vtctl: only one ghostcon_vtctl_t per process (VT %d already open)\n",
                 g_instance->vt_num);
         return NULL;
@@ -93,17 +94,20 @@ ghostcon_vtctl_open(int vt_num)
     char path[32];
     snprintf(path, sizeof(path), "/dev/tty%d", vt_num);
     vt->fd = open(path, O_RDWR | O_NOCTTY);
-    if (vt->fd < 0) {
+    if (vt->fd < 0)
+    {
         fprintf(stderr, "vtctl: open %s: %s\n", path, strerror(errno));
         goto fail;
     }
 
-    if (ioctl(vt->fd, KDSETMODE, KD_GRAPHICS) != 0) {
+    if (ioctl(vt->fd, KDSETMODE, KD_GRAPHICS) != 0)
+    {
         fprintf(stderr, "vtctl: KDSETMODE(KD_GRAPHICS) on %s: %s\n", path, strerror(errno));
         goto fail_fd;
     }
 
-    if (pipe(vt->pipe_fds) != 0) {
+    if (pipe(vt->pipe_fds) != 0)
+    {
         fprintf(stderr, "vtctl: pipe: %s\n", strerror(errno));
         goto fail_graphics;
     }
@@ -121,7 +125,8 @@ ghostcon_vtctl_open(int vt_num)
     sa.sa_handler = signal_handler;
     sa.sa_flags = SA_RESTART;
     sigemptyset(&sa.sa_mask);
-    if (sigaction(SIGUSR1, &sa, NULL) != 0 || sigaction(SIGUSR2, &sa, NULL) != 0) {
+    if (sigaction(SIGUSR1, &sa, NULL) != 0 || sigaction(SIGUSR2, &sa, NULL) != 0)
+    {
         fprintf(stderr, "vtctl: sigaction: %s\n", strerror(errno));
         g_instance = NULL;
         goto fail_pipe;
@@ -132,7 +137,8 @@ ghostcon_vtctl_open(int vt_num)
     vtm.mode = VT_PROCESS;
     vtm.acqsig = SIGUSR1;
     vtm.relsig = SIGUSR2;
-    if (ioctl(vt->fd, VT_SETMODE, &vtm) != 0) {
+    if (ioctl(vt->fd, VT_SETMODE, &vtm) != 0)
+    {
         fprintf(stderr, "vtctl: VT_SETMODE(VT_PROCESS) on %s: %s\n", path, strerror(errno));
         g_instance = NULL;
         goto fail_pipe;
@@ -150,9 +156,12 @@ ghostcon_vtctl_open(int vt_num)
      * earlier failure path has to unwind it.
      */
     int kbm = -1;
-    if (ioctl(vt->fd, KDGKBMODE, &kbm) != 0) {
+    if (ioctl(vt->fd, KDGKBMODE, &kbm) != 0)
+    {
         fprintf(stderr, "vtctl: KDGKBMODE on %s: %s\n", path, strerror(errno));
-    } else {
+    }
+    else
+    {
         vt->saved_kbd_mode = kbm;
         if (kbd_mode_blocks_vt_switch(kbm) &&
             ioctl(vt->fd, KDSKBMODE, K_UNICODE) != 0)
@@ -160,7 +169,8 @@ ghostcon_vtctl_open(int vt_num)
     }
 
     bool active = false;
-    if (!currently_active(vt->fd, vt_num, &active)) {
+    if (!currently_active(vt->fd, vt_num, &active))
+    {
         fprintf(stderr, "vtctl: VT_GETSTATE on %s: %s\n", path, strerror(errno));
         /* Not fatal — default to INACTIVE, the safe assumption (never claim
          * DRM master we weren't told we hold).
@@ -246,10 +256,13 @@ ghostcon_vtctl_process_pending(ghostcon_vtctl_t *vt,
      * (VT_RELDISP with different arguments). So process each byte as it's
      * drained, not just the last one.
      */
-    while ((n = read(vt->pipe_fds[0], buf, sizeof(buf))) > 0) {
-        for (ssize_t i = 0; i < n; i++) {
+    while ((n = read(vt->pipe_fds[0], buf, sizeof(buf))) > 0)
+    {
+        for (ssize_t i = 0; i < n; i++)
+        {
             last = buf[i];
-            if (last == 'R') {
+            if (last == 'R')
+            {
                 /* pre_ack('R', ...) must call drmDropMaster() before
                  * returning — see this function's own header doc comment
                  * for why the ordering matters here specifically (found
@@ -261,7 +274,9 @@ ghostcon_vtctl_process_pending(ghostcon_vtctl_t *vt,
                     pre_ack('R', userdata);
                 ioctl(vt->fd, VT_RELDISP, 1);
                 vt->state = GC_VT_STATE_INACTIVE;
-            } else if (last == 'A') {
+            }
+            else if (last == 'A')
+            {
                 if (pre_ack)
                     pre_ack('A', userdata);
                 ioctl(vt->fd, VT_RELDISP, VT_ACKACQ);

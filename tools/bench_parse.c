@@ -59,7 +59,8 @@ build_one_screen(char *out, size_t out_cap, uint16_t cols, uint16_t rows, int sc
 {
     size_t off = 0;
     off += (size_t)snprintf(out + off, out_cap - off, "\x1b[H");
-    for (uint16_t r = 0; r < rows; r++) {
+    for (uint16_t r = 0; r < rows; r++)
+    {
         int color = 31 + ((screen_idx + r) % 6);
         off += (size_t)snprintf(out + off, out_cap - off, "\x1b[%dm", color);
         for (uint16_t c = 0; c < cols; c++)
@@ -76,20 +77,23 @@ main(int argc, char **argv)
     uint16_t rows = argc > 2 ? (uint16_t)atoi(argv[2]) : 32;
     int screens = argc > 3 ? atoi(argv[3]) : 2000;
 
-    if (cols == 0 || rows == 0 || screens <= 0) {
+    if (cols == 0 || rows == 0 || screens <= 0)
+    {
         fprintf(stderr, "usage: %s [cols] [rows] [screens]\n", argv[0]);
         return 1;
     }
 
     ghostcon_term_t term;
-    if (!ghostcon_term_init(&term, cols, rows, 0)) {
+    if (!ghostcon_term_init(&term, cols, rows, 0))
+    {
         fprintf(stderr, "FAIL: ghostcon_term_init\n");
         return 1;
     }
 
     size_t screen_cap = (size_t)cols * rows * 12 + 256; /* generous -- SGR + glyph per cell */
     char *screen_buf = malloc(screen_cap);
-    if (!screen_buf) {
+    if (!screen_buf)
+    {
         fprintf(stderr, "FAIL: malloc\n");
         return 1;
     }
@@ -100,7 +104,8 @@ main(int argc, char **argv)
     char **screen_data = malloc((size_t)screens * sizeof(char *));
     size_t *screen_len = malloc((size_t)screens * sizeof(size_t));
     size_t total_bytes = 0;
-    for (int i = 0; i < screens; i++) {
+    for (int i = 0; i < screens; i++)
+    {
         size_t n = build_one_screen(screen_buf, screen_cap, cols, rows, i);
         screen_data[i] = malloc(n);
         memcpy(screen_data[i], screen_buf, n);
@@ -119,7 +124,8 @@ main(int argc, char **argv)
      */
     char *all = malloc(total_bytes);
     size_t off = 0;
-    for (int i = 0; i < screens; i++) {
+    for (int i = 0; i < screens; i++)
+    {
         memcpy(all + off, screen_data[i], screen_len[i]);
         off += screen_len[i];
         free(screen_data[i]);
@@ -129,7 +135,8 @@ main(int argc, char **argv)
 
     double t0 = now_ms();
     size_t fed = 0;
-    while (fed < total_bytes) {
+    while (fed < total_bytes)
+    {
         size_t n = total_bytes - fed;
         if (n > READ_CHUNK) n = READ_CHUNK;
         ghostcon_term_feed(&term, (const uint8_t *)(all + fed), n);

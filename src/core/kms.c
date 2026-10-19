@@ -20,11 +20,13 @@ get_property_id(int fd, uint32_t obj_id, uint32_t obj_type,
         return false;
 
     bool found = false;
-    for (uint32_t i = 0; i < props->count_props; i++) {
+    for (uint32_t i = 0; i < props->count_props; i++)
+    {
         drmModePropertyRes *prop = drmModeGetProperty(fd, props->props[i]);
         if (!prop)
             continue;
-        if (strcmp(prop->name, name) == 0) {
+        if (strcmp(prop->name, name) == 0)
+        {
             *out_id = prop->prop_id;
             found = true;
         }
@@ -49,8 +51,10 @@ plane_is_type(int fd, uint32_t plane_id, uint64_t want_type)
         return false;
 
     bool matches = false;
-    for (uint32_t i = 0; i < props->count_props; i++) {
-        if (props->props[i] == type_prop_id) {
+    for (uint32_t i = 0; i < props->count_props; i++)
+    {
+        if (props->props[i] == type_prop_id)
+        {
             matches = (props->prop_values[i] == want_type);
             break;
         }
@@ -66,17 +70,21 @@ find_connector_and_mode(int fd, drmModeRes *res,
                          uint32_t *out_connector_id, drmModeModeInfo *out_mode,
                          uint32_t *out_encoder_id)
 {
-    for (int i = 0; i < res->count_connectors; i++) {
+    for (int i = 0; i < res->count_connectors; i++)
+    {
         drmModeConnector *conn = drmModeGetConnector(fd, res->connectors[i]);
         if (!conn)
             continue;
-        if (conn->connection == DRM_MODE_CONNECTED && conn->count_modes > 0) {
+        if (conn->connection == DRM_MODE_CONNECTED && conn->count_modes > 0)
+        {
             *out_connector_id = conn->connector_id;
             *out_encoder_id = conn->encoder_id; /* may be 0 — caller falls back */
             /* Prefer the mode flagged DRM_MODE_TYPE_PREFERRED; else first. */
             *out_mode = conn->modes[0];
-            for (int m = 0; m < conn->count_modes; m++) {
-                if (conn->modes[m].type & DRM_MODE_TYPE_PREFERRED) {
+            for (int m = 0; m < conn->count_modes; m++)
+            {
+                if (conn->modes[m].type & DRM_MODE_TYPE_PREFERRED)
+                {
                     *out_mode = conn->modes[m];
                     break;
                 }
@@ -93,13 +101,17 @@ static bool
 find_crtc(int fd, drmModeRes *res, uint32_t encoder_id, uint32_t *out_crtc_id,
           int *out_crtc_index)
 {
-    if (encoder_id) {
+    if (encoder_id)
+    {
         drmModeEncoder *enc = drmModeGetEncoder(fd, encoder_id);
-        if (enc && enc->crtc_id) {
+        if (enc && enc->crtc_id)
+        {
             uint32_t crtc_id = enc->crtc_id;
             drmModeFreeEncoder(enc);
-            for (int i = 0; i < res->count_crtcs; i++) {
-                if (res->crtcs[i] == crtc_id) {
+            for (int i = 0; i < res->count_crtcs; i++)
+            {
+                if (res->crtcs[i] == crtc_id)
+                {
                     *out_crtc_id = crtc_id;
                     *out_crtc_index = i;
                     return true;
@@ -114,7 +126,8 @@ find_crtc(int fd, drmModeRes *res, uint32_t encoder_id, uint32_t *out_crtc_id,
      * first CRTC in the resource list. Good enough for a single-display,
      * single-connector setup; multi-head assignment is a later problem.
      */
-    if (res->count_crtcs > 0) {
+    if (res->count_crtcs > 0)
+    {
         *out_crtc_id = res->crtcs[0];
         *out_crtc_index = 0;
         return true;
@@ -130,12 +143,14 @@ find_plane_of_type(int fd, int crtc_index, uint64_t want_type, uint32_t *out_pla
         return false;
 
     bool found = false;
-    for (uint32_t i = 0; i < planes->count_planes; i++) {
+    for (uint32_t i = 0; i < planes->count_planes; i++)
+    {
         drmModePlane *plane = drmModeGetPlane(fd, planes->planes[i]);
         if (!plane)
             continue;
         if ((plane->possible_crtcs & (1u << crtc_index)) &&
-            plane_is_type(fd, plane->plane_id, want_type)) {
+            plane_is_type(fd, plane->plane_id, want_type))
+        {
             *out_plane_id = plane->plane_id;
             found = true;
         }
@@ -208,8 +223,10 @@ draw_cursor_ibeam(uint8_t *pixels, uint32_t canvas_w, uint32_t canvas_h,
             shape[(w - (uint32_t)thk) / 2 + y * w + (uint32_t)i] = true;
 
     /* Top and bottom serifs. */
-    for (uint32_t x = (uint32_t)thk; x + (uint32_t)thk < w; x++) {
-        for (int i = 0; i < thk; i++) {
+    for (uint32_t x = (uint32_t)thk; x + (uint32_t)thk < w; x++)
+    {
+        for (int i = 0; i < thk; i++)
+        {
             shape[w * (uint32_t)(i + thk) + x] = true;
             shape[(h - (uint32_t)i - 1 - (uint32_t)thk) * w + x] = true;
         }
@@ -220,17 +237,22 @@ draw_cursor_ibeam(uint8_t *pixels, uint32_t canvas_w, uint32_t canvas_h,
      * background color (matches kmscon's own outline approach). Offset into
      * the canvas by (off_x, off_y) to center it.
      */
-    for (uint32_t y = 0; y < h; y++) {
+    for (uint32_t y = 0; y < h; y++)
+    {
         uint32_t *row = (uint32_t *)(pixels + (size_t)(y + off_y) * stride);
-        for (uint32_t x = 0; x < w; x++) {
+        for (uint32_t x = 0; x < w; x++)
+        {
             uint32_t *px = row + (x + off_x);
-            if (shape[y * w + x]) {
+            if (shape[y * w + x])
+            {
                 *px = 0xFFFFFFFFu; /* opaque white */
                 continue;
             }
             bool near = false;
-            for (int ny = (int)y - thk; ny <= (int)y + thk && !near; ny++) {
-                for (int nx = (int)x - thk; nx <= (int)x + thk && !near; nx++) {
+            for (int ny = (int)y - thk; ny <= (int)y + thk && !near; ny++)
+            {
+                for (int nx = (int)x - thk; nx <= (int)x + thk && !near; nx++)
+                {
                     if (ny >= 0 && ny < (int)h && nx >= 0 && nx < (int)w &&
                         shape[(uint32_t)ny * w + (uint32_t)nx])
                         near = true;
@@ -265,7 +287,8 @@ blit_cursor_image(uint8_t *dst_pixels, uint32_t canvas_w, uint32_t canvas_h, uin
     *out_off_x = off_x;
     *out_off_y = off_y;
 
-    for (uint32_t y = 0; y < copy_h; y++) {
+    for (uint32_t y = 0; y < copy_h; y++)
+    {
         uint32_t *dst_row = (uint32_t *)(dst_pixels + (size_t)(y + off_y) * stride);
         const uint32_t *src_row = src + (size_t)y * src_w;
         memcpy(dst_row + off_x, src_row, (size_t)copy_w * sizeof(uint32_t));
@@ -279,11 +302,13 @@ blit_cursor_image(uint8_t *dst_pixels, uint32_t canvas_w, uint32_t canvas_h, uin
 static void
 destroy_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t state)
 {
-    if (kms->cursor_fb_id[state]) {
+    if (kms->cursor_fb_id[state])
+    {
         drmModeRmFB(kms->fd, kms->cursor_fb_id[state]);
         kms->cursor_fb_id[state] = 0;
     }
-    if (kms->cursor_bo_handle[state]) {
+    if (kms->cursor_bo_handle[state])
+    {
         struct drm_mode_destroy_dumb dreq;
         memset(&dreq, 0, sizeof(dreq));
         dreq.handle = kms->cursor_bo_handle[state];
@@ -302,7 +327,8 @@ ghostcon_kms_set_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t state
         return true; /* no cursor plane -- not an error */
 
     destroy_cursor_image(kms, state);
-    if (state == kms->cursor_active_state) {
+    if (state == kms->cursor_active_state)
+    {
         /* Re-enable on the next move_cursor() call so the new FB actually
          * gets committed -- its fast path only touches CRTC_X/CRTC_Y once
          * already enabled.
@@ -320,7 +346,8 @@ ghostcon_kms_set_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t state
      * first time this is called with either plane just discovered), since
      * it doesn't depend on which state or image is being set.
      */
-    if (kms->cursor_w == 0 || kms->cursor_h == 0) {
+    if (kms->cursor_w == 0 || kms->cursor_h == 0)
+    {
         uint64_t cap_w = 0, cap_h = 0;
         if (drmGetCap(kms->fd, DRM_CAP_CURSOR_WIDTH, &cap_w) != 0 || cap_w == 0)
             cap_w = GHOSTCON_CURSOR_MAX_SIZE; /* DRM's own documented fallback when unqueryable */
@@ -338,7 +365,8 @@ ghostcon_kms_set_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t state
     creq.width = kms->cursor_w;
     creq.height = kms->cursor_h;
     creq.bpp = 32;
-    if (drmIoctl(kms->fd, DRM_IOCTL_MODE_CREATE_DUMB, &creq) != 0) {
+    if (drmIoctl(kms->fd, DRM_IOCTL_MODE_CREATE_DUMB, &creq) != 0)
+    {
         fprintf(stderr, "kms: cursor DRM_IOCTL_MODE_CREATE_DUMB failed\n");
         return false;
     }
@@ -347,18 +375,21 @@ ghostcon_kms_set_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t state
     struct drm_mode_map_dumb mreq;
     memset(&mreq, 0, sizeof(mreq));
     mreq.handle = creq.handle;
-    if (drmIoctl(kms->fd, DRM_IOCTL_MODE_MAP_DUMB, &mreq) != 0) {
+    if (drmIoctl(kms->fd, DRM_IOCTL_MODE_MAP_DUMB, &mreq) != 0)
+    {
         fprintf(stderr, "kms: cursor DRM_IOCTL_MODE_MAP_DUMB failed\n");
         return false;
     }
 
     void *map = mmap(NULL, creq.size, PROT_READ | PROT_WRITE, MAP_SHARED,
                       kms->fd, (off_t)mreq.offset);
-    if (map == MAP_FAILED) {
+    if (map == MAP_FAILED)
+    {
         fprintf(stderr, "kms: cursor buffer mmap failed\n");
         return false;
     }
-    if (pixels) {
+    if (pixels)
+    {
         uint32_t off_x, off_y;
         blit_cursor_image((uint8_t *)map, kms->cursor_w, kms->cursor_h, creq.pitch, pixels, w, h,
                            &off_x, &off_y);
@@ -376,7 +407,9 @@ ghostcon_kms_set_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t state
          */
         kms->cursor_hot_x[state] = off_x + (hot_x < w ? hot_x : w - 1);
         kms->cursor_hot_y[state] = off_y + (hot_y < h ? hot_y : h - 1);
-    } else {
+    }
+    else
+    {
         uint32_t ibeam_h = fallback_font_height > 8 ? fallback_font_height : 8;
         if (ibeam_h > kms->cursor_w) ibeam_h = kms->cursor_w;
         uint32_t off_x, off_y;
@@ -402,7 +435,8 @@ ghostcon_kms_set_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t state
     uint32_t strides[4] = { creq.pitch, 0, 0, 0 };
     uint32_t offsets[4] = { 0, 0, 0, 0 };
     if (drmModeAddFB2(kms->fd, kms->cursor_w, kms->cursor_h, DRM_FORMAT_ARGB8888,
-                       handles, strides, offsets, &kms->cursor_fb_id[state], 0) != 0) {
+                       handles, strides, offsets, &kms->cursor_fb_id[state], 0) != 0)
+    {
         fprintf(stderr, "kms: cursor drmModeAddFB2 failed\n");
         kms->cursor_fb_id[state] = 0;
         return false;
@@ -419,33 +453,38 @@ ghostcon_kms_init(ghostcon_kms_t *kms, int drm_fd)
     kms->fd = drm_fd;
 
     if (drmSetClientCap(drm_fd, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1) != 0 ||
-        drmSetClientCap(drm_fd, DRM_CLIENT_CAP_ATOMIC, 1) != 0) {
+        drmSetClientCap(drm_fd, DRM_CLIENT_CAP_ATOMIC, 1) != 0)
+    {
         fprintf(stderr, "kms: atomic/universal-planes capability not available\n");
         return false;
     }
 
     drmModeRes *res = drmModeGetResources(drm_fd);
-    if (!res) {
+    if (!res)
+    {
         fprintf(stderr, "kms: drmModeGetResources failed\n");
         return false;
     }
 
     uint32_t encoder_id = 0;
-    if (!find_connector_and_mode(drm_fd, res, &kms->connector_id, &kms->mode, &encoder_id)) {
+    if (!find_connector_and_mode(drm_fd, res, &kms->connector_id, &kms->mode, &encoder_id))
+    {
         fprintf(stderr, "kms: no connected connector with a usable mode\n");
         drmModeFreeResources(res);
         return false;
     }
 
     int crtc_index;
-    if (!find_crtc(drm_fd, res, encoder_id, &kms->crtc_id, &crtc_index)) {
+    if (!find_crtc(drm_fd, res, encoder_id, &kms->crtc_id, &crtc_index))
+    {
         fprintf(stderr, "kms: no usable CRTC\n");
         drmModeFreeResources(res);
         return false;
     }
     drmModeFreeResources(res);
 
-    if (!find_plane_of_type(drm_fd, crtc_index, DRM_PLANE_TYPE_PRIMARY, &kms->plane_id)) {
+    if (!find_plane_of_type(drm_fd, crtc_index, DRM_PLANE_TYPE_PRIMARY, &kms->plane_id))
+    {
         fprintf(stderr, "kms: no primary plane for CRTC %u\n", kms->crtc_id);
         return false;
     }
@@ -475,7 +514,8 @@ ghostcon_kms_init(ghostcon_kms_t *kms, int drm_fd)
     ok &= get_property_id(drm_fd, kms->crtc_id, DRM_MODE_OBJECT_CRTC, "MODE_ID", &kms->crtc_props.mode_id);
     ok &= get_property_id(drm_fd, kms->crtc_id, DRM_MODE_OBJECT_CRTC, "ACTIVE", &kms->crtc_props.active);
     ok &= get_property_id(drm_fd, kms->connector_id, DRM_MODE_OBJECT_CONNECTOR, "CRTC_ID", &kms->connector_props.crtc_id);
-    if (!ok) {
+    if (!ok)
+    {
         fprintf(stderr, "kms: failed to resolve one or more atomic property IDs\n");
         return false;
     }
@@ -488,7 +528,8 @@ ghostcon_kms_init(ghostcon_kms_t *kms, int drm_fd)
      * at this layer; the caller (core/ main.c's acquire_display()) calls
      * ghostcon_kms_set_cursor_shape() right after this returns.
      */
-    if (kms->cursor_plane_id) {
+    if (kms->cursor_plane_id)
+    {
         bool cok = true;
         cok &= get_property_id(drm_fd, kms->cursor_plane_id, DRM_MODE_OBJECT_PLANE, "CRTC_ID", &kms->cursor_plane_props.crtc_id);
         cok &= get_property_id(drm_fd, kms->cursor_plane_id, DRM_MODE_OBJECT_PLANE, "FB_ID", &kms->cursor_plane_props.fb_id);
@@ -500,20 +541,23 @@ ghostcon_kms_init(ghostcon_kms_t *kms, int drm_fd)
         cok &= get_property_id(drm_fd, kms->cursor_plane_id, DRM_MODE_OBJECT_PLANE, "CRTC_Y", &kms->cursor_plane_props.crtc_y);
         cok &= get_property_id(drm_fd, kms->cursor_plane_id, DRM_MODE_OBJECT_PLANE, "CRTC_W", &kms->cursor_plane_props.crtc_w);
         cok &= get_property_id(drm_fd, kms->cursor_plane_id, DRM_MODE_OBJECT_PLANE, "CRTC_H", &kms->cursor_plane_props.crtc_h);
-        if (!cok) {
+        if (!cok)
+        {
             fprintf(stderr, "kms: failed to resolve cursor plane property IDs, cursor disabled\n");
             kms->cursor_plane_id = 0;
         }
     }
 
     if (drmModeCreatePropertyBlob(drm_fd, &kms->mode, sizeof(kms->mode),
-                                   &kms->mode_blob_id) != 0) {
+                                   &kms->mode_blob_id) != 0)
+    {
         fprintf(stderr, "kms: drmModeCreatePropertyBlob failed\n");
         return false;
     }
 
     kms->gbm_dev = gbm_create_device(drm_fd);
-    if (!kms->gbm_dev) {
+    if (!kms->gbm_dev)
+    {
         fprintf(stderr, "kms: gbm_create_device failed\n");
         return false;
     }
@@ -561,7 +605,8 @@ ghostcon_kms_create_scanout_surface(ghostcon_kms_t *kms)
     kms->gbm_surf = gbm_surface_create(kms->gbm_dev, kms->width, kms->height,
                                         GBM_FORMAT_XRGB8888,
                                         GBM_BO_USE_SCANOUT | GBM_BO_USE_RENDERING);
-    if (!kms->gbm_surf) {
+    if (!kms->gbm_surf)
+    {
         fprintf(stderr, "kms: gbm_surface_create (scanout) failed\n");
         return false;
     }
@@ -612,7 +657,8 @@ disable_other_planes(ghostcon_kms_t *kms, drmModeAtomicReq *req)
     if (!planes)
         return;
 
-    for (uint32_t i = 0; i < planes->count_planes; i++) {
+    for (uint32_t i = 0; i < planes->count_planes; i++)
+    {
         uint32_t plane_id = planes->planes[i];
         if (plane_id == kms->plane_id || plane_id == kms->cursor_plane_id)
             continue;
@@ -628,15 +674,18 @@ disable_other_planes(ghostcon_kms_t *kms, drmModeAtomicReq *req)
             continue;
 
         uint64_t current_crtc = 0;
-        for (uint32_t p = 0; p < props->count_props; p++) {
-            if (props->props[p] == crtc_id_prop) {
+        for (uint32_t p = 0; p < props->count_props; p++)
+        {
+            if (props->props[p] == crtc_id_prop)
+            {
                 current_crtc = props->prop_values[p];
                 break;
             }
         }
         drmModeFreeObjectProperties(props);
 
-        if (current_crtc == kms->crtc_id) {
+        if (current_crtc == kms->crtc_id)
+        {
             (void)drmModeAtomicAddProperty(req, plane_id, crtc_id_prop, 0);
             (void)drmModeAtomicAddProperty(req, plane_id, fb_id_prop, 0);
         }
@@ -652,7 +701,8 @@ commit_frame(ghostcon_kms_t *kms, uint32_t fb_id, bool is_modeset, bool blocking
         return false;
 
     bool ok = true;
-    if (is_modeset) {
+    if (is_modeset)
+    {
         ok &= drmModeAtomicAddProperty(req, kms->connector_id,
                                         kms->connector_props.crtc_id, kms->crtc_id) >= 0;
         ok &= drmModeAtomicAddProperty(req, kms->crtc_id,
@@ -682,7 +732,8 @@ commit_frame(ghostcon_kms_t *kms, uint32_t fb_id, bool is_modeset, bool blocking
     }
     ok &= drmModeAtomicAddProperty(req, kms->plane_id, kms->plane_props.fb_id, fb_id) >= 0;
 
-    if (!ok) {
+    if (!ok)
+    {
         drmModeAtomicFree(req);
         return false;
     }
@@ -700,7 +751,8 @@ commit_frame(ghostcon_kms_t *kms, uint32_t fb_id, bool is_modeset, bool blocking
      */
     int rv = drmModeAtomicCommit(kms->fd, req, flags, &kms->flip_pending);
     drmModeAtomicFree(req);
-    if (rv != 0) {
+    if (rv != 0)
+    {
         fprintf(stderr, "kms: drmModeAtomicCommit failed: %d\n", rv);
         return false;
     }
@@ -724,7 +776,8 @@ wait_for_flip(ghostcon_kms_t *kms)
         .page_flip_handler = page_flip_handler,
     };
 
-    while (kms->flip_pending) {
+    while (kms->flip_pending)
+    {
         struct pollfd pfd = { .fd = kms->fd, .events = POLLIN };
         int rv = poll(&pfd, 1, 1000);
         if (rv <= 0)
@@ -738,19 +791,22 @@ bool
 ghostcon_kms_modeset(ghostcon_kms_t *kms)
 {
     struct gbm_bo *bo = gbm_surface_lock_front_buffer(kms->gbm_surf);
-    if (!bo) {
+    if (!bo)
+    {
         fprintf(stderr, "kms: gbm_surface_lock_front_buffer failed\n");
         return false;
     }
 
     uint32_t fb_id;
-    if (!fb_id_for_bo(kms->fd, bo, &fb_id)) {
+    if (!fb_id_for_bo(kms->fd, bo, &fb_id))
+    {
         fprintf(stderr, "kms: drmModeAddFB2 failed\n");
         gbm_surface_release_buffer(kms->gbm_surf, bo);
         return false;
     }
 
-    if (!commit_frame(kms, fb_id, /*is_modeset=*/true, /*blocking=*/true)) {
+    if (!commit_frame(kms, fb_id, /*is_modeset=*/true, /*blocking=*/true))
+    {
         drmModeRmFB(kms->fd, fb_id);
         gbm_surface_release_buffer(kms->gbm_surf, bo);
         return false;
@@ -801,7 +857,8 @@ commit_cursor(ghostcon_kms_t *kms, int x, int y, bool force_full)
         return false;
 
     bool ok = true;
-    if (force_full || !kms->cursor_enabled) {
+    if (force_full || !kms->cursor_enabled)
+    {
         /* First move (or a state switch): (re)set CRTC_ID/FB_ID and the
          * fixed geometry (source rect + on-screen size never change again
          * for a given state -- only position does, below). Deliberately
@@ -838,7 +895,8 @@ commit_cursor(ghostcon_kms_t *kms, int x, int y, bool force_full)
     ok &= drmModeAtomicAddProperty(req, kms->cursor_plane_id,
                                     kms->cursor_plane_props.crtc_y, (uint64_t)(int64_t)crtc_y) >= 0;
 
-    if (!ok) {
+    if (!ok)
+    {
         drmModeAtomicFree(req);
         return false;
     }
@@ -854,7 +912,8 @@ commit_cursor(ghostcon_kms_t *kms, int x, int y, bool force_full)
      */
     int rv = drmModeAtomicCommit(kms->fd, req, 0, NULL);
     drmModeAtomicFree(req);
-    if (rv != 0) {
+    if (rv != 0)
+    {
         fprintf(stderr, "kms: cursor commit failed: %d\n", rv);
         return false;
     }
@@ -889,7 +948,8 @@ ghostcon_kms_page_flip(ghostcon_kms_t *kms)
     /* Best-effort pacing only, NOT a correctness gate — see below for why a
      * timeout here must never leave a committed buffer untracked.
      */
-    if (kms->flip_pending) {
+    if (kms->flip_pending)
+    {
         if (!wait_for_flip(kms))
             fprintf(stderr, "kms: previous page flip's completion event "
                             "never arrived (lost event?) — proceeding anyway\n");
@@ -897,19 +957,22 @@ ghostcon_kms_page_flip(ghostcon_kms_t *kms)
     }
 
     struct gbm_bo *bo = gbm_surface_lock_front_buffer(kms->gbm_surf);
-    if (!bo) {
+    if (!bo)
+    {
         fprintf(stderr, "kms: gbm_surface_lock_front_buffer failed\n");
         return false;
     }
 
     uint32_t fb_id;
-    if (!fb_id_for_bo(kms->fd, bo, &fb_id)) {
+    if (!fb_id_for_bo(kms->fd, bo, &fb_id))
+    {
         fprintf(stderr, "kms: drmModeAddFB2 failed\n");
         gbm_surface_release_buffer(kms->gbm_surf, bo);
         return false;
     }
 
-    if (!commit_frame(kms, fb_id, /*is_modeset=*/false, /*blocking=*/false)) {
+    if (!commit_frame(kms, fb_id, /*is_modeset=*/false, /*blocking=*/false))
+    {
         /* Genuinely rejected by the kernel — nothing changed on the display
          * side, safe to just release what we allocated.
          */

@@ -76,7 +76,8 @@ main(void)
 
     /* --- extract_text, via a real term --- */
     ghostcon_term_t term;
-    if (!ghostcon_term_init(&term, 20, 5, 0)) {
+    if (!ghostcon_term_init(&term, 20, 5, 0))
+    {
         fprintf(stderr, "FAIL: term_init\n");
         return 1;
     }
@@ -153,7 +154,8 @@ main(void)
     CHECK(ghostcon_base64_encode(raw, strlen((char *)raw), encoded, 2) == 0,
           "base64_encode reports failure when out_len is insufficient");
 
-    if (failures > 0) {
+    if (failures > 0)
+    {
         fprintf(stderr, "%d check(s) failed\n", failures);
         return 1;
     }

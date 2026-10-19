@@ -18,35 +18,40 @@
  */
 
 static void
-handle_csi_cursor_up(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_cursor_up(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     if (!csi_param_count(st, 0, 1)) return;
     int n = PARAM1(st, 1);
     ghostcon_screen_cursor_up(s, n);
 }
 
 static void
-handle_csi_cursor_down(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_cursor_down(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     if (!csi_param_count(st, 0, 1)) return;
     int n = PARAM1(st, 1);
     ghostcon_screen_cursor_down(s, n);
 }
 
 static void
-handle_csi_cursor_forward(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_cursor_forward(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     if (!csi_param_count(st, 0, 1)) return;
     int n = PARAM1(st, 1);
     ghostcon_screen_cursor_right(s, n);
 }
 
 static void
-handle_csi_cursor_back(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_cursor_back(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     if (!csi_param_count(st, 0, 1)) return;
     int n = PARAM1(st, 1);
     ghostcon_screen_cursor_left(s, n);
 }
 
 static void
-handle_csi_cursor_next_line(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_cursor_next_line(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     if (!csi_param_count(st, 0, 1)) return;
     int n = clamp_loop_count(PARAM1(st, 1), s->rows_visible);
     for (int i = 0; i < n; i++)
@@ -54,7 +59,8 @@ handle_csi_cursor_next_line(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 }
 
 static void
-handle_csi_cursor_prev_line(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_cursor_prev_line(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     if (!csi_param_count(st, 0, 1)) return;
     int n = clamp_loop_count(PARAM1(st, 1), s->rows_visible);
     for (int i = 0; i < n; i++)
@@ -62,14 +68,16 @@ handle_csi_cursor_prev_line(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 }
 
 static void
-handle_csi_cursor_horizontal_abs(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_cursor_horizontal_abs(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     if (!csi_param_count(st, 0, 1)) return;
     int x = PARAM1(st, 1) - 1;
     ghostcon_screen_cursor_horizontal_abs(s, x);
 }
 
 static void
-handle_csi_cursor_vertical_abs(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_cursor_vertical_abs(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     /* VPA (CSI Ps d): set row, column unchanged. */
     if (!csi_param_count(st, 0, 1)) return;
     int y = PARAM1(st, 1) - 1;
@@ -77,7 +85,8 @@ handle_csi_cursor_vertical_abs(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 }
 
 static void
-handle_csi_tab_forward(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_tab_forward(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     /* CHT (CSI Ps I): move forward Ps tab stops. */
     if (!csi_param_count(st, 0, 1)) return;
     int n = clamp_loop_count(PARAM1(st, 1), s->cols);
@@ -86,7 +95,8 @@ handle_csi_tab_forward(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 }
 
 static void
-handle_csi_tab_back(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_tab_back(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     /* CBT (CSI Ps Z): move backward Ps tab stops. */
     if (!csi_param_count(st, 0, 1)) return;
     int n = clamp_loop_count(PARAM1(st, 1), s->cols);
@@ -95,7 +105,8 @@ handle_csi_tab_back(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 }
 
 static void
-handle_csi_repeat(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_repeat(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     /* REP (CSI Ps b): repeat preceding graphic character Ps times. Ghostty:
      * @max(count, 1). No last-char → no-op.
      */
@@ -112,7 +123,8 @@ handle_csi_repeat(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 }
 
 static void
-handle_csi_cursor_position(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_cursor_position(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     /* CUP (CSI Ps;Pt H): Ghostty accepts 0, 1, or 2 params, else ignores. */
     if (!csi_param_count(st, 0, 2)) return;
     long row = (long)PARAM1(st, 1) - 1;
@@ -125,12 +137,14 @@ handle_csi_cursor_position(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 }
 
 static void
-handle_csi_horizontal_vertical_position(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_horizontal_vertical_position(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     handle_csi_cursor_position(st, s);
 }
 
 static void
-handle_csi_erase_display(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_erase_display(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     if (!csi_param_count(st, 0, 1)) return;
     int mode = PARAM1(st, 0);
     bool dec = (st->intermediates_idx == 1 && st->intermediates[0] == '?');
@@ -142,7 +156,8 @@ handle_csi_erase_display(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 }
 
 static void
-handle_csi_erase_line(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_erase_line(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     if (!csi_param_count(st, 0, 1)) return;
     int mode = PARAM1(st, 0);
     bool dec = (st->intermediates_idx == 1 && st->intermediates[0] == '?');
@@ -154,35 +169,40 @@ handle_csi_erase_line(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 }
 
 static void
-handle_csi_insert_lines(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_insert_lines(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     if (!csi_param_count(st, 0, 1)) return;
     int n = PARAM1(st, 1);
     ghostcon_screen_insert_lines(s, n);
 }
 
 static void
-handle_csi_delete_lines(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_delete_lines(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     if (!csi_param_count(st, 0, 1)) return;
     int n = PARAM1(st, 1);
     ghostcon_screen_delete_lines(s, n);
 }
 
 static void
-handle_csi_delete_chars(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_delete_chars(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     if (!csi_param_count(st, 0, 1)) return;
     int n = PARAM1(st, 1);
     ghostcon_screen_delete_chars(s, n);
 }
 
 static void
-handle_csi_erase_chars(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_erase_chars(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     if (!csi_param_count(st, 0, 1)) return;
     int n = PARAM1(st, 1);
     ghostcon_screen_erase_chars(s, n);
 }
 
 static void
-handle_csi_insert_chars(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_insert_chars(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     if (!csi_param_count(st, 0, 1)) return;
     int n = PARAM1(st, 1);
     if (n == 0) n = 1; /* explicit zero clamps to 1 (matches Ghostty) */
@@ -190,21 +210,24 @@ handle_csi_insert_chars(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 }
 
 static void
-handle_csi_scroll_up(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_scroll_up(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     if (!csi_param_count(st, 0, 1)) return;
     int n = PARAM1(st, 1);
     ghostcon_screen_scroll_up(s, n);
 }
 
 static void
-handle_csi_scroll_down(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_scroll_down(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     if (!csi_param_count(st, 0, 1)) return;
     int n = PARAM1(st, 1);
     ghostcon_screen_scroll_down(s, n);
 }
 
 static void
-handle_csi_set_scroll_region(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_set_scroll_region(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     /* DECSTBM: 0, 1, or 2 params (Ghostty), else ignored. */
     if (!csi_param_count(st, 0, 2)) return;
     int top = PARAM1(st, 1) - 1;
@@ -214,11 +237,13 @@ handle_csi_set_scroll_region(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 }
 
 static void
-handle_csi_set_margin_region(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_set_margin_region(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     /* CSI s with no params is SCOSC (save cursor); with params it is
      * DECSLRM (set left/right margins) — matches Ghostty's ambiguity split
      */
-    if (st->params_idx == 0) {
+    if (st->params_idx == 0)
+    {
         ghostcon_screen_cursor_save(s);
         return;
     }
@@ -234,7 +259,8 @@ handle_csi_set_margin_region(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 }
 
 static void
-handle_csi_restore_cursor(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_restore_cursor(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     (void)st;
     ghostcon_screen_cursor_restore(s);
 }
@@ -252,7 +278,8 @@ handle_csi_restore_cursor(ghostcon_stream_t *st, ghostcon_screen_t *s) {
  */
 
 static void
-handle_csi_kitty_push(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_kitty_push(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     /* CSI > flags u -- push `flags` as a new stack entry. Omitted flags
      * defaults to 0 (fully disabled), matching this parser's general
      * "absent numeric param defaults to the safe/off value" convention used
@@ -262,7 +289,8 @@ handle_csi_kitty_push(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 }
 
 static void
-handle_csi_kitty_pop(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_kitty_pop(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     /* CSI < n u -- pop n stack entries (default 1 per the protocol spec,
      * unlike most other sequences in this file that default an omitted
      * count to 0).
@@ -271,7 +299,8 @@ handle_csi_kitty_pop(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 }
 
 static void
-handle_csi_kitty_set(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_kitty_set(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     /* CSI = flags ; mode u -- apply `flags` to the CURRENT (top-of-stack)
      * entry per `mode`: wire protocol 1=set (default), 2=OR, 3=AND-NOT.
      * ghostcon_kitty_set_mode_t is 0-indexed (GC_KITTY_SET=0/OR=1/NOT=2),
@@ -287,7 +316,8 @@ handle_csi_kitty_set(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 }
 
 static void
-handle_csi_kitty_query(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_kitty_query(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     /* CSI ? u -- report the current (top-of-stack) flags as CSI ? {flags} u. */
     char buf[16];
     snprintf(buf, sizeof(buf), "\x1b[?%uu", (unsigned)ghostcon_kitty_current(&s->kitty));
@@ -295,13 +325,15 @@ handle_csi_kitty_query(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 }
 
 static void
-handle_csi_cursor_style(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_cursor_style(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     if (!csi_param_count(st, 0, 1)) return;
     int style = PARAM1(st, 0);
     /* DECSCUSR: 0=blink block, 1=blink block, 2=steady block, 3=blink
      * underline, 4=steady underline, 5=blink bar, 6=steady bar
      */
-    switch (style) {
+    switch (style)
+    {
     case 0: case 1: s->cursor.cursor_style = GC_CURSOR_BLOCK_BLINK; break;
     case 2: s->cursor.cursor_style = GC_CURSOR_BLOCK; break;
     case 3: s->cursor.cursor_style = GC_CURSOR_UNDERLINE_BLINK; break;
@@ -312,7 +344,8 @@ handle_csi_cursor_style(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 }
 
 static void
-handle_csi_decsca(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_decsca(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     /* DECSCA — CSI Ps " q — select character protection attribute. Ghostty
      * (stream.zig): 0 or 1 param; Ps 0 or 2 → off, Ps 1 → DEC. Note Ghostty
      * maps Ps=2 to `.off`, NOT ISO — the ISO screen mode is only reachable
@@ -323,7 +356,8 @@ handle_csi_decsca(ghostcon_stream_t *st, ghostcon_screen_t *s) {
      */
     if (!csi_param_count(st, 0, 1)) return;
     int mode = PARAM1(st, 0);
-    switch (mode) {
+    switch (mode)
+    {
     case 0:
     case 2:
         s->cursor.protected = false;
@@ -339,26 +373,31 @@ handle_csi_decsca(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 }
 
 static void
-handle_csi_save_mode(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_save_mode(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     /* CSI ? Ps s — save the given DEC modes */
     for (uint8_t i = 0; i < st->params_idx; i++)
         ghostcon_screen_save_mode(s, st->params[i]);
 }
 
 static void
-handle_csi_restore_mode(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_restore_mode(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     /* CSI ? Ps r — restore the given DEC modes */
     for (uint8_t i = 0; i < st->params_idx; i++)
         ghostcon_screen_restore_mode(s, st->params[i]);
 }
 
 static void
-handle_csi_shift_escape(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_shift_escape(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     /* XTSHIFTESCAPE — CSI > Ps s — mouse-shift capture on/off */
-    switch (st->params_idx) {
+    switch (st->params_idx)
+    {
     case 0: s->mouse_shift_capture = false; break;
     case 1:
-        switch (PARAM1(st, 0)) {
+        switch (PARAM1(st, 0))
+        {
         case 0: s->mouse_shift_capture = false; break;
         case 1: s->mouse_shift_capture = true; break;
         default: break; /* invalid — Ghostty warns and ignores */
@@ -371,7 +410,8 @@ handle_csi_shift_escape(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 }
 
 static void
-handle_csi_request_mode(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_request_mode(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     /* DECRQM: CSI Ps $ p (ansi) / CSI ? Ps $ p (DEC) — respond with DECRPM:
      * CSI[?] Ps;Pn $ y. Pn: 0 = not recognized, 1 = set, 2 = reset.
      */
@@ -381,16 +421,21 @@ handle_csi_request_mode(ghostcon_stream_t *st, ghostcon_screen_t *s) {
     int state = 0; /* not recognized */
     char buf[32];
 
-    if (ansi) {
-        switch (mode) {
+    if (ansi)
+    {
+        switch (mode)
+        {
         case 4:  state = s->insert_mode ? 1 : 2; break;
         case 2:  state = 2; break;  /* KAM — not tracked */
         case 20: state = 2; break;  /* LNM — not tracked */
         default: state = 0; break;
         }
         snprintf(buf, sizeof(buf), "\x1b[%d;%d$y", mode, state);
-    } else {
-        switch (mode) {
+    }
+    else
+    {
+        switch (mode)
+        {
         case 1:    state = s->application_cursor ? 1 : 2; break;
         case 4:    state = s->insert_mode ? 1 : 2; break;
         case 5:    state = s->reverse_video ? 1 : 2; break;
@@ -409,25 +454,31 @@ handle_csi_request_mode(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 }
 
 static void
-handle_csi_tab_clear(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_tab_clear(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     int mode = PARAM1(st, 0);
     ghostcon_screen_tab_clear(s, mode);
 }
 
 static void
-handle_csi_device_attrib(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_device_attrib(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     (void)s;
     /* DA1/DA2/DA3 responses — mirrors Ghostty's device_attributes.zig defaults. */
-    switch (st->intermediates_idx) {
+    switch (st->intermediates_idx)
+    {
     case 0:
         /* DA1: VT220 level-2 + ANSI color */
         stream_output(st, "\x1b[?62;22c");
         break;
     case 1:
-        if (st->intermediates[0] == '>') {
+        if (st->intermediates[0] == '>')
+        {
             /* DA2: VT220, fw rev 0, ROM 0 */
             stream_output(st, "\x1b[>1;0;0c");
-        } else if (st->intermediates[0] == '=') {
+        }
+        else if (st->intermediates[0] == '=')
+        {
             /* DA3: DECRPTUI 0 */
             stream_output(st, "\x1bP!|00000000\x1b\\");
         }
@@ -437,13 +488,16 @@ handle_csi_device_attrib(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 }
 
 static void
-handle_csi_device_status_report(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_device_status_report(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     if (st->params_idx != 1) return;
     int mode = st->params[0];
     bool question = (st->intermediates_idx == 1 && st->intermediates[0] == '?');
     char buf[32];
-    if (!question) {
-        switch (mode) {
+    if (!question)
+    {
+        switch (mode)
+        {
         case 5:
             stream_output(st, "\x1b[0n");
             break;
@@ -464,8 +518,11 @@ handle_csi_device_status_report(ghostcon_stream_t *st, ghostcon_screen_t *s) {
         }
         default: break;
         }
-    } else {
-        switch (mode) {
+    }
+    else
+    {
+        switch (mode)
+        {
         case 996:
             stream_output(st, "\x1b[?997;2n");  /* dark */
             break;
@@ -483,16 +540,20 @@ handle_csi_device_status_report(ghostcon_stream_t *st, ghostcon_screen_t *s) {
  * synchronized_output_since.
  */
 static void
-mark_sync_output_start(ghostcon_screen_t *s) {
+mark_sync_output_start(ghostcon_screen_t *s)
+{
     s->synchronized_output = true;
     clock_gettime(CLOCK_MONOTONIC, &s->synchronized_output_since);
 }
 
 static void
-handle_csi_set_mode(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_set_mode(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     /* SM — Ghostty iterates ALL params (multi-mode sequences). */
-    for (uint8_t i = 0; i < st->params_idx; i++) {
-        switch (st->params[i]) {
+    for (uint8_t i = 0; i < st->params_idx; i++)
+    {
+        switch (st->params[i])
+        {
         case 4:  s->insert_mode = true; break;                    /* IRM */
         case 2004: s->bracketed_paste = true; break;
         case 2026: mark_sync_output_start(s); break;
@@ -501,10 +562,13 @@ handle_csi_set_mode(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 }
 
 static void
-handle_csi_reset_mode(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_reset_mode(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     /* RM — iterate all params. */
-    for (uint8_t i = 0; i < st->params_idx; i++) {
-        switch (st->params[i]) {
+    for (uint8_t i = 0; i < st->params_idx; i++)
+    {
+        switch (st->params[i])
+        {
         case 4:  s->insert_mode = false; break;
         case 2004: s->bracketed_paste = false; break;
         case 2026: s->synchronized_output = false; break;
@@ -513,12 +577,15 @@ handle_csi_reset_mode(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 }
 
 static void
-handle_csi_dec_set(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_dec_set(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     /* DECSET — iterate all params (Ghostty). DECOM also homes the cursor on
      * both set and reset (Ghostty: `.origin => setCursorPos(1, 1)`).
      */
-    for (uint8_t i = 0; i < st->params_idx; i++) {
-        switch (st->params[i]) {
+    for (uint8_t i = 0; i < st->params_idx; i++)
+    {
+        switch (st->params[i])
+        {
         case 1: s->application_cursor = true; break;              /* DECCKM */
         case 3: break; /* DECCOLM — 132 cols — ignore */
         case 5: s->reverse_video = true; break;                    /* DECSCNM */
@@ -542,10 +609,13 @@ handle_csi_dec_set(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 }
 
 static void
-handle_csi_dec_reset(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_dec_reset(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     /* DECRST — iterate all params. */
-    for (uint8_t i = 0; i < st->params_idx; i++) {
-        switch (st->params[i]) {
+    for (uint8_t i = 0; i < st->params_idx; i++)
+    {
+        switch (st->params[i])
+        {
         case 1: s->application_cursor = false; break;
         case 3: break;
         case 5: s->reverse_video = false; break;
@@ -576,7 +646,8 @@ handle_csi_dec_reset(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 
 /* SGR handler (CSI m) */
 static void
-handle_csi_sgr(ghostcon_stream_t *st, ghostcon_screen_t *s) {
+handle_csi_sgr(ghostcon_stream_t *st, ghostcon_screen_t *s)
+{
     GhosttySgrParser parser;
     if (ghostty_sgr_new(NULL, &parser) != GHOSTTY_SUCCESS)
         return;
@@ -592,8 +663,10 @@ handle_csi_sgr(ghostcon_stream_t *st, ghostcon_screen_t *s) {
         cur = *ghostcon_style_set_get(s->styles, s->cursor.style_id);
 
     GhosttySgrAttribute attr;
-    while (ghostty_sgr_next(parser, &attr)) {
-        switch (attr.tag) {
+    while (ghostty_sgr_next(parser, &attr))
+    {
+        switch (attr.tag)
+        {
         case GHOSTTY_SGR_ATTR_UNSET:
             /* SGR 0 — reset all attributes */
             cur = GHOSTCON_STYLE_DEFAULT;
@@ -700,7 +773,8 @@ handle_csi_sgr(ghostcon_stream_t *st, ghostcon_screen_t *s) {
 typedef void (*csi_handler_t)(ghostcon_stream_t *, ghostcon_screen_t *);
 
 static gc_stream_csi_handler_t
-csi_lookup(ghostcon_stream_t *st, uint8_t final_byte) {
+csi_lookup(ghostcon_stream_t *st, uint8_t final_byte)
+{
     /* Intermediate discrimination mirrors Ghostty's `switch
      * (input.intermediates.len)` structure (stream.zig). The private
      * markers < = > ? are collected into intermediates when they lead a
@@ -719,7 +793,8 @@ csi_lookup(ghostcon_stream_t *st, uint8_t final_byte) {
         return NULL;
 
     /* Finals that have intermediate variants (DEC private and friends) */
-    switch (final_byte) {
+    switch (final_byte)
+    {
     case 'J':
         if (inter_len == 0) return handle_csi_erase_display;
         if (inter_len == 1 && inter0 == '?') return handle_csi_erase_display;
@@ -773,7 +848,8 @@ csi_lookup(ghostcon_stream_t *st, uint8_t final_byte) {
     /* Everything else must be a plain (intermediate-less) sequence */
     if (has_inter) return NULL;
 
-    switch (final_byte) {
+    switch (final_byte)
+    {
     case 'A': return handle_csi_cursor_up;
     case 'B': return handle_csi_cursor_down;
     case 'C': return handle_csi_cursor_forward;

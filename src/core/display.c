@@ -54,8 +54,10 @@ load_cursor_state(ghostcon_display_t *disp, ghostcon_cursor_state_t state,
     if (override_path && *override_path)
         pixels = ghostcon_cursor_load_bmp(override_path, &w, &h);
 
-    if (!pixels && disp->cursor_cfg.theme[0]) {
-        for (size_t i = 0; i < n_theme_names && !pixels; i++) {
+    if (!pixels && disp->cursor_cfg.theme[0])
+    {
+        for (size_t i = 0; i < n_theme_names && !pixels; i++)
+        {
             pixels = ghostcon_cursor_load_xcursor(disp->cursor_cfg.theme, theme_names[i],
                                                   &w, &h, &hot_x, &hot_y);
             if (pixels)
@@ -63,23 +65,29 @@ load_cursor_state(ghostcon_display_t *disp, ghostcon_cursor_state_t state,
         }
     }
 
-    if (hot_pos_str && *hot_pos_str) {
+    if (hot_pos_str && *hot_pos_str)
+    {
         unsigned int cfg_hot_x, cfg_hot_y;
-        if (sscanf(hot_pos_str, "%u,%u", &cfg_hot_x, &cfg_hot_y) == 2) {
+        if (sscanf(hot_pos_str, "%u,%u", &cfg_hot_x, &cfg_hot_y) == 2)
+        {
             hot_x = cfg_hot_x;
             hot_y = cfg_hot_y;
             have_real_hotspot = true;
-        } else {
+        }
+        else
+        {
             fprintf(stderr, "ghostcon-display: invalid cursor hot_pos \"%s\" -- expected \"x,y\"\n",
                     hot_pos_str);
         }
     }
 
-    if (pixels && w > 0 && h > 0) {
+    if (pixels && w > 0 && h > 0)
+    {
         uint32_t cropped_w, cropped_h;
         uint32_t *cropped = ghostcon_cursor_crop_to_content(pixels, w, h, &cropped_w, &cropped_h,
                                                             &hot_x, &hot_y);
-        if (cropped) {
+        if (cropped)
+        {
             free(pixels);
             pixels = cropped;
             w = cropped_w;
@@ -87,7 +95,8 @@ load_cursor_state(ghostcon_display_t *disp, ghostcon_cursor_state_t state,
         }
     }
 
-    if (pixels && w > 0 && h > 0) {
+    if (pixels && w > 0 && h > 0)
+    {
         int ref_cell_h = disp->cursor_cfg.scale_with_terminal ? cell_h
                                                               : CURSOR_SCALE_REFERENCE_CELL_H;
         if (ref_cell_h <= 0)
@@ -101,9 +110,11 @@ load_cursor_state(ghostcon_display_t *disp, ghostcon_cursor_state_t state,
         if (target_w < 1) target_w = 1;
         if (target_h < 1) target_h = 1;
 
-        if (target_w != w || target_h != h) {
+        if (target_w != w || target_h != h)
+        {
             uint32_t *scaled = ghostcon_cursor_scale(pixels, w, h, target_w, target_h);
-            if (scaled) {
+            if (scaled)
+            {
                 hot_x = (uint32_t)((float)hot_x * scale + 0.5f);
                 hot_y = (uint32_t)((float)hot_y * scale + 0.5f);
                 free(pixels);
@@ -113,7 +124,8 @@ load_cursor_state(ghostcon_display_t *disp, ghostcon_cursor_state_t state,
             }
         }
 
-        if (!have_real_hotspot) {
+        if (!have_real_hotspot)
+        {
             hot_x = w / 2;
             hot_y = h / 2;
         }
@@ -180,7 +192,8 @@ ghostcon_display_destroy(ghostcon_display_t *disp)
         return;
 
     ghostcon_display_release(disp);
-    if (disp->drm_fd >= 0) {
+    if (disp->drm_fd >= 0)
+    {
         close(disp->drm_fd);
         disp->drm_fd = -1;
     }
@@ -218,7 +231,8 @@ ghostcon_display_set_cursor_state(ghostcon_display_t *disp, ghostcon_cursor_stat
     if (!disp || !disp->acquired)
         return;
 
-    if (state != disp->cursor_state) {
+    if (state != disp->cursor_state)
+    {
         disp->cursor_state = state;
         ghostcon_kms_set_cursor_state(&disp->kms, state);
         GC_LOG(cursor, "state -> %s",
@@ -255,7 +269,8 @@ ghostcon_display_release(ghostcon_display_t *disp)
     if (!disp || !disp->acquired)
         return;
 
-    if (disp->gles) {
+    if (disp->gles)
+    {
         ghostcon_gles_destroy(disp->gles);
         disp->gles = NULL;
     }
@@ -280,26 +295,31 @@ ghostcon_display_acquire(ghostcon_display_t *disp, int cell_h, ghostcon_atlas_t 
     if (!disp)
         return false;
 
-    if (disp->drm_fd >= 0) {
+    if (disp->drm_fd >= 0)
+    {
         close(disp->drm_fd);
         disp->drm_fd = -1;
     }
 
     disp->drm_fd = open(disp->drm_node, O_RDWR | O_CLOEXEC);
-    if (disp->drm_fd < 0) {
+    if (disp->drm_fd < 0)
+    {
         fprintf(stderr, "ghostcon-display: open %s: %s\n", disp->drm_node, strerror(errno));
         return false;
     }
 
-    for (int i = 0; i < DRM_MASTER_RETRIES && !disp->have_master; i++) {
+    for (int i = 0; i < DRM_MASTER_RETRIES && !disp->have_master; i++)
+    {
         if (drmSetMaster(disp->drm_fd) == 0)
             disp->have_master = true;
-        else {
+        else
+        {
             GC_LOG(drm, "master busy, retry %d/%d", i + 1, DRM_MASTER_RETRIES);
             usleep(DRM_MASTER_RETRY_DELAY_US);
         }
     }
-    if (!disp->have_master) {
+    if (!disp->have_master)
+    {
         fprintf(stderr, "ghostcon-display: drmSetMaster failed: %s\n", strerror(errno));
         close(disp->drm_fd);
         disp->drm_fd = -1;
@@ -307,7 +327,8 @@ ghostcon_display_acquire(ghostcon_display_t *disp, int cell_h, ghostcon_atlas_t 
     }
 
     if (!ghostcon_kms_init(&disp->kms, disp->drm_fd) ||
-        !ghostcon_kms_create_scanout_surface(&disp->kms)) {
+        !ghostcon_kms_create_scanout_surface(&disp->kms))
+    {
         fprintf(stderr, "ghostcon-display: kms init failed\n");
         goto fail;
     }
@@ -317,13 +338,15 @@ ghostcon_display_acquire(ghostcon_display_t *disp, int cell_h, ghostcon_atlas_t 
 
     if (!ghostcon_egl_init_with_gbm(&disp->egl, disp->kms.gbm_dev, disp->kms.gbm_surf,
                                     disp->kms.width, disp->kms.height) ||
-        !ghostcon_egl_make_current(&disp->egl)) {
+        !ghostcon_egl_make_current(&disp->egl))
+    {
         fprintf(stderr, "ghostcon-display: egl init failed\n");
         goto fail;
     }
 
     disp->gles = ghostcon_gles_create(disp->kms.width, disp->kms.height, disp->gamma_correct);
-    if (!disp->gles) {
+    if (!disp->gles)
+    {
         fprintf(stderr, "ghostcon-display: gles init failed\n");
         goto fail;
     }
@@ -342,13 +365,15 @@ ghostcon_display_acquire(ghostcon_display_t *disp, int cell_h, ghostcon_atlas_t 
     return true;
 
 fail:
-    if (disp->gles) {
+    if (disp->gles)
+    {
         ghostcon_gles_destroy(disp->gles);
         disp->gles = NULL;
     }
     ghostcon_egl_deinit(&disp->egl);
     ghostcon_kms_deinit(&disp->kms);
-    if (disp->drm_fd >= 0) {
+    if (disp->drm_fd >= 0)
+    {
         if (disp->have_master)
             drmDropMaster(disp->drm_fd);
         close(disp->drm_fd);
@@ -382,25 +407,32 @@ ghostcon_display_render_frame(ghostcon_display_t *disp, ghostcon_screen_t *scree
     ghostcon_gles_sync_atlas(disp->gles, atlas, false);
     ghostcon_gles_end(disp->gles);
 
-    if (screenshot_requested) {
+    if (screenshot_requested)
+    {
         if (!ghostcon_gles_screenshot_ppm(disp->gles, "/tmp/ghostcon-screenshot.ppm"))
             fprintf(stderr, "ghostcon-display: screenshot requested but failed\n");
     }
 
-    if (!ghostcon_egl_swap(&disp->egl)) {
+    if (!ghostcon_egl_swap(&disp->egl))
+    {
         GC_LOG(drm, "egl swap failed");
         return false;
     }
 
-    if (!disp->did_modeset) {
-        if (!ghostcon_kms_modeset(&disp->kms)) {
+    if (!disp->did_modeset)
+    {
+        if (!ghostcon_kms_modeset(&disp->kms))
+        {
             GC_LOG(drm, "initial modeset failed");
             return false;
         }
         disp->did_modeset = true;
         GC_LOG(drm, "initial modeset committed");
-    } else {
-        if (!ghostcon_kms_page_flip(&disp->kms)) {
+    }
+    else
+    {
+        if (!ghostcon_kms_page_flip(&disp->kms))
+        {
             GC_LOG(drm, "page flip failed");
             return false;
         }

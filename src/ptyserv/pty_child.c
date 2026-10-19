@@ -56,7 +56,8 @@
 
 /* Ring buffer — fixed size, overwrite-oldest */
 
-typedef struct {
+typedef struct
+{
     uint8_t *data;
     size_t cap;
     size_t head; /* next write position */
@@ -75,7 +76,8 @@ ringbuf_init(ringbuf_t *rb, size_t cap)
 static void
 ringbuf_append(ringbuf_t *rb, const uint8_t *buf, size_t n)
 {
-    if (n >= rb->cap) {
+    if (n >= rb->cap)
+    {
         buf += n - rb->cap;
         memcpy(rb->data, buf, rb->cap);
         rb->head = 0;
@@ -99,9 +101,11 @@ ringbuf_append(ringbuf_t *rb, const uint8_t *buf, size_t n)
 static bool
 write_all(int fd, const uint8_t *buf, size_t n)
 {
-    while (n > 0) {
+    while (n > 0)
+    {
         ssize_t w = write(fd, buf, n);
-        if (w < 0) {
+        if (w < 0)
+        {
             if (errno == EINTR)
                 continue;
             return false;
@@ -123,7 +127,8 @@ ringbuf_replay(ringbuf_t *rb, int fd)
         first = rb->len;
     if (!write_all(fd, rb->data + start, first))
         return false;
-    if (rb->len > first) {
+    if (rb->len > first)
+    {
         if (!write_all(fd, rb->data, rb->len - first))
             return false;
     }
@@ -137,11 +142,13 @@ spawn_session(const char *shell, int *out_master_fd)
 {
     int master_fd;
     pid_t child = forkpty(&master_fd, NULL, NULL, NULL);
-    if (child < 0) {
+    if (child < 0)
+    {
         perror("forkpty");
         return -1;
     }
-    if (child == 0) {
+    if (child == 0)
+    {
         /* Best-effort self-identification for tools that check
          * TERM_PROGRAM/TERM_PROGRAM_VERSION (the convention several
          * terminals -- iTerm2, VS Code, Ghostty -- use, which fastfetch and
@@ -161,11 +168,15 @@ spawn_session(const char *shell, int *out_master_fd)
 #endif
 
         const char *skip_login = getenv("GHOSTCON_PTY_SKIP_LOGIN");
-        if (skip_login && *skip_login) {
+        if (skip_login && *skip_login)
+        {
             execlp(shell, shell, (char *)NULL);
-        } else {
+        }
+        else
+        {
             const char *term = getenv("TERM");
-            if (!term || !*term) {
+            if (!term || !*term)
+            {
                 /* NOT "linux" -- that's the bare Linux console's own
                  * terminfo entry (minimal color, no xterm-style mouse
                  * escapes), which undersells what ghostcon's libghostty-vt
@@ -240,11 +251,13 @@ listen_unix(const char *path)
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
 
-    if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+    {
         close(fd);
         return -1;
     }
-    if (listen(fd, 1) < 0) {
+    if (listen(fd, 1) < 0)
+    {
         close(fd);
         return -1;
     }
@@ -280,7 +293,8 @@ chld_signal_handler(int signum)
 int
 main(int argc, char **argv)
 {
-    if (argc < 3) {
+    if (argc < 3)
+    {
         fprintf(stderr, "usage: %s <vtnum> <socket_path> [shell]\n", argv[0]);
         return 2;
     }
@@ -336,7 +350,8 @@ main(int argc, char **argv)
      * Fixed by only ever reaping via SIGCHLD (kmscon's own proven approach,
      * via its sig_child() callback) -- never via read()<=0 on the pty.
      */
-    if (pipe(g_chld_pipe) != 0) {
+    if (pipe(g_chld_pipe) != 0)
+    {
         fprintf(stderr, "pty-tty%d: pipe: %s\n", vtnum, strerror(errno));
         return 1;
     }
@@ -348,7 +363,8 @@ main(int argc, char **argv)
     chld_sa.sa_handler = chld_signal_handler;
     chld_sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;
     sigemptyset(&chld_sa.sa_mask);
-    if (sigaction(SIGCHLD, &chld_sa, NULL) != 0) {
+    if (sigaction(SIGCHLD, &chld_sa, NULL) != 0)
+    {
         fprintf(stderr, "pty-tty%d: sigaction(SIGCHLD): %s\n", vtnum, strerror(errno));
         return 1;
     }
@@ -359,7 +375,8 @@ main(int argc, char **argv)
         return 1;
 
     int listen_fd = listen_unix(socket_path);
-    if (listen_fd < 0) {
+    if (listen_fd < 0)
+    {
         fprintf(stderr, "pty-tty%d: failed to listen on %s: %s\n",
                 vtnum, socket_path, strerror(errno));
         kill(child, SIGHUP);
@@ -444,8 +461,10 @@ main(int argc, char **argv)
     long master_quiet_ms = 0;
     long master_quiet_until_ms = 0;
 
-    for (;;) {
-        if (awaiting_respawn && time(NULL) >= respawn_after) {
+    for (;;)
+    {
+        if (awaiting_respawn && time(NULL) >= respawn_after)
+        {
             /* The old master_fd (from the session that just died) is never
              * read again past this point -- close it before it's
              * overwritten below. Left open, the kernel's devpts can't
@@ -457,7 +476,8 @@ main(int argc, char **argv)
              */
             close(master_fd);
             child = spawn_session(shell, &master_fd);
-            if (child < 0) {
+            if (child < 0)
+            {
                 fprintf(stderr, "pty-tty%d: failed to respawn session, giving up\n", vtnum);
                 break;
             }
@@ -470,24 +490,28 @@ main(int argc, char **argv)
         int nfds = 0;
 
         int master_idx = -1;
-        if (!awaiting_respawn && !master_quiet) {
+        if (!awaiting_respawn && !master_quiet)
+        {
             master_idx = nfds;
             fds[nfds++] = (struct pollfd){ .fd = master_fd, .events = POLLIN };
         }
         int listen_idx = nfds;
         fds[nfds++] = (struct pollfd){ .fd = listen_fd, .events = POLLIN };
         int renderer_idx = -1;
-        if (renderer_fd >= 0) {
+        if (renderer_fd >= 0)
+        {
             renderer_idx = nfds;
             fds[nfds++] = (struct pollfd){ .fd = renderer_fd, .events = POLLIN };
         }
         int ctl_listen_idx = -1;
-        if (ctl_listen_fd >= 0) {
+        if (ctl_listen_fd >= 0)
+        {
             ctl_listen_idx = nfds;
             fds[nfds++] = (struct pollfd){ .fd = ctl_listen_fd, .events = POLLIN };
         }
         int ctl_idx = -1;
-        if (ctl_fd >= 0) {
+        if (ctl_fd >= 0)
+        {
             ctl_idx = nfds;
             fds[nfds++] = (struct pollfd){ .fd = ctl_fd, .events = POLLIN };
         }
@@ -495,29 +519,35 @@ main(int argc, char **argv)
         fds[nfds++] = (struct pollfd){ .fd = g_chld_pipe[0], .events = POLLIN };
 
         int poll_timeout_ms = -1;
-        if (awaiting_respawn) {
+        if (awaiting_respawn)
+        {
             time_t remaining = respawn_after - time(NULL);
             poll_timeout_ms = remaining > 0 ? (int)(remaining * 1000) : 0;
-        } else if (master_quiet) {
+        }
+        else if (master_quiet)
+        {
             long remaining = master_quiet_until_ms - monotonic_ms();
             poll_timeout_ms = remaining > 0 ? (int)remaining : 0;
         }
 
         int rv = poll(fds, (nfds_t)nfds, poll_timeout_ms);
-        if (rv < 0) {
+        if (rv < 0)
+        {
             if (errno == EINTR)
                 continue;
             break;
         }
 
-        if (chld_idx >= 0 && (fds[chld_idx].revents & POLLIN)) {
+        if (chld_idx >= 0 && (fds[chld_idx].revents & POLLIN))
+        {
             char discard[64];
             while (read(g_chld_pipe[0], discard, sizeof(discard)) > 0)
                 ; /* drain -- the byte content doesn't matter, only the wakeup */
 
             pid_t reaped;
             int status;
-            while ((reaped = waitpid(-1, &status, WNOHANG)) > 0) {
+            while ((reaped = waitpid(-1, &status, WNOHANG)) > 0)
+            {
                 if (reaped != child)
                     continue; /* not our session (shouldn't happen, but not our death either) */
 
@@ -538,7 +568,8 @@ main(int argc, char **argv)
                  * screen lingers under the new login prompt, same as
                  * today's behavior.
                  */
-                if (ctl_fd >= 0) {
+                if (ctl_fd >= 0)
+                {
                     char clear_msg[16];
                     size_t clear_len = ghostcon_ptyserv_format_clear(clear_msg, sizeof(clear_msg));
                     if (clear_len > 0)
@@ -563,9 +594,11 @@ main(int argc, char **argv)
             }
         }
 
-        if (master_idx >= 0 && (fds[master_idx].revents & (POLLIN | POLLHUP | POLLERR))) {
+        if (master_idx >= 0 && (fds[master_idx].revents & (POLLIN | POLLHUP | POLLERR)))
+        {
             ssize_t r = read(master_fd, buf, sizeof(buf));
-            if (r <= 0) {
+            if (r <= 0)
+            {
                 /* NOT necessarily death -- see the vhangup() comment above
                  * main(). The child's actual death is detected exclusively
                  * via the SIGCHLD self-pipe handled above; this branch just
@@ -582,22 +615,26 @@ main(int argc, char **argv)
             }
             master_quiet_ms = 0; /* master healthy again -- forget any prior backoff */
             ringbuf_append(&rb, buf, (size_t)r);
-            if (renderer_fd >= 0 && !write_all(renderer_fd, buf, (size_t)r)) {
+            if (renderer_fd >= 0 && !write_all(renderer_fd, buf, (size_t)r))
+            {
                 close(renderer_fd);
                 renderer_fd = -1;
             }
         }
 
-        if (fds[listen_idx].revents & POLLIN) {
+        if (fds[listen_idx].revents & POLLIN)
+        {
             int new_fd = accept(listen_fd, NULL, NULL);
-            if (new_fd >= 0) {
+            if (new_fd >= 0)
+            {
                 /* Only one renderer at a time — a new connection (e.g.
                  * supervisor restarted a hung renderer) replaces the old.
                  */
                 if (renderer_fd >= 0)
                     close(renderer_fd);
                 renderer_fd = new_fd;
-                if (!ringbuf_replay(&rb, renderer_fd)) {
+                if (!ringbuf_replay(&rb, renderer_fd))
+                {
                     close(renderer_fd);
                     renderer_fd = -1;
                 }
@@ -605,12 +642,16 @@ main(int argc, char **argv)
         }
 
         if (renderer_idx >= 0 &&
-            (fds[renderer_idx].revents & (POLLIN | POLLHUP | POLLERR))) {
+            (fds[renderer_idx].revents & (POLLIN | POLLHUP | POLLERR)))
+        {
             ssize_t r = read(renderer_fd, buf, sizeof(buf));
-            if (r <= 0) {
+            if (r <= 0)
+            {
                 close(renderer_fd);
                 renderer_fd = -1;
-            } else if (!awaiting_respawn) {
+            }
+            else if (!awaiting_respawn)
+            {
                 /* Nowhere to deliver this while a respawn is pending
                  * (master_fd is stale, the old session already died) --drop
                  * it rather than write to a dead fd. Genuine improvement
@@ -624,9 +665,11 @@ main(int argc, char **argv)
             }
         }
 
-        if (ctl_listen_idx >= 0 && (fds[ctl_listen_idx].revents & POLLIN)) {
+        if (ctl_listen_idx >= 0 && (fds[ctl_listen_idx].revents & POLLIN))
+        {
             int new_fd = accept(ctl_listen_fd, NULL, NULL);
-            if (new_fd >= 0) {
+            if (new_fd >= 0)
+            {
                 /* Only one control connection at a time, same rationale as
                  * the data socket's renderer_fd above.
                  */
@@ -636,17 +679,22 @@ main(int argc, char **argv)
             }
         }
 
-        if (ctl_idx >= 0 && (fds[ctl_idx].revents & (POLLIN | POLLHUP | POLLERR))) {
+        if (ctl_idx >= 0 && (fds[ctl_idx].revents & (POLLIN | POLLHUP | POLLERR)))
+        {
             char line[GHOSTCON_PTYSERV_LINE_MAX];
             ssize_t r = read(ctl_fd, line, sizeof(line) - 1);
-            if (r <= 0) {
+            if (r <= 0)
+            {
                 close(ctl_fd);
                 ctl_fd = -1;
-            } else {
+            }
+            else
+            {
                 line[r] = '\0';
                 int rows, cols, xpixel, ypixel;
                 if (ghostcon_ptyserv_parse_resize(line, &rows, &cols, &xpixel, &ypixel) &&
-                    rows > 0 && cols > 0) {
+                    rows > 0 && cols > 0)
+                {
                     /* The kernel automatically sends SIGWINCH to this pty's
                      * foreground process group when TIOCSWINSZ actually
                      * changes the size -- no manual kill() needed, and
@@ -670,13 +718,15 @@ main(int argc, char **argv)
                      * coincidentally matched ghostcon's actual cell size
                      * some of the time.
                      */
-                    if (xpixel > 0 && ypixel > 0) {
+                    if (xpixel > 0 && ypixel > 0)
+                    {
                         ws.ws_xpixel = (unsigned short)xpixel;
                         ws.ws_ypixel = (unsigned short)ypixel;
                     }
                     ioctl(master_fd, TIOCSWINSZ, &ws);
                 }
-                if (ghostcon_ptyserv_parse_dump(line)) {
+                if (ghostcon_ptyserv_parse_dump(line))
+                {
                     /* Real raw bytes leading up to right now (up to
                      * GHOSTCON_PTY_RINGBUF_DEFAULT_SIZE's worth), not a
                      * synthetic reproduction -- pairs with core/main.c's
@@ -688,7 +738,8 @@ main(int argc, char **argv)
                     snprintf(dump_path, sizeof(dump_path),
                              "/tmp/ghostcon-vt%d-rawbytes.bin", vtnum);
                     int dump_fd = open(dump_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-                    if (dump_fd >= 0) {
+                    if (dump_fd >= 0)
+                    {
                         ringbuf_replay(&rb, dump_fd);
                         close(dump_fd);
                     }

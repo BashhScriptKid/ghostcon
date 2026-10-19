@@ -19,7 +19,8 @@
                                               GC_KITTY_REPORT_ASSOCIATED))
 
 /* Set modes for CSI = u */
-typedef enum {
+typedef enum
+{
     GC_KITTY_SET    = 0,  /* replace current flags */
     GC_KITTY_OR     = 1,  /* bitwise OR into current flags */
     GC_KITTY_NOT    = 2,  /* bitwise AND NOT into current flags */
@@ -28,19 +29,22 @@ typedef enum {
 /* Flag stack — fixed-size ring buffer, depth 8 */
 #define GC_KITTY_STACK_DEPTH 8
 
-typedef struct {
+typedef struct
+{
     uint8_t flags[GC_KITTY_STACK_DEPTH];
     uint8_t idx;  /* 0..7, current top of stack */
 } ghostcon_kitty_stack_t;
 
 /* Complete kitty keyboard state */
-typedef struct {
+typedef struct
+{
     ghostcon_kitty_stack_t stack;
 } ghostcon_kitty_state_t;
 
 /* Initialize kitty state (all flags disabled) */
 static inline void
-ghostcon_kitty_init(ghostcon_kitty_state_t *k) {
+ghostcon_kitty_init(ghostcon_kitty_state_t *k)
+{
     for (int i = 0; i < GC_KITTY_STACK_DEPTH; i++)
         k->stack.flags[i] = 0;
     k->stack.idx = 0;
@@ -59,12 +63,14 @@ void ghostcon_kitty_set_mode(ghostcon_kitty_state_t *k,
 
 /* Get current flags (top of stack) */
 static inline uint8_t
-ghostcon_kitty_current(const ghostcon_kitty_state_t *k) {
+ghostcon_kitty_current(const ghostcon_kitty_state_t *k)
+{
     return k->stack.flags[k->stack.idx];
 }
 
 /* Check if protocol is active (current flags != 0) */
 static inline bool
-ghostcon_kitty_is_active(const ghostcon_kitty_state_t *k) {
+ghostcon_kitty_is_active(const ghostcon_kitty_state_t *k)
+{
     return ghostcon_kitty_current(k) != 0;
 }

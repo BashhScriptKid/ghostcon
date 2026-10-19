@@ -156,7 +156,8 @@ void ghostcon_input_set_touchpad_config(ghostcon_input_t *input, bool enable,
  * depend on content rendering (see kms.h's own doc comment on
  * ghostcon_kms_move_cursor).
  */
-typedef struct {
+typedef struct
+{
     int  x, y;
     bool moved;
     /* Edge-triggered left-button transitions, set ONLY when this click was

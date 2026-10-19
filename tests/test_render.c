@@ -32,13 +32,15 @@ int
 main(void)
 {
     ghostcon_atlas_t *atlas = ghostcon_atlas_create(NULL, NULL, NULL, NULL, FONT_SIZE, ATLAS_DIM);
-    if (!atlas) {
+    if (!atlas)
+    {
         fprintf(stderr, "FAIL: ghostcon_atlas_create\n");
         return 1;
     }
     int cell_w, cell_h;
     ghostcon_atlas_cell_size(atlas, &cell_w, &cell_h);
-    if (cell_w <= 0 || cell_h <= 0) {
+    if (cell_w <= 0 || cell_h <= 0)
+    {
         fprintf(stderr, "FAIL: bad cell size %dx%d\n", cell_w, cell_h);
         return 1;
     }
@@ -48,18 +50,21 @@ main(void)
     uint32_t vh = (uint32_t)(cell_h * ROWS);
 
     ghostcon_egl_t egl;
-    if (!ghostcon_egl_init(&egl, DRM_RENDER_NODE, vw, vh)) {
+    if (!ghostcon_egl_init(&egl, DRM_RENDER_NODE, vw, vh))
+    {
         fprintf(stderr, "FAIL: ghostcon_egl_init\n");
         return 1;
     }
-    if (!ghostcon_egl_make_current(&egl)) {
+    if (!ghostcon_egl_make_current(&egl))
+    {
         fprintf(stderr, "FAIL: ghostcon_egl_make_current\n");
         return 1;
     }
     printf("PASS: EGL/GBM context on %s, viewport %ux%u\n", DRM_RENDER_NODE, vw, vh);
 
     ghostcon_gles_t *gles = ghostcon_gles_create(vw, vh, true);
-    if (!gles) {
+    if (!gles)
+    {
         fprintf(stderr, "FAIL: ghostcon_gles_create\n");
         return 1;
     }
@@ -70,7 +75,8 @@ main(void)
            ghostcon_gles_linear_blending_active(gles));
 
     ghostcon_term_t term;
-    if (!ghostcon_term_init(&term, COLS, ROWS, 0)) {
+    if (!ghostcon_term_init(&term, COLS, ROWS, 0))
+    {
         fprintf(stderr, "FAIL: ghostcon_term_init\n");
         return 1;
     }
@@ -87,7 +93,8 @@ main(void)
     glReadPixels(0, 0, (GLsizei)vw, (GLsizei)vh, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 
     GLenum err = glGetError();
-    if (err != GL_NO_ERROR) {
+    if (err != GL_NO_ERROR)
+    {
         fprintf(stderr, "FAIL: GL error 0x%x\n", err);
         return 1;
     }
@@ -97,7 +104,8 @@ main(void)
      * row's cell band.
      */
     size_t non_bg = 0;
-    for (size_t i = 0; i < npixels; i++) {
+    for (size_t i = 0; i < npixels; i++)
+    {
         uint8_t r = pixels[i * 4 + 0];
         uint8_t g = pixels[i * 4 + 1];
         uint8_t b = pixels[i * 4 + 2];
@@ -106,25 +114,29 @@ main(void)
     }
     free(pixels);
 
-    if (non_bg == 0) {
+    if (non_bg == 0)
+    {
         fprintf(stderr, "FAIL: no glyph pixels rendered (frame is all background)\n");
         return 1;
     }
     printf("PASS: %zu non-background pixels rendered (text visibly drawn)\n", non_bg);
 
     const char *ppm_path = "/tmp/ghostcon-test-screenshot.ppm";
-    if (!ghostcon_gles_screenshot_ppm(gles, ppm_path)) {
+    if (!ghostcon_gles_screenshot_ppm(gles, ppm_path))
+    {
         fprintf(stderr, "FAIL: ghostcon_gles_screenshot_ppm\n");
         return 1;
     }
     FILE *ppm = fopen(ppm_path, "rb");
-    if (!ppm) {
+    if (!ppm)
+    {
         fprintf(stderr, "FAIL: screenshot PPM not readable\n");
         return 1;
     }
     unsigned pw = 0, ph = 0, maxv = 0;
     if (fscanf(ppm, "P6 %u %u %u", &pw, &ph, &maxv) != 3 ||
-        pw != (unsigned)vw || ph != (unsigned)vh || maxv != 255) {
+        pw != (unsigned)vw || ph != (unsigned)vh || maxv != 255)
+    {
         fprintf(stderr, "FAIL: screenshot PPM header mismatch (%ux%u max=%u)\n", pw, ph, maxv);
         fclose(ppm);
         return 1;

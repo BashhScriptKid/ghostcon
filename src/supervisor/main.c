@@ -86,14 +86,16 @@ resolve_sibling_path(char *out, size_t out_len, const char *name)
 {
     char self_path[4096];
     ssize_t n = readlink("/proc/self/exe", self_path, sizeof(self_path) - 1);
-    if (n <= 0) {
+    if (n <= 0)
+    {
         snprintf(out, out_len, "%s", name);
         return;
     }
     self_path[n] = '\0';
 
     char *slash = strrchr(self_path, '/');
-    if (!slash) {
+    if (!slash)
+    {
         snprintf(out, out_len, "%s", name);
         return;
     }
@@ -103,7 +105,8 @@ resolve_sibling_path(char *out, size_t out_len, const char *name)
 #define DEFAULT_RUN_DIR "/run/ghostcon"
 #define WALL_RATE_LIMIT_SECS 60 /* per failure class, per supervisor process lifetime */
 
-typedef enum {
+typedef enum
+{
     ST_SPAWNING,
     ST_ACTIVE,
     ST_FALLBACK,
@@ -138,20 +141,23 @@ static pid_t
 spawn_renderer(int vtnum, const char *registry_socket, const char *drm_node, int *out_canary_fd)
 {
     int sv[2];
-    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) != 0) {
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) != 0)
+    {
         perror("supervisor: socketpair");
         return -1;
     }
 
     pid_t pid = fork();
-    if (pid < 0) {
+    if (pid < 0)
+    {
         perror("supervisor: fork");
         close(sv[0]);
         close(sv[1]);
         return -1;
     }
 
-    if (pid == 0) {
+    if (pid == 0)
+    {
         close(sv[0]); /* child keeps sv[1] */
 
         char fd_str[16];
@@ -160,7 +166,8 @@ spawn_renderer(int vtnum, const char *registry_socket, const char *drm_node, int
 
         const char *bin = getenv("GHOSTCON_CORE_BIN");
         char bin_buf[4096];
-        if (!bin || !*bin) {
+        if (!bin || !*bin)
+        {
             resolve_sibling_path(bin_buf, sizeof(bin_buf), "ghostcon-core");
             bin = bin_buf;
         }
@@ -195,7 +202,8 @@ kill_and_reap(pid_t pid, int canary_fd)
     /* Brief grace period, then escalate -- a process that's already
      * confirmed unresponsive doesn't get to ignore SIGTERM politely.
      */
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 10; i++)
+    {
         int status;
         if (waitpid(pid, &status, WNOHANG) == pid)
             return;
@@ -245,14 +253,16 @@ query_pty_child_pid(const char *registry_socket, int vtnum)
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, registry_socket, sizeof(addr.sun_path) - 1);
-    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+    {
         close(fd);
         return -1;
     }
 
     char req[GHOSTCON_PTYSERV_LINE_MAX];
     size_t req_len = ghostcon_ptyserv_format_get(req, sizeof(req), vtnum);
-    if (req_len == 0 || write(fd, req, req_len) != (ssize_t)req_len) {
+    if (req_len == 0 || write(fd, req, req_len) != (ssize_t)req_len)
+    {
         close(fd);
         return -1;
     }
@@ -284,7 +294,8 @@ write_recovery_file(int vtnum, pid_t pty_child_pid, const char *reason)
     snprintf(path, sizeof(path), "%s/recovery-tty%d.json", run_dir, vtnum);
 
     FILE *f = fopen(path, "w");
-    if (!f) {
+    if (!f)
+    {
         fprintf(stderr, "supervisor: could not write recovery file %s: %s\n",
                 path, strerror(errno));
         return;
@@ -327,7 +338,8 @@ wall_broadcast(int vtnum, const char *reason)
      * rate-limit check above, it just doesn't spam real logged-in users
      * with the result.
      */
-    if (getenv("GHOSTCON_WALL_DEBUG_LOG")) {
+    if (getenv("GHOSTCON_WALL_DEBUG_LOG"))
+    {
         fprintf(stderr, "would wall-broadcast: reason=%s vt=%d\n", reason, vtnum);
         return;
     }
@@ -335,7 +347,8 @@ wall_broadcast(int vtnum, const char *reason)
     pid_t pid = fork();
     if (pid < 0)
         return;
-    if (pid == 0) {
+    if (pid == 0)
+    {
         char msg[256];
         snprintf(msg, sizeof(msg),
                  "ghostcon[tty%d]: renderer %s, recovering", vtnum, reason);
@@ -362,7 +375,8 @@ spawn_kmscon_fallback(int vtnum)
     pid_t pid = fork();
     if (pid < 0)
         return -1;
-    if (pid == 0) {
+    if (pid == 0)
+    {
         char vt_arg[32];
         snprintf(vt_arg, sizeof(vt_arg), "--vt=tty%d", vtnum);
         /* Matches this system's real kmsconvt@.service invocation
@@ -388,7 +402,8 @@ spawn_agetty_fallback(int vtnum)
     pid_t pid = fork();
     if (pid < 0)
         return -1;
-    if (pid == 0) {
+    if (pid == 0)
+    {
         char tty_arg[16];
         snprintf(tty_arg, sizeof(tty_arg), "tty%d", vtnum);
         execlp("agetty", "agetty", tty_arg, "linux", (char *)NULL);
@@ -413,7 +428,8 @@ apply_config_reload(const char *config_path, int vtnum, bool drm_node_from_argv,
                      char *drm_node_buf, size_t drm_node_buf_len, int *canary_deadline_ms)
 {
     ghostcon_config_t new_cfg;
-    if (!ghostcon_config_load(config_path, &new_cfg)) {
+    if (!ghostcon_config_load(config_path, &new_cfg))
+    {
         fprintf(stderr, "supervisor: vt %d: %s changed but failed to parse -- keeping previous values\n",
                 vtnum, config_path);
         return;
@@ -442,12 +458,14 @@ poll_state_fd(int state_fd, int timeout_ms, int config_watch_fd, const char *con
               int vtnum, bool drm_node_from_argv, char *drm_node_buf, size_t drm_node_buf_len,
               int *canary_deadline_ms, short *out_revents)
 {
-    for (;;) {
+    for (;;)
+    {
         struct pollfd fds[2];
         fds[0] = (struct pollfd){ .fd = state_fd, .events = POLLIN };
         int nfds = 1;
         int watch_idx = -1;
-        if (config_watch_fd >= 0) {
+        if (config_watch_fd >= 0)
+        {
             watch_idx = 1;
             fds[1] = (struct pollfd){ .fd = config_watch_fd, .events = POLLIN };
             nfds = 2;
@@ -456,7 +474,8 @@ poll_state_fd(int state_fd, int timeout_ms, int config_watch_fd, const char *con
         int rv = poll(fds, (nfds_t)nfds, timeout_ms);
         *out_revents = fds[0].revents;
 
-        if (rv > 0 && watch_idx >= 0 && (fds[watch_idx].revents & POLLIN) && fds[0].revents == 0) {
+        if (rv > 0 && watch_idx >= 0 && (fds[watch_idx].revents & POLLIN) && fds[0].revents == 0)
+        {
             if (ghostcon_config_watch_check(config_watch_fd, config_path))
                 apply_config_reload(config_path, vtnum, drm_node_from_argv,
                                      drm_node_buf, drm_node_buf_len, canary_deadline_ms);
@@ -471,7 +490,8 @@ poll_state_fd(int state_fd, int timeout_ms, int config_watch_fd, const char *con
 int
 main(int argc, char **argv)
 {
-    if (argc < 2) {
+    if (argc < 2)
+    {
         fprintf(stderr, "usage: %s <vtnum> [registry_socket] [drm_node]\n", argv[0]);
         return 2;
     }
@@ -504,9 +524,12 @@ main(int argc, char **argv)
      */
     bool drm_node_from_argv = argc > 3;
     char drm_node_buf[256];
-    if (drm_node_from_argv) {
+    if (drm_node_from_argv)
+    {
         snprintf(drm_node_buf, sizeof(drm_node_buf), "%s", argv[3]);
-    } else {
+    }
+    else
+    {
         const char *drm_node_env = getenv("GHOSTCON_DRM_NODE");
         snprintf(drm_node_buf, sizeof(drm_node_buf), "%s",
                  (drm_node_env && *drm_node_env) ? drm_node_env : DEFAULT_DRM_NODE);
@@ -536,7 +559,8 @@ main(int argc, char **argv)
      */
     setpgid(0, 0);
 
-    if (pipe(g_sighup_pipe) != 0) {
+    if (pipe(g_sighup_pipe) != 0)
+    {
         perror("supervisor: pipe");
         return 1;
     }
@@ -554,8 +578,10 @@ main(int argc, char **argv)
     pid_t child_pid = -1;   /* renderer (SPAWNING/ACTIVE) or fallback (FALLBACK) */
     int canary_fd = -1;     /* only meaningful in SPAWNING/ACTIVE */
 
-    for (;;) {
-        switch (state) {
+    for (;;)
+    {
+        switch (state)
+        {
         case ST_SPAWNING: {
             child_pid = spawn_renderer(vtnum, registry_socket, drm_node, &canary_fd);
             if (child_pid < 0) {
@@ -573,7 +599,8 @@ main(int argc, char **argv)
                 read(canary_fd, &byte, 1);
                 fprintf(stderr, "supervisor: vt %d: renderer claimed VT, ACTIVE\n", vtnum);
                 state = ST_ACTIVE;
-            } else {
+            }
+            else {
                 /* Startup race timer expired, or the renderer exited/
                  * crashed before ever heartbeating (POLLHUP / rv==0 both
                  * land here -- doesn't matter which, "no heartbeat in time"
@@ -610,7 +637,8 @@ main(int argc, char **argv)
                 canary_fd = -1;
                 waitpid(child_pid, NULL, 0);
                 state = ST_SPAWNING;
-            } else if (rv > 0 && (revents & POLLIN)) {
+            }
+            else if (rv > 0 && (revents & POLLIN)) {
                 /* POLLIN guarantees at least one byte is available, so a
                  * single read is safe without blocking -- looping read()
                  * until it returns <=0 is wrong here: on a blocking stream
@@ -627,7 +655,8 @@ main(int argc, char **argv)
                  */
                 uint8_t buf[64];
                 read(canary_fd, buf, sizeof(buf));
-            } else {
+            }
+            else {
                 fprintf(stderr, "supervisor: vt %d: renderer hung (canary silent), killing and retrying\n", vtnum);
                 kill_and_reap(child_pid, canary_fd);
                 canary_fd = -1;

@@ -12,7 +12,8 @@ ghostcon_base64_encode(const uint8_t *data, size_t len, char *out, size_t out_le
 
     size_t oi = 0;
     size_t i = 0;
-    for (; i + 3 <= len; i += 3) {
+    for (; i + 3 <= len; i += 3)
+    {
         uint32_t n = ((uint32_t)data[i] << 16) | ((uint32_t)data[i + 1] << 8) | data[i + 2];
         out[oi++] = B64_ALPHABET[(n >> 18) & 0x3F];
         out[oi++] = B64_ALPHABET[(n >> 12) & 0x3F];
@@ -20,13 +21,16 @@ ghostcon_base64_encode(const uint8_t *data, size_t len, char *out, size_t out_le
         out[oi++] = B64_ALPHABET[n & 0x3F];
     }
     size_t rem = len - i;
-    if (rem == 1) {
+    if (rem == 1)
+    {
         uint32_t n = (uint32_t)data[i] << 16;
         out[oi++] = B64_ALPHABET[(n >> 18) & 0x3F];
         out[oi++] = B64_ALPHABET[(n >> 12) & 0x3F];
         out[oi++] = '=';
         out[oi++] = '=';
-    } else if (rem == 2) {
+    }
+    else if (rem == 2)
+    {
         uint32_t n = ((uint32_t)data[i] << 16) | ((uint32_t)data[i + 1] << 8);
         out[oi++] = B64_ALPHABET[(n >> 18) & 0x3F];
         out[oi++] = B64_ALPHABET[(n >> 12) & 0x3F];
@@ -55,13 +59,15 @@ ghostcon_base64_decode(const char *in, uint8_t *out, size_t out_len)
     uint32_t acc = 0;
     int nbits = 0;
 
-    for (const char *p = in; *p && oi < out_len; p++) {
+    for (const char *p = in; *p && oi < out_len; p++)
+    {
         int v = b64_val(*p);
         if (v < 0)
             continue; /* skip invalid/padding/whitespace */
         acc = (acc << 6) | (uint32_t)v;
         nbits += 6;
-        if (nbits >= 8) {
+        if (nbits >= 8)
+        {
             nbits -= 8;
             out[oi++] = (uint8_t)((acc >> nbits) & 0xFF);
         }

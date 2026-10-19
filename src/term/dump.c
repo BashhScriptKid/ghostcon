@@ -12,16 +12,19 @@ ghostcon_screen_dump(FILE *f, ghostcon_screen_t *s)
     fprintf(f, "cursor_y=%d\n", (int)s->cursor.y);
     fprintf(f, "pending_wrap=%u\n", s->cursor.pending_wrap ? 1u : 0u);
 
-    for (uint16_t y = 0; y < s->rows_visible; y++) {
+    for (uint16_t y = 0; y < s->rows_visible; y++)
+    {
         ghostcon_row_t *r = ghostcon_screen_row(s, y);
         fprintf(f, "row%uwrap=%u\n", y, (r && r->wrap) ? 1u : 0u);
     }
 
-    for (uint16_t y = 0; y < s->rows_visible; y++) {
+    for (uint16_t y = 0; y < s->rows_visible; y++)
+    {
         ghostcon_row_t *r = ghostcon_screen_row(s, y);
         if (!r)
             continue;
-        for (uint16_t x = 0; x < s->cols; x++) {
+        for (uint16_t x = 0; x < s->cols; x++)
+        {
             ghostcon_cell_t c = r->cells[x];
             ghostcon_cell_content_tag_t tag = ghostcon_cell_get_tag(c);
             uint32_t cp = (tag == GHOSTCON_CELL_CODEPOINT || tag == GHOSTCON_CELL_CODEPOINT_GRAPHEME)
@@ -36,15 +39,20 @@ ghostcon_screen_dump(FILE *f, ghostcon_screen_t *s)
 
             uint32_t bg_default, bg_truecolor, bg_palette;
             uint8_t bg_r, bg_g, bg_b;
-            if (tag == GHOSTCON_CELL_BG_COLOR_PALETTE) {
+            if (tag == GHOSTCON_CELL_BG_COLOR_PALETTE)
+            {
                 bg_default = 0; bg_truecolor = 0;
                 bg_palette = ghostcon_cell_get_palette_idx(c);
                 bg_r = bg_g = bg_b = 0;
-            } else if (tag == GHOSTCON_CELL_BG_COLOR_RGB) {
+            }
+            else if (tag == GHOSTCON_CELL_BG_COLOR_RGB)
+            {
                 bg_default = 0; bg_truecolor = 1; bg_palette = 0;
                 ghostcon_rgb_t rgb = ghostcon_cell_get_rgb(c);
                 bg_r = rgb.r; bg_g = rgb.g; bg_b = rgb.b;
-            } else {
+            }
+            else
+            {
                 const ghostcon_style_t *st = ghostcon_style_set_get(s->styles, style_id);
                 bg_default = (st->flags & GC_STYLE_BG_DEFAULT) ? 1u : 0u;
                 bg_truecolor = (st->flags & GC_STYLE_BG_TRUECOLOR) ? 1u : 0u;

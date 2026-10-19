@@ -5,7 +5,8 @@
 static int
 button_base_code(ghostcon_mouse_button_t button)
 {
-    switch (button) {
+    switch (button)
+    {
     case GC_MOUSE_LEFT:       return 0;
     case GC_MOUSE_MIDDLE:     return 1;
     case GC_MOUSE_RIGHT:      return 2;
@@ -29,7 +30,8 @@ ghostcon_mouse_encode(const ghostcon_screen_t *screen,
 
     bool is_wheel = (button == GC_MOUSE_WHEEL_UP || button == GC_MOUSE_WHEEL_DOWN);
 
-    if (action == GC_MOUSE_MOTION && !is_wheel) {
+    if (action == GC_MOUSE_MOTION && !is_wheel)
+    {
         if (screen->mouse_protocol == 1002 && button == GC_MOUSE_NONE)
             return 0; /* drag-only mode: motion without a held button isn't reported */
         if (screen->mouse_protocol != 1002 && screen->mouse_protocol != 1003)
@@ -54,7 +56,8 @@ ghostcon_mouse_encode(const ghostcon_screen_t *screen,
     int col1 = col + 1; /* 1-based for the wire protocol */
     int row1 = row + 1;
 
-    if (screen->mouse_sgr) {
+    if (screen->mouse_sgr)
+    {
         char final = (action == GC_MOUSE_RELEASE) ? 'm' : 'M';
         int n = snprintf(buf, buf_len, "\x1b[<%d;%d;%d%c", cb, col1, row1, final);
         if (n < 0 || (size_t)n >= buf_len)

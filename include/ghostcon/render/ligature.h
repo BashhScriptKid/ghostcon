@@ -32,7 +32,8 @@
  * worth shaping and interprets the result.
  */
 
-typedef struct {
+typedef struct
+{
     uint16_t x;            /* cell this override applies to, within the row */
     uint32_t glyph_index;  /* substituted glyph -- look up via
                                ghostcon_atlas_glyph_by_index() */

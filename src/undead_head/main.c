@@ -84,7 +84,8 @@ apply_restart_backoff(time_t *last_death, int *backoff, const char *what)
         *backoff = 0; /* previous instance was stable long enough; forget backoff */
     *last_death = now;
 
-    if (*backoff > 0) {
+    if (*backoff > 0)
+    {
         fprintf(stderr, "undead-head: %s died again quickly, backing off %ds before restart\n",
                 what, *backoff);
         sleep((unsigned)*backoff);
@@ -106,14 +107,16 @@ resolve_sibling_path(char *out, size_t out_len, const char *name)
 {
     char self_path[4096];
     ssize_t n = readlink("/proc/self/exe", self_path, sizeof(self_path) - 1);
-    if (n <= 0) {
+    if (n <= 0)
+    {
         snprintf(out, out_len, "%s", name);
         return;
     }
     self_path[n] = '\0';
 
     char *slash = strrchr(self_path, '/');
-    if (!slash) {
+    if (!slash)
+    {
         snprintf(out, out_len, "%s", name);
         return;
     }
@@ -154,16 +157,19 @@ static pid_t
 fork_ghost_ptyserv(const char *registry_socket, const int *vts, int n_vts)
 {
     pid_t pid = fork();
-    if (pid < 0) {
+    if (pid < 0)
+    {
         perror("undead-head: fork ghost-ptyserv");
         return -1;
     }
-    if (pid == 0) {
+    if (pid == 0)
+    {
         setpgid(0, 0);
 
         const char *bin = getenv("GHOSTCON_PTYSERV_BIN");
         char bin_buf[4096];
-        if (!bin || !*bin) {
+        if (!bin || !*bin)
+        {
             resolve_sibling_path(bin_buf, sizeof(bin_buf), "ghost-ptyserv");
             bin = bin_buf;
         }
@@ -173,7 +179,8 @@ fork_ghost_ptyserv(const char *registry_socket, const int *vts, int n_vts)
         int argi = 0;
         args[argi++] = (char *)bin;
         args[argi++] = (char *)registry_socket;
-        for (int i = 0; i < n_vts; i++) {
+        for (int i = 0; i < n_vts; i++)
+        {
             snprintf(vt_bufs[i], sizeof(vt_bufs[i]), "%d", vts[i]);
             args[argi++] = vt_bufs[i];
         }
@@ -190,11 +197,13 @@ static pid_t
 fork_supervisor(int vtnum, const char *registry_socket)
 {
     pid_t pid = fork();
-    if (pid < 0) {
+    if (pid < 0)
+    {
         perror("undead-head: fork supervisor");
         return -1;
     }
-    if (pid == 0) {
+    if (pid == 0)
+    {
         /* supervisor calls setpgid(0,0) on itself too (PLAN.md), but doing
          * it here as well is harmless (setpgid on an already-own leader is
          * a no-op) and closes the race where undead-head might need
@@ -204,7 +213,8 @@ fork_supervisor(int vtnum, const char *registry_socket)
 
         const char *bin = getenv("GHOSTCON_SUPERVISOR_BIN");
         char bin_buf[4096];
-        if (!bin || !*bin) {
+        if (!bin || !*bin)
+        {
             resolve_sibling_path(bin_buf, sizeof(bin_buf), "supervisor");
             bin = bin_buf;
         }
@@ -247,7 +257,8 @@ kill_group(pid_t pid)
 int
 main(int argc, char **argv)
 {
-    if (argc < 3) {
+    if (argc < 3)
+    {
         fprintf(stderr, "usage: %s <registry_socket> <vtnum> [vtnum...]\n", argv[0]);
         return 2;
     }
@@ -304,7 +315,8 @@ main(int argc, char **argv)
      * fork() and sigaction() would otherwise have its SIGCHLD silently
      * missed.
      */
-    if (pipe(g_chld_pipe) != 0) {
+    if (pipe(g_chld_pipe) != 0)
+    {
         perror("undead-head: pipe");
         return 1;
     }
@@ -330,8 +342,10 @@ main(int argc, char **argv)
     for (int i = 0; i < n_vts; i++)
         supervisor_pid[i] = fork_supervisor(vts[i], registry_socket);
 
-    for (;;) {
-        if (g_shutdown_requested) {
+    for (;;)
+    {
+        if (g_shutdown_requested)
+        {
             kill_group(ghost_ptyserv_pid);
             for (int i = 0; i < n_vts; i++)
                 kill_group(supervisor_pid[i]);
@@ -349,30 +363,35 @@ main(int argc, char **argv)
         int chld_idx = nfds++;
         fds[chld_idx] = (struct pollfd){ .fd = g_chld_pipe[0], .events = POLLIN };
         int watch_idx = -1;
-        if (config_watch_fd >= 0) {
+        if (config_watch_fd >= 0)
+        {
             watch_idx = nfds++;
             fds[watch_idx] = (struct pollfd){ .fd = config_watch_fd, .events = POLLIN };
         }
 
         int rv = poll(fds, (nfds_t)nfds, -1);
-        if (rv < 0) {
+        if (rv < 0)
+        {
             if (errno == EINTR)
                 continue;
             break;
         }
 
-        if (fds[chld_idx].revents & POLLIN) {
+        if (fds[chld_idx].revents & POLLIN)
+        {
             char discard[64];
             while (read(g_chld_pipe[0], discard, sizeof(discard)) > 0)
                 ; /* drain -- the byte content doesn't matter, only the wakeup */
 
-            for (;;) {
+            for (;;)
+            {
                 int status;
                 pid_t pid = waitpid(-1, &status, WNOHANG);
                 if (pid <= 0)
                     break; /* nothing left to reap this round */
 
-                if (pid == ghost_ptyserv_pid) {
+                if (pid == ghost_ptyserv_pid)
+                {
                     /* Does NOT touch any supervisor. An already-connected
                      * renderer has no ongoing dependency on ghost-ptyserv
                      * --ghostcon_transport_connect() (core/transport.c)
@@ -397,8 +416,10 @@ main(int argc, char **argv)
                     continue;
                 }
 
-                for (int i = 0; i < n_vts; i++) {
-                    if (pid == supervisor_pid[i]) {
+                for (int i = 0; i < n_vts; i++)
+                {
+                    if (pid == supervisor_pid[i])
+                    {
                         fprintf(stderr, "undead-head: supervisor for vt %d died, restarting it\n", vts[i]);
                         kill_group(supervisor_pid[i]);
                         apply_restart_backoff(&supervisor_last_death[i], &supervisor_backoff[i], "supervisor");
@@ -409,10 +430,13 @@ main(int argc, char **argv)
             }
         }
 
-        if (watch_idx >= 0 && (fds[watch_idx].revents & POLLIN)) {
-            if (ghostcon_config_watch_check(config_watch_fd, config_path)) {
+        if (watch_idx >= 0 && (fds[watch_idx].revents & POLLIN))
+        {
+            if (ghostcon_config_watch_check(config_watch_fd, config_path))
+            {
                 ghostcon_config_t new_cfg;
-                if (ghostcon_config_load(config_path, &new_cfg)) {
+                if (ghostcon_config_load(config_path, &new_cfg))
+                {
                     /* overwrite=true: this is a reload, the file's new
                      * value must actually take effect, unlike the startup
                      * export above. Only affects FUTURE respawns --
@@ -423,7 +447,9 @@ main(int argc, char **argv)
                      */
                     ghostcon_config_export_env(&new_cfg, config_path, true);
                     fprintf(stderr, "undead-head: %s changed, re-exported config\n", config_path);
-                } else {
+                }
+                else
+                {
                     fprintf(stderr, "undead-head: %s changed but failed to parse -- keeping previous values\n",
                             config_path);
                 }

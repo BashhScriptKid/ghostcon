@@ -23,7 +23,8 @@ connect_unix(const char *path)
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
 
-    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+    {
         close(fd);
         return -1;
     }
@@ -33,9 +34,11 @@ connect_unix(const char *path)
 static bool
 write_all(int fd, const char *buf, size_t n)
 {
-    while (n > 0) {
+    while (n > 0)
+    {
         ssize_t w = write(fd, buf, n);
-        if (w < 0) {
+        if (w < 0)
+        {
             if (errno == EINTR)
                 continue;
             return false;
@@ -64,14 +67,16 @@ ghostcon_transport_connect(ghostcon_transport_t *t,
     t->ctl_fd = -1;
 
     int reg_fd = connect_unix(registry_socket_path);
-    if (reg_fd < 0) {
+    if (reg_fd < 0)
+    {
         fprintf(stderr, "transport: connect %s: %s\n", registry_socket_path, strerror(errno));
         return false;
     }
 
     char req[GHOSTCON_PTYSERV_LINE_MAX];
     size_t req_len = ghostcon_ptyserv_format_get(req, sizeof(req), vtnum);
-    if (req_len == 0 || !write_all(reg_fd, req, req_len)) {
+    if (req_len == 0 || !write_all(reg_fd, req, req_len))
+    {
         fprintf(stderr, "transport: failed to send registry request\n");
         close(reg_fd);
         return false;
@@ -80,7 +85,8 @@ ghostcon_transport_connect(ghostcon_transport_t *t,
     char resp[GHOSTCON_PTYSERV_LINE_MAX];
     ssize_t r = read(reg_fd, resp, sizeof(resp) - 1);
     close(reg_fd);
-    if (r <= 0) {
+    if (r <= 0)
+    {
         fprintf(stderr, "transport: no response from registry\n");
         return false;
     }
@@ -88,14 +94,16 @@ ghostcon_transport_connect(ghostcon_transport_t *t,
 
     int pid;
     char pty_socket[GHOSTCON_PTYSERV_LINE_MAX];
-    if (!ghostcon_ptyserv_parse_ok(resp, &pid, pty_socket)) {
+    if (!ghostcon_ptyserv_parse_ok(resp, &pid, pty_socket))
+    {
         fprintf(stderr, "transport: registry error for vt %d: %s", vtnum, resp);
         return false;
     }
     t->pty_child_pid = pid;
 
     t->fd = connect_unix(pty_socket);
-    if (t->fd < 0) {
+    if (t->fd < 0)
+    {
         fprintf(stderr, "transport: connect %s: %s\n", pty_socket, strerror(errno));
         return false;
     }
@@ -141,12 +149,14 @@ ghostcon_transport_connect(ghostcon_transport_t *t,
     dirname_inplace(ctl_dir);
     char ctl_path[GHOSTCON_PTYSERV_LINE_MAX];
     snprintf(ctl_path, sizeof(ctl_path), GHOSTCON_PTY_CTL_SOCKET_FMT, ctl_dir, vtnum);
-    for (int i = 0; i < 50 && t->ctl_fd < 0; i++) {
+    for (int i = 0; i < 50 && t->ctl_fd < 0; i++)
+    {
         t->ctl_fd = connect_unix(ctl_path);
         if (t->ctl_fd < 0)
             usleep(20000);
     }
-    if (t->ctl_fd < 0) {
+    if (t->ctl_fd < 0)
+    {
         /* Still best-effort -- don't fail the whole connect over this, the
          * data path is what actually matters most -- but no longer SILENT:
          * this is exactly the failure mode that made resize permanently
@@ -163,11 +173,13 @@ ghostcon_transport_connect(ghostcon_transport_t *t,
 void
 ghostcon_transport_close(ghostcon_transport_t *t)
 {
-    if (t->fd >= 0) {
+    if (t->fd >= 0)
+    {
         close(t->fd);
         t->fd = -1;
     }
-    if (t->ctl_fd >= 0) {
+    if (t->ctl_fd >= 0)
+    {
         close(t->ctl_fd);
         t->ctl_fd = -1;
     }
@@ -228,7 +240,8 @@ ghostcon_transport_read_ctl(ghostcon_transport_t *t, bool *out_clear)
 
     char line[GHOSTCON_PTYSERV_LINE_MAX];
     ssize_t r = read(t->ctl_fd, line, sizeof(line) - 1);
-    if (r <= 0) {
+    if (r <= 0)
+    {
         close(t->ctl_fd);
         t->ctl_fd = -1;
         return true;
