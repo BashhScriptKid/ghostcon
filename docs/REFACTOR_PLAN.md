@@ -281,6 +281,7 @@ Phases 1–4 above are implemented, each as a reviewable commit:
 | Hotspot 1 evdev lookup | `src/core/input.c`: `evdev_key_table[KEY_MAX+1]` replaces the 164-line `ghostcon_input_evdev_to_ghostty_key` switch | `test_input` (unit) |
 | Hotspot 2 parser states | `src/term/stream.c`: `ghostcon_stream_process_byte` (cx 119 / cog 575) split into 15 `stream_state_*` handlers, a `stream_handle_c1` guard, and a thin dispatch switch → cx 17 / cog 32 | full suite + ASan/UBSan + fuzzer smoke |
 | Hotspot 3 sixel split | `src/term/sixel.c`: `ghostcon_sixel_decode` (cx 47 / cog 204) split into `sixel_measure`, `sixel_paint`, and `sixel_set_column` → cx 8 / cog 9; added `tests/test_sixel.c` (the decode path had no unit coverage) | `test_sixel` (unit) |
+| Hotspot 4 OSC dispatch | `src/term/stream_osc.c`: `osc_dispatch_manual` (cx 46 / cog 160) split into a number-keyed `osc_dispatch_table` of `osc_handle_*` functions → cx 4 / cog 5 | `test_osc` + full suite |
 
 Current test count: **23/23** (`meson test -C build-release`).
 Live-service deploys use `build-release` + `meson install` + restart, per

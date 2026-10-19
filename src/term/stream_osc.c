@@ -141,13 +141,244 @@ static void osc_write_response(ghostcon_stream_t *st, const char *body)
         st->output_fn(st->output_userdata, (const uint8_t *)seq, (size_t)n);
 }
 
+typedef bool (*osc_handler_fn)(ghostcon_stream_t *st, ghostcon_screen_t *s,
+                               long num, char **fields, int nfields);
+
+typedef struct
+{
+    long           num;
+    osc_handler_fn fn;
+} osc_dispatch_entry_t;
+
+/* 4;idx;spec[;idx;spec...] -- set/query palette entries. */
+static bool osc_handle_palette(ghostcon_stream_t *st, ghostcon_screen_t *s,
+                               long num, char **fields, int nfields)
+{
+    (void)num;
+    for (int i = 1; i + 1 < nfields; i += 2)
+    {
+        long idx = strtol(fields[i], NULL, 10);
+        if (idx < 0 || idx > 255)
+            continue;
+        const char *spec = fields[i + 1];
+        if (strcmp(spec, "?") == 0)
+        {
+            GhosttyColorRgb c = ghostcon_palette_resolve(&s->palette, (uint8_t)idx);
+            char colorspec[24], body[48];
+            ghostcon_color_format_spec(c, colorspec, sizeof(colorspec));
+            snprintf(body, sizeof(body), "4;%ld;%s", idx, colorspec);
+            osc_write_response(st, body);
+        }
+        else
+        {
+            GhosttyColorRgb c;
+            if (ghostcon_color_parse_spec(spec, &c))
+                ghostcon_palette_set(&s->palette, (int)idx, c);
+        }
+    }
+    return true;
+}
+
+/* 10/11/12 -- set/query default foreground, background, or cursor color. */
+static bool osc_handle_default_color(ghostcon_stream_t *st, ghostcon_screen_t *s,
+                                     long num, char **fields, int nfields)
+{
+    if (nfields >= 2)
+    {
+        const char *spec = fields[1];
+        if (strcmp(spec, "?") == 0)
+        {
+            GhosttyColorRgb c = num == 10 ? s->palette.fg_default
+                               : num == 11 ? s->palette.bg_default
+                               : s->palette.cursor_color;
+            char colorspec[24], body[48];
+            ghostcon_color_format_spec(c, colorspec, sizeof(colorspec));
+            snprintf(body, sizeof(body), "%ld;%s", num, colorspec);
+            osc_write_response(st, body);
+        }
+        else
+        {
+            GhosttyColorRgb c;
+            if (ghostcon_color_parse_spec(spec, &c))
+            {
+                if (num == 10)
+                    ghostcon_palette_set_default_fg(&s->palette, c);
+                else if (num == 11)
+                    ghostcon_palette_set_default_bg(&s->palette, c);
+                else
+                    ghostcon_palette_set_cursor(&s->palette, c);
+            }
+        }
+    }
+    return true;
+}
+
+/* 104[;idx[;idx...]] -- reset palette entries; no args = reset all. */
+static bool osc_handle_palette_reset(ghostcon_stream_t *st, ghostcon_screen_t *s,
+                                     long num, char **fields, int nfields)
+{
+    (void)st;
+    (void)num;
+    if (nfields == 1)
+    {
+        for (int i = 0; i < 256; i++)
+            ghostcon_palette_reset(&s->palette, (uint8_t)i);
+    }
+    else
+    {
+        for (int i = 1; i < nfields; i++)
+        {
+            long idx = strtol(fields[i], NULL, 10);
+            if (idx >= 0 && idx <= 255)
+                ghostcon_palette_reset(&s->palette, (uint8_t)idx);
+        }
+    }
+    return true;
+}
+
+/* 7;file://[host]/path (or a bare path) -- report/set PWD. */
+static bool osc_handle_pwd(ghostcon_stream_t *st, ghostcon_screen_t *s,
+                           long num, char **fields, int nfields)
+{
+    (void)st;
+    (void)num;
+    if (nfields >= 2)
+        osc7_decode_pwd(fields[1], s->cwd, sizeof(s->cwd));
+    return true;
+}
+
+/* 133;<letter>[;args...] -- FinalTerm semantic prompts.
+ * 633 is VSCode's superset: the same letters plus property reports. */
+static bool osc_handle_semantic(ghostcon_stream_t *st, ghostcon_screen_t *s,
+                                long num, char **fields, int nfields)
+{
+    (void)st;
+    if (nfields >= 2)
+    {
+        switch (fields[1][0])
+        {
+        case 'A': /* prompt start */
+            s->semantic_current = GHOSTCON_CELL_SEMANTIC_PROMPT;
+            break;
+        case 'B': /* prompt end / command input start */
+            s->semantic_current = GHOSTCON_CELL_SEMANTIC_INPUT;
+            break;
+        case 'C': /* command output start */
+            s->semantic_current = GHOSTCON_CELL_SEMANTIC_OUTPUT;
+            break;
+        case 'D': /* command finished: 133;D[;exit_code] */
+            s->semantic_current = GHOSTCON_CELL_SEMANTIC_PROMPT;
+            if (nfields >= 3)
+                s->semantic_last_exit_code = (int)strtol(fields[2], NULL, 10);
+            break;
+        case 'P':
+            /* 633;P;Cwd=<path> -- VSCode property report. Only Cwd is handled
+             *
+             * it reuses OSC 7's decoder since VSCode sends the same
+             * file://-or-bare-path form. Other properties (IsWindows, etc.) are
+             * intentionally ignored -- not applicable here.
+             */
+            if (num == 633 && nfields >= 3 && strncmp(fields[2], "Cwd=", 4) == 0)
+                osc7_decode_pwd(fields[2] + 4, s->cwd, sizeof(s->cwd));
+            break;
+        default:
+            /* 133;A/B/C/D cover FinalTerm; 633 additionally sends E (command line
+             * text) and others we don't store anywhere -- silently ignored,
+             * matching OSC 8's "don't crash on the unsupported remainder of a
+             * spec" philosophy.
+             */
+            break;
+        }
+    }
+    return true;
+}
+
+/* 8;params;uri -- hyperlink start/end (an empty uri ends the current link). */
+static bool osc_handle_hyperlink(ghostcon_stream_t *st, ghostcon_screen_t *s,
+                                 long num, char **fields, int nfields)
+{
+    (void)st;
+    (void)num;
+    if (nfields >= 3)
+    {
+        const char *uri = fields[2];
+        if (uri[0] == '\0')
+            s->cursor.hyperlink_id = GC_HYPERLINK_ID_NONE;
+        else
+            s->cursor.hyperlink_id = ghostcon_hyperlink_set_add(s->hyperlinks, uri);
+    }
+    return true;
+}
+
+/* 9/777 -- desktop notification.
+ *
+ * Stub tier: no ghostcon-ipc broker exists yet (PLAN.md's own deferred item), so
+ * the message is handed up via a callback rather than discarded -- ghostcon-core
+ * logs it through core/diag.c, which term/ has no dependency on (see stream.h's
+ * notify_fn doc).
+ */
+static bool osc_handle_notify(ghostcon_stream_t *st, ghostcon_screen_t *s,
+                              long num, char **fields, int nfields)
+{
+    (void)s;
+    (void)num;
+    if (nfields >= 2 && st->notify_fn)
+        st->notify_fn(st->notify_userdata, fields[nfields - 1]);
+    return true;
+}
+
+/* 52;c;<base64> sets, 52;c;? queries. Stub tier, single-instance only (no
+ * cross-VT sharing without ghostcon-ipc).
+ *
+ * Stored and returned as the raw base64 payload verbatim -- OSC 52's wire format
+ * already is base64, so there is nothing to decode. A non-base64 payload is
+ * rejected outright rather than stored as garbage.
+ */
+static bool osc_handle_clipboard(ghostcon_stream_t *st, ghostcon_screen_t *s,
+                                 long num, char **fields, int nfields)
+{
+    (void)num;
+    if (nfields >= 3)
+    {
+        const char *payload = fields[2];
+        if (strcmp(payload, "?") == 0)
+        {
+            char resp[sizeof(s->clipboard) + 8];
+            snprintf(resp, sizeof(resp), "52;c;%s", s->clipboard);
+            osc_write_response(st, resp);
+        }
+        else if (osc52_is_valid_base64(payload))
+        {
+            snprintf(s->clipboard, sizeof(s->clipboard), "%s", payload);
+        }
+    }
+    return true;
+}
+
+/* Number-keyed manual tier. Numbers the library classifies but exposes no
+ * data for are handled here; anything absent falls through to the
+ * ghostty_osc-based path in gc_stream_osc_dispatch(). */
+static const osc_dispatch_entry_t osc_dispatch_table[] = {
+    { 4,   osc_handle_palette },
+    { 7,   osc_handle_pwd },
+    { 8,   osc_handle_hyperlink },
+    { 9,   osc_handle_notify },
+    { 10,  osc_handle_default_color },
+    { 11,  osc_handle_default_color },
+    { 12,  osc_handle_default_color },
+    { 52,  osc_handle_clipboard },
+    { 104, osc_handle_palette_reset },
+    { 133, osc_handle_semantic },
+    { 633, osc_handle_semantic },
+    { 777, osc_handle_notify },
+};
+
 /* Handles OSC numbers the manual tier owns.
  *
  * Returns true if `num` was recognized (whether or not the specific field
- * contents were valid
- *
- * a malformed field is silently ignored per the terminal's usual "never crash on
- * bad input" rule, not treated as "unrecognized OSC").
+ * contents were valid -- a malformed field is silently ignored per the
+ * terminal's usual "never crash on bad input" rule, not treated as
+ * "unrecognized OSC").
  *
  * Returns false for anything this tier doesn't own, so the caller can fall
  * through to the ghostty_osc-based path (window title, and the discard-and-log
@@ -158,10 +389,8 @@ static bool osc_dispatch_manual(ghostcon_stream_t *st, ghostcon_screen_t *s)
     /* Work on a local copy, not st->buf directly: osc_split_fields() mutates in
      * place (';' -> '\0'), and if this OSC number turns out not to be one we own,
      * the caller falls through to the existing ghostty_osc_next() loop over
-     * st->buf
-     *
-     * which needs the original semicolons intact (e.g. window title "0;My Title"
-     * would parse as corrupted "0\0My Title" otherwise).
+     * st->buf -- which needs the original semicolons intact (e.g. window title
+     * "0;My Title" would parse as corrupted "0\0My Title" otherwise).
      *
      * Payloads too long for this are definitely not one of our small numeric OSC
      * types anyway.
@@ -178,177 +407,13 @@ static bool osc_dispatch_manual(ghostcon_stream_t *st, ghostcon_screen_t *s)
         return false;
     long num = strtol(fields[0], NULL, 10);
 
-    switch (num)
+    size_t nentries = sizeof(osc_dispatch_table) / sizeof(osc_dispatch_table[0]);
+    for (size_t i = 0; i < nentries; i++)
     {
-    case 4: /* set/query palette entry(ies): 4;idx;spec[;idx;spec...] */
-        for (int i = 1; i + 1 < nfields; i += 2)
-        {
-            long idx = strtol(fields[i], NULL, 10);
-            if (idx < 0 || idx > 255)
-                continue;
-            const char *spec = fields[i + 1];
-            if (strcmp(spec, "?") == 0)
-            {
-                GhosttyColorRgb c = ghostcon_palette_resolve(&s->palette, (uint8_t)idx);
-                char colorspec[24], body[48];
-                ghostcon_color_format_spec(c, colorspec, sizeof(colorspec));
-                snprintf(body, sizeof(body), "4;%ld;%s", idx, colorspec);
-                osc_write_response(st, body);
-            }
-            else
-            {
-                GhosttyColorRgb c;
-                if (ghostcon_color_parse_spec(spec, &c))
-                    ghostcon_palette_set(&s->palette, (int)idx, c);
-            }
-        }
-        return true;
-
-    case 10: /* set/query default foreground */
-    case 11: /* set/query default background */
-    case 12: /* set/query cursor color */
-        if (nfields >= 2)
-        {
-            const char *spec = fields[1];
-            if (strcmp(spec, "?") == 0)
-            {
-                GhosttyColorRgb c = num == 10 ? s->palette.fg_default
-                                   : num == 11 ? s->palette.bg_default
-                                   : s->palette.cursor_color;
-                char colorspec[24], body[48];
-                ghostcon_color_format_spec(c, colorspec, sizeof(colorspec));
-                snprintf(body, sizeof(body), "%ld;%s", num, colorspec);
-                osc_write_response(st, body);
-            }
-            else
-            {
-                GhosttyColorRgb c;
-                if (ghostcon_color_parse_spec(spec, &c))
-                {
-                    if (num == 10)
-                        ghostcon_palette_set_default_fg(&s->palette, c);
-                    else if (num == 11)
-                        ghostcon_palette_set_default_bg(&s->palette, c);
-                    else
-                        ghostcon_palette_set_cursor(&s->palette, c);
-                }
-            }
-        }
-        return true;
-
-    case 104: /* reset palette entry(ies): 104[;idx[;idx...]] -- no args = reset all */
-        if (nfields == 1)
-        {
-            for (int i = 0; i < 256; i++)
-                ghostcon_palette_reset(&s->palette, (uint8_t)i);
-        }
-        else
-        {
-            for (int i = 1; i < nfields; i++)
-            {
-                long idx = strtol(fields[i], NULL, 10);
-                if (idx >= 0 && idx <= 255)
-                    ghostcon_palette_reset(&s->palette, (uint8_t)idx);
-            }
-        }
-        return true;
-
-    case 7: /* report/set PWD: 7;file://[host]/path (or a bare path) */
-        if (nfields >= 2)
-            osc7_decode_pwd(fields[1], s->cwd, sizeof(s->cwd));
-        return true;
-
-    case 133: /* FinalTerm semantic prompt: 133;<letter>[;args...] */
-    case 633: /* VSCode shell integration: superset of 133's letters,
-                 plus its own property-report sub-commands */
-        if (nfields >= 2)
-        {
-            switch (fields[1][0])
-            {
-            case 'A': /* prompt start */
-                s->semantic_current = GHOSTCON_CELL_SEMANTIC_PROMPT;
-                break;
-            case 'B': /* prompt end / command input start */
-                s->semantic_current = GHOSTCON_CELL_SEMANTIC_INPUT;
-                break;
-            case 'C': /* command output start */
-                s->semantic_current = GHOSTCON_CELL_SEMANTIC_OUTPUT;
-                break;
-            case 'D': /* command finished: 133;D[;exit_code] */
-                s->semantic_current = GHOSTCON_CELL_SEMANTIC_PROMPT;
-                if (nfields >= 3)
-                    s->semantic_last_exit_code = (int)strtol(fields[2], NULL, 10);
-                break;
-            case 'P': /* 633;P;Cwd=<path> -- VSCode property report.
-                         Only Cwd is handled; reuses OSC 7's decoder
-                         since VSCode sends the same file://-or-bare-path
-                         form. Other properties (IsWindows, etc.) are
-                         intentionally ignored -- not applicable here. */
-                if (num == 633 && nfields >= 3 && strncmp(fields[2], "Cwd=", 4) == 0)
-                    osc7_decode_pwd(fields[2] + 4, s->cwd, sizeof(s->cwd));
-                break;
-            default:
-                /* 133;A/B/C/D cover FinalTerm; 633 additionally sends E (command
-                 * line text) and others we don't yet store anywhere
-                 *
-                 * silently ignored, matches OSC 8's stub tier philosophy of
-                 * "don't crash on the unsupported remainder of a spec".
-                 */
-                break;
-            }
-        }
-        return true;
-
-    case 8: /* hyperlink: 8;params;uri (uri empty = end current link) */
-        if (nfields >= 3)
-        {
-            const char *uri = fields[2];
-            if (uri[0] == '\0')
-            {
-                s->cursor.hyperlink_id = GC_HYPERLINK_ID_NONE;
-            }
-            else
-            {
-                s->cursor.hyperlink_id = ghostcon_hyperlink_set_add(s->hyperlinks, uri);
-            }
-        }
-        return true;
-
-    case 9: case 777: /* desktop notification -- stub tier, no ghostcon-ipc
-                          broker exists yet (PLAN.md's own deferred item),
-                          so the message is handed up via a callback
-                          rather than discarded -- ghostcon-core logs it
-                          through core/diag.c, which term/ has no
-                          dependency on (see stream.h's notify_fn doc). */
-        if (nfields >= 2 && st->notify_fn)
-            st->notify_fn(st->notify_userdata, fields[nfields - 1]);
-        return true;
-
-    case 52: /* clipboard -- stub tier, single-instance only (no
-                cross-VT sharing without ghostcon-ipc). 52;c;<base64> sets,
-                52;c;? queries. Stored/returned as the raw base64 payload
-                verbatim -- OSC 52's own wire format already is base64, so
-                there's nothing to decode. A non-base64 payload is rejected
-                outright rather than stored as garbage. */
-        if (nfields >= 3)
-        {
-            const char *payload = fields[2];
-            if (strcmp(payload, "?") == 0)
-            {
-                char resp[sizeof(s->clipboard) + 8];
-                snprintf(resp, sizeof(resp), "52;c;%s", s->clipboard);
-                osc_write_response(st, resp);
-            }
-            else if (osc52_is_valid_base64(payload))
-            {
-                snprintf(s->clipboard, sizeof(s->clipboard), "%s", payload);
-            }
-        }
-        return true;
-
-    default:
-        return false;
+        if (osc_dispatch_table[i].num == num)
+            return osc_dispatch_table[i].fn(st, s, num, fields, nfields);
     }
+    return false;
 }
 
 /* OSC dispatch */
