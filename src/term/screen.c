@@ -19,17 +19,18 @@ cell_at(ghostcon_screen_t *s, int16_t x, int16_t y)
     return &s->rows[row_idx(s, y)].cells[x];
 }
 
-/* Build the blank "erase color" cell used to fill cells vacated by
- * ED/EL/ECH and by scrolling: per ECMA-48, erased cells take on the
- * *currently selected* background color (the SGR pen's bg), not the
- * terminal default.
+/* Build the blank "erase color" cell used to fill cells vacated by ED/EL/ECH and
+ * by scrolling: per ECMA-48, erased cells take on the *currently selected*
+ * background color (the SGR pen's bg), not the terminal default.
  *
- * Matches Ghostty's own representation: a blank cell carrying only a
- * background gets tagged BG_COLOR_PALETTE/BG_COLOR_RGB in its content
- * field, style_id left at 0 (default) -- not a style-table entry.
+ * Matches Ghostty's own representation: a blank cell carrying only a background
+ * gets tagged BG_COLOR_PALETTE/BG_COLOR_RGB in its content field, style_id left
+ * at 0 (default)
  *
- * This avoids interning a near-duplicate default-ish style per distinct
- * erase color, and keeps large erased regions cheap.
+ * not a style-table entry.
+ *
+ * This avoids interning a near-duplicate default-ish style per distinct erase
+ * color, and keeps large erased regions cheap.
  */
 static ghostcon_cell_t
 erase_fill_cell(ghostcon_screen_t *s)
@@ -164,15 +165,18 @@ bool ghostcon_screen_init(ghostcon_screen_t *s,
     /* Shell integration: no command has finished yet */
     s->semantic_last_exit_code = -1;
 
-    /* Dirty state: everything, not nothing — a fresh screen still needs its
-     * first frame painted (uniform background at minimum), same as the
-     * full-reset convention below (ghostcon_screen_reset).
+    /* Dirty state: everything, not nothing
+     *
+     * a fresh screen still needs its first frame painted (uniform background at
+     * minimum), same as the full-reset convention below (ghostcon_screen_reset).
      *
      * Leaving this -1/-1 meant any row never explicitly written to (common
-     * — most sessions don't fill every row) never got a background quad
-     * pushed at all on the first frame, showing whatever was already in the
-     * render target instead of the terminal's actual background — found via
-     * real hardware testing: "rows that aren't allocated by chars have
+     *
+     * most sessions don't fill every row) never got a background quad pushed at
+     * all on the first frame, showing whatever was already in the render target
+     * instead of the terminal's actual background
+     *
+     * found via real hardware testing: "rows that aren't allocated by chars have
      * different background than the ones that are allocated".
      */
     s->dirty.y_min = 0;
@@ -187,13 +191,16 @@ bool ghostcon_screen_init(ghostcon_screen_t *s,
     /* Kitty keyboard protocol */
     ghostcon_kitty_init(&s->kitty);
 
-    /* Kitty graphics protocol (images + placements) -- one instance per
-     * screen, see screen.h's doc comment on kitty_graphics_alt.
+    /* Kitty graphics protocol (images + placements)
+     *
+     * one instance per screen, see screen.h's doc comment on kitty_graphics_alt.
      */
     ghostcon_kitty_graphics_init(&s->kitty_graphics);
     ghostcon_kitty_graphics_init(&s->kitty_graphics_alt);
 
-    /* Sixel graphics state -- one instance per screen, same reasoning as
+    /* Sixel graphics state
+     *
+     * one instance per screen, same reasoning as
      * kitty_graphics/kitty_graphics_alt above.
      */
     ghostcon_sixel_state_init(&s->sixel);
@@ -255,12 +262,14 @@ ghostcon_screen_active_sixel_state(ghostcon_screen_t *s)
 bool ghostcon_screen_resize(ghostcon_screen_t *s,
                             uint16_t new_cols, uint16_t new_rows)
 {
-    /* Row layout (both rows_visible's ring geometry and every row's width)
-     * is about to change -- a view_offset computed against the old layout
-     * would splice in the wrong lines.
+    /* Row layout (both rows_visible's ring geometry and every row's width) is
+     * about to change
      *
-     * Simplest correct behavior: snap back to live, matching how a resize
-     * already disrupts scroll position in most real terminals.
+     * a view_offset computed against the old layout would splice in the wrong
+     * lines.
+     *
+     * Simplest correct behavior: snap back to live, matching how a resize already
+     * disrupts scroll position in most real terminals.
      */
     s->view_offset = 0;
 
@@ -327,10 +336,11 @@ bool ghostcon_screen_resize(ghostcon_screen_t *s,
 
 void ghostcon_screen_reset(ghostcon_screen_t *s)
 {
-    /* Drop out of the alternate screen if active -- RIS is a hard reset,
-     * not a graceful exit, so the saved main-screen content is simply
-     * discarded rather than restored (see this function's own doc comment
-     * in screen.h).
+    /* Drop out of the alternate screen if active
+     *
+     * RIS is a hard reset, not a graceful exit, so the saved main-screen content
+     * is simply discarded rather than restored (see this function's own doc
+     * comment in screen.h).
      */
     if (s->alt_screen_active)
     {
@@ -342,20 +352,24 @@ void ghostcon_screen_reset(ghostcon_screen_t *s)
         s->alt_screen_active = false;
     }
 
-    /* Clear the visible screen -- scrollback history is left intact,
-     * matching xterm's own RIS convention.
+    /* Clear the visible screen
+     *
+     * scrollback history is left intact, matching xterm's own RIS convention.
      */
     for (uint16_t i = 0; i < s->rows_visible; i++)
         ghostcon_row_clear(&s->rows[i]);
     s->view_offset = 0;
 
-    /* RIS is a hard reset -- drop all Kitty graphics images/placements on
-     * BOTH screens, same "discard rather than gracefully restore" reasoning
-     * as the alt-screen drop above.
+    /* RIS is a hard reset
+     *
+     * drop all Kitty graphics images/placements on BOTH screens, same "discard
+     * rather than gracefully restore" reasoning as the alt-screen drop above.
      *
      * Both, not just whichever was active, since alt_screen_active was just
-     * forced false above -- resetting only "the active one" here would
-     * leave the other screen's images never freed.
+     * forced false above
+     *
+     * resetting only "the active one" here would leave the other screen's images
+     * never freed.
      */
     ghostcon_kitty_graphics_deinit(&s->kitty_graphics);
     ghostcon_kitty_graphics_init(&s->kitty_graphics);
@@ -380,10 +394,11 @@ void ghostcon_screen_reset(ghostcon_screen_t *s)
     s->cursor_saved = false;
     s->last_codepoint = 0;
 
-    /* Regions & tabs back to full width/height -- this is what fixes the
-     * DECRST-69-doesn't-reset-margins bug (see the separate fix in
-     * stream.c's DECRST handler), and gives RIS a way to recover even if
-     * some other bug leaves a region stuck.
+    /* Regions & tabs back to full width/height
+     *
+     * this is what fixes the DECRST-69-doesn't-reset-margins bug (see the
+     * separate fix in stream.c's DECRST handler), and gives RIS a way to recover
+     * even if some other bug leaves a region stuck.
      */
     s->scroll_region.top = 0;
     s->scroll_region.bottom = (int16_t)(s->rows_visible - 1);
@@ -421,8 +436,10 @@ void ghostcon_screen_reset(ghostcon_screen_t *s)
     ghostcon_selection_clear(&s->selection);
     ghostcon_kitty_init(&s->kitty);
 
-    /* The whole screen was just cleared -- mark it all dirty so the next
-     * frame actually paints over whatever was there before.
+    /* The whole screen was just cleared
+     *
+     * mark it all dirty so the next frame actually paints over whatever was there
+     * before.
      */
     s->dirty.y_min = 0;
     s->dirty.y_max = (int16_t)(s->rows_visible - 1);
@@ -430,32 +447,37 @@ void ghostcon_screen_reset(ghostcon_screen_t *s)
 
 /* Cursor movement */
 
-/* CUU/CUD (cursor up/down) clamp to the scroll region ONLY under origin
- * mode (DECOM) -- otherwise (the common case, DECOM off) they clamp to the
- * full screen, same distinction ghostcon_screen_cursor_ vertical_abs()
- * (VPA) already gets right.
+/* CUU/CUD (cursor up/down) clamp to the scroll region ONLY under origin mode
+ * (DECOM)
  *
- * Found live: a real, well-known idiom -- CSI H then a large CSI B to jump
- * to the absolute screen bottom regardless of exact height -- landed short
- * by however many rows a scroll region reserved at the bottom (e.g. a fixed
- * status line below a chat log's scroll region), while CUP/VPA-based
- * positioning to that same row worked correctly, producing the exact same
- * text rendered on two different rows.
+ * otherwise (the common case, DECOM off) they clamp to the full screen, same
+ * distinction ghostcon_screen_cursor_ vertical_abs() (VPA) already gets right.
+ *
+ * Found live: a real, well-known idiom
+ *
+ * CSI H then a large CSI B to jump to the absolute screen bottom regardless of
+ * exact height
+ *
+ * landed short by however many rows a scroll region reserved at the bottom (e.g.
+ * a fixed status line below a chat log's scroll region), while CUP/VPA-based
+ * positioning to that same row worked correctly, producing the exact same text
+ * rendered on two different rows.
  */
-/* Fuzzer-found (hardening plan #5): all four of these cast the raw uint16_t
- * n (up to UINT16_MAX from a CSI param) straight to int16_t before the
- * add/subtract.
+/* Fuzzer-found (hardening plan #5): all four of these cast the raw uint16_t n (up
+ * to UINT16_MAX from a CSI param) straight to int16_t before the add/subtract.
  *
  * For n >= 32768 that cast wraps negative, silently REVERSING the intended
- * direction -- and each function only ever clamped the bound it expected to
- * hit from the correct direction, leaving the other bound (now reachable
- * because the sign flipped) completely unchecked.
+ * direction
  *
- * Minimized repro: CSI 64614 a (HPR, same handler as CUF) walked cursor.x
- * to -922 with no lower-bound check, and the next printable character wrote
- * clean off the front of the row's cells array. int32_t arithmetic
- * sidesteps the wrap; clamping both bounds unconditionally (not just the
- * "expected" one) closes the reachable-from-the-other-side gap regardless.
+ * and each function only ever clamped the bound it expected to hit from the
+ * correct direction, leaving the other bound (now reachable because the sign
+ * flipped) completely unchecked.
+ *
+ * Minimized repro: CSI 64614 a (HPR, same handler as CUF) walked cursor.x to -922
+ * with no lower-bound check, and the next printable character wrote clean off the
+ * front of the row's cells array. int32_t arithmetic sidesteps the wrap; clamping
+ * both bounds unconditionally (not just the "expected" one) closes the
+ * reachable-from-the-other-side gap regardless.
  */
 void ghostcon_screen_cursor_up(ghostcon_screen_t *s, uint16_t n)
 {
@@ -536,17 +558,19 @@ void ghostcon_screen_cursor_vertical_abs(ghostcon_screen_t *s, int16_t y)
 
 void ghostcon_screen_cursor_next_line(ghostcon_screen_t *s)
 {
-    /* Only scroll the region if the cursor was actually AT its bottom edge
-     * before moving (mirrors soft_wrap()'s `==` check) -- a cursor sitting
-     * below/outside the scroll region entirely (e.g. a fixed status/input
-     * area a TUI deliberately excludes from the scroll region) must just
-     * clamp to the full screen, never scroll the region above it.
+    /* Only scroll the region if the cursor was actually AT its bottom edge before
+     * moving (mirrors soft_wrap()'s `==` check)
      *
-     * The old `y++` then `> bottom` check fired for that out-of-region case
-     * too, spuriously scrolling the main content on every cursor-next-line
-     * issued from below the region -- found live: exactly this, corrupting
-     * content above a fixed bottom input box on every animation tick that
-     * redrew it via CNL.
+     * a cursor sitting below/outside the scroll region entirely (e.g. a fixed
+     * status/input area a TUI deliberately excludes from the scroll region) must
+     * just clamp to the full screen, never scroll the region above it.
+     *
+     * The old `y++` then `> bottom` check fired for that out-of-region case too,
+     * spuriously scrolling the main content on every cursor-next-line issued from
+     * below the region
+     *
+     * found live: exactly this, corrupting content above a fixed bottom input box
+     * on every animation tick that redrew it via CNL.
      */
     bool was_at_region_bottom = (s->cursor.y == s->scroll_region.bottom);
     s->cursor.x = s->margin_region.left;
@@ -706,9 +730,11 @@ void ghostcon_screen_put_char(ghostcon_screen_t *s, uint32_t codepoint)
             prev = cell_at(s, s->cursor.x - left - 1, s->cursor.y);
         if (!ghostcon_cell_has_text(*prev)) return;
 
-        /* No grapheme storage yet (Ghostty stores combining sequences on
-         * the page) — tag the cell so the renderer can resolve the full
-         * sequence once storage lands.
+        /* No grapheme storage yet (Ghostty stores combining sequences on the
+         * page)
+         *
+         * tag the cell so the renderer can resolve the full sequence once storage
+         * lands.
          */
         ghostcon_cell_set_tag(prev, GHOSTCON_CELL_CODEPOINT_GRAPHEME);
         s->rows[row_idx(s, s->cursor.y)].grapheme = true;
@@ -777,8 +803,9 @@ void ghostcon_screen_put_char(ghostcon_screen_t *s, uint32_t codepoint)
         return;
     }
 
-    /* If we're at the column limit, set pending wrap — the wrap itself is
-     * deferred until the next character (matches Ghostty).
+    /* If we're at the column limit, set pending wrap
+     *
+     * the wrap itself is deferred until the next character (matches Ghostty).
      */
     if (s->cursor.x == right_limit - 1)
     {
@@ -823,14 +850,15 @@ void ghostcon_screen_reverse_index(ghostcon_screen_t *s)
     }
     else
     {
-        /* Fuzzer-found SEGV: a cursor legitimately above the scroll
-         * region's top (e.g.
+        /* Fuzzer-found SEGV: a cursor legitimately above the scroll region's top
+         * (e.g.
          *
-         * DECSTBM homes the cursor to screen row 0 when origin mode is off,
-         * which can sit above a scroll region that doesn't start at 0) took
-         * this branch and decremented with no lower bound -- repeatable RI
-         * calls walk cursor.y arbitrarily negative, and row_idx()'s modulo
-         * on a negative index produces a huge out-of-bounds s->rows[]
+         * DECSTBM homes the cursor to screen row 0 when origin mode is off, which
+         * can sit above a scroll region that doesn't start at 0) took this branch
+         * and decremented with no lower bound
+         *
+         * repeatable RI calls walk cursor.y arbitrarily negative, and row_idx()'s
+         * modulo on a negative index produces a huge out-of-bounds s->rows[]
          * access.
          *
          * Same clamp floor ghostcon_screen_cursor_up() already uses for the
@@ -894,29 +922,33 @@ void ghostcon_screen_erase_display(ghostcon_screen_t *s, int mode)
         /* Matches Ghostty's own eraseDisplay(): .complete clears all Kitty
          * graphics state, not just cells.
          *
-         * Images/placements live in a side table decoupled from the cell
-         * grid by design (see kitty_graphics.h), so without this an ED
-         * (e.g.
+         * Images/placements live in a side table decoupled from the cell grid by
+         * design (see kitty_graphics.h), so without this an ED (e.g.
          *
          * `clear`, or any TUI's own "wipe the screen" ESC[2J) leaves every
-         * previously displayed image rendering forever underneath whatever
-         * gets drawn next -- confirmed live: a page's own image was still
-         * visible under an unrelated later page's content, while the same
-         * sequence on real Ghostty correctly cleared it.
+         * previously displayed image rendering forever underneath whatever gets
+         * drawn next
          *
-         * Only .complete/.scroll_complete do this in Ghostty, not the
-         * partial .above/.below modes -- and Ghostty does it
-         * unconditionally regardless of DECSED protection, so
-         * ghostcon_screen_erase_display_protected's GC_ERASE_DISPLAY_ALL
-         * case below gets the identical treatment.
+         * confirmed live: a page's own image was still visible under an unrelated
+         * later page's content, while the same sequence on real Ghostty correctly
+         * cleared it.
          *
-         * Only the ACTIVE screen's images -- matching Ghostty, which erases
-         * screens.active, not both -- so an ED on the primary screen
-         * doesn't reach through and wipe images placed on the alt screen
-         * (or vice versa.
+         * Only .complete/.scroll_complete do this in Ghostty, not the partial
+         * .above/.below modes
          *
-         * See kitty_graphics_alt's own doc comment on why these are
-         * separate instances at all).
+         * and Ghostty does it unconditionally regardless of DECSED protection, so
+         * ghostcon_screen_erase_display_protected's GC_ERASE_DISPLAY_ALL case
+         * below gets the identical treatment.
+         *
+         * Only the ACTIVE screen's images
+         *
+         * matching Ghostty, which erases screens.active, not both
+         *
+         * so an ED on the primary screen doesn't reach through and wipe images
+         * placed on the alt screen (or vice versa.
+         *
+         * See kitty_graphics_alt's own doc comment on why these are separate
+         * instances at all).
          */
         {
             ghostcon_kitty_graphics_t *akg = ghostcon_screen_active_kitty_graphics(s);
@@ -935,12 +967,13 @@ void ghostcon_screen_erase_display(ghostcon_screen_t *s, int mode)
                 ghostcon_row_clear(&s->history[i]);
             s->history_count = 0;
         }
-        /* Nothing left to be scrolled back into -- e.g. clear_on_logout
-         * wiping scrollback on session death while the outgoing user
-         * happened to be scrolled up would otherwise leave view_offset
-         * pointing past the now-empty history (harmless,
-         * ghostcon_screen_row() clamps defensively, but the new session
-         * should start at live regardless).
+        /* Nothing left to be scrolled back into
+         *
+         * e.g. clear_on_logout wiping scrollback on session death while the
+         * outgoing user happened to be scrolled up would otherwise leave
+         * view_offset pointing past the now-empty history (harmless,
+         * ghostcon_screen_row() clamps defensively, but the new session should
+         * start at live regardless).
          */
         if (s->view_offset > 0)
         {
@@ -950,16 +983,19 @@ void ghostcon_screen_erase_display(ghostcon_screen_t *s, int mode)
         }
         return;
     case GC_ERASE_DISPLAY_SCROLL_COMPLETE:
-        /* Scroll entire display into scrollback. push_history() steals
-         * r->cells by struct-copying it into the history slot -- it does
-         * NOT null out r->cells on the source, so the caller must give r a
-         * fresh cells buffer of its own afterward.
+        /* Scroll entire display into scrollback. push_history() steals r->cells
+         * by struct-copying it into the history slot
          *
-         * Fuzzer-found double-free: the previous version allocated that
-         * fresh row via ghostcon_row_init() only to check `.cells` was
-         * non-NULL, then discarded it -- r kept pointing at the exact
-         * buffer that had just been stolen into history, so s->rows[] and
-         * s->history[] both freed the same allocation on cleanup.
+         * it does NOT null out r->cells on the source, so the caller must give r
+         * a fresh cells buffer of its own afterward.
+         *
+         * Fuzzer-found double-free: the previous version allocated that fresh row
+         * via ghostcon_row_init() only to check `.cells` was non-NULL, then
+         * discarded it
+         *
+         * r kept pointing at the exact buffer that had just been stolen into
+         * history, so s->rows[] and s->history[] both freed the same allocation
+         * on cleanup.
          */
         for (int16_t i = 0; i < (int16_t)s->rows_visible; i++)
         {
@@ -1035,9 +1071,10 @@ void ghostcon_screen_erase_display_protected(ghostcon_screen_t *s, int mode)
         top = 0;
         bottom = (int16_t)(s->rows_visible - 1);
         /* Same as the unprotected ghostcon_screen_erase_display's
-         * GC_ERASE_DISPLAY_ALL case above -- Ghostty clears all Kitty
-         * graphics state for a full-screen erase unconditionally,
-         * regardless of DECSED protection.
+         * GC_ERASE_DISPLAY_ALL case above
+         *
+         * Ghostty clears all Kitty graphics state for a full-screen erase
+         * unconditionally, regardless of DECSED protection.
          *
          * Active screen only, same reasoning as that case too.
          */
@@ -1183,19 +1220,20 @@ void ghostcon_screen_insert_chars(ghostcon_screen_t *s, uint16_t n)
     if (n == 0) return;
     int16_t right = s->margin_region.right;
 
-    /* The cursor can legitimately sit past the margin region entirely
-     * --absolute CUP is NOT constrained to margin_region.right (see
-     * ghostcon_screen_cursor_set()'s own clamp, which only bounds against
-     * cols-1) -- so ICH issued from out there is a no-op, not "insert some
-     * huge count of chars".
+    /* The cursor can legitimately sit past the margin region entirely --absolute
+     * CUP is NOT constrained to margin_region.right (see
+     * ghostcon_screen_cursor_set()'s own clamp, which only bounds against cols-1)
      *
-     * Explicit signed guard, not clamp-and-hope: an earlier version
-     * computed the clamped count through uint16_t arithmetic that silently
-     * wrapped to ~65000 on exactly this precondition, and only stayed
-     * harmless because a later round-trip cast happened to cancel the
-     * wrapped value back out -- correct by algebraic coincidence, not by
-     * inspection, and not something a future edit could be trusted to
-     * preserve.
+     * so ICH issued from out there is a no-op, not "insert some huge count of
+     * chars".
+     *
+     * Explicit signed guard, not clamp-and-hope: an earlier version computed the
+     * clamped count through uint16_t arithmetic that silently wrapped to ~65000
+     * on exactly this precondition, and only stayed harmless because a later
+     * round-trip cast happened to cancel the wrapped value back out
+     *
+     * correct by algebraic coincidence, not by inspection, and not something a
+     * future edit could be trusted to preserve.
      */
     if (s->cursor.x > right)
         return;
@@ -1224,15 +1262,15 @@ void ghostcon_screen_delete_chars(ghostcon_screen_t *s, uint16_t n)
     if (n == 0) return;
     int16_t right = s->margin_region.right;
 
-    /* Same reasoning as ghostcon_screen_insert_chars() right above: the
-     * cursor can legitimately sit past the margin region entirely (absolute
-     * CUP isn't constrained to it), and DCH issued from out there is a
-     * no-op. int32_t throughout, and an explicit guard for that
-     * precondition, rather than relying on an implementation-defined
-     * narrowing conversion (assigning `right - n + 1` -- possibly far
-     * outside int16_t's range when n is large -- into an int16_t loop
-     * variable) to wrap around to something that happens to make the loop
-     * bound work out, the way an earlier version implicitly did.
+    /* Same reasoning as ghostcon_screen_insert_chars() right above: the cursor
+     * can legitimately sit past the margin region entirely (absolute CUP isn't
+     * constrained to it), and DCH issued from out there is a no-op. int32_t
+     * throughout, and an explicit guard for that precondition, rather than
+     * relying on an implementation-defined narrowing conversion (assigning `right
+     *
+     * - n + 1` -- possibly far outside int16_t's range when n is large -- into an
+     *   int16_t loop variable) to wrap around to something that happens to make
+     *   the loop bound work out, the way an earlier version implicitly did.
      */
     if (s->cursor.x > right)
         return;
@@ -1264,10 +1302,12 @@ void ghostcon_screen_insert_lines(ghostcon_screen_t *s, uint16_t n)
     if (top > bottom)
         return;
 
-    /* n is attacker-controlled (up to UINT16_MAX) and unrelated to the
-     * scroll region's actual height -- clamp before any arithmetic so a
-     * huge n can't wrap through int16_t and corrupt the loop bounds (see
-     * the identical class of bug fixed in insert_chars/delete_chars).
+    /* n is attacker-controlled (up to UINT16_MAX) and unrelated to the scroll
+     * region's actual height
+     *
+     * clamp before any arithmetic so a huge n can't wrap through int16_t and
+     * corrupt the loop bounds (see the identical class of bug fixed in
+     * insert_chars/delete_chars).
      */
     int32_t available = bottom - top + 1;
     int32_t shift = n;
@@ -1440,17 +1480,19 @@ void ghostcon_screen_set_scroll_region(ghostcon_screen_t *s,
     }
     else
     {
-        /* top/bottom come straight from a raw CSI param (only negative via
-         * an int16_t wrap from a huge value, caught above) -- a mid-range
-         * value like 30000 on a ~50-row screen stays positive and would
-         * otherwise land here unclamped.
+        /* top/bottom come straight from a raw CSI param (only negative via an
+         * int16_t wrap from a huge value, caught above)
          *
-         * Every consumer of scroll_region.top/bottom assumes it's a real
-         * row range: row_idx()'s modulo keeps individual accesses in bounds
-         * regardless, but region_height = bottom - top + 1 feeds straight
-         * into scroll_up/down's per-line history-push loop (a real malloc
-         * per iteration) and IL/DL's row-copy loops -- an unclamped
-         * region_height turns one escape sequence into an unbounded
+         * a mid-range value like 30000 on a ~50-row screen stays positive and
+         * would otherwise land here unclamped.
+         *
+         * Every consumer of scroll_region.top/bottom assumes it's a real row
+         * range: row_idx()'s modulo keeps individual accesses in bounds
+         * regardless, but region_height = bottom - top + 1 feeds straight into
+         * scroll_up/down's per-line history-push loop (a real malloc per
+         * iteration) and IL/DL's row-copy loops
+         *
+         * an unclamped region_height turns one escape sequence into an unbounded
          * allocation storm.
          *
          * Clamp to the actual screen before storing.
@@ -1486,8 +1528,9 @@ void ghostcon_screen_set_margin_region(ghostcon_screen_t *s,
     }
     else
     {
-        /* Same class of gap as set_scroll_region above -- clamp against the
-         * actual column count.
+        /* Same class of gap as set_scroll_region above
+         *
+         * clamp against the actual column count.
          */
         int16_t max_col = (int16_t)(s->cols - 1);
         s->margin_region.left = left > max_col ? max_col : left;
@@ -1604,8 +1647,10 @@ ghostcon_screen_set_style(ghostcon_screen_t *s,
     return style_id;
 }
 
-/* Apply an SGR attribute — this is a thin wrapper that will be expanded
- * when integrated with libghostty-vt's SGR parser. For now, a no-op.
+/* Apply an SGR attribute
+ *
+ * this is a thin wrapper that will be expanded when integrated with
+ * libghostty-vt's SGR parser. For now, a no-op.
  */
 ghostcon_style_t
 ghostcon_screen_apply_sgr_attribute(const ghostcon_style_t *base,
@@ -1700,8 +1745,9 @@ void ghostcon_screen_scroll_view(ghostcon_screen_t *s, int delta)
 
     s->view_offset = (uint16_t)new_offset;
 
-    /* The whole viewport's content just changed (scrolled), not any one
-     * line -- mark everything dirty rather than diffing old vs new per-row.
+    /* The whole viewport's content just changed (scrolled), not any one line
+     *
+     * mark everything dirty rather than diffing old vs new per-row.
      */
     s->dirty.y_min = 0;
     s->dirty.y_max = (int16_t)(s->rows_visible - 1);

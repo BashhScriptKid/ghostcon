@@ -2,13 +2,15 @@
 
 #include <string.h>
 
-/* Real Ghostty theme catalog, generated from Ghostty's own bundled theme
- * files -- see theme_ghostty_presets.c and tools/gen_ghostty_themes.py.
+/* Real Ghostty theme catalog, generated from Ghostty's own bundled theme files
  *
- * Colors are stored as hex strings there (not pre-parsed RGB) so the
- * generator doesn't need its own hex-parsing implementation -- it reuses
- * ghostcon_color_parse_spec() below instead, same as everywhere else in the
- * codebase that accepts a color-spec string.
+ * see theme_ghostty_presets.c and tools/gen_ghostty_themes.py.
+ *
+ * Colors are stored as hex strings there (not pre-parsed RGB) so the generator
+ * doesn't need its own hex-parsing implementation
+ *
+ * it reuses ghostcon_color_parse_spec() below instead, same as everywhere else in
+ * the codebase that accepts a color-spec string.
  */
 typedef struct
 {
@@ -43,8 +45,10 @@ static const theme_preset_t PRESETS[] = {
         .fg = RGB(0xd8d8d8), .bg = RGB(0x181818), .cursor = RGB(0xd8d8d8),
     },
     {
-        /* Base16 Default Light -- same accent colors as -dark, the
-         * grayscale ramp inverts (matches base16's own light variant).
+        /* Base16 Default Light
+         *
+         * same accent colors as -dark, the grayscale ramp inverts (matches
+         * base16's own light variant).
          */
         .name = "base16-light",
         .ansi = {
@@ -69,8 +73,9 @@ static const theme_preset_t PRESETS[] = {
         .fg = RGB(0x839496), .bg = RGB(0x002b36), .cursor = RGB(0x839496),
     },
     {
-        /* Same 16-color table as solarized-dark (this is how real Solarized
-         * works -- only fg/bg swap between variants), light background.
+        /* Same 16-color table as solarized-dark (this is how real Solarized works
+         *
+         * only fg/bg swap between variants), light background.
          */
         .name = "solarized-light",
         .ansi = {
@@ -103,15 +108,17 @@ ghostcon_theme_apply(ghostcon_palette_t *pal, const char *name)
         return true;
     }
 
-    /* Fall back to the generated Ghostty catalog -- case-sensitive exact
-     * match, same as Ghostty's own theme names, so a `theme = "..."` value
-     * copied verbatim out of a real Ghostty config just works.
+    /* Fall back to the generated Ghostty catalog
      *
-     * A malformed hex string in one of these (shouldn't happen -- the
-     * generator only emits values ghostcon_color_parse_spec already
-     * validated) just leaves that one slot unset rather than aborting the
-     * whole theme, same "degrade gracefully" convention used elsewhere in
-     * this codebase.
+     * case-sensitive exact match, same as Ghostty's own theme names, so a `theme
+     * = "..."` value copied verbatim out of a real Ghostty config just works.
+     *
+     * A malformed hex string in one of these (shouldn't happen
+     *
+     * the generator only emits values ghostcon_color_parse_spec already
+     * validated) just leaves that one slot unset rather than aborting the whole
+     * theme, same "degrade gracefully" convention used elsewhere in this
+     * codebase.
      */
     for (int i = 0; i < GHOSTCON_GHOSTTY_PRESET_COUNT; i++)
     {

@@ -103,21 +103,28 @@ and this list together.
 ### Comments — wrapped block style
 
 ```c
-/* First line of the paragraph
- * continuation wrapped at 76 columns
+/* Formats "CLEAR\n" into buf. Returns written length, or 0 if it
+ * wouldn't fit.
  *
- * next paragraph
+ * Sent over the control socket by pty_child.c when its session dies
+ *
+ * Tells ghostcon-core the previous owner is gone, so it can wipe the
+ * display and scrollback instead of leaving the old screenful under the
+ * new login prompt.
  */
 ```
 
 Docs are meant to be brief. Keep prose paragraphs to at most ~3
-wrapped lines, one idea each, with a blank ` *` between paragraphs.
-Prefer separate sentences (periods) over semicolon or em-dash chains.
+wrapped lines at ~82 columns, one idea each, with a blank ` *` between
+paragraphs. Lowercase detail paragraphs (`pass 0/0 ...`, `see ...`) are
+fine; capitalization and terminal periods are not enforced. Prefer
+separate paragraphs over semicolon or em-dash chains.
+
 Enumerations should be separate `- item` paragraphs, or label lines with
 indented descriptions. The formatter splits long paragraphs at sentence
-boundaries, separates semicolons before common connectors, and repairs
-dropped sentence boundaries (period + capitalized new sentence) rather
-than gluing fragments together.
+boundaries and starts a new lowercase paragraph at semicolons before
+common connectors. It does not mechanically split em dashes: those need
+hand editing, because blind splitting breaks parentheticals.
 
 Inline/trailing comments are untouched. License headers, ASCII banners,
 comments inside `#define` continuations, and verbatim code/table blocks

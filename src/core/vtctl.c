@@ -25,30 +25,34 @@ struct ghostcon_vtctl {
 
 /* Console keyboard modes that disable the kernel's own console-switch keys.
  *
- * Ctrl+Alt+Fn is a KT_CONS key: in kbd_keycode() (drivers/tty/vt/
- * keyboard.c) every key type except KT_SPEC/KT_SHIFT is dropped before its
- * handler runs whenever kbdmode is VC_RAW, VC_MEDIUMRAW, or VC_OFF — so
- * k_cons()/set_console() never executes, the kernel never initiates a
- * switch, and our VT_PROCESS handshake (SIGUSR2 -> VT_RELDISP) never fires.
+ * Ctrl+Alt+Fn is a KT_CONS key: in kbd_keycode() (drivers/tty/vt/ keyboard.c)
+ * every key type except KT_SPEC/KT_SHIFT is dropped before its handler runs
+ * whenever kbdmode is VC_RAW, VC_MEDIUMRAW, or VC_OFF
  *
- * Found live: Ctrl+Alt+Fn was completely dead inside a ghostcon session
- * with the active tty2 reporting kb_mode=K_OFF.
+ * so k_cons()/set_console() never executes, the kernel never initiates a switch,
+ * and our VT_PROCESS handshake (SIGUSR2 -> VT_RELDISP) never fires.
  *
- * The mode is kernel state that survives a renderer restart, so taking over
- * a VT a previous owner (kmscon sets K_OFF and does not always restore it
- * on an unclean exit) left in one of these silently breaks VT switching for
- * ghostcon's entire lifetime — ghostcon relies on the kernel's own switch
- * handling rather than implementing it itself (unlike kmscon's
- * --no-switchvt), so it needs the switch key to keep working.
+ * Found live: Ctrl+Alt+Fn was completely dead inside a ghostcon session with the
+ * active tty2 reporting kb_mode=K_OFF.
+ *
+ * The mode is kernel state that survives a renderer restart, so taking over a VT
+ * a previous owner (kmscon sets K_OFF and does not always restore it on an
+ * unclean exit) left in one of these silently breaks VT switching for ghostcon's
+ * entire lifetime
+ *
+ * ghostcon relies on the kernel's own switch handling rather than implementing it
+ * itself (unlike kmscon's --no-switchvt), so it needs the switch key to keep
+ * working.
  */
 static bool kbd_mode_blocks_vt_switch(int mode)
 {
     return mode == K_OFF || mode == K_RAW || mode == K_MEDIUMRAW;
 }
 
-/* Signal handlers can't take arbitrary context, and PLAN.md's architecture
- * is one process per VT, so one static instance is the whole story — see
- * the header's "only one per process" note.
+/* Signal handlers can't take arbitrary context, and PLAN.md's architecture is one
+ * process per VT, so one static instance is the whole story
+ *
+ * see the header's "only one per process" note.
  */
 static ghostcon_vtctl_t *g_instance;
 
@@ -57,9 +61,10 @@ static void signal_handler(int signum)
     if (!g_instance)
         return;
     char c = (signum == SIGUSR1) ? 'A' : 'R';
-    /* write() is async-signal-safe; errors here are unrecoverable from a
-     * signal handler anyway (the self-pipe should never be full — at most
-     * one byte per VT switch is ever pending).
+    /* write() is async-signal-safe; errors here are unrecoverable from a signal
+     * handler anyway (the self-pipe should never be full
+     *
+     * at most one byte per VT switch is ever pending).
      */
     ssize_t unused = write(g_instance->pipe_fds[1], &c, 1);
     (void)unused;
@@ -144,18 +149,17 @@ ghostcon_vtctl_open(int vt_num)
         goto fail_pipe;
     }
 
-    /* KDSETMODE(KD_GRAPHICS) helps the console but does NOT stop the kernel
-     * from dropping the console-switch keys; a stale K_OFF/raw mode
-     * inherited from a previous owner does, and that silently kills the
-     * very VT-switch keys this handshake depends on (see
-     * kbd_mode_blocks_vt_switch()'s own comment).
+    /* KDSETMODE(KD_GRAPHICS) helps the console but does NOT stop the kernel from
+     * dropping the console-switch keys; a stale K_OFF/raw mode inherited from a
+     * previous owner does, and that silently kills the very VT-switch keys this
+     * handshake depends on (see kbd_mode_blocks_vt_switch()'s own comment).
      *
-     * Override to a switching-capable mode when needed, remembering the old
-     * value so a clean shutdown can put it back.
+     * Override to a switching-capable mode when needed, remembering the old value
+     * so a clean shutdown can put it back.
      *
-     * Best-effort: a failed KDGKBMODE/ KDSKBMODE is logged, not fatal —
-     * worst case VT switching stays as broken as it already was, never
-     * worse.
+     * Best-effort: a failed KDGKBMODE/ KDSKBMODE is logged, not fatal
+     *
+     * worst case VT switching stays as broken as it already was, never worse.
      *
      * Placed after VT_SETMODE so no earlier failure path has to unwind it.
      */
@@ -176,8 +180,10 @@ ghostcon_vtctl_open(int vt_num)
     if (!currently_active(vt->fd, vt_num, &active))
     {
         fprintf(stderr, "vtctl: VT_GETSTATE on %s: %s\n", path, strerror(errno));
-        /* Not fatal — default to INACTIVE, the safe assumption (never claim
-         * DRM master we weren't told we hold).
+        /* Not fatal
+         *
+         * default to INACTIVE, the safe assumption (never claim DRM master we
+         * weren't told we hold).
          */
     }
     vt->state = active ? GC_VT_STATE_ACTIVE : GC_VT_STATE_INACTIVE;
@@ -207,14 +213,14 @@ void ghostcon_vtctl_close(ghostcon_vtctl_t *vt)
     ioctl(vt->fd, VT_SETMODE, &vtm);
     ioctl(vt->fd, KDSETMODE, KD_TEXT);
 
-    /* Restore the keyboard mode only if it wasn't itself a
-     * switching-blocking one.
+    /* Restore the keyboard mode only if it wasn't itself a switching-blocking
+     * one.
      *
-     * Putting K_OFF/K_RAW/K_MEDIUMRAW back would hand the VT to whatever
-     * runs next (a getty, another renderer) in the exact state
-     * kbd_mode_blocks_vt_switch() exists to repair, so a mode this module
-     * had to override is deliberately left as the usable K_UNICODE instead
-     * of being faithfully (and uselessly) restored.
+     * Putting K_OFF/K_RAW/K_MEDIUMRAW back would hand the VT to whatever runs
+     * next (a getty, another renderer) in the exact state
+     * kbd_mode_blocks_vt_switch() exists to repair, so a mode this module had to
+     * override is deliberately left as the usable K_UNICODE instead of being
+     * faithfully (and uselessly) restored.
      */
     if (vt->saved_kbd_mode >= 0 && !kbd_mode_blocks_vt_switch(vt->saved_kbd_mode))
         ioctl(vt->fd, KDSKBMODE, vt->saved_kbd_mode);
@@ -252,10 +258,11 @@ void ghostcon_vtctl_process_pending(ghostcon_vtctl_t *vt,
     char last = 0;
 
     /* Multiple signals may have coalesced in the pipe (e.g. a rapid
-     * release-then-reacquire); only the final one reflects reality, but we
-     * still ack every VT_RELDISP the kernel is waiting on — draining and
-     * acking on the LAST byte's meaning is wrong if there were both an 'R'
-     * and a later 'A' pending, since each needs its own specific ack call
+     * release-then-reacquire); only the final one reflects reality, but we still
+     * ack every VT_RELDISP the kernel is waiting on
+     *
+     * draining and acking on the LAST byte's meaning is wrong if there were both
+     * an 'R' and a later 'A' pending, since each needs its own specific ack call
      * (VT_RELDISP with different arguments).
      *
      * So process each byte as it's drained, not just the last one.
@@ -267,12 +274,13 @@ void ghostcon_vtctl_process_pending(ghostcon_vtctl_t *vt,
             last = buf[i];
             if (last == 'R')
             {
-                /* pre_ack('R', ...) must call drmDropMaster() before
-                 * returning — see this function's own header doc comment
-                 * for why the ordering matters here specifically (found
-                 * live: paging back to the desktop hung on a black screen
-                 * until forced through an unrelated VT, because this ack
-                 * used to go out before master was actually dropped).
+                /* pre_ack('R', ...) must call drmDropMaster() before returning
+                 *
+                 * see this function's own header doc comment for why the ordering
+                 * matters here specifically (found live: paging back to the
+                 * desktop hung on a black screen until forced through an
+                 * unrelated VT, because this ack used to go out before master was
+                 * actually dropped).
                  */
                 if (pre_ack)
                     pre_ack('R', userdata);

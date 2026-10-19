@@ -1,19 +1,24 @@
-/* headless_probe -- one-off diagnostic tool (not registered as a meson
- * test/install target on purpose): runs a real child program (e.g. nmtui)
- * under a pty, feeds its output through the real term pipeline, and renders
- * one frame headlessly (DRM render node, no display/DRM master needed
- * --same setup as tools/bench_render.c) to a PPM screenshot, so a
- * background-color rendering bug can be eyeballed without needing to be
- * physically at the console.
+/* headless_probe
+ *
+ * one-off diagnostic tool (not registered as a meson test/install target on
+ * purpose): runs a real child program (e.g. nmtui) under a pty, feeds its output
+ * through the real term pipeline, and renders one frame headlessly (DRM render
+ * node, no display/DRM master needed --same setup as tools/bench_render.c) to a
+ * PPM screenshot, so a background-color rendering bug can be eyeballed without
+ * needing to be physically at the console.
  *
  * Usage: headless_probe <out.ppm> <viewport_w> <viewport_h> <font_size>
- * [settle_ms] [font_family] [font_variant] -- <cmd> [args...] cols/rows are
- * DERIVED from viewport_w/viewport_h and the real cell metrics for the
- * given font (same order of operations as core/main.c: cell size first,
- * then cols=width/cell_w, rows= height/cell_h) -- not passed directly -- so
- * this can be pointed at the exact real display size (e.g. 1920x1080) and
- * font config a live ghostcon-core session uses, instead of an arbitrary
- * grid whose cols/rows a TUI's own layout math may treat very differently.
+ * [settle_ms] [font_family] [font_variant]
+ *
+ * <cmd> [args...] cols/rows are DERIVED from viewport_w/viewport_h and the real
+ * cell metrics for the given font (same order of operations as core/main.c: cell
+ * size first, then cols=width/cell_w, rows= height/cell_h)
+ *
+ * not passed directly
+ *
+ * so this can be pointed at the exact real display size (e.g. 1920x1080) and font
+ * config a live ghostcon-core session uses, instead of an arbitrary grid whose
+ * cols/rows a TUI's own layout math may treat very differently.
  */
 
 #define _DEFAULT_SOURCE
@@ -131,11 +136,11 @@ main(int argc, char **argv)
     if (start_small)
     {
         /* Give the child a moment to start up at the placeholder size, then
-         * deliver a REAL size change (not a same-size no-op) --this is what
-         * a real windowed terminal typically does (pty created at a
-         * default/placeholder size, then resized once the actual window
-         * geometry is known), and is what HEADLESS_PROBE_WINCH's no-op
-         * SIGWINCH test didn't cover.
+         * deliver a REAL size change (not a same-size no-op) --this is what a
+         * real windowed terminal typically does (pty created at a
+         * default/placeholder size, then resized once the actual window geometry
+         * is known), and is what HEADLESS_PROBE_WINCH's no-op SIGWINCH test
+         * didn't cover.
          */
         usleep(150000);
         struct winsize real_ws = { .ws_row = rows, .ws_col = cols,

@@ -6,10 +6,12 @@
 #include "screen.h"
 #include "stream.h"
 
-/* Terminal — top-level terminal instance
+/* Terminal
  *
- * Orchestrates screen + stream + (future: color, selection, etc.) This is
- * the main API surface for ghostcon-core.
+ * top-level terminal instance
+ *
+ * Orchestrates screen + stream + (future: color, selection, etc.) This is the
+ * main API surface for ghostcon-core.
  */
 
 typedef struct
@@ -50,8 +52,10 @@ void ghostcon_term_set_output(ghostcon_term_t *term,
 
 /* Title channel
  *
- * Register a callback for OSC 0/2 (window/icon title). ghostcon-core
- * repurposes this as process identity — see PLAN.md.
+ * Register a callback for OSC 0/2 (window/icon title). ghostcon-core repurposes
+ * this as process identity
+ *
+ * see PLAN.md.
  */
 
 void ghostcon_term_set_title(ghostcon_term_t *term,
@@ -59,8 +63,9 @@ void ghostcon_term_set_title(ghostcon_term_t *term,
 
 /* Notify channel
  *
- * Register a callback for OSC 9/777 (desktop notifications, stub tier — see
- * stream.h's notify_fn doc comment).
+ * Register a callback for OSC 9/777 (desktop notifications, stub tier
+ *
+ * see stream.h's notify_fn doc comment).
  */
 
 void ghostcon_term_set_notify(ghostcon_term_t *term,

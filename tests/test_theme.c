@@ -1,7 +1,9 @@
-/* test_theme — covers term/theme.c's named presets: every preset name is
- * recognized and produces a sane, non-degenerate palette (distinct fg/bg,
- * all 16 ANSI slots actually set), and an unrecognized/empty name is a
- * no-op (returns false, palette untouched) rather than an error.
+/* test_theme
+ *
+ * covers term/theme.c's named presets: every preset name is recognized and
+ * produces a sane, non-degenerate palette (distinct fg/bg, all 16 ANSI slots
+ * actually set), and an unrecognized/empty name is a no-op (returns false,
+ * palette untouched) rather than an error.
  */
 
 #include "ghostcon/term/theme.h"
@@ -52,9 +54,11 @@ int main(void)
         CHECK(any_differs, msg);
     }
 
-    /* Real Ghostty theme catalog fallback (generated from Ghostty's own
-     * bundled theme files -- see theme_ghostty_presets.c). Case-sensitive
-     * exact match, same as Ghostty's own theme names.
+    /* Real Ghostty theme catalog fallback (generated from Ghostty's own bundled
+     * theme files
+     *
+     * see theme_ghostty_presets.c). Case-sensitive exact match, same as Ghostty's
+     * own theme names.
      */
     {
         ghostcon_palette_t pal;

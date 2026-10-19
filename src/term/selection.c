@@ -45,9 +45,10 @@ bool ghostcon_selection_row_range(const ghostcon_selection_t *sel, int16_t y, in
     int16_t xstart, xend;
     if (sel->kind == GC_SEL_RECT || ymin == ymax)
     {
-        /* Rect selection, or a single-row char selection -- both are
-         * bounded by the drag's x-extent regardless of which endpoint came
-         * first.
+        /* Rect selection, or a single-row char selection
+         *
+         * both are bounded by the drag's x-extent regardless of which endpoint
+         * came first.
          */
         xstart = sel->x1 < sel->x2 ? sel->x1 : sel->x2;
         xend   = sel->x1 > sel->x2 ? sel->x1 : sel->x2;
@@ -90,11 +91,13 @@ bool ghostcon_selection_contains(const ghostcon_selection_t *sel, int16_t x, int
     return x >= xstart && x <= xend;
 }
 
-/* Minimal UTF-8 encoder for a single codepoint -- no existing helper in the
- * tree does this (glyph/atlas code works in codepoints, not UTF-8 bytes).
+/* Minimal UTF-8 encoder for a single codepoint
  *
- * Returns bytes written (1-4), or 0 if `out_len` is too small to fit the
- * encoded codepoint.
+ * no existing helper in the tree does this (glyph/atlas code works in codepoints,
+ * not UTF-8 bytes).
+ *
+ * Returns bytes written (1-4), or 0 if `out_len` is too small to fit the encoded
+ * codepoint.
  */
 static size_t utf8_encode(uint32_t cp, char *out, size_t out_len)
 {
@@ -154,16 +157,17 @@ size_t ghostcon_selection_extract_text(ghostcon_screen_t *screen, char *out, siz
             ghostcon_cell_t cell = row->cells[x];
             if (ghostcon_cell_get_wide(cell) == GHOSTCON_CELL_WIDE_SPACER_TAIL)
                 continue; /* second half of a wide glyph -- already emitted */
-            /* ghostcon_cell_has_text() is NOT the right predicate here -- a
-             * totally blank, never-written cell still has tag
-             * GHOSTCON_CELL_CODEPOINT (0, the default), so has_text()
-             * returns true for it with codepoint 0, which would encode as a
-             * literal NUL byte instead of a space.
+            /* ghostcon_cell_has_text() is NOT the right predicate here
              *
-             * Check both: is_empty() (c.raw == 0, "nothing was ever
-             * written") and an explicit codepoint-0 cell that DOES have the
-             * text tag set but was written with a NUL (defensive, same net
-             * effect either way --treat as blank).
+             * a totally blank, never-written cell still has tag
+             * GHOSTCON_CELL_CODEPOINT (0, the default), so has_text() returns
+             * true for it with codepoint 0, which would encode as a literal NUL
+             * byte instead of a space.
+             *
+             * Check both: is_empty() (c.raw == 0, "nothing was ever written") and
+             * an explicit codepoint-0 cell that DOES have the text tag set but
+             * was written with a NUL (defensive, same net effect either way
+             * --treat as blank).
              */
             if (ghostcon_cell_is_empty(cell) || !ghostcon_cell_has_text(cell) ||
                 ghostcon_cell_get_codepoint(cell) == 0)
@@ -171,9 +175,11 @@ size_t ghostcon_selection_extract_text(ghostcon_screen_t *screen, char *out, siz
                 out[oi++] = ' ';
                 continue;
             }
-            /* Combining/grapheme-extension codepoints beyond the cell's
-             * base one are dropped for this pass -- an accepted
-             * simplification, not a correctness requirement (see PLAN.md).
+            /* Combining/grapheme-extension codepoints beyond the cell's base one
+             * are dropped for this pass
+             *
+             * an accepted simplification, not a correctness requirement (see
+             * PLAN.md).
              */
             uint32_t cp = ghostcon_cell_get_codepoint(cell);
             size_t n = utf8_encode(cp, out + oi, out_len - oi);

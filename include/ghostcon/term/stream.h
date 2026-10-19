@@ -42,23 +42,23 @@ typedef void (*ghostcon_output_fn)(void *userdata,
 /* Title channel
  *
  * OSC 0/2 (window/icon title) carries no rendering meaning on a bare TTY
- * --there's no window chrome. ghostcon-core repurposes it as process
- * identity (argv[0]/PR_SET_NAME, see PLAN.md's "Process identity" section),
- * which requires prctl()/argv rewriting the term layer has no business
- * doing --so the raw title string is handed up through this callback
- * instead of being interpreted here.
+ * --there's no window chrome. ghostcon-core repurposes it as process identity
+ * (argv[0]/PR_SET_NAME, see PLAN.md's "Process identity" section), which requires
+ * prctl()/argv rewriting the term layer has no business doing --so the raw title
+ * string is handed up through this callback instead of being interpreted here.
  */
 
 typedef void (*ghostcon_title_fn)(void *userdata, const char *title);
 
 /* Notify channel
  *
- * OSC 9/777 (desktop notifications) -- stub tier, no ghostcon-ipc broker
- * exists yet (PLAN.md's own deferred item), so the message is handed up
- * rather than acted on here; ghostcon-core logs it via core/diag.c, which
- * term/ deliberately has no dependency on (diag.c needs libsystemd; term/
- * stays usable standalone, e.g. by the ghostcon_dump tool and its tests,
- * without pulling that in).
+ * OSC 9/777 (desktop notifications)
+ *
+ * stub tier, no ghostcon-ipc broker exists yet (PLAN.md's own deferred item), so
+ * the message is handed up rather than acted on here; ghostcon-core logs it via
+ * core/diag.c, which term/ deliberately has no dependency on (diag.c needs
+ * libsystemd; term/ stays usable standalone, e.g. by the ghostcon_dump tool and
+ * its tests, without pulling that in).
  */
 
 typedef void (*ghostcon_notify_fn)(void *userdata, const char *message);
@@ -85,19 +85,20 @@ struct ghostcon_stream {
     bool                    apc_pending;    /* saw ESC mid-APC, awaiting '\' to confirm ST */
     bool                    apc_overflow;   /* payload exceeded buf_cap -- reject, don't truncate-and-accept */
 
-    /* Internal buffer for collecting OSC/DCS/APC data. local_buf's 6144
-     * bytes covers one Kitty graphics chunk (4096 base64 payload bytes, the
-     * protocol's own per-chunk cap, plus control-data slack) and any
-     * OSC/DCS payload that fits without growing.
+    /* Internal buffer for collecting OSC/DCS/APC data. local_buf's 6144 bytes
+     * covers one Kitty graphics chunk (4096 base64 payload bytes, the protocol's
+     * own per-chunk cap, plus control-data slack) and any OSC/DCS payload that
+     * fits without growing.
      *
-     * Un-chunked DCS payloads (sixel, which has no chunking mechanism in
-     * the protocol at all, unlike Kitty) routinely exceed that --see the
+     * Un-chunked DCS payloads (sixel, which has no chunking mechanism in the
+     * protocol at all, unlike Kitty) routinely exceed that --see the
      * DCS_PASSTHROUGH case in stream.c, which reallocates buf up to
-     * GHOSTCON_STREAM_DCS_MAX_BUF as needed rather than silently
-     * truncating. buf_cap/osc_len/dcs_len/apc_len are uint32_t (not
-     * uint16_t, the original size before sixel) for the same reason -- a
-     * 16-bit length field would itself have capped any single payload at
-     * 65535 bytes regardless of how big *buf was allowed to grow.
+     * GHOSTCON_STREAM_DCS_MAX_BUF as needed rather than silently truncating.
+     * buf_cap/osc_len/dcs_len/apc_len are uint32_t (not uint16_t, the original
+     * size before sixel) for the same reason
+     *
+     * a 16-bit length field would itself have capped any single payload at 65535
+     * bytes regardless of how big *buf was allowed to grow.
      */
     char    *buf;            /* allocated buffer (or local buffer for small) */
     uint32_t buf_cap;
@@ -117,13 +118,14 @@ struct ghostcon_stream {
     ghostcon_notify_fn       notify_fn;
     void                    *notify_userdata;
 
-    /* Renderer's current cell pixel size, needed to compute the
-     * post-placement cursor move Kitty graphics does by default (see
-     * ghostcon_kitty_graphics_handle's doc comment) -- 0 means unknown,
-     * which suppresses that move rather than guessing wrong.
+    /* Renderer's current cell pixel size, needed to compute the post-placement
+     * cursor move Kitty graphics does by default (see
+     * ghostcon_kitty_graphics_handle's doc comment)
      *
-     * Set via ghostcon_stream_set_cell_size(); term/ has no other way to
-     * learn this since cell size is purely a rendering/font concept.
+     * 0 means unknown, which suppresses that move rather than guessing wrong.
+     *
+     * Set via ghostcon_stream_set_cell_size(); term/ has no other way to learn
+     * this since cell size is purely a rendering/font concept.
      */
     int32_t cell_w, cell_h;
 };

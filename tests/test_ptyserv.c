@@ -1,8 +1,10 @@
-/* test_ptyserv — Phase 1 acceptance test for ghost-ptyserv + pty-ttyN.
+/* test_ptyserv
  *
- * Starts ghost-ptyserv with a test config requesting one VT, connects a
- * fake renderer client to the pty child it spawns, and verifies
- * bidirectional byte flow and ring-buffer replay on reconnect.
+ * Phase 1 acceptance test for ghost-ptyserv + pty-ttyN.
+ *
+ * Starts ghost-ptyserv with a test config requesting one VT, connects a fake
+ * renderer client to the pty child it spawns, and verifies bidirectional byte
+ * flow and ring-buffer replay on reconnect.
  *
  * This is the exact acceptance test PLAN.md specifies for Phase 1 item 1.
  */
@@ -197,12 +199,13 @@ int main(void)
     }
     printf("PASS: ring buffer replay on reconnect\n");
 
-    /* Reliability fix verification: kill ghost-ptyserv itself directly (not
-     * the pty child), start a fresh instance pointed at the SAME registry
-     * socket, and confirm it recognizes and reuses the already-running
-     * pty-ttyN instead of spawning a duplicate -- the live session
-     * (renderer_fd2, still connected this whole time) must keep working
-     * straight through, uninterrupted.
+    /* Reliability fix verification: kill ghost-ptyserv itself directly (not the
+     * pty child), start a fresh instance pointed at the SAME registry socket, and
+     * confirm it recognizes and reuses the already-running pty-ttyN instead of
+     * spawning a duplicate
+     *
+     * the live session (renderer_fd2, still connected this whole time) must keep
+     * working straight through, uninterrupted.
      *
      * See ptyserv/main.c's spawn_pty_child() pidfile-liveness check and
      * pty_child.c's own setpgid(0,0) (which is what lets pty-ttyN survive
@@ -277,8 +280,9 @@ int main(void)
     printf("PASS: restarted ghost-ptyserv reused the existing pty-ttyN (pid %d, socket %s)\n",
            pty_child_pid2, pty_socket2);
 
-    /* The live session survived the whole thing -- renderer_fd2 has been
-     * connected since before ghost-ptyserv was ever killed.
+    /* The live session survived the whole thing
+     *
+     * renderer_fd2 has been connected since before ghost-ptyserv was ever killed.
      */
     const char *cmd2 = "echo STILL_ALIVE_GHOSTCON\n";
     write(renderer_fd2, cmd2, strlen(cmd2));

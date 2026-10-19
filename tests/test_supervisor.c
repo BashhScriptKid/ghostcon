@@ -1,10 +1,13 @@
-/* test_supervisor — drives supervisor[ttyN]'s state machine through each
- * scenario in PLAN.md's supervision layer, using tests/fake_renderer.c as a
- * stand-in for ghostcon-core (no real DRM/KMS/VT hardware needed).
+/* test_supervisor
  *
- * Observes supervisor's behavior via its stderr log lines, since it has no
- * other externally observable state (no status/query mechanism, by design
- * -- PLAN.md's canary is deliberately dumb).
+ * drives supervisor[ttyN]'s state machine through each scenario in PLAN.md's
+ * supervision layer, using tests/fake_renderer.c as a stand-in for ghostcon-core
+ * (no real DRM/KMS/VT hardware needed).
+ *
+ * Observes supervisor's behavior via its stderr log lines, since it has no other
+ * externally observable state (no status/query mechanism, by design
+ *
+ * PLAN.md's canary is deliberately dumb).
  */
 
 #define _DEFAULT_SOURCE
@@ -68,10 +71,11 @@ spawn_supervisor_with_registry(int *out_stderr_fd, const char *registry_socket)
     return pid;
 }
 
-/* Most scenarios don't touch ghost-ptyserv at all (fake_renderer.c's
- * default behavior ignores argv entirely -- see its own doc comment), so
- * this placeholder path is a deliberate no-op destination, not a real
- * socket anything connects to.
+/* Most scenarios don't touch ghost-ptyserv at all (fake_renderer.c's default
+ * behavior ignores argv entirely
+ *
+ * see its own doc comment), so this placeholder path is a deliberate no-op
+ * destination, not a real socket anything connects to.
  */
 static pid_t spawn_supervisor(int *out_stderr_fd)
 {
@@ -118,21 +122,24 @@ static bool wait_for_log(int fd, const char *needle, int timeout_ms)
 }
 
 /* Same idea as wait_for_log, but reads into a CALLER-OWNED, persistent
- * accumulator (buf/len) and only searches from *search_from onward --needed
- * for scenario_hang_preserves_session below, which chains several
- * sequential waits against one fast-moving log stream. wait_for_log's own
- * fresh-local-buffer-per-call design silently drops any bytes read past a
- * match in the same read() syscall (fine for the existing scenarios, which
- * only ever wait for one thing before tearing the supervisor down; not
- * sturdy enough here, where a burst -- e.g. "renderer hung" immediately
- * followed by the next instance's own startup lines -- landing in a single
- * read() would otherwise vanish before a later wait_for_log_seq call could
- * see it).
+ * accumulator (buf/len) and only searches from *search_from onward --needed for
+ * scenario_hang_preserves_session below, which chains several sequential waits
+ * against one fast-moving log stream. wait_for_log's own
+ * fresh-local-buffer-per-call design silently drops any bytes read past a match
+ * in the same read() syscall (fine for the existing scenarios, which only ever
+ * wait for one thing before tearing the supervisor down; not sturdy enough here,
+ * where a burst
  *
- * On success, *search_from advances to just past the match, so the caller
- * can inspect buf[old *search_from .. new *search_from] for anything
- * captured alongside the needle (e.g. a trailing pid via sscanf), and the
- * next call won't re-match the same occurrence.
+ * e.g. "renderer hung" immediately followed by the next instance's own startup
+ * lines
+ *
+ * landing in a single read() would otherwise vanish before a later
+ * wait_for_log_seq call could see it).
+ *
+ * On success, *search_from advances to just past the match, so the caller can
+ * inspect buf[old *search_from .. new *search_from] for anything captured
+ * alongside the needle (e.g. a trailing pid via sscanf), and the next call won't
+ * re-match the same occurrence.
  */
 static bool wait_for_log_seq(int fd, char *buf, size_t buf_cap, size_t *len,
                              size_t *search_from, const char *needle, int timeout_ms)
@@ -187,10 +194,11 @@ static int connect_unix(const char *path)
     return fd;
 }
 
-/* Spawns a REAL ghost-ptyserv (same fork/execl pattern as test_ptyserv.c)
- * rather than fake_renderer.c's usual no-hardware stand-in -- needed for
- * scenario_hang_preserves_session below, which has to observe a REAL pty
- * child surviving a hang, not just the canary protocol.
+/* Spawns a REAL ghost-ptyserv (same fork/execl pattern as test_ptyserv.c) rather
+ * than fake_renderer.c's usual no-hardware stand-in
+ *
+ * needed for scenario_hang_preserves_session below, which has to observe a REAL
+ * pty child surviving a hang, not just the canary protocol.
  */
 static pid_t spawn_ghost_ptyserv(const char *registry_socket, int vtnum)
 {
@@ -272,13 +280,14 @@ static void scenario_hang_and_respawn(void)
     setenv("FAKE_RENDERER_HANG_AFTER_MS", "150", 1);
     unsetenv("FAKE_RENDERER_EXIT_AFTER_MS");
     unsetenv("FAKE_RENDERER_NEVER_HEARTBEAT");
-    /* This scenario hits supervisor's wall_broadcast(vtnum, "hang") path
-     * for real -- without this, every meson test run genuinely paged
-     * whoever's logged in with a live "renderer hang, recovering" message.
+    /* This scenario hits supervisor's wall_broadcast(vtnum, "hang") path for real
      *
-     * Found live: the user saw one appear in their own terminal
-     * mid-session. scenario_startup_timeout_fallback already disables this
-     * for its own wall_broadcast() call.
+     * without this, every meson test run genuinely paged whoever's logged in with
+     * a live "renderer hang, recovering" message.
+     *
+     * Found live: the user saw one appear in their own terminal mid-session.
+     * scenario_startup_timeout_fallback already disables this for its own
+     * wall_broadcast() call.
      *
      * This scenario was just missing the same line.
      */
@@ -382,10 +391,10 @@ static void scenario_startup_timeout_fallback(void)
 
     char recovery_path[512];
     snprintf(recovery_path, sizeof(recovery_path), "%s/recovery-tty%d.json", run_dir, TEST_VT);
-    /* write_recovery_file() runs AFTER kill_and_reap()'s grace-period wait
-     * for the timed-out renderer (up to ~500ms), which itself runs after
-     * the "falling back" log line we just waited for --so the file may not
-     * exist yet the instant that line appears.
+    /* write_recovery_file() runs AFTER kill_and_reap()'s grace-period wait for
+     * the timed-out renderer (up to ~500ms), which itself runs after the "falling
+     * back" log line we just waited for --so the file may not exist yet the
+     * instant that line appears.
      */
     FILE *f = NULL;
     for (int i = 0; i < 20 && !f; i++)
@@ -428,16 +437,15 @@ cleanup:
 }
 
 /* Deepens scenario_hang_and_respawn to the full induced-hang checklist from
- * PLAN.md's Testing strategy section, points 2-5 specifically (point 1,
- * deadline timing, and point 6, wall rate-limiting, are covered elsewhere):
- * with a REAL ghost-ptyserv + pty child + shell in the loop
- * (fake_renderer's FAKE_RENDERER_REAL_PTY mode, see that file's own doc
- * comment), confirms the pty child survives the hung renderer's SIGKILL,
- * the recovery file records that pty child's REAL pid (not the -1
- * placeholder every recovery file used to contain --see
- * query_pty_child_pid() in supervisor/main.c), and the respawned renderer's
- * ring-buffer replay actually contains output from BEFORE the hang
- * --proving session continuity, not just "a shell appeared."
+ * PLAN.md's Testing strategy section, points 2-5 specifically (point 1, deadline
+ * timing, and point 6, wall rate-limiting, are covered elsewhere): with a REAL
+ * ghost-ptyserv + pty child + shell in the loop (fake_renderer's
+ * FAKE_RENDERER_REAL_PTY mode, see that file's own doc comment), confirms the pty
+ * child survives the hung renderer's SIGKILL, the recovery file records that pty
+ * child's REAL pid (not the -1 placeholder every recovery file used to contain
+ * --see query_pty_child_pid() in supervisor/main.c), and the respawned renderer's
+ * ring-buffer replay actually contains output from BEFORE the hang --proving
+ * session continuity, not just "a shell appeared."
  */
 static void scenario_hang_preserves_session(void)
 {
@@ -476,18 +484,20 @@ static void scenario_hang_preserves_session(void)
     }
 
     /* Unlike the other scenarios' 300ms, this needs real headroom:
-     * fake_renderer's REAL_PTY block (connect + a check-marker read loop
-     * that can legitimately run for its own full 1000ms window on the FIRST
-     * instance, which has nothing to find yet) all happens BEFORE the first
-     * heartbeat byte, and that whole block counts against the startup race
-     * timer -- the same deadline value as the ongoing hang check (see
-     * supervisor/main.c's file comment: "the startup race timer and the
-     * ongoing canary are the SAME mechanism"). 300ms was tight enough to
-     * make the FIRST instance look like a startup timeout instead of
-     * reaching ACTIVE (found live).
+     * fake_renderer's REAL_PTY block (connect + a check-marker read loop that can
+     * legitimately run for its own full 1000ms window on the FIRST instance,
+     * which has nothing to find yet) all happens BEFORE the first heartbeat byte,
+     * and that whole block counts against the startup race timer
      *
-     * FAKE_RENDERER_HANG_AFTER_MS is unaffected by this -- it's measured
-     * from AFTER the REAL_PTY block completes, not from process start.
+     * the same deadline value as the ongoing hang check (see supervisor/main.c's
+     * file comment: "the startup race timer and the ongoing canary are the SAME
+     * mechanism"). 300ms was tight enough to make the FIRST instance look like a
+     * startup timeout instead of reaching ACTIVE (found live).
+     *
+     * FAKE_RENDERER_HANG_AFTER_MS is unaffected by this
+     *
+     * it's measured from AFTER the REAL_PTY block completes, not from process
+     * start.
      */
     setenv("GHOSTCON_CANARY_DEADLINE_MS", "2000", 1);
     setenv("FAKE_RENDERER_HANG_AFTER_MS", "600", 1);
@@ -535,12 +545,12 @@ static void scenario_hang_preserves_session(void)
         printf("PASS: real pty child spawned (pid %d)\n", pid1);
     }
 
-    /* FAKE_RENDERER_HANG_AFTER_MS (600) + GHOSTCON_CANARY_DEADLINE_MS
-     * (2000, see its own comment above on why this scenario needs it wider
-     * than the other scenarios' 300) is the real floor here --needs
-     * comfortable margin past that, not the 2000ms this used to be (found
-     * live: same class of mistake as the ACTIVE-wait timeout above, just
-     * for the hang side of the same widened deadline).
+    /* FAKE_RENDERER_HANG_AFTER_MS (600) + GHOSTCON_CANARY_DEADLINE_MS (2000, see
+     * its own comment above on why this scenario needs it wider than the other
+     * scenarios' 300) is the real floor here --needs comfortable margin past
+     * that, not the 2000ms this used to be (found live: same class of mistake as
+     * the ACTIVE-wait timeout above, just for the hang side of the same widened
+     * deadline).
      */
     if (!wait_for_log_seq(stderr_fd, log, sizeof(log), &log_len, &pos,
                           "renderer hung", 4000))
@@ -611,11 +621,11 @@ static void scenario_hang_preserves_session(void)
     }
 
     /* Ring-buffer replay carrying prior session output across the respawn
-     * -- the actual "session continuity" proof, not just "a new shell
-     * appeared." See fake_renderer.c's own doc comment on why
-     * FAKE_RENDERER_CHECK_MARKER is checked BEFORE
-     * FAKE_RENDERER_WRITE_MARKER: this must be the SECOND instance finding
-     * the FIRST instance's marker, not an instance finding its own echo.
+     *
+     * the actual "session continuity" proof, not just "a new shell appeared." See
+     * fake_renderer.c's own doc comment on why FAKE_RENDERER_CHECK_MARKER is
+     * checked BEFORE FAKE_RENDERER_WRITE_MARKER: this must be the SECOND instance
+     * finding the FIRST instance's marker, not an instance finding its own echo.
      */
     if (!wait_for_log_seq(stderr_fd, log, sizeof(log), &log_len, &pos,
                           "REPLAY: marker found", 3000))
@@ -641,19 +651,21 @@ cleanup_supervisor:
     kill_supervisor_tree(sup_pid);
     close(stderr_fd);
 cleanup_ptyserv:
-    /* Kill the pty child too, not just ghost-ptyserv -- it's a SEPARATE
-     * process (ghost-ptyserv forks one per VT on first registry GET), so
-     * killing ghost-ptyserv alone leaves it orphaned and still running,
+    /* Kill the pty child too, not just ghost-ptyserv
+     *
+     * it's a SEPARATE process (ghost-ptyserv forks one per VT on first registry
+     * GET), so killing ghost-ptyserv alone leaves it orphaned and still running,
      * still holding open the copies of this test binary's stdout/stderr it
      * inherited across the fork/exec chain.
      *
-     * Found live: under meson's test harness (which reads those fds to EOF
-     * to capture output) that orphan kept the pipe open long after this
-     * function itself returned, making the whole test process look hung for
-     * the remainder of meson's timeout even though every scenario had
-     * already finished and printed its result -- a plain terminal run of
-     * the same binary never showed this, since nothing there was blocked
-     * reading those fds to EOF.
+     * Found live: under meson's test harness (which reads those fds to EOF to
+     * capture output) that orphan kept the pipe open long after this function
+     * itself returned, making the whole test process look hung for the remainder
+     * of meson's timeout even though every scenario had already finished and
+     * printed its result
+     *
+     * a plain terminal run of the same binary never showed this, since nothing
+     * there was blocked reading those fds to EOF.
      */
     if (pid1 > 0)
         kill(pid1, SIGKILL);
@@ -674,13 +686,15 @@ cleanup_rundir:
 /* Point 6 of PLAN.md's induced-hang checklist: repeated triggers within one
  * rate-limit window should only broadcast once.
  *
- * Doesn't need a real pty child (unlike scenario_hang_preserves_session
- * above) -- just the supervisor cycling through several hang/respawn rounds
- * and GHOSTCON_WALL_DEBUG_LOG counting how many broadcasts it would have
- * made (see wall_broadcast()'s own comment on why this, not
- * GHOSTCON_DISABLE_WALL, is what a rate-limit test needs -- the disable
- * path skips the rate-limit bookkeeping entirely, so it can never be used
- * to test the limiter itself).
+ * Doesn't need a real pty child (unlike scenario_hang_preserves_session above)
+ *
+ * just the supervisor cycling through several hang/respawn rounds and
+ * GHOSTCON_WALL_DEBUG_LOG counting how many broadcasts it would have made (see
+ * wall_broadcast()'s own comment on why this, not GHOSTCON_DISABLE_WALL, is what
+ * a rate-limit test needs
+ *
+ * the disable path skips the rate-limit bookkeeping entirely, so it can never be
+ * used to test the limiter itself).
  */
 static void scenario_wall_rate_limit(void)
 {
@@ -690,11 +704,11 @@ static void scenario_wall_rate_limit(void)
     unsetenv("FAKE_RENDERER_NEVER_HEARTBEAT");
     unsetenv("GHOSTCON_DISABLE_WALL"); /* must NOT be set -- see above */
     setenv("GHOSTCON_WALL_DEBUG_LOG", "1", 1);
-    /* Wider than this scenario's whole observation window below, so every
-     * hang after the first one falls inside the same window and must be
-     * suppressed -- the real 60s default would make this test either flaky
-     * (window too short relative to it) or slow (window long enough to be
-     * safe).
+    /* Wider than this scenario's whole observation window below, so every hang
+     * after the first one falls inside the same window and must be suppressed
+     *
+     * the real 60s default would make this test either flaky (window too short
+     * relative to it) or slow (window long enough to be safe).
      */
     setenv("GHOSTCON_WALL_RATE_LIMIT_SECS", "5", 1);
 
@@ -707,11 +721,11 @@ static void scenario_wall_rate_limit(void)
         goto cleanup;
     }
 
-    /* Drain stderr for a fixed window (long enough for several ~(100ms
-     * hang-after + 200ms canary-deadline + respawn grace) cycles) counting
-     * both "renderer hung" and "would wall-broadcast" occurrences, rather
-     * than waiting for any single needle -- this scenario's assertion is
-     * about a COUNT across the whole window, not a single event's presence.
+    /* Drain stderr for a fixed window (long enough for several ~(100ms hang-after
+     * + 200ms canary-deadline + respawn grace) cycles) counting both "renderer
+     * hung" and "would wall-broadcast" occurrences, rather than waiting for any
+     * single needle -- this scenario's assertion is about a COUNT across the
+     * whole window, not a single event's presence.
      */
     char acc[16384];
     size_t acc_len = 0;

@@ -4,19 +4,21 @@
 
 /* Named theme presets
  *
- * A small, curated set (not an attempt at Ghostty's full catalog of
- * hundreds -- that's mostly data entry with little design value. Add more
- * here later if a specific one is wanted).
+ * A small, curated set (not an attempt at Ghostty's full catalog of hundreds
+ *
+ * that's mostly data entry with little design value. Add more here later if a
+ * specific one is wanted).
  *
  * Each preset sets the palette's 16 ANSI colors plus fg/bg/cursor defaults.
  *
- * The 216-color cube and grayscale ramp (232-255) are left untouched
- * --those are derived/computed, not part of any theme's identity, matching
- * how every terminal emulator's theme format works.
+ * The 216-color cube and grayscale ramp (232-255) are left untouched --those are
+ * derived/computed, not part of any theme's identity, matching how every terminal
+ * emulator's theme format works.
  *
- * Config layering (see config.h's `theme`/`[colors]`) applies a preset
- * first, then any explicit per-color overrides on top -- same precedent as
- * [cursor]'s preset-then-explicit-path layering.
+ * Config layering (see config.h's `theme`/`[colors]`) applies a preset first,
+ * then any explicit per-color overrides on top
+ *
+ * same precedent as [cursor]'s preset-then-explicit-path layering.
  */
 
 /* Applies the named preset to `pal` (16 ANSI colors + fg/bg/cursor).

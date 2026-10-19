@@ -94,16 +94,18 @@ typedef struct
     int16_t y_max;  /* last dirty line,  -1 if none */
 } ghostcon_dirty_region_t;
 
-/* Screen — the terminal screen buffer
+/* Screen
  *
- * Manages the grid, cursor, scrollback, alternate screen, and damage
- * tracking.
+ * the terminal screen buffer
+ *
+ * Manages the grid, cursor, scrollback, alternate screen, and damage tracking.
  */
-/* Tagged (not anonymous) specifically so lower-level headers that only need
- * a pointer type (e.g. selection.h's extract_text() declaration) can
+/* Tagged (not anonymous) specifically so lower-level headers that only need a
+ * pointer type (e.g. selection.h's extract_text() declaration) can
  * forward-declare `struct ghostcon_screen;` without including this header
- * -- screen.h itself includes selection.h transitively (via the `selection`
- * field below), so selection.h including screen.h back would be circular.
+ *
+ * screen.h itself includes selection.h transitively (via the `selection` field
+ * below), so selection.h including screen.h back would be circular.
  */
 struct ghostcon_screen {
     /* Grid */
@@ -118,12 +120,13 @@ struct ghostcon_screen {
     uint16_t         history_count;
     int16_t          history_head;  /* write cursor in history ring buffer */
 
-    /* How many lines back into `history` the VIEW currently is (0 = live,
-     * showing `rows`; up to history_count = fully scrolled back).
+    /* How many lines back into `history` the VIEW currently is (0 = live, showing
+     * `rows`; up to history_count = fully scrolled back).
      *
-     * Distinct from `scrollback_top` above, which is an internal
-     * ring-buffer rotation index for `rows` itself, not a user-facing
-     * scroll position — see ghostcon_screen_row()'s own doc comment.
+     * Distinct from `scrollback_top` above, which is an internal ring-buffer
+     * rotation index for `rows` itself, not a user-facing scroll position
+     *
+     * see ghostcon_screen_row()'s own doc comment.
      */
     uint16_t         view_offset;
 
@@ -158,10 +161,12 @@ struct ghostcon_screen {
     bool             insert_mode;          /* IRM */
     bool             application_cursor;  /* DECKPEM/Cursor keys app mode */
     bool             synchronized_output; /* Mode 2026 */
-    /* CLOCK_MONOTONIC timestamp of when synchronized_output last
-     * transitioned false->true -- lets core/main.c's render gate cap how
-     * long it'll withhold a frame if an app sets mode 2026 and never clears
-     * it (crash, bug), instead of freezing rendering forever.
+    /* CLOCK_MONOTONIC timestamp of when synchronized_output last transitioned
+     * false->true
+     *
+     * lets core/main.c's render gate cap how long it'll withhold a frame if an
+     * app sets mode 2026 and never clears it (crash, bug), instead of freezing
+     * rendering forever.
      *
      * Meaningless while synchronized_output is false.
      */
@@ -183,25 +188,29 @@ struct ghostcon_screen {
     /* Style management */
     ghostcon_style_set_t *styles;
 
-    /* OSC 8 — interned hyperlink URIs.
+    /* OSC 8
      *
-     * See hyperlink.h's doc comment for why this mirrors
-     * ghostcon_style_set_t's shape exactly. cursor's current hyperlink_id
-     * (above) is stamped onto each printed cell in print_cell(), same as
-     * style_id.
+     * interned hyperlink URIs.
+     *
+     * See hyperlink.h's doc comment for why this mirrors ghostcon_style_set_t's
+     * shape exactly. cursor's current hyperlink_id (above) is stamped onto each
+     * printed cell in print_cell(), same as style_id.
      */
     ghostcon_hyperlink_set_t *hyperlinks;
 
     /* Color palette */
     ghostcon_palette_t palette;
 
-    /* OSC 7 — last-reported current working directory (decoded from a
-     * file://[host]/path URI, host discarded). Empty string if the shell
-     * has never sent one.
+    /* OSC 7
+     *
+     * last-reported current working directory (decoded from a file://[host]/path
+     * URI, host discarded). Empty string if the shell has never sent one.
      */
     char cwd[1024];
 
-    /* OSC 133/633 — shell integration semantic-prompt state.
+    /* OSC 133/633
+     *
+     * shell integration semantic-prompt state.
      *
      * Stamped onto every printed cell (see print_cell() in screen.c) so the
      * renderer/overlay can later distinguish prompt/input/output text (e.g.
@@ -210,13 +219,17 @@ struct ghostcon_screen {
     ghostcon_cell_semantic_t semantic_current;
     int semantic_last_exit_code; /* -1 = no command has finished yet */
 
-    /* OSC 52 — clipboard, stub tier. Scoped to this single ghostcon[ttyN]
-     * instance only (no cross-VT sharing yet -- that needs the
-     * not-yet-built ghostcon-ipc broker).
+    /* OSC 52
      *
-     * Stored verbatim as the base64 payload OSC 52's own wire format
-     * already uses -- no decode/re-encode needed since the bytes are never
-     * inspected. Empty string if nothing has been copied yet.
+     * clipboard, stub tier. Scoped to this single ghostcon[ttyN] instance only
+     * (no cross-VT sharing yet
+     *
+     * that needs the not-yet-built ghostcon-ipc broker).
+     *
+     * Stored verbatim as the base64 payload OSC 52's own wire format already uses
+     *
+     * no decode/re-encode needed since the bytes are never inspected. Empty
+     * string if nothing has been copied yet.
      */
     char clipboard[4096];
 
@@ -228,21 +241,25 @@ struct ghostcon_screen {
 
     /* Kitty graphics protocol state (images + placements).
      *
-     * Lives here rather than on ghostcon_stream_t so the renderer (which
-     * only ever takes a ghostcon_screen_t*, see render/machine.h) can reach
-     * placements without needing stream.h at all.
+     * Lives here rather than on ghostcon_stream_t so the renderer (which only
+     * ever takes a ghostcon_screen_t*, see render/machine.h) can reach placements
+     * without needing stream.h at all.
      *
-     * Two separate, always-live instances -- primary and alt -- not one
-     * shared field, matching Ghostty's own screens.primary/
+     * Two separate, always-live instances
+     *
+     * primary and alt
+     *
+     * not one shared field, matching Ghostty's own screens.primary/
      * screens.alternate.kitty_images split.
      *
-     * Found live: switching to alt screen (e.g. entering a TUI that uses
-     * 1049h) left a Kitty image placed on the primary screen still
-     * rendering on top of the TUI, because alt_screen_enter/_exit save and
-     * restore the cell grid (alt_rows below) but a single shared
-     * kitty_graphics field has no notion of "which screen this placement
-     * belongs to" -- switching screens didn't hide it, and clearing it
-     * would have permanently lost it when switching back.
+     * Found live: switching to alt screen (e.g. entering a TUI that uses 1049h)
+     * left a Kitty image placed on the primary screen still rendering on top of
+     * the TUI, because alt_screen_enter/_exit save and restore the cell grid
+     * (alt_rows below) but a single shared kitty_graphics field has no notion of
+     * "which screen this placement belongs to"
+     *
+     * switching screens didn't hide it, and clearing it would have permanently
+     * lost it when switching back.
      *
      * Use ghostcon_screen_active_kitty_graphics() rather than reaching into
      * kitty_graphics/kitty_graphics_alt directly.
@@ -250,9 +267,10 @@ struct ghostcon_screen {
     ghostcon_kitty_graphics_t kitty_graphics;
     ghostcon_kitty_graphics_t kitty_graphics_alt;
 
-    /* Sixel graphics state (DCS q ... ST placements). Same per-screen split
-     * and same reasoning as kitty_graphics/kitty_graphics_alt above -- see
-     * ghostcon_screen_active_sixel_state().
+    /* Sixel graphics state (DCS q ... ST placements). Same per-screen split and
+     * same reasoning as kitty_graphics/kitty_graphics_alt above
+     *
+     * see ghostcon_screen_active_sixel_state().
      */
     ghostcon_sixel_state_t sixel;
     ghostcon_sixel_state_t sixel_alt;
@@ -279,29 +297,34 @@ void ghostcon_screen_deinit(ghostcon_screen_t *screen);
 bool ghostcon_screen_resize(ghostcon_screen_t *screen,
                             uint16_t new_cols, uint16_t new_rows);
 
-/* RIS (ESC c) -- full terminal reset, the standard escape hatch every real
- * terminal offers for recovering from ANY stuck/confused mode or attribute
- * state (what `reset`/`tput reset` send).
+/* RIS (ESC c)
  *
- * Was previously a complete no-op (stream.c's RIS handler literally did
- * nothing, and this function didn't exist despite a stray comment
- * referencing it as if it did) -- found live: a DECRST 69 bug left a stale
- * DECSLRM margin permanently wrapping every subsequent line, and `reset`
- * couldn't clear it because RIS itself was unimplemented; nothing short of
- * restarting the whole service could recover.
+ * full terminal reset, the standard escape hatch every real terminal offers for
+ * recovering from ANY stuck/confused mode or attribute state (what `reset`/`tput
+ * reset` send).
  *
- * Resets: cursor position/attributes/saved-cursor, scroll and margin
- * regions to full screen, all DEC private modes to their power-on defaults,
- * tab stops, character-protection state, Kitty keyboard state, selection,
- * and clears the visible screen (scrollback history is left intact,
- * matching xterm's own RIS convention).
+ * Was previously a complete no-op (stream.c's RIS handler literally did nothing,
+ * and this function didn't exist despite a stray comment referencing it as if it
+ * did)
  *
- * Does NOT reallocate the grid or reset the color palette -- this is a
- * state reset, not screen_deinit()+screen_init().
+ * found live: a DECRST 69 bug left a stale DECSLRM margin permanently wrapping
+ * every subsequent line, and `reset` couldn't clear it because RIS itself was
+ * unimplemented; nothing short of restarting the whole service could recover.
  *
- * Drops out of the alternate screen if active (discarding it, not restoring
- * the saved main-screen content -- RIS is a hard reset, not a graceful
- * exit).
+ * Resets: cursor position/attributes/saved-cursor, scroll and margin regions to
+ * full screen, all DEC private modes to their power-on defaults, tab stops,
+ * character-protection state, Kitty keyboard state, selection, and clears the
+ * visible screen (scrollback history is left intact, matching xterm's own RIS
+ * convention).
+ *
+ * Does NOT reallocate the grid or reset the color palette
+ *
+ * this is a state reset, not screen_deinit()+screen_init().
+ *
+ * Drops out of the alternate screen if active (discarding it, not restoring the
+ * saved main-screen content
+ *
+ * RIS is a hard reset, not a graceful exit).
  */
 void ghostcon_screen_reset(ghostcon_screen_t *screen);
 
@@ -406,18 +429,24 @@ void ghostcon_screen_alt_screen_enter(ghostcon_screen_t *screen);
 /* Switch back to main screen (restores saved grid) */
 void ghostcon_screen_alt_screen_exit(ghostcon_screen_t *screen);
 
-/* Kitty graphics state (images + placements) for whichever screen --primary
- * or alternate -- is currently active.
+/* Kitty graphics state (images + placements) for whichever screen --primary or
+ * alternate
  *
- * All Kitty graphics command handling and rendering should go through this
- * rather than screen->kitty_graphics directly, so images stay correctly
- * scoped to the screen they were placed on (see kitty_graphics/
- * kitty_graphics_alt's own doc comment above).
+ * is currently active.
+ *
+ * All Kitty graphics command handling and rendering should go through this rather
+ * than screen->kitty_graphics directly, so images stay correctly scoped to the
+ * screen they were placed on (see kitty_graphics/ kitty_graphics_alt's own doc
+ * comment above).
  */
 ghostcon_kitty_graphics_t *ghostcon_screen_active_kitty_graphics(ghostcon_screen_t *screen);
 
-/* Sixel state for whichever screen -- primary or alternate -- is currently
- * active. Same reasoning as ghostcon_screen_active_kitty_graphics() above.
+/* Sixel state for whichever screen
+ *
+ * primary or alternate
+ *
+ * is currently active. Same reasoning as ghostcon_screen_active_kitty_graphics()
+ * above.
  */
 ghostcon_sixel_state_t *ghostcon_screen_active_sixel_state(ghostcon_screen_t *screen);
 
@@ -462,10 +491,11 @@ ghostcon_cell_t *ghostcon_screen_cell(ghostcon_screen_t *screen, uint16_t x, uin
 
 /* Get a pointer to the row at y in the visible grid.
  *
- * When screen->view_offset > 0 (see its own doc comment), this
- * transparently splices in rows from `history` instead — the sole read path
- * the renderer uses (render/machine.c), so scrollback viewing needs no
- * changes anywhere else in the render pipeline.
+ * When screen->view_offset > 0 (see its own doc comment), this transparently
+ * splices in rows from `history` instead
+ *
+ * the sole read path the renderer uses (render/machine.c), so scrollback viewing
+ * needs no changes anywhere else in the render pipeline.
  */
 ghostcon_row_t *ghostcon_screen_row(ghostcon_screen_t *screen, uint16_t y);
 

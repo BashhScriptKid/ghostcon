@@ -1,18 +1,20 @@
-/* gc-inspect — headless terminal-state inspector.
+/* gc-inspect
  *
- * Feeds a recorded raw PTY byte stream through ghostcon's real parser and
- * screen model (the same code ghostcon-core runs), then prints the
- * resulting grid cell by cell. No DRM, no EGL, no VT, no display needed.
+ * headless terminal-state inspector.
+ *
+ * Feeds a recorded raw PTY byte stream through ghostcon's real parser and screen
+ * model (the same code ghostcon-core runs), then prints the resulting grid cell
+ * by cell. No DRM, no EGL, no VT, no display needed.
  *
  * Why this exists (PLAN.md refactor 3.2, and CLAUDE.md's rendering-parity
- * debugging notes): the old dump paths reported only *style*-based
- * background information, so a cell whose background came from the
- * content-tag mechanism (GHOSTCON_CELL_BG_COLOR_PALETTE / _RGB -- what
- * ED/EL/ECH and scroll-produced blank rows use) looked like "default" in
+ * debugging notes): the old dump paths reported only *style*-based background
+ * information, so a cell whose background came from the content-tag mechanism
+ * (GHOSTCON_CELL_BG_COLOR_PALETTE / _RGB
+ *
+ * what ED/EL/ECH and scroll-produced blank rows use) looked like "default" in
  * every existing tool.
  *
- * This prints the tag AND its payload explicitly, so that blind spot can't
- * recur.
+ * This prints the tag AND its payload explicitly, so that blind spot can't recur.
  *
  * Usage:
  *   gc-inspect [options] <file.raw|->
@@ -186,8 +188,10 @@ static void dump_cells(ghostcon_screen_t *s)
                                  : 0);
             printf(" cp=0x%x tag=%s", ghostcon_cell_get_codepoint(c), tag_name(tag));
 
-            /* The content tag's own payload -- the field the old dump paths
-             * omitted, and the whole reason this tool exists.
+            /* The content tag's own payload
+             *
+             * the field the old dump paths omitted, and the whole reason this
+             * tool exists.
              */
             if (tag == GHOSTCON_CELL_BG_COLOR_PALETTE)
             {

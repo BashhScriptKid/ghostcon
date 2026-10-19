@@ -106,7 +106,9 @@ static void handle_csi_repeat(ghostcon_stream_t *st, ghostcon_screen_t *s)
     int n = PARAM1(st, 1);
     if (n == 0) n = 1;
     /* Beyond one full screen, further repeats just keep scrolling the same
-     * character -- clamp instead of hanging synchronously.
+     * character
+     *
+     * clamp instead of hanging synchronously.
      */
     n = clamp_loop_count(n, (int)s->cols * (int)s->rows_visible);
     for (int i = 0; i < n; i++)
@@ -217,8 +219,10 @@ static void handle_csi_set_scroll_region(ghostcon_stream_t *st, ghostcon_screen_
 
 static void handle_csi_set_margin_region(ghostcon_stream_t *st, ghostcon_screen_t *s)
 {
-    /* CSI s with no params is SCOSC (save cursor); with params it is
-     * DECSLRM (set left/right margins) — matches Ghostty's ambiguity split
+    /* CSI s with no params is SCOSC (save cursor); with params it is DECSLRM (set
+     * left/right margins)
+     *
+     * matches Ghostty's ambiguity split
      */
     if (st->params_idx == 0)
     {
@@ -242,47 +246,52 @@ static void handle_csi_restore_cursor(ghostcon_stream_t *st, ghostcon_screen_t *
     ghostcon_screen_cursor_restore(s);
 }
 
-/* Kitty keyboard protocol
- * --https://sw.kovidgoyal.net/kitty/keyboard-protocol/ Shares the plain 'u'
- * final byte with DECRC (CSI u, no intermediate, handled by
- * handle_csi_restore_cursor above) -- distinguished the same way DEC
- * private modes (?) are told apart from ANSI ones, via the leading
- * intermediate byte (see csi_dispatch()'s own doc comment on this).
+/* Kitty keyboard protocol --https://sw.kovidgoyal.net/kitty/keyboard-protocol/
+ * Shares the plain 'u' final byte with DECRC (CSI u, no intermediate, handled by
+ * handle_csi_restore_cursor above)
  *
- * Tracked state (screen->kitty) previously existed but was never actually
- * written to by anything in this parser --core/input.c's key encoder was
- * permanently hardcoded to legacy mode as a result, ignoring whatever an
- * app actually negotiated.
+ * distinguished the same way DEC private modes (?) are told apart from ANSI ones,
+ * via the leading intermediate byte (see csi_dispatch()'s own doc comment on
+ * this).
+ *
+ * Tracked state (screen->kitty) previously existed but was never actually written
+ * to by anything in this parser --core/input.c's key encoder was permanently
+ * hardcoded to legacy mode as a result, ignoring whatever an app actually
+ * negotiated.
  */
 
 static void handle_csi_kitty_push(ghostcon_stream_t *st, ghostcon_screen_t *s)
 {
-    /* CSI > flags u -- push `flags` as a new stack entry.
+    /* CSI > flags u
+     *
+     * push `flags` as a new stack entry.
      *
      * Omitted flags defaults to 0 (fully disabled), matching this parser's
-     * general "absent numeric param defaults to the safe/off value"
-     * convention used throughout.
+     * general "absent numeric param defaults to the safe/off value" convention
+     * used throughout.
      */
     ghostcon_kitty_push(&s->kitty, (uint8_t)PARAM1(st, 0));
 }
 
 static void handle_csi_kitty_pop(ghostcon_stream_t *st, ghostcon_screen_t *s)
 {
-    /* CSI < n u -- pop n stack entries (default 1 per the protocol spec,
-     * unlike most other sequences in this file that default an omitted
-     * count to 0).
+    /* CSI < n u
+     *
+     * pop n stack entries (default 1 per the protocol spec, unlike most other
+     * sequences in this file that default an omitted count to 0).
      */
     ghostcon_kitty_pop(&s->kitty, (uint8_t)PARAM1(st, 1));
 }
 
 static void handle_csi_kitty_set(ghostcon_stream_t *st, ghostcon_screen_t *s)
 {
-    /* CSI = flags ; mode u -- apply `flags` to the CURRENT (top-of-stack)
-     * entry per `mode`: wire protocol 1=set (default), 2=OR, 3=AND-NOT.
-     * ghostcon_kitty_set_mode_t is 0-indexed (GC_KITTY_SET=0/OR=1/NOT=2),
-     * hence the -1; any other wire value is invalid per the spec and
-     * ignored, same as this file's other handlers silently ignore an
-     * out-of-range mode.
+    /* CSI = flags ; mode u
+     *
+     * apply `flags` to the CURRENT (top-of-stack) entry per `mode`: wire protocol
+     * 1=set (default), 2=OR, 3=AND-NOT. ghostcon_kitty_set_mode_t is 0-indexed
+     * (GC_KITTY_SET=0/OR=1/NOT=2), hence the -1; any other wire value is invalid
+     * per the spec and ignored, same as this file's other handlers silently
+     * ignore an out-of-range mode.
      */
     int wire_mode = PARAM2(st, 1);
     if (wire_mode < 1 || wire_mode > 3)
@@ -320,15 +329,21 @@ static void handle_csi_cursor_style(ghostcon_stream_t *st, ghostcon_screen_t *s)
 
 static void handle_csi_decsca(ghostcon_stream_t *st, ghostcon_screen_t *s)
 {
-    /* DECSCA — CSI Ps " q — select character protection attribute. Ghostty
-     * (stream.zig): 0 or 1 param; Ps 0 or 2 → off, Ps 1 → DEC.
+    /* DECSCA
      *
-     * Note Ghostty maps Ps=2 to `.off`, NOT ISO — the ISO screen mode is
-     * only reachable from internal callers, never from DECSCA.
+     * CSI Ps " q
      *
-     * The screen's protected_mode is left unchanged on off (Ghostty
-     * comment: "NEVER reset to .off because logic such as eraseChars
-     * depends on knowing what the most recent mode was").
+     * select character protection attribute. Ghostty (stream.zig): 0 or 1 param;
+     * Ps 0 or 2 → off, Ps 1 → DEC.
+     *
+     * Note Ghostty maps Ps=2 to `.off`, NOT ISO
+     *
+     * the ISO screen mode is only reachable from internal callers, never from
+     * DECSCA.
+     *
+     * The screen's protected_mode is left unchanged on off (Ghostty comment:
+     * "NEVER reset to .off because logic such as eraseChars depends on knowing
+     * what the most recent mode was").
      */
     if (!csi_param_count(st, 0, 1)) return;
     int mode = PARAM1(st, 0);
@@ -384,8 +399,10 @@ static void handle_csi_shift_escape(ghostcon_stream_t *st, ghostcon_screen_t *s)
 
 static void handle_csi_request_mode(ghostcon_stream_t *st, ghostcon_screen_t *s)
 {
-    /* DECRQM: CSI Ps $ p (ansi) / CSI ? Ps $ p (DEC) — respond with DECRPM:
-     * CSI[?] Ps;Pn $ y. Pn: 0 = not recognized, 1 = set, 2 = reset.
+    /* DECRQM: CSI Ps $ p (ansi) / CSI ? Ps $ p (DEC)
+     *
+     * respond with DECRPM: CSI[?] Ps;Pn $ y. Pn: 0 = not recognized, 1 = set, 2 =
+     * reset.
      */
     if (st->params_idx != 1) return;
     int mode = st->params[0];
@@ -471,8 +488,10 @@ static void handle_csi_device_status_report(ghostcon_stream_t *st, ghostcon_scre
             stream_output(st, "\x1b[0n");
             break;
         case 6: {
-            /* CPR — cursor position report (1-based). With origin mode
-             * coordinates are relative to the scroll region (Ghostty).
+            /* CPR
+             *
+             * cursor position report (1-based). With origin mode coordinates are
+             * relative to the scroll region (Ghostty).
              */
             int x = s->cursor.x, y = s->cursor.y;
             if (s->origin_mode) {
@@ -503,10 +522,11 @@ static void handle_csi_device_status_report(ghostcon_stream_t *st, ghostcon_scre
     }
 }
 
-/* Stamps when a synchronized-output batch (mode 2026) started, so
- * core/main.c's render gate can bound how long it withholds a frame if the
- * app never sends the closing ?2026l -- see screen.h's own doc comment on
- * synchronized_output_since.
+/* Stamps when a synchronized-output batch (mode 2026) started, so core/main.c's
+ * render gate can bound how long it withholds a frame if the app never sends the
+ * closing ?2026l
+ *
+ * see screen.h's own doc comment on synchronized_output_since.
  */
 static void mark_sync_output_start(ghostcon_screen_t *s)
 {
@@ -546,8 +566,10 @@ static void handle_csi_reset_mode(ghostcon_stream_t *st, ghostcon_screen_t *s)
 
 static void handle_csi_dec_set(ghostcon_stream_t *st, ghostcon_screen_t *s)
 {
-    /* DECSET — iterate all params (Ghostty). DECOM also homes the cursor on
-     * both set and reset (Ghostty: `.origin => setCursorPos(1, 1)`).
+    /* DECSET
+     *
+     * iterate all params (Ghostty). DECOM also homes the cursor on both set and
+     * reset (Ghostty: `.origin => setCursorPos(1, 1)`).
      */
     for (uint8_t i = 0; i < st->params_idx; i++)
     {
@@ -593,12 +615,12 @@ static void handle_csi_dec_reset(ghostcon_stream_t *st, ghostcon_screen_t *s)
         case 69:                                                    /* DECLRMM */
             s->left_right_margin = false;
             /* put_char()'s wrap boundary applies margin_region.right
-             * unconditionally, without checking left_right_margin --so
-             * disabling DECLRMM without also resetting the region left a
-             * stale DECSLRM margin permanently in effect.
+             * unconditionally, without checking left_right_margin --so disabling
+             * DECLRMM without also resetting the region left a stale DECSLRM
+             * margin permanently in effect.
              *
-             * Found live: this made every subsequent line wrap at whatever
-             * column DECSLRM last set, indefinitely.
+             * Found live: this made every subsequent line wrap at whatever column
+             * DECSLRM last set, indefinitely.
              */
             ghostcon_screen_set_margin_region(s, -1, -1);
             break;
@@ -669,18 +691,20 @@ static void handle_csi_sgr(ghostcon_stream_t *st, ghostcon_screen_t *s)
             break;
         case GHOSTTY_SGR_ATTR_BRIGHT_FG_8:
             cur.flags &= ~(GC_STYLE_FG_TRUECOLOR | GC_STYLE_FG_DEFAULT);
-            /* bright_fg_8 is already the absolute 0-15 palette index (e.g.
-             * 9 for bright red / SGR 91, matching
-             * GHOSTTY_COLOR_NAMED_BRIGHT_RED) -- NOT a 0-7 offset that
-             * needs +8.
+            /* bright_fg_8 is already the absolute 0-15 palette index (e.g. 9 for
+             * bright red / SGR 91, matching GHOSTTY_COLOR_NAMED_BRIGHT_RED)
              *
-             * Adding 8 here double-offset it (9+8=17), which isn't a named
-             * color at all -- it lands inside the 216 color cube (indices
-             * 16-231) at a essentially arbitrary color.
+             * NOT a 0-7 offset that needs +8.
              *
-             * Confirmed against libghostty-vt directly: see PLAN.md for the
-             * live repro (bright red rendering as dark blue) and the
-             * standalone parser test that caught this.
+             * Adding 8 here double-offset it (9+8=17), which isn't a named color
+             * at all
+             *
+             * it lands inside the 216 color cube (indices 16-231) at a
+             * essentially arbitrary color.
+             *
+             * Confirmed against libghostty-vt directly: see PLAN.md for the live
+             * repro (bright red rendering as dark blue) and the standalone parser
+             * test that caught this.
              */
             cur.fg_palette = (uint8_t)attr.value.bright_fg_8;
             break;
@@ -757,9 +781,11 @@ csi_lookup(ghostcon_stream_t *st, uint8_t final_byte)
     const uint8_t inter0 = (inter_len > 0) ? st->intermediates[0] : 0;
     const bool has_inter = (inter_len > 0);
 
-    /* Ghostty drops any CSI sequence whose parameter count reached
-     * MAX_PARAMS (24) — `params_idx >= Parser.MAX_PARAMS` returns before
-     * dispatch in csiDispatchFinal.
+    /* Ghostty drops any CSI sequence whose parameter count reached MAX_PARAMS
+     * (24)
+     *
+     * `params_idx >= Parser.MAX_PARAMS` returns before dispatch in
+     * csiDispatchFinal.
      */
     if (st->params_idx >= GC_STREAM_MAX_PARAMS)
         return NULL;

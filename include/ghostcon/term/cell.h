@@ -254,17 +254,15 @@ ghostcon_cell_make(uint32_t codepoint)
 /* Unicode display width: 0 (combining/zero-width), 1, or 2 (wide) */
 uint8_t ghostcon_unicode_width(uint32_t codepoint);
 
-/* Matches Ghostty's isSymbol() (renderer/cell.zig): Unicode General
- * Category "Symbol" (Sm, Sc, Sk, So), backed by a table generated from the
- * UCD.
+/* Matches Ghostty's isSymbol() (renderer/cell.zig): Unicode General Category
+ * "Symbol" (Sm, Sc, Sk, So), backed by a table generated from the UCD.
  *
  * The table is src/term/cell_symbol_table.gen.c, produced by
- * tools/gen_symbol_table.py from third_party/UnicodeData.txt.
+ * tools/gen_symbol_table.py from third_party/UnicodeData.txt. Ghostty uses the
+ * same source, just generated at their build time.
  *
- * Ghostty uses the same source, just generated at their build time.
- *
- * Two carve-outs override the generated data, because the UCD cannot
- * express them:
+ * Two carve-outs override the generated data, because the UCD cannot express
+ * them:
  *
  * - Box Drawing and Block Elements (U+2500-259F) are excluded despite
  *   being category So: render/box_draw.c draws them procedurally.
@@ -275,20 +273,20 @@ uint8_t ghostcon_unicode_width(uint32_t codepoint);
  * See ghostcon_cell_is_symbol() in cell.c for the exact logic.
  *
  * Why this exists: a symbol is correctly one cell wide according to
- * ghostcon_unicode_width() (verified live), but the installed font's glyph
- * can still rasterize wider than a cell.
+ * ghostcon_unicode_width() (verified live), but the installed font's glyph can
+ * still rasterize wider than a cell.
  *
  * That is common for icon/dingbat glyphs, especially in Nerd Fonts.
  *
  * Observed live: a Nerd Font "pull request" icon, several Geometric
  * Shapes/Mathematical Operators circles (U+2299, U+25C9, U+25CE), and the
- * git-pull-request octicon (U+F407) all exceeded cell_w at the configured
- * font size.
+ * git-pull-request octicon (U+F407) all exceeded cell_w at the configured font
+ * size.
  *
- * render/machine.c uses this to choose the context-aware fit-to-cell
- * treatment (see ghostcon_cell_is_graphics_element() below and machine.c's
- * symbol_constraint_width()) instead of drawing those glyphs at native size
- * like ordinary text.
+ * render/machine.c uses this to choose the context-aware fit-to-cell treatment
+ * (see ghostcon_cell_is_graphics_element() below and machine.c's
+ * symbol_constraint_width()) instead of drawing those glyphs at native size like
+ * ordinary text.
  */
 bool ghostcon_cell_is_symbol(uint32_t codepoint);
 
@@ -296,14 +294,16 @@ bool ghostcon_cell_is_symbol(uint32_t codepoint);
  * edge-to-edge across adjacent cells: Legacy Computing (sextants etc.) and
  * Powerline glyphs.
  *
- * Box-drawing (U+2500-257F) and block elements (U+2580-259F) are NOT
- * included here -- they're already rendered procedurally at exactly
- * cell_w/cell_h by render/box_draw.c and never reach the font-glyph path
- * this distinction matters for at all.
+ * Box-drawing (U+2500-257F) and block elements (U+2580-259F) are NOT included
+ * here
+ *
+ * they're already rendered procedurally at exactly cell_w/cell_h by
+ * render/box_draw.c and never reach the font-glyph path this distinction matters
+ * for at all.
  *
  * Mirrors Ghostty's isGraphicsElement(): used only to exempt these from the
- * "previous cell was also a symbol -> constrain to 1 cell" rule in
- * machine.c's symbol_constraint_width(), since squeezing a tiling glyph
- * down would visibly break the tiling.
+ * "previous cell was also a symbol -> constrain to 1 cell" rule in machine.c's
+ * symbol_constraint_width(), since squeezing a tiling glyph down would visibly
+ * break the tiling.
  */
 bool ghostcon_cell_is_graphics_element(uint32_t codepoint);

@@ -4,11 +4,13 @@
 #include <stdbool.h>
 #include "cell.h"
 
-/* Row — a single row of cells in the terminal grid
+/* Row
  *
- * Simpler than Ghostty's packed u64 Row: instead of storing an offset into
- * mmap'd page memory, we own the cell array directly. The packing
- * optimization can be adopted later if needed.
+ * a single row of cells in the terminal grid
+ *
+ * Simpler than Ghostty's packed u64 Row: instead of storing an offset into mmap'd
+ * page memory, we own the cell array directly. The packing optimization can be
+ * adopted later if needed.
  */
 
 typedef struct
@@ -42,9 +44,10 @@ void ghostcon_row_clear_range_unprotected(ghostcon_row_t *row, uint16_t left, ui
 /* Clear all cells in the row */
 void ghostcon_row_clear(ghostcon_row_t *row);
 
-/* Fill cells in range [left, end) with `fill` (the ECMA-48 "erase color"
- * cell — normally an empty cell carrying only the currently selected
- * background, built by the caller).
+/* Fill cells in range [left, end) with `fill` (the ECMA-48 "erase color" cell
+ *
+ * normally an empty cell carrying only the currently selected background, built
+ * by the caller).
  *
  * Same bounds/dirty/metadata semantics as ghostcon_row_clear_range.
  */

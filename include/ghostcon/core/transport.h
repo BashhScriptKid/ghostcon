@@ -6,13 +6,15 @@
 #include <sys/types.h>
 
 /* pty child socket transport; ghostcon-core's replacement for a local pty.c
- * (PLAN.md: "pty.c — Moved to pty-ttyN child processes under
- * ghost-ptyserv").
+ * (PLAN.md: "pty.c
  *
- * Queries ghost-ptyserv's registry for the pty child socket serving a given
- * VT (see ptyserv/protocol.h), connects to it directly, and from then on
- * it's a raw bidirectional byte pipe — the pty child is "byte-stupid" by
- * design, no framing on this side either.
+ * Moved to pty-ttyN child processes under ghost-ptyserv").
+ *
+ * Queries ghost-ptyserv's registry for the pty child socket serving a given VT
+ * (see ptyserv/protocol.h), connects to it directly, and from then on it's a raw
+ * bidirectional byte pipe
+ *
+ * the pty child is "byte-stupid" by design, no framing on this side either.
  */
 
 typedef struct
@@ -28,13 +30,13 @@ typedef struct
                            lifecycle directly, that's ghost-ptyserv's job */
 } ghostcon_transport_t;
 
-/* Connects to registry_socket_path (typically
- * GHOSTCON_PTYSERV_SOCKET_PATH), asks for vtnum's pty child, then connects
- * to that child's socket.
+/* Connects to registry_socket_path (typically GHOSTCON_PTYSERV_SOCKET_PATH), asks
+ * for vtnum's pty child, then connects to that child's socket.
  *
- * On success, the pty child immediately starts streaming its ring buffer
- * replay followed by live output — the first ghostcon_transport_read()
- * calls will see that.
+ * On success, the pty child immediately starts streaming its ring buffer replay
+ * followed by live output
+ *
+ * the first ghostcon_transport_read() calls will see that.
  */
 bool ghostcon_transport_connect(ghostcon_transport_t *t,
                                  const char *registry_socket_path,
@@ -45,30 +47,34 @@ void ghostcon_transport_close(ghostcon_transport_t *t);
 /* fd suitable for poll()'ing in the main event loop. */
 int ghostcon_transport_fd(const ghostcon_transport_t *t);
 
-/* Thin wrappers over read()/write() on the transport fd — no framing, no
- * retry-on-partial-write loop here, since the caller's event loop already
- * needs its own poll()-driven read/write handling regardless (matching
+/* Thin wrappers over read()/write() on the transport fd
+ *
+ * no framing, no retry-on-partial-write loop here, since the caller's event loop
+ * already needs its own poll()-driven read/write handling regardless (matching
  * core/ptyserv's own pty_child.c pattern).
  *
- * Returns the same semantics as read(2)/write(2): byte count, 0 on EOF (pty
- * child process exited), -1 on error (errno set).
+ * Returns the same semantics as read(2)/write(2): byte count, 0 on EOF (pty child
+ * process exited), -1 on error (errno set).
  */
 ssize_t ghostcon_transport_read(ghostcon_transport_t *t, uint8_t *buf, size_t len);
 ssize_t ghostcon_transport_write(ghostcon_transport_t *t, const uint8_t *buf, size_t len);
 
-/* Sends a resize notification over the control socket connected alongside
- * the main data socket in ghostcon_transport_connect(). xpixel/ypixel are
- * the terminal's total pixel size (cell_w*cols, cell_h*rows) -- pass 0/0 if
- * unknown.
+/* Sends a resize notification over the control socket connected alongside the
+ * main data socket in ghostcon_transport_connect(). xpixel/ypixel are the
+ * terminal's total pixel size (cell_w*cols, cell_h*rows)
  *
- * A no-op (returns true) if the control connection isn't available -- see
- * ctl_fd's own doc comment on why that's not fatal.
+ * pass 0/0 if unknown.
+ *
+ * A no-op (returns true) if the control connection isn't available
+ *
+ * see ctl_fd's own doc comment on why that's not fatal.
  */
 bool ghostcon_transport_resize(ghostcon_transport_t *t, int rows, int cols,
                                int xpixel, int ypixel);
 
-/* Sends "DUMP" over the control socket -- see pty_child.c's own DUMP
- * handler and term/dump.h's doc comment.
+/* Sends "DUMP" over the control socket
+ *
+ * see pty_child.c's own DUMP handler and term/dump.h's doc comment.
  *
  * Same "no control connection --best-effort, not an error" semantics as
  * ghostcon_transport_resize() above.
@@ -76,14 +82,16 @@ bool ghostcon_transport_resize(ghostcon_transport_t *t, int rows, int cols,
 bool ghostcon_transport_request_dump(ghostcon_transport_t *t);
 
 /* Reads and parses one message off the control socket (see ctl_fd's own doc
- * comment) — call this when ctl_fd is POLLIN/POLLHUP/POLLERR-ready in the
- * caller's event loop.
+ * comment)
+ *
+ * call this when ctl_fd is POLLIN/POLLHUP/POLLERR-ready in the caller's event
+ * loop.
  *
  * Sets *out_clear = true if a CLEAR message (pty_child.c's session-death
  * notification) was received.
  *
- * Closes and invalidates ctl_fd on EOF/error (subsequent calls become
- * no-ops, matching ctl_fd's existing "not fatal if unavailable" contract).
- * Returns false only if ctl_fd was already < 0 when called.
+ * Closes and invalidates ctl_fd on EOF/error (subsequent calls become no-ops,
+ * matching ctl_fd's existing "not fatal if unavailable" contract). Returns false
+ * only if ctl_fd was already < 0 when called.
  */
 bool ghostcon_transport_read_ctl(ghostcon_transport_t *t, bool *out_clear);

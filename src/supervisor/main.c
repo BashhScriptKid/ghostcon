@@ -1,4 +1,6 @@
-/* supervisor[ttyN] — per-VT lifecycle manager.
+/* supervisor[ttyN]
+ *
+ * per-VT lifecycle manager.
  *
  * State machine (PLAN.md "Supervision layer"):
  *
@@ -10,12 +12,14 @@
  *   ACTIVE -> ghostcon-core exits cleanly (POLLHUP) -> SPAWNING
  *   FALLBACK -> SIGHUP ("user requests ghostcon") -> kill fallback -> SPAWNING
  *
- * The canary is deliberately dumb (PLAN.md "Philosophy"): silence past a
- * deadline = treat as dead, full stop, no attempt to diagnose why.
+ * The canary is deliberately dumb (PLAN.md "Philosophy"): silence past a deadline
+ * = treat as dead, full stop, no attempt to diagnose why.
  *
  * The startup race timer and the ongoing canary are the SAME mechanism (one
- * poll(canary_fd, POLLIN|POLLHUP, deadline) call) -- the only difference is
- * what "timeout" means for the current state (fall back vs. retry).
+ * poll(canary_fd, POLLIN|POLLHUP, deadline) call)
+ *
+ * the only difference is what "timeout" means for the current state (fall back
+ * vs. retry).
  *
  * Env var overrides (no TOML config yet, same precedent as ghost-ptyserv):
  *   GHOSTCON_CORE_BIN        - path to the renderer binary (default
@@ -40,13 +44,14 @@
  *                              this path working; fix the default
  *                              instead if it's ever wrong again.
  *
- * Usage: supervisor <vtnum> [registry_socket] [drm_node] (registry_socket
- * first since that's what undead-head actually has to pass through
- * --drm_node is a supervisor-local hardware detail undead-head doesn't need
- * to know about.
+ * Usage: supervisor <vtnum> [registry_socket] [drm_node] (registry_socket first
+ * since that's what undead-head actually has to pass through --drm_node is a
+ * supervisor-local hardware detail undead-head doesn't need to know about.
  *
  * Internally reordered to ghostcon-core's own <vtnum> [drm_node]
- * [registry_socket] argv when spawning it -- see spawn_renderer.)
+ * [registry_socket] argv when spawning it
+ *
+ * see spawn_renderer.)
  *
  * GHOSTCON_CORE_BIN's default resolution does NOT fall back to a bare name
  * + PATH lookup -- see undead_head/main.c's file comment (same reasoning
@@ -79,8 +84,9 @@
 #define DEFAULT_CANARY_DEADLINE_MS 4000
 
 /* Resolves `name` relative to this executable's own directory (via
- * /proc/self/exe) instead of trusting PATH -- see this file's header
- * comment on GHOSTCON_CORE_BIN.
+ * /proc/self/exe) instead of trusting PATH
+ *
+ * see this file's header comment on GHOSTCON_CORE_BIN.
  *
  * Falls back to the bare name only if /proc/self/exe itself is unavailable.
  */
@@ -115,9 +121,10 @@ typedef enum
     ST_FALLBACK,
 } state_t;
 
-/* Self-pipe for the "return from FALLBACK" trigger -- SIGHUP handlers can't
- * safely do the actual state transition, same reasoning as core/vtctl.c's
- * acquire/release handling.
+/* Self-pipe for the "return from FALLBACK" trigger
+ *
+ * SIGHUP handlers can't safely do the actual state transition, same reasoning as
+ * core/vtctl.c's acquire/release handling.
  */
 static int g_sighup_pipe[2] = { -1, -1 };
 
@@ -175,10 +182,11 @@ static pid_t spawn_renderer(int vtnum, const char *registry_socket, const char *
         char vt_str[16];
         snprintf(vt_str, sizeof(vt_str), "%d", vtnum);
 
-        /* drm_node/registry_socket are always resolved to concrete values
-         * by main() before reaching here -- see its comment. execlp's
-         * variadic args must all be non-NULL until the terminating NULL, so
-         * that resolution matters, not just tidiness.
+        /* drm_node/registry_socket are always resolved to concrete values by
+         * main() before reaching here
+         *
+         * see its comment. execlp's variadic args must all be non-NULL until the
+         * terminating NULL, so that resolution matters, not just tidiness.
          */
         execlp(bin, bin, vt_str, drm_node, registry_socket, (char *)NULL);
         perror("supervisor: execlp ghostcon-core");
@@ -198,8 +206,10 @@ static void kill_and_reap(pid_t pid, int canary_fd)
         return;
     kill(pid, SIGTERM);
 
-    /* Brief grace period, then escalate -- a process that's already
-     * confirmed unresponsive doesn't get to ignore SIGTERM politely.
+    /* Brief grace period, then escalate
+     *
+     * a process that's already confirmed unresponsive doesn't get to ignore
+     * SIGTERM politely.
      */
     for (int i = 0; i < 10; i++)
     {
@@ -216,18 +226,20 @@ static void kill_and_reap(pid_t pid, int canary_fd)
 
 /* Looks up the real pty child pid via ghost-ptyserv's registry (same "GET
  * <vtnum>" protocol ghostcon-core's own transport.c uses to connect) so the
- * recovery file records something a human/tool can actually act on, instead
- * of a permanent placeholder.
+ * recovery file records something a human/tool can actually act on, instead of a
+ * permanent placeholder.
  *
- * Returns -1 on any failure (registry unreachable, no pty child registered
- * for this vt yet -- e.g. a startup_timeout so early ghostcon-core never
- * got as far as querying the registry itself) -- same conservative fallback
- * the caller already had before this existed, just no longer the ONLY
- * possible outcome.
+ * Returns -1 on any failure (registry unreachable, no pty child registered for
+ * this vt yet
  *
- * Best-effort and deliberately simple: a short, bounded round-trip on the
- * same registry socket the renderer itself would use, not a persistent
- * connection.
+ * e.g. a startup_timeout so early ghostcon-core never got as far as querying the
+ * registry itself)
+ *
+ * same conservative fallback the caller already had before this existed, just no
+ * longer the ONLY possible outcome.
+ *
+ * Best-effort and deliberately simple: a short, bounded round-trip on the same
+ * registry socket the renderer itself would use, not a persistent connection.
  */
 static pid_t query_pty_child_pid(const char *registry_socket, int vtnum)
 {
@@ -235,17 +247,18 @@ static pid_t query_pty_child_pid(const char *registry_socket, int vtnum)
     if (fd < 0)
         return -1;
 
-    /* Bounded, not best-effort-eventually: this runs inline in the
-     * supervisor's own state-machine loop, so a registry that accepts the
-     * connection but never writes back (ghost-ptyserv wedged, mid-restart,
-     * or simply slow) must not be able to block this process indefinitely
-     * -- that would turn a "write a diagnostic recovery file" call into
-     * exactly the kind of wedged-event-loop condition this whole project
-     * exists to detect and recover from in OTHER processes.
+    /* Bounded, not best-effort-eventually: this runs inline in the supervisor's
+     * own state-machine loop, so a registry that accepts the connection but never
+     * writes back (ghost-ptyserv wedged, mid-restart, or simply slow) must not be
+     * able to block this process indefinitely
      *
-     * Found live via test_undead_head.c timing out after this function was
-     * added without a timeout: a plain blocking read() here has no such
-     * protection on its own.
+     * that would turn a "write a diagnostic recovery file" call into exactly the
+     * kind of wedged-event-loop condition this whole project exists to detect and
+     * recover from in OTHER processes.
+     *
+     * Found live via test_undead_head.c timing out after this function was added
+     * without a timeout: a plain blocking read() here has no such protection on
+     * its own.
      */
     struct timeval tv = { .tv_sec = 0, .tv_usec = 500000 };
     setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
@@ -316,8 +329,10 @@ static void wall_broadcast(int vtnum, const char *reason)
     int class_idx = (strcmp(reason, "hang") == 0) ? 0 : 1;
     time_t now = time(NULL);
 
-    /* Test-only override -- a real rate limit test waiting out the actual
-     * 60s window would be needlessly slow.
+    /* Test-only override
+     *
+     * a real rate limit test waiting out the actual 60s window would be
+     * needlessly slow.
      *
      * This exercises the exact same rate-limit logic against a much shorter
      * window instead of changing what ships.
@@ -333,13 +348,12 @@ static void wall_broadcast(int vtnum, const char *reason)
         return;
     last_broadcast[class_idx] = now;
 
-    /* Test-only: substitute the real wall(1) exec with a log line so a test
-     * can observe how many times a broadcast WOULD have fired --unlike
-     * GHOSTCON_DISABLE_WALL above (a silent, no-side-effects skip that
-     * returns before any rate-limit bookkeeping at all, so it can never be
-     * used to test the rate limiter itself), this still runs the real
-     * rate-limit check above, it just doesn't spam real logged-in users
-     * with the result.
+    /* Test-only: substitute the real wall(1) exec with a log line so a test can
+     * observe how many times a broadcast WOULD have fired --unlike
+     * GHOSTCON_DISABLE_WALL above (a silent, no-side-effects skip that returns
+     * before any rate-limit bookkeeping at all, so it can never be used to test
+     * the rate limiter itself), this still runs the real rate-limit check above,
+     * it just doesn't spam real logged-in users with the result.
      */
     if (getenv("GHOSTCON_WALL_DEBUG_LOG"))
     {
@@ -415,16 +429,18 @@ static pid_t spawn_agetty_fallback(int vtnum)
     return pid;
 }
 
-/* Re-reads config_path and applies whichever fields this process cares
- * about. disable_wall/disable_kmscon_fallback need no explicit handling
- * here at all -- wall_broadcast()/spawn_kmscon_fallback() already call
- * getenv() fresh at each point of use rather than caching a value at
- * startup, so re-exporting the env (ghostcon_config_export_env) alone makes
- * them live. canary_deadline_ms applies immediately (the state machine
- * below re-reads it every poll() call). drm_node only applies on the NEXT
- * spawn_renderer() call -- see drm_node_buf's own doc comment at its
- * declaration in main() for why -- and never overrides an explicit argv[3],
- * at reload same as at startup.
+/* Re-reads config_path and applies whichever fields this process cares about.
+ * disable_wall/disable_kmscon_fallback need no explicit handling here at all
+ *
+ * wall_broadcast()/spawn_kmscon_fallback() already call getenv() fresh at each
+ * point of use rather than caching a value at startup, so re-exporting the env
+ * (ghostcon_config_export_env) alone makes them live. canary_deadline_ms applies
+ * immediately (the state machine below re-reads it every poll() call). drm_node
+ * only applies on the NEXT spawn_renderer() call
+ *
+ * see drm_node_buf's own doc comment at its declaration in main() for why
+ *
+ * and never overrides an explicit argv[3], at reload same as at startup.
  */
 static void apply_config_reload(const char *config_path, int vtnum, bool drm_node_from_argv,
                                  char *drm_node_buf, size_t drm_node_buf_len, int *canary_deadline_ms)
@@ -443,20 +459,19 @@ static void apply_config_reload(const char *config_path, int vtnum, bool drm_nod
     fprintf(stderr, "supervisor: vt %d: config changed, applied\n", vtnum);
 }
 
-/* Polls `state_fd` (canary_fd or the SIGHUP pipe, depending on which state
- * calls this) for `timeout_ms`, transparently handling and consuming config
- * hot-reload wakeups along the way so callers see exactly the same
- * poll()-return semantics they had before config watching existed.
+/* Polls `state_fd` (canary_fd or the SIGHUP pipe, depending on which state calls
+ * this) for `timeout_ms`, transparently handling and consuming config hot-reload
+ * wakeups along the way so callers see exactly the same poll()-return semantics
+ * they had before config watching existed.
  *
- * Without this, a config-file-only wakeup (state_fd itself has nothing
- * pending) would make poll() return rv>0 with state_fd's revents at 0
- * --indistinguishable, to the three existing state-machine call sites
- * below, from an actual timeout, which would incorrectly fire "renderer
- * hung"/"did not claim VT in time" purely because someone saved
- * ghostcon.toml.
+ * Without this, a config-file-only wakeup (state_fd itself has nothing pending)
+ * would make poll() return rv>0 with state_fd's revents at 0 --indistinguishable,
+ * to the three existing state-machine call sites below, from an actual timeout,
+ * which would incorrectly fire "renderer hung"/"did not claim VT in time" purely
+ * because someone saved ghostcon.toml.
  *
- * Instead: a config-only wakeup applies the reload and polls again rather
- * than returning.
+ * Instead: a config-only wakeup applies the reload and polls again rather than
+ * returning.
  */
 static int poll_state_fd(int state_fd, int timeout_ms, int config_watch_fd, const char *config_path,
                          int vtnum, bool drm_node_from_argv, char *drm_node_buf, size_t drm_node_buf_len,
@@ -504,33 +519,38 @@ int main(int argc, char **argv)
         fprintf(stderr, "supervisor: invalid vt number '%s'\n", argv[1]);
         return 2;
     }
-    /* Always resolved to a concrete value (never NULL) before being handed
-     * to spawn_renderer -- see spawn_renderer's own comment on why a
-     * positional gap here would be a real bug, not just untidy.
+    /* Always resolved to a concrete value (never NULL) before being handed to
+     * spawn_renderer
+     *
+     * see spawn_renderer's own comment on why a positional gap here would be a
+     * real bug, not just untidy.
      */
     const char *registry_socket = argc > 2 ? argv[2] : GHOSTCON_PTYSERV_SOCKET_PATH;
-    /* argv takes priority; otherwise GHOSTCON_DRM_NODE env var (this
-     * machine's GPU is card1, not the common-case card0 default --found the
-     * hard way: DEFAULT_DRM_NODE alone left ghostcon-core unable to open
-     * any DRM device, silently never rendering while the display just kept
-     * showing whatever was on screen at the VT switch). undead-head doesn't
-     * thread a drm_node argv through to supervisor (deliberately -- see
-     * fork_supervisor's own comment), so this env var is the actual
-     * override path when launched via undead-head; note pkexec resets the
-     * environment, so it must be set via `pkexec env GHOSTCON_DRM_NODE=...
+    /* argv takes priority; otherwise GHOSTCON_DRM_NODE env var (this machine's
+     * GPU is card1, not the common-case card0 default --found the hard way:
+     * DEFAULT_DRM_NODE alone left ghostcon-core unable to open any DRM device,
+     * silently never rendering while the display just kept showing whatever was
+     * on screen at the VT switch). undead-head doesn't thread a drm_node argv
+     * through to supervisor (deliberately
      *
-     * CMD`, not a plain `VAR=val pkexec CMD` prefix (that only sets it in
-     * the calling shell, never reaching the exec'd program).
+     * see fork_supervisor's own comment), so this env var is the actual override
+     * path when launched via undead-head; note pkexec resets the environment, so
+     * it must be set via `pkexec env GHOSTCON_DRM_NODE=...
+     *
+     * CMD`, not a plain `VAR=val pkexec CMD` prefix (that only sets it in the
+     * calling shell, never reaching the exec'd program).
      */
-    /* drm_node is a mutable buffer (not a plain pointer into argv/getenv
-     * storage) so a config hot-reload can update it in place -- only takes
-     * effect on the NEXT spawn_renderer() call, since an already-running
-     * ghostcon-core has an already-open EGL/GBM context on the OLD device.
+    /* drm_node is a mutable buffer (not a plain pointer into argv/getenv storage)
+     * so a config hot-reload can update it in place
+     *
+     * only takes effect on the NEXT spawn_renderer() call, since an
+     * already-running ghostcon-core has an already-open EGL/GBM context on the
+     * OLD device.
      *
      * See PLAN.md's "General config hot-reload" section for why that's an
-     * accepted limitation, not a bug. argv always wins over the file, at
-     * startup AND on every reload --drm_node_from_argv tracks that so the
-     * reload handler below knows not to clobber an explicit override.
+     * accepted limitation, not a bug. argv always wins over the file, at startup
+     * AND on every reload --drm_node_from_argv tracks that so the reload handler
+     * below knows not to clobber an explicit override.
      */
     bool drm_node_from_argv = argc > 3;
     char drm_node_buf[256];
@@ -551,16 +571,16 @@ int main(int argc, char **argv)
     if (deadline_str)
         (void)ghostcon_parse_int(deadline_str, &canary_deadline_ms);
 
-    /* Hot-reload: GHOSTCON_CONFIG_PATH is exported unconditionally by
-     * undead-head (see config.h's doc comment) regardless of whether THIS
-     * process needed a config file before -- watch it directly, independent
-     * of undead-head, same reasoning as every other process in this tree
-     * per PLAN.md's "General config hot-reload" section (no
-     * reload-propagation IPC between processes, each just re-reads the same
-     * file).
+    /* Hot-reload: GHOSTCON_CONFIG_PATH is exported unconditionally by undead-head
+     * (see config.h's doc comment) regardless of whether THIS process needed a
+     * config file before
      *
-     * Not fatal if either step fails --hot-reload just silently doesn't
-     * happen.
+     * watch it directly, independent of undead-head, same reasoning as every
+     * other process in this tree per PLAN.md's "General config hot-reload"
+     * section (no reload-propagation IPC between processes, each just re-reads
+     * the same file).
+     *
+     * Not fatal if either step fails --hot-reload just silently doesn't happen.
      */
     const char *config_path = getenv("GHOSTCON_CONFIG_PATH");
     if (!config_path)
@@ -615,11 +635,11 @@ int main(int argc, char **argv)
                 state = ST_ACTIVE;
             }
             else {
-                /* Startup race timer expired, or the renderer exited/
-                 * crashed before ever heartbeating (POLLHUP / rv==0 both
-                 * land here -- doesn't matter which, "no heartbeat in time"
-                 * is the only thing that matters per the deliberately-dumb
-                 * canary philosophy).
+                /* Startup race timer expired, or the renderer exited/ crashed
+                 * before ever heartbeating (POLLHUP / rv==0 both land here
+                 *
+                 * doesn't matter which, "no heartbeat in time" is the only thing
+                 * that matters per the deliberately-dumb canary philosophy).
                  */
                 fprintf(stderr, "supervisor: vt %d: renderer did not claim VT in time, falling back\n", vtnum);
                 kill_and_reap(child_pid, canary_fd);
@@ -653,22 +673,23 @@ int main(int argc, char **argv)
                 state = ST_SPAWNING;
             }
             else if (rv > 0 && (revents & POLLIN)) {
-                /* POLLIN guarantees at least one byte is available, so a
-                 * single read is safe without blocking -- looping read()
-                 * until it returns <=0 is wrong here: on a blocking stream
-                 * socket that's still open, the read AFTER the last
-                 * available byte blocks waiting for more data instead of
+                /* POLLIN guarantees at least one byte is available, so a single
+                 * read is safe without blocking
+                 *
+                 * looping read() until it returns <=0 is wrong here: on a
+                 * blocking stream socket that's still open, the read AFTER the
+                 * last available byte blocks waiting for more data instead of
                  * returning 0 (that only happens on EOF), so a "drain until
-                 * empty" loop like that hangs forever the moment the
-                 * renderer actually goes silent -- exactly the case this
-                 * poll loop exists to detect.
+                 * empty" loop like that hangs forever the moment the renderer
+                 * actually goes silent
                  *
-                 * Any coalesced extra heartbeat bytes just get left for the
-                 * next iteration's read; discarding them isn't needed since
-                 * we don't count bytes, only liveness.
+                 * exactly the case this poll loop exists to detect.
                  *
-                 * Found via test_supervisor.c's hang scenario never
-                 * completing.
+                 * Any coalesced extra heartbeat bytes just get left for the next
+                 * iteration's read; discarding them isn't needed since we don't
+                 * count bytes, only liveness.
+                 *
+                 * Found via test_supervisor.c's hang scenario never completing.
                  */
                 uint8_t buf[64];
                 read(canary_fd, buf, sizeof(buf));

@@ -1,9 +1,11 @@
-/* test_selection -- ghostcon_selection_t state machine, row-range
- * computation, text extraction, and base64 encode/decode.
+/* test_selection
  *
- * Uses a real ghostcon_term_t (fed plain text through the normal VT parser,
- * same pattern as tests/test_osc.c) so extract_text exercises real cell
- * content rather than hand-poked arrays.
+ * ghostcon_selection_t state machine, row-range computation, text extraction, and
+ * base64 encode/decode.
+ *
+ * Uses a real ghostcon_term_t (fed plain text through the normal VT parser, same
+ * pattern as tests/test_osc.c) so extract_text exercises real cell content rather
+ * than hand-poked arrays.
  */
 
 #include "ghostcon/term/term.h"
@@ -96,8 +98,10 @@ main(void)
     CHECK(n == strlen("hello world") && strcmp(buf, "hello world") == 0,
           "extract_text: single row, trailing padding trimmed");
 
-    /* Select across both rows -- newline between them since row 0 is not a
-     * wrap continuation of row 1 (it's a real \r\n).
+    /* Select across both rows
+     *
+     * newline between them since row 0 is not a wrap continuation of row 1 (it's
+     * a real \r\n).
      */
     ghostcon_selection_clear(&term.screen.selection);
     ghostcon_selection_start(&term.screen.selection, 0, 0, GC_SEL_CHAR, term.screen.cols);

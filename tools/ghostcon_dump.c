@@ -1,12 +1,13 @@
-/*
- * ghostcon_dump — ghostcon terminal-state dumper.
+/* ghostcon_dump
  *
- * Feeds a byte stream into ghostcon's terminal core and dumps the
- * resulting screen state in the canonical, diffable format shared with
- * tools/ghostty_dump.c (see that file for the format spec).
+ * ghostcon terminal-state dumper.
  *
- * Used by the Phase 0 validation harness to compare ghostcon against
- * the reference Ghostty implementation. See run_compare.sh.
+ * Feeds a byte stream into ghostcon's terminal core and dumps the resulting
+ * screen state in the canonical, diffable format shared with tools/ghostty_dump.c
+ * (see that file for the format spec).
+ *
+ * Used by the Phase 0 validation harness to compare ghostcon against the
+ * reference Ghostty implementation. See run_compare.sh.
  */
 
 #include <stdio.h>

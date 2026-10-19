@@ -112,12 +112,14 @@ main(void)
     printf("PASS: alt screen\n");
 
     /* Test 8: scrollback view (Shift+Up/Down/PageUp/PageDown shortcuts'
-     * underlying mechanism — ghostcon_screen_scroll_view()/the history
-     * splicing in ghostcon_screen_row()).
+     * underlying mechanism
+     *
+     * ghostcon_screen_scroll_view()/the history splicing in
+     * ghostcon_screen_row()).
      *
      * Isolated small term (5 cols x 3 rows) so exact line contents at each
-     * viewport position are easy to reason about, independent of the 80x24
-     * term used above.
+     * viewport position are easy to reason about, independent of the 80x24 term
+     * used above.
      */
     {
         ghostcon_term_t stest;
@@ -162,8 +164,10 @@ main(void)
             return 1;
         }
 
-        /* Scroll back further than history_count -- clamps rather than
-         * going out of bounds. Fully back: row0="AAAAA" (oldest).
+        /* Scroll back further than history_count
+         *
+         * clamps rather than going out of bounds. Fully back: row0="AAAAA"
+         * (oldest).
          */
         ghostcon_screen_scroll_view(&stest.screen, 10);
         if (stest.screen.view_offset != 3) {

@@ -20,18 +20,19 @@ static int g_vt_num = -1;
 
 static const int FATAL_SIGNALS[] = { SIGSEGV, SIGABRT, SIGFPE, SIGILL, SIGBUS };
 
-/* backtrace()/backtrace_symbols() call malloc, which is not
- * async-signal-safe -- a real risk here since the fault that got us into
- * this handler may itself have been heap corruption.
+/* backtrace()/backtrace_symbols() call malloc, which is not async-signal-safe
+ *
+ * a real risk here since the fault that got us into this handler may itself have
+ * been heap corruption.
  *
  * This is a deliberate, pragmatic tradeoff shared by most real-world crash
  * reporters (e.g.
  *
  * Breakpad): best-effort diagnostics on the way down beat none, and if this
  * itself deadlocks or re-faults, the process was going to die anyway.
- * backtrace_symbols_fd() below is the async-signal-safer variant (no
- * malloc, writes raw fd) and is what still gets the full trace out even if
- * the journald send above it fails or backtrace_symbols() itself faults.
+ * backtrace_symbols_fd() below is the async-signal-safer variant (no malloc,
+ * writes raw fd) and is what still gets the full trace out even if the journald
+ * send above it fails or backtrace_symbols() itself faults.
  */
 static void crash_handler(int signum)
 {
@@ -61,16 +62,18 @@ static void crash_handler(int signum)
         "GHOSTCON_SIGNAL=%d", signum,
         NULL);
 
-    /* Full, untruncated trace to stderr — journald captures this via its
-     * own stdio forwarding for services; for an interactive run it lands on
-     * the terminal.
+    /* Full, untruncated trace to stderr
+     *
+     * journald captures this via its own stdio forwarding for services; for an
+     * interactive run it lands on the terminal.
      */
     backtrace_symbols_fd(frames, n, STDERR_FILENO);
 
     /* SA_RESETHAND (see ghostcon_diag_init) already reset this signal's
-     * disposition to default on entry; re-raising here makes the process
-     * actually die with the correct signal/exit status and, if enabled, a
-     * real core dump — this handler's job is reporting, not survival.
+     * disposition to default on entry; re-raising here makes the process actually
+     * die with the correct signal/exit status and, if enabled, a real core dump
+     *
+     * this handler's job is reporting, not survival.
      */
     raise(signum);
 }

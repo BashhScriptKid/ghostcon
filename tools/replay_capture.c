@@ -1,7 +1,7 @@
-/*
- * replay_capture -- one-off diagnostic tool (not registered in
- * meson.build, build/run manually) for the "stale glyphs after a
- * complex tool output / message send" report.
+/* replay_capture
+ *
+ * one-off diagnostic tool (not registered in meson.build, build/run manually) for
+ * the "stale glyphs after a complex tool output / message send" report.
  *
  * Feeds a captured raw pty-output file through ghostcon_term_feed()
  * in the same 4096-byte chunks core/main.c's real read loop uses,
@@ -112,10 +112,11 @@ int main(int argc, char **argv)
             ghostcon_screen_clear_dirty(&term.screen);
         }
 
-        /* Transient content-duplication check, done EVERY chunk (not just
-         * at the end) -- the reported symptom disappears once later output
-         * overwrites it, so checking only the final state would miss it
-         * entirely.
+        /* Transient content-duplication check, done EVERY chunk (not just at the
+         * end)
+         *
+         * the reported symptom disappears once later output overwrites it, so
+         * checking only the final state would miss it entirely.
          */
         {
             char lines[512][512];
@@ -171,14 +172,15 @@ int main(int argc, char **argv)
     }
     (void)first_mismatch_chunk;
 
-    /* Content-duplication check (separate from dirty-tracking above):
-     * reported symptom is the SAME text appearing on two rows -- a
-     * content-placement bug (wrong cursor/scroll math during parsing), not
-     * a stale-redraw bug, so it'd show up in the TRUE state itself, not
-     * just the dirty-view/true-view diff above.
+    /* Content-duplication check (separate from dirty-tracking above): reported
+     * symptom is the SAME text appearing on two rows
      *
-     * Scan every row pair within a few lines of each other for
-     * near-duplicate non-blank content.
+     * a content-placement bug (wrong cursor/scroll math during parsing), not a
+     * stale-redraw bug, so it'd show up in the TRUE state itself, not just the
+     * dirty-view/true-view diff above.
+     *
+     * Scan every row pair within a few lines of each other for near-duplicate
+     * non-blank content.
      */
     printf("\n--- content-duplication scan ---\n");
     char lines[512][512];

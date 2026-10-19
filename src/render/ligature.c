@@ -5,16 +5,16 @@
 #include <stdbool.h>
 #include <string.h>
 
-/* Operator/punctuation characters actual programming-ligature fonts
- * (JetBrains Mono, Fira Code, Cascadia Code, ...) key their calt/liga
- * substitutions off of.
+/* Operator/punctuation characters actual programming-ligature fonts (JetBrains
+ * Mono, Fira Code, Cascadia Code, ...) key their calt/liga substitutions off of.
  *
- * Deliberately generous -- a false-positive candidate just costs one wasted
- * hb_shape() call that reports "no substitution", same as any character
- * never in this set.
+ * Deliberately generous
  *
- * Not meant to be exhaustive. The real gate is HarfBuzz's own output, not
- * this list.
+ * a false-positive candidate just costs one wasted hb_shape() call that reports
+ * "no substitution", same as any character never in this set.
+ *
+ * Not meant to be exhaustive. The real gate is HarfBuzz's own output, not this
+ * list.
  */
 static const char ligature_trigger_chars[] = "!#$%&*+-./:<=>?@^|~";
 
@@ -63,7 +63,9 @@ int ghostcon_ligature_scan_row(const ghostcon_row_t *row, ghostcon_atlas_t *atla
         }
 
         /* A single trigger char alone (e.g. a lone "+") never triggers a
-         * contextual substitution on its own -- don't bother shaping.
+         * contextual substitution on its own
+         *
+         * don't bother shaping.
          */
         if (run_len < 2)
             continue;
@@ -74,10 +76,11 @@ int ghostcon_ligature_scan_row(const ghostcon_row_t *row, ghostcon_atlas_t *atla
                                                GHOSTCON_LIGATURE_MAX_RUN_LEN);
         (void)out_adv;
 
-        /* Only trust a straight 1:1 mapping -- see ligature.h's own doc
-         * comment on ghostcon_ligature_scan_row() for why a glyph COUNT
-         * mismatch (an actual multi-codepoint collapse or reordering) is
-         * left unreported rather than guessed at.
+        /* Only trust a straight 1:1 mapping
+         *
+         * see ligature.h's own doc comment on ghostcon_ligature_scan_row() for
+         * why a glyph COUNT mismatch (an actual multi-codepoint collapse or
+         * reordering) is left unreported rather than guessed at.
          */
         if (shaped == run_len)
         {

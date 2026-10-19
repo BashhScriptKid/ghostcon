@@ -13,29 +13,32 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-/* PNG decode (f=100) -- delegates to libpng rather than hand-rolling
- * inflate/chunk parsing: PNG is a compressed, chunked format, and writing a
- * safe decoder for untrusted PNG data is a much bigger and more dangerous
- * undertaking than this v1's bounds-checked raw-pixel path.
+/* PNG decode (f=100)
  *
- * Real precedent for not hand-rolling this: Ghostty itself delegates PNG
- * decode to Wuffs (a memory-safety-audited decoder) rather than parsing it
- * in Terminal.zig, and can be built without PNG support at all
- * (sys.decode_png == null is a first-class, gracefully-handled state there,
- * not a hack) -- same posture this takes with libpng.
+ * delegates to libpng rather than hand-rolling inflate/chunk parsing: PNG is a
+ * compressed, chunked format, and writing a safe decoder for untrusted PNG data
+ * is a much bigger and more dangerous undertaking than this v1's bounds-checked
+ * raw-pixel path.
+ *
+ * Real precedent for not hand-rolling this: Ghostty itself delegates PNG decode
+ * to Wuffs (a memory-safety-audited decoder) rather than parsing it in
+ * Terminal.zig, and can be built without PNG support at all (sys.decode_png ==
+ * null is a first-class, gracefully-handled state there, not a hack)
+ *
+ * same posture this takes with libpng.
  */
 
-/* Decodes PNG bytes into freshly allocated RGBA pixels, or NULL on any
- * failure (corrupt data, unsupported PNG features, dimensions past this
- * module's limits).
+/* Decodes PNG bytes into freshly allocated RGBA pixels, or NULL on any failure
+ * (corrupt data, unsupported PNG features, dimensions past this module's limits).
  *
- * Uses libpng's "simplified API" (png_image_begin_read_from_memory), which
- * parses just the header and reports image.width/height BEFORE
- * finish_read() allocates or decodes any pixel data -- so a malicious PNG
- * that declares an enormous width/height gets rejected here, before any
- * attacker-influenced-size allocation happens, not just after decoding
- * completes (the same "reject before allocating" property Ghostty's own
- * decoder gets from a bounded allocator).
+ * Uses libpng's "simplified API" (png_image_begin_read_from_memory), which parses
+ * just the header and reports image.width/height BEFORE finish_read() allocates
+ * or decodes any pixel data
+ *
+ * so a malicious PNG that declares an enormous width/height gets rejected here,
+ * before any attacker-influenced-size allocation happens, not just after decoding
+ * completes (the same "reject before allocating" property Ghostty's own decoder
+ * gets from a bounded allocator).
  */
 static uint8_t *
 decode_png_rgba(const uint8_t *data, size_t len, int32_t *out_w, int32_t *out_h)
@@ -83,9 +86,11 @@ decode_png_rgba(const uint8_t *data, size_t len, int32_t *out_w, int32_t *out_h)
     return buf;
 }
 
-/* base64 decode -- bounded, rejects invalid input rather than skipping it
- * (silently accepting garbage as "decoded fine" would make
- * corrupt/adversarial payloads look like valid images).
+/* base64 decode
+ *
+ * bounded, rejects invalid input rather than skipping it (silently accepting
+ * garbage as "decoded fine" would make corrupt/adversarial payloads look like
+ * valid images).
  */
 
 static int b64_val(uint8_t c)
@@ -154,27 +159,32 @@ static size_t b64_decoded_max(size_t len)
 
 /* Shared-memory transmission (t=s) */
 
-/* Reads a POSIX shared-memory segment by name -- the Kitty t=s medium.
+/* Reads a POSIX shared-memory segment by name
  *
- * Deliberately narrower than t=f/t=t (arbitrary filesystem paths, still
- * deferred -- see this file's own top-of-header doc comment): shm_open() is
- * confined to the kernel's separate named-shared-memory namespace, never
- * the general filesystem, and this always opens O_RDONLY with no O_CREAT,
- * so ghostcon can only read a segment the client already created -- it can
- * never create or clobber one.
+ * the Kitty t=s medium.
  *
- * Matches Ghostty's own graphics_image.zig readSharedMemory(): reject
- * before mmap'ing anything if the segment is bigger than max_len (same
- * "reject before allocating on attacker-influenced size" posture as
- * decode_png_rgba above), and unconditionally shm_unlink() the segment
- * afterward -- success or failure -- since per the Kitty spec the client
- * creates+writes it and hands ownership of deleting it to the terminal;
- * leaving that to the client would accumulate an unbounded number of live
- * shm segments across repeated transmissions.
+ * Deliberately narrower than t=f/t=t (arbitrary filesystem paths, still deferred
  *
- * Returns a freshly malloc'd copy of the segment's contents (caller owns
- * it, the mapping itself is never handed back) on success, NULL on any
- * failure.
+ * see this file's own top-of-header doc comment): shm_open() is confined to the
+ * kernel's separate named-shared-memory namespace, never the general filesystem,
+ * and this always opens O_RDONLY with no O_CREAT, so ghostcon can only read a
+ * segment the client already created
+ *
+ * it can never create or clobber one.
+ *
+ * Matches Ghostty's own graphics_image.zig readSharedMemory(): reject before
+ * mmap'ing anything if the segment is bigger than max_len (same "reject before
+ * allocating on attacker-influenced size" posture as decode_png_rgba above), and
+ * unconditionally shm_unlink() the segment afterward
+ *
+ * success or failure
+ *
+ * since per the Kitty spec the client creates+writes it and hands ownership of
+ * deleting it to the terminal; leaving that to the client would accumulate an
+ * unbounded number of live shm segments across repeated transmissions.
+ *
+ * Returns a freshly malloc'd copy of the segment's contents (caller owns it, the
+ * mapping itself is never handed back) on success, NULL on any failure.
  */
 static uint8_t *read_shm_segment(const char *name, size_t max_len, size_t *out_len)
 {
@@ -240,13 +250,14 @@ static bool read_full(int fd, uint8_t *buf, size_t len)
     return true;
 }
 
-/* Reads a file transmitted via the Kitty t=t (temporary file) or t=f (plain
- * file) medium.
+/* Reads a file transmitted via the Kitty t=t (temporary file) or t=f (plain file)
+ * medium.
  *
- * Shared implementation -- the two mediums only differ in whether the
- * filename must match Kitty's own temp-file naming convention and whether
- * the file gets deleted afterward (see the two thin wrappers below), not in
- * how the path itself gets validated:
+ * Shared implementation
+ *
+ * the two mediums only differ in whether the filename must match Kitty's own
+ * temp-file naming convention and whether the file gets deleted afterward (see
+ * the two thin wrappers below), not in how the path itself gets validated:
  *
  * - Opens the client-supplied path FIRST, and only resolves/validates its
  *   real path (via /proc/self/fd, which reflects the actual open inode)
@@ -303,17 +314,18 @@ static uint8_t *read_local_file(const char *client_path, size_t max_len, size_t 
     }
     if (require_temp_naming)
     {
-        /* t=t only: Kitty's own naming convention for files it creates for
-         * this exact purpose.
+        /* t=t only: Kitty's own naming convention for files it creates for this
+         * exact purpose.
          *
-         * Without this, "must be under /tmp" alone would let a hostile
-         * client ask the terminal to read+DELETE any other unrelated file
-         * that happens to already live in /tmp (another process's lockfile,
-         * a cache entry, ...); requiring the convention name means a
-         * deleting read can only ever act on a file created FOR this
-         * handoff. t=f never deletes (see delete_after below), so it skips
-         * this -- worst case there is reading, not destroying, an unrelated
-         * file in that directory.
+         * Without this, "must be under /tmp" alone would let a hostile client ask
+         * the terminal to read+DELETE any other unrelated file that happens to
+         * already live in /tmp (another process's lockfile, a cache entry, ...);
+         * requiring the convention name means a deleting read can only ever act
+         * on a file created FOR this handoff. t=f never deletes (see delete_after
+         * below), so it skips this
+         *
+         * worst case there is reading, not destroying, an unrelated file in that
+         * directory.
          */
         const char *base = strrchr(real_path, '/');
         base = base ? base + 1 : real_path;
@@ -352,24 +364,24 @@ static uint8_t *read_local_file(const char *client_path, size_t max_len, size_t 
 
 /* t=t (temporary file): requires Kitty's "tty-graphics-protocol" filename
  * convention, and always unlink()s the file afterward --success or failure
- * -- exactly like read_shm_segment()'s shm_unlink(): the client creates the
- * file and hands ownership of deleting it to the terminal, so leaving
- * cleanup to the client would accumulate temp files across repeated
- * transmissions the same way not unlinking shm segments would.
+ *
+ * exactly like read_shm_segment()'s shm_unlink(): the client creates the file and
+ * hands ownership of deleting it to the terminal, so leaving cleanup to the
+ * client would accumulate temp files across repeated transmissions the same way
+ * not unlinking shm segments would.
  */
 static uint8_t *read_temp_file(const char *client_path, size_t max_len, size_t *out_len)
 {
     return read_local_file(client_path, max_len, out_len, true, true);
 }
 
-/* t=f (plain file): no filename convention required, and never deleted
- * --treated as a read-only cache the client expects to still exist
- * afterward (e.g. re-displaying the same pre-rendered image again later)
- * rather than a one-shot handoff like t=t.
+/* t=f (plain file): no filename convention required, and never deleted --treated
+ * as a read-only cache the client expects to still exist afterward (e.g.
+ * re-displaying the same pre-rendered image again later) rather than a one-shot
+ * handoff like t=t.
  *
- * Still bounded to /tmp or /dev/shm (see read_local_file()'s own doc
- * comment on why that's not the genuinely-arbitrary-path t=f the Kitty spec
- * itself defines).
+ * Still bounded to /tmp or /dev/shm (see read_local_file()'s own doc comment on
+ * why that's not the genuinely-arbitrary-path t=f the Kitty spec itself defines).
  */
 static uint8_t *read_cache_file(const char *client_path, size_t max_len, size_t *out_len)
 {
@@ -438,17 +450,18 @@ kitty_parse_control(char *control)
     c.format = -1; c.width = -1; c.height = -1;
     c.image_id = -1; c.placement_id = -1; c.more = -1; c.quiet = -1;
     /* z legitimately ranges negative (spec: z<0 renders behind text) ---1
-     * collides with a real value a client would actually send (it's the
-     * most common "just behind text" choice), so it can't double as the
-     * "absent" sentinel the way -1 safely does for every other field here
-     * (all of which are spec-defined non-negative).
+     * collides with a real value a client would actually send (it's the most
+     * common "just behind text" choice), so it can't double as the "absent"
+     * sentinel the way -1 safely does for every other field here (all of which
+     * are spec-defined non-negative).
      *
-     * Found live: every placement sent with z=-1 was silently coerced to
-     * the z=0 default by the old `ctl->z >= 0 ? ctl->z : 0` check below, so
-     * a z<0 (behind-text) placement was actually rendering in the z>=0
-     * (in-front-of-text) bucket the entire time -- an adversarial
-     * two-negative-z ordering test caught it, not the original zindex test
-     * page, which never actually verified genuine text-over-image
+     * Found live: every placement sent with z=-1 was silently coerced to the z=0
+     * default by the old `ctl->z >= 0 ? ctl->z : 0` check below, so a z<0
+     * (behind-text) placement was actually rendering in the z>=0
+     * (in-front-of-text) bucket the entire time
+     *
+     * an adversarial two-negative-z ordering test caught it, not the original
+     * zindex test page, which never actually verified genuine text-over-image
      * compositing, only that both colors existed somewhere on screen.
      */
     c.z = INT32_MIN;
@@ -561,15 +574,14 @@ static void kitty_ack(ghostcon_kitty_output_fn output_fn, void *userdata,
 {
     if (!output_fn)
         return;
-    /* Matches Ghostty's Response.encode() exactly: no id (and this v1
-     * doesn't implement I=/image-number at all) means there's nothing for
-     * the client to attach a response to, so the terminal stays silent
-     * --even for an error.
+    /* Matches Ghostty's Response.encode() exactly: no id (and this v1 doesn't
+     * implement I=/image-number at all) means there's nothing for the client to
+     * attach a response to, so the terminal stays silent --even for an error.
      *
      * A malformed command with no i= at all (e.g. missing i= entirely)
-     * legitimately gets no reply on real Ghostty; echoing "i=0;error=..."
-     * back, as an earlier version of this function did unconditionally, is
-     * protocol noise a well-behaved client isn't expecting.
+     * legitimately gets no reply on real Ghostty; echoing "i=0;error=..." back,
+     * as an earlier version of this function did unconditionally, is protocol
+     * noise a well-behaved client isn't expecting.
      */
     if (image_id == 0)
         return;
@@ -709,12 +721,12 @@ void ghostcon_kitty_graphics_deinit(ghostcon_kitty_graphics_t *kg)
 
 /* Command handling */
 
-/* Matches Ghostty's kitty/graphics_exec.zig cursor_movement==.after (the
- * default -- only C=1 suppresses it): advance past the placement's cell
- * footprint, computed from its actual drawn pixel size
- * (draw_w_px/draw_h_px, already resolved by the caller from crop/c=/r= the
- * same way render/machine.c's render_one_placement resolves them for
- * drawing) divided by the renderer's current cell size.
+/* Matches Ghostty's kitty/graphics_exec.zig cursor_movement==.after (the default
+ *
+ * only C=1 suppresses it): advance past the placement's cell footprint, computed
+ * from its actual drawn pixel size (draw_w_px/draw_h_px, already resolved by the
+ * caller from crop/c=/r= the same way render/machine.c's render_one_placement
+ * resolves them for drawing) divided by the renderer's current cell size.
  */
 static void compute_cursor_move(int32_t no_cursor_move, int32_t draw_w_px, int32_t draw_h_px,
                                 int32_t anchor_col, int32_t cell_w, int32_t cell_h,
@@ -748,10 +760,10 @@ static void handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t
      */
     int64_t resolved_id = ctl->image_id;
     bool resolved_display = also_display;
-    /* Placement-affecting keys that are only meaningful/sent on the first
-     * chunk -- default to this chunk's own (usually absent) values,
-     * overridden below from the saved snapshot only when resolving back to
-     * an in-progress transfer.
+    /* Placement-affecting keys that are only meaningful/sent on the first chunk
+     *
+     * default to this chunk's own (usually absent) values, overridden below from
+     * the saved snapshot only when resolving back to an in-progress transfer.
      */
     int32_t resolved_z = ctl->z;
     int32_t resolved_crop_x = ctl->crop_x, resolved_crop_y = ctl->crop_y;
@@ -798,12 +810,14 @@ static void handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t
     bool from_cache_file = ctl->medium == 'f';
     if ((from_shm || from_temp_file || from_cache_file) && ctl->more == 1)
     {
-        /* Chunked path/name assembly is legal per spec (a path is just
-         * another base64 payload, mechanically chunkable like anything
-         * else) but never useful in practice -- shm segment names and file
-         * paths are always short enough for one chunk -- and adding it
-         * would mean threading a second "this accumulation is a path, not
-         * pixels" mode through the entire chunk/continuation machinery
+        /* Chunked path/name assembly is legal per spec (a path is just another
+         * base64 payload, mechanically chunkable like anything else) but never
+         * useful in practice
+         *
+         * shm segment names and file paths are always short enough for one chunk
+         *
+         * and adding it would mean threading a second "this accumulation is a
+         * path, not pixels" mode through the entire chunk/continuation machinery
          * above.
          *
          * Reject cleanly rather than silently mishandling it.
@@ -817,14 +831,16 @@ static void handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t
     bool continuing = img && img->receiving;
 
     /* f= (like s=/v=/i= below) is only meaningful on the first chunk of a
-     * multi-chunk transfer -- continuation chunks legally omit it, so
-     * re-deriving bpp from ctl->format on every chunk would silently
-     * default to 32 (RGBA) instead of the format actually agreed on in
-     * chunk 1, corrupting the declared size for every later chunk.
+     * multi-chunk transfer
      *
-     * PNG (f=100) is tracked the same way, via img->bpp == 0 (raw formats
-     * are always 3 or 4, so 0 is unambiguous) rather than a separate flag
-     * on the image struct.
+     * continuation chunks legally omit it, so re-deriving bpp from ctl->format on
+     * every chunk would silently default to 32 (RGBA) instead of the format
+     * actually agreed on in chunk 1, corrupting the declared size for every later
+     * chunk.
+     *
+     * PNG (f=100) is tracked the same way, via img->bpp == 0 (raw formats are
+     * always 3 or 4, so 0 is unambiguous) rather than a separate flag on the
+     * image struct.
      */
     int32_t bpp;
     bool is_png;
@@ -853,17 +869,16 @@ static void handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t
         }
     }
 
-    /* Raw formats: width/height come from s=/v= and expected_len is the
-     * exact decoded pixel size.
+    /* Raw formats: width/height come from s=/v= and expected_len is the exact
+     * decoded pixel size.
      *
-     * PNG: dimensions come from the decoded PNG itself (Ghostty ignores
-     * s=/v= for f=100 the same way --graphics_command.zig's width/height
-     * table maps .png to null), so there's nothing to validate here yet;
-     * expected_len instead bounds how many raw (still-compressed) bytes
-     * this transfer may accumulate before decode, same cap as everything
-     * else in this module, matching Ghostty's own pre-decode size cap on
-     * the still-compressed data (graphics_image.zig's "image data too
-     * large" check, `data.items.len + data.len > max_size`).
+     * PNG: dimensions come from the decoded PNG itself (Ghostty ignores s=/v= for
+     * f=100 the same way --graphics_command.zig's width/height table maps .png to
+     * null), so there's nothing to validate here yet; expected_len instead bounds
+     * how many raw (still-compressed) bytes this transfer may accumulate before
+     * decode, same cap as everything else in this module, matching Ghostty's own
+     * pre-decode size cap on the still-compressed data (graphics_image.zig's
+     * "image data too large" check, `data.items.len + data.len > max_size`).
      */
     int32_t width = 0, height = 0;
     size_t expected_len;
@@ -904,9 +919,10 @@ static void handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t
     size_t decoded_len;
     if (from_shm || from_temp_file || from_cache_file)
     {
-        /* payload/payload_len here is the base64-encoded shm segment name
-         * or file PATH (per spec, the payload is always base64 regardless
-         * of medium -- only what it MEANS differs), not image bytes.
+        /* payload/payload_len here is the base64-encoded shm segment name or file
+         * PATH (per spec, the payload is always base64 regardless of medium
+         *
+         * only what it MEANS differs), not image bytes.
          */
         size_t name_cap = b64_decoded_max(payload_len);
         uint8_t *name_buf = malloc(name_cap + 1);
@@ -925,10 +941,11 @@ static void handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t
             return;
         }
         name_buf[name_len] = '\0';
-        /* POSIX shm names/paths cannot contain internal NULs -- same check
-         * Ghostty applies to the decoded path/name before calling
-         * shm_open()/openFile(), and for the same reason (a NUL would
-         * silently truncate the string the syscall actually sees).
+        /* POSIX shm names/paths cannot contain internal NULs
+         *
+         * same check Ghostty applies to the decoded path/name before calling
+         * shm_open()/openFile(), and for the same reason (a NUL would silently
+         * truncate the string the syscall actually sees).
          */
         if (strlen((char *)name_buf) != name_len)
         {
@@ -1035,10 +1052,10 @@ static void handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t
     /* Final (or only) chunk.
      *
      * Raw formats require the accumulated size to match the declared
-     * width*height*bpp exactly; PNG's compressed size is whatever it
-     * happens to be, so there's nothing to match against here
-     * --decode_png_rgba below is what actually validates it (a truncated or
-     * corrupt PNG simply fails to decode).
+     * width*height*bpp exactly; PNG's compressed size is whatever it happens to
+     * be, so there's nothing to match against here --decode_png_rgba below is
+     * what actually validates it (a truncated or corrupt PNG simply fails to
+     * decode).
      */
     uint8_t *final_pixels;
     size_t final_len;
@@ -1218,9 +1235,10 @@ static void handle_placement(ghostcon_kitty_graphics_t *kg, const kitty_control_
 static void handle_delete(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl)
 {
     /* Matches Ghostty's graphics_exec.zig delete() exactly: "Delete never
-     * responds on success" -- and, since it unconditionally returns an
-     * empty Response regardless of what happened internally, not on failure
-     * either.
+     * responds on success"
+     *
+     * and, since it unconditionally returns an empty Response regardless of what
+     * happened internally, not on failure either.
      *
      * No kitty_ack() calls anywhere in this function is intentional, not an
      * oversight.
@@ -1245,9 +1263,10 @@ static void handle_delete(ghostcon_kitty_graphics_t *kg, const kitty_control_t *
                 free_image(kg, img);
         }
     }
-    /* Unsupported delete modes (per this v1's scope -- see
-     * kitty_graphics.h) are silently no-ops, same as an unrecognized mode
-     * is on real Ghostty (it just wouldn't match any Delete union tag).
+    /* Unsupported delete modes (per this v1's scope
+     *
+     * see kitty_graphics.h) are silently no-ops, same as an unrecognized mode is
+     * on real Ghostty (it just wouldn't match any Delete union tag).
      */
 }
 
@@ -1285,9 +1304,10 @@ void ghostcon_kitty_graphics_handle(ghostcon_kitty_graphics_t *kg,
     const char *payload = semi ? semi + 1 : NULL;
     size_t payload_len = semi ? body_len - control_len - 1 : 0;
 
-    /* strtok_r mutates, so copy the control-data segment onto the stack
-     * (it's bounded -- the whole APC command is already capped upstream in
-     * stream.c).
+    /* strtok_r mutates, so copy the control-data segment onto the stack (it's
+     * bounded
+     *
+     * the whole APC command is already capped upstream in stream.c).
      */
     char control_copy[512];
     if (control_len >= sizeof control_copy)

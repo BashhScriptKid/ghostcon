@@ -1,11 +1,12 @@
-/* stream_internal.h — shared plumbing between the stream state machine
- * (stream.c) and its dispatch modules (stream_csi.c, stream_osc.c,
- * stream_apc.c).
+/* stream_internal.h
  *
- * NOT part of the public API (it lives under src/, not include/) —
- * everything here assumes ghostcon_stream_t's struct internals are visible,
- * which the public header deliberately does not promise to external
- * clients.
+ * shared plumbing between the stream state machine (stream.c) and its dispatch
+ * modules (stream_csi.c, stream_osc.c, stream_apc.c).
+ *
+ * NOT part of the public API (it lives under src/, not include/)
+ *
+ * everything here assumes ghostcon_stream_t's struct internals are visible, which
+ * the public header deliberately does not promise to external clients.
  *
  * Dispatch ownership split (see PLAN.md "Phase 2: Terminal Engine
  * Modularization"): the state machine in stream.c collects bytes, then
@@ -53,10 +54,11 @@ csi_param_count(ghostcon_stream_t *st, uint8_t minc, uint8_t maxc)
 
 /* A raw CSI param can be up to UINT16_MAX (65535).
  *
- * Handlers that apply it via an O(n) per-step loop (rather than O(1)
- * arithmetic or a single memmove) must not loop that many times just to
- * hang synchronously in the single-threaded render/input loop -- clamp to
- * the largest count that can still change anything observable.
+ * Handlers that apply it via an O(n) per-step loop (rather than O(1) arithmetic
+ * or a single memmove) must not loop that many times just to hang synchronously
+ * in the single-threaded render/input loop
+ *
+ * clamp to the largest count that can still change anything observable.
  */
 static inline int clamp_loop_count(int n, int max_useful)
 {
@@ -93,6 +95,8 @@ void gc_stream_apc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s);
 void gc_stream_dcs_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s);
 
 /* Grows st->buf to fit one more byte (up to the DCS cap). Only the
- * DCS_PASSTHROUGH state machine state calls this -- see stream.c.
+ * DCS_PASSTHROUGH state machine state calls this
+ *
+ * see stream.c.
  */
 bool gc_stream_dcs_buf_grow(ghostcon_stream_t *st);

@@ -14,8 +14,9 @@ void
 ghostcon_config_defaults(ghostcon_config_t *cfg)
 {
     memset(cfg, 0, sizeof(*cfg));
-    /* Matches every binary's own hardcoded fallback today -- see
-     * core/main.c's DEFAULT_DRM_NODE, supervisor/main.c's
+    /* Matches every binary's own hardcoded fallback today
+     *
+     * see core/main.c's DEFAULT_DRM_NODE, supervisor/main.c's
      * DEFAULT_RUN_DIR/DEFAULT_CANARY_DEADLINE_MS, core/main.c's FONT_SIZE.
      */
     snprintf(cfg->drm_node, sizeof(cfg->drm_node), "%s", "/dev/dri/card1");
@@ -218,14 +219,15 @@ void ghostcon_config_export_env(const ghostcon_config_t *cfg, const char *config
     snprintf(buf, sizeof(buf), "%d", cfg->font_size);
     setenv("GHOSTCON_FONT_SIZE", buf, ow);
 
-    /* Default true (see core/main.c's CLEAR_ON_LOGOUT_DEFAULT), unlike
-     * every other bool above -- only export "0" when the config explicitly
-     * turns it OFF, so the reader's own true-default stands when this key
-     * is left out of the file entirely (the common case).
+    /* Default true (see core/main.c's CLEAR_ON_LOGOUT_DEFAULT), unlike every
+     * other bool above
      *
-     * Same reload-direction-flip reasoning as above, inverted: a hot-reload
-     * back to true must unsetenv() a previously-exported "0", not leave it
-     * stuck off.
+     * only export "0" when the config explicitly turns it OFF, so the reader's
+     * own true-default stands when this key is left out of the file entirely (the
+     * common case).
+     *
+     * Same reload-direction-flip reasoning as above, inverted: a hot-reload back
+     * to true must unsetenv() a previously-exported "0", not leave it stuck off.
      */
     if (!cfg->clear_on_logout)
         setenv("GHOSTCON_CLEAR_ON_LOGOUT", "0", ow);
@@ -251,10 +253,11 @@ int ghostcon_config_watch_open(const char *path)
         return -1;
 
     /* IN_CLOSE_WRITE covers a plain in-place write; IN_MOVED_TO covers the
-     * write-temp-then-rename-over-original pattern most editors (vim
-     * included) use by default -- watching the directory rather than the
-     * file itself is what makes that second case observable at all (see
-     * this function's own header doc comment).
+     * write-temp-then-rename-over-original pattern most editors (vim included)
+     * use by default
+     *
+     * watching the directory rather than the file itself is what makes that
+     * second case observable at all (see this function's own header doc comment).
      *
      * IN_MODIFY is a cheap extra safety net for tools that do neither.
      */

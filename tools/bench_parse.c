@@ -1,28 +1,29 @@
-/* bench_parse -- measures VT-parsing throughput (ghostcon_term_feed(), i.e.
- * term/stream.c + the vendored libghostty-vt state machine), isolated from
- * rendering, pty I/O, and everything else.
+/* bench_parse
  *
- * Motivation: bench_render showed the GLES render pipeline itself is
- * nowhere near the bottleneck for "fast scroll looks like a slideshow,
- * skipped frames" (>600fps worst case, headless).
+ * measures VT-parsing throughput (ghostcon_term_feed(), i.e. term/stream.c + the
+ * vendored libghostty-vt state machine), isolated from rendering, pty I/O, and
+ * everything else.
  *
- * The likely remaining culprit: if a fast-scrolling TUI produces
- * escape-sequence output faster than this can parse it, ghostcon-core's
- * main loop only renders whatever state happens to exist once the backlog
- * is drained -- which looks exactly like dropped/skipped frames, not
- * smooth-but-slow motion, since every intermediate scroll position in
- * between never gets rendered at all.
+ * Motivation: bench_render showed the GLES render pipeline itself is nowhere near
+ * the bottleneck for "fast scroll looks like a slideshow, skipped frames"
+ * (>600fps worst case, headless).
  *
- * Feeds synthetic output shaped like a real full-screen TUI redraw
- * (cursor-home + SGR-colored lines filling the whole grid, repeated --same
- * shape htop/btop/etc. produce on every refresh), in pty-read-sized chunks
- * (4096 bytes, matching ptyserv/pty_child.c's own read buffer size) rather
- * than one giant feed call, since that's the real call-pattern shape.
+ * The likely remaining culprit: if a fast-scrolling TUI produces escape-sequence
+ * output faster than this can parse it, ghostcon-core's main loop only renders
+ * whatever state happens to exist once the backlog is drained
  *
- * Reports MB/s and "screens/sec" (how many
- * full-screen-worth-of-redraw-bytes can be parsed per second) so it's
- * directly comparable against how fast a real TUI can actually produce
- * output.
+ * which looks exactly like dropped/skipped frames, not smooth-but-slow motion,
+ * since every intermediate scroll position in between never gets rendered at all.
+ *
+ * Feeds synthetic output shaped like a real full-screen TUI redraw (cursor-home +
+ * SGR-colored lines filling the whole grid, repeated --same shape htop/btop/etc.
+ * produce on every refresh), in pty-read-sized chunks (4096 bytes, matching
+ * ptyserv/pty_child.c's own read buffer size) rather than one giant feed call,
+ * since that's the real call-pattern shape.
+ *
+ * Reports MB/s and "screens/sec" (how many full-screen-worth-of-redraw-bytes can
+ * be parsed per second) so it's directly comparable against how fast a real TUI
+ * can actually produce output.
  *
  * Usage: bench_parse [cols] [rows] [screens]
  *   Defaults: 128x32, 2000 synthetic full-screen redraws.
@@ -50,10 +51,12 @@ now_ms(void)
 }
 
 /* Builds one full-screen redraw: CSI H (cursor home, what a TUI does before
- * repainting) then `rows` lines of SGR-colored, varied-glyph content
- * filling every column -- same content-generation approach as
- * bench_render.c's fill_scrollback(), for the same reason (real color/
- * glyph variety, not a degenerate single-repeated-byte case).
+ * repainting) then `rows` lines of SGR-colored, varied-glyph content filling
+ * every column
+ *
+ * same content-generation approach as bench_render.c's fill_scrollback(), for the
+ * same reason (real color/ glyph variety, not a degenerate single-repeated-byte
+ * case).
  *
  * Returns bytes written.
  */
@@ -122,9 +125,10 @@ int main(int argc, char **argv)
            cols, rows, screens, total_bytes);
 
     /* Feed everything through in READ_CHUNK-sized pieces, spanning screen
-     * boundaries arbitrarily (a real pty read has no idea where one TUI
-     * redraw ends and the next begins either) -- flatten into one
-     * contiguous buffer first so chunking is exact.
+     * boundaries arbitrarily (a real pty read has no idea where one TUI redraw
+     * ends and the next begins either)
+     *
+     * flatten into one contiguous buffer first so chunking is exact.
      */
     char *all = malloc(total_bytes);
     size_t off = 0;

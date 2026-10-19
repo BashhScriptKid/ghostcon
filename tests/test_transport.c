@@ -1,10 +1,11 @@
-/* test_transport — Phase 1 acceptance test for core/transport.c.
+/* test_transport
  *
- * Starts a real ghost-ptyserv + pty-ttyN pair (same setup as
- * test_ptyserv.c) and connects to it via ghostcon_transport_connect instead
- * of raw sockets, verifying the registry query + pty child connect +
- * bidirectional byte flow all work through the transport API a real
- * ghostcon-core renderer would use.
+ * Phase 1 acceptance test for core/transport.c.
+ *
+ * Starts a real ghost-ptyserv + pty-ttyN pair (same setup as test_ptyserv.c) and
+ * connects to it via ghostcon_transport_connect instead of raw sockets, verifying
+ * the registry query + pty child connect + bidirectional byte flow all work
+ * through the transport API a real ghostcon-core renderer would use.
  */
 
 #define _DEFAULT_SOURCE
@@ -113,10 +114,11 @@ int main(void)
     printf("PASS: bidirectional byte flow over transport\n");
 
     ghostcon_transport_close(&t);
-    /* pty-ttyN is ghost-ptyserv's child, not ours -- SIGTERM on ptyserv_pid
-     * doesn't touch it, and it holds a dup'd stdout fd from fork() that
-     * would otherwise keep the test harness waiting on this process's
-     * output pipe forever after we exit.
+    /* pty-ttyN is ghost-ptyserv's child, not ours
+     *
+     * SIGTERM on ptyserv_pid doesn't touch it, and it holds a dup'd stdout fd
+     * from fork() that would otherwise keep the test harness waiting on this
+     * process's output pipe forever after we exit.
      */
     kill(t.pty_child_pid, SIGTERM);
     kill(ptyserv_pid, SIGTERM);

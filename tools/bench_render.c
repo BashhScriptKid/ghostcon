@@ -1,16 +1,19 @@
-/* bench_render -- measures full-canvas redraw throughput for ghostcon's
- * render pipeline (atlas + gles + machine), headless (a DRM render node, no
- * display/DRM master needed -- same setup tests/test_render.c already uses,
- * see core/egl.h's doc comment).
+/* bench_render
  *
- * Motivation: suspected slowness "fast scrolling" in a TUI -- every visible
- * row's content changing every frame is the worst case for this renderer's
- * "redraw everything dirty, one GLES draw call per frame" design (see
+ * measures full-canvas redraw throughput for ghostcon's render pipeline (atlas +
+ * gles + machine), headless (a DRM render node, no display/DRM master needed
+ *
+ * same setup tests/test_render.c already uses, see core/egl.h's doc comment).
+ *
+ * Motivation: suspected slowness "fast scrolling" in a TUI
+ *
+ * every visible row's content changing every frame is the worst case for this
+ * renderer's "redraw everything dirty, one GLES draw call per frame" design (see
  * render/machine.c).
  *
- * This tool reproduces exactly that worst case directly against the real
- * render pipeline, with no pty/VT/network in the loop, so the render cost
- * is isolated from everything else that could also be slow.
+ * This tool reproduces exactly that worst case directly against the real render
+ * pipeline, with no pty/VT/network in the loop, so the render cost is isolated
+ * from everything else that could also be slow.
  *
  * Usage: bench_render [cols] [rows] [font_size] [frames]
  *   Defaults: 128x32 @ 24pt, 300 frames (matches a plausible real
@@ -36,10 +39,10 @@
 #define ATLAS_DIM 1024
 #define DRM_RENDER_NODE "/dev/dri/renderD128"
 #define WARMUP_FRAMES 10
-/* Enough scrollback that bouncing scroll_view() back and forth for the
- * whole benchmark run never runs out of history to scroll into --each
- * "frame" scrolls by 1 line, so this needs to comfortably exceed half of
- * any plausible --frames value.
+/* Enough scrollback that bouncing scroll_view() back and forth for the whole
+ * benchmark run never runs out of history to scroll into --each "frame" scrolls
+ * by 1 line, so this needs to comfortably exceed half of any plausible --frames
+ * value.
  */
 #define SCROLLBACK_LINES 2000
 
@@ -51,12 +54,12 @@ now_ms(void)
     return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1e6;
 }
 
-/* Fills the terminal with SCROLLBACK_LINES lines of varied, colorful
- * content -- exercises the atlas's real glyph rasterization path (many
- * distinct codepoints, not just one repeated character) and the
- * color-resolution path (machine.c's resolve_colors()), same as real
- * terminal output would, rather than a degenerate all-blank or
- * all-one-glyph case that wouldn't stress the atlas/GLES paths
+/* Fills the terminal with SCROLLBACK_LINES lines of varied, colorful content
+ *
+ * exercises the atlas's real glyph rasterization path (many distinct codepoints,
+ * not just one repeated character) and the color-resolution path (machine.c's
+ * resolve_colors()), same as real terminal output would, rather than a degenerate
+ * all-blank or all-one-glyph case that wouldn't stress the atlas/GLES paths
  * realistically.
  */
 static void fill_scrollback(ghostcon_term_t *term, uint16_t cols)
@@ -173,9 +176,11 @@ int main(int argc, char **argv)
     for (int i = 0; i < frames; i++)
     {
         /* scroll_view() marks the WHOLE visible grid dirty (see its own doc
-         * comment) -- exactly the worst case a fast-scrolling TUI hits
-         * every frame: every visible cell's content changed, nothing can be
-         * skipped via dirty-region tracking.
+         * comment)
+         *
+         * exactly the worst case a fast-scrolling TUI hits every frame: every
+         * visible cell's content changed, nothing can be skipped via dirty-region
+         * tracking.
          */
         ghostcon_screen_scroll_view(&term.screen, dir);
         dir = -dir;
@@ -197,9 +202,10 @@ int main(int argc, char **argv)
         if (dt > max_ms) max_ms = dt;
     }
 
-    /* Simple descending sort for percentiles -- frames is small (hundreds),
-     * O(n^2) insertion sort is plenty fast enough here and keeps this file
-     * dependency-free.
+    /* Simple descending sort for percentiles
+     *
+     * frames is small (hundreds), O(n^2) insertion sort is plenty fast enough
+     * here and keeps this file dependency-free.
      */
     for (int i = 1; i < frames; i++)
     {

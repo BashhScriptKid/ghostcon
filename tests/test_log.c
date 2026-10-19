@@ -1,7 +1,8 @@
-/*
- * test_log — pure-function checks for the GHOSTCON_LOG domain matcher
- * used by GC_LOG() (include/ghostcon/core/log.h). No env state touched:
- * gc_log_domain_matches() is deliberately side-effect free.
+/* test_log
+ *
+ * pure-function checks for the GHOSTCON_LOG domain matcher used by GC_LOG()
+ * (include/ghostcon/core/log.h). No env state touched: gc_log_domain_matches() is
+ * deliberately side-effect free.
  */
 
 #include "ghostcon/core/log.h"

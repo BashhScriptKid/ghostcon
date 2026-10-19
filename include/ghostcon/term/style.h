@@ -4,10 +4,12 @@
 #include <stdbool.h>
 #include "cell.h"
 
-/* Style — text attributes for a cell
+/* Style
  *
- * Each cell references a style via ghostcon_style_id_t (15-bit). style_id 0
- * = default style (no attributes, default fg/bg colors).
+ * text attributes for a cell
+ *
+ * Each cell references a style via ghostcon_style_id_t (15-bit). style_id 0 =
+ * default style (no attributes, default fg/bg colors).
  *
  * Style flags map 1:1 to Ghostty's style.zig attributes.
  */
@@ -71,7 +73,9 @@ static inline bool ghostcon_style_eq(const ghostcon_style_t *a, const ghostcon_s
            a->underline == b->underline;
 }
 
-/* StyleSet — a ref-counted set of styles
+/* StyleSet
+ *
+ * a ref-counted set of styles
  *
  * Simplified version of Ghostty's StyleSet (RefCountedSet). Maps
  * ghostcon_style_id_t → ghostcon_style_t with reference counts.

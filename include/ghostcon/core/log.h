@@ -9,15 +9,14 @@
  *
  * Header-only and dependency-free.
  *
- * Output goes to stderr, which journald captures for ghostcon.service
- * through stdio forwarding, the same channel diag.c uses for backtraces.
- * term/ can include this without linking libsystemd, unlike
- * ghostcon_diag_log_warning(), which would pull it into ghostcon_dump and
- * the test binaries.
+ * Output goes to stderr, which journald captures for ghostcon.service through
+ * stdio forwarding, the same channel diag.c uses for backtraces. term/ can
+ * include this without linking libsystemd, unlike ghostcon_diag_log_warning(),
+ * which would pull it into ghostcon_dump and the test binaries.
  *
- * GHOSTCON_LOG is a comma-separated domain list; "all" is a wildcard. When
- * it is unset or empty, every GC_LOG site is silent, so normal operation
- * logs nothing new.
+ * GHOSTCON_LOG is a comma-separated domain list; "all" is a wildcard. When it is
+ * unset or empty, every GC_LOG site is silent, so normal operation logs nothing
+ * new.
  *
  * Examples:
  *

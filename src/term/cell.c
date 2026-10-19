@@ -147,12 +147,12 @@ uint8_t ghostcon_unicode_width(uint32_t cp)
 }
 
 /* See cell.h's doc comment. ghostcon_generated_symbol_ranges[] (in
- * cell_symbol_table.gen.c, produced by tools/gen_symbol_table.py from the
- * UCD) covers real Unicode General Category Sm/Sc/Sk/So, matching Ghostty's
+ * cell_symbol_table.gen.c, produced by tools/gen_symbol_table.py from the UCD)
+ * covers real Unicode General Category Sm/Sc/Sk/So, matching Ghostty's
  * UCD-derived isSymbol().
  *
- * Two hand-added carve-outs sit on top of that generated data, for reasons
- * the UCD can't express:
+ * Two hand-added carve-outs sit on top of that generated data, for reasons the
+ * UCD can't express:
  *
  * - U+2500-259F (Box Drawing, Block Elements) IS genuinely category So in
  *   the UCD, so it appears in the generated table -- but it must be

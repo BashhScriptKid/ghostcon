@@ -1,8 +1,9 @@
-/*
- * ghostty_dump — reference terminal-state dumper.
+/* ghostty_dump
  *
- * Feeds a byte stream into a real Ghostty terminal core (libghostty-vt)
- * and dumps the resulting screen state in a canonical, diffable format.
+ * reference terminal-state dumper.
+ *
+ * Feeds a byte stream into a real Ghostty terminal core (libghostty-vt) and dumps
+ * the resulting screen state in a canonical, diffable format.
  *
  * Used by the Phase 0 validation harness to compare ghostcon against the
  * reference implementation. See run_compare.sh.

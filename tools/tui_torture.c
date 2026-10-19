@@ -1,21 +1,24 @@
-/* tui_torture -- a plain terminal client (no libghostcon dependency at all,
- * unlike tools/bench_*.c) that emits real VT escape sequences to stdout,
- * choreographed to reproduce the specific redraw idioms real full-screen
- * TUIs use (fixed status/input areas, synchronized-output batches,
- * alt-screen dips, scrollback churn, ...).
+/* tui_torture
  *
- * Meant to be run from an interactive shell INSIDE ghostcon itself (tty4),
- * so each page exercises the real parser -> screen -> renderer pipeline
- * end-to-end -- turning "does this real complex TUI glitch" into "does this
- * one specific, isolated, repeatable pattern glitch."
+ * a plain terminal client (no libghostcon dependency at all, unlike
+ * tools/bench_*.c) that emits real VT escape sequences to stdout, choreographed
+ * to reproduce the specific redraw idioms real full-screen TUIs use (fixed
+ * status/input areas, synchronized-output batches, alt-screen dips, scrollback
+ * churn, ...).
+ *
+ * Meant to be run from an interactive shell INSIDE ghostcon itself (tty4), so
+ * each page exercises the real parser -> screen -> renderer pipeline end-to-end
+ *
+ * turning "does this real complex TUI glitch" into "does this one specific,
+ * isolated, repeatable pattern glitch."
  *
  * Usage:
  *   tui_torture --list            list all pages
  *   tui_torture <page>            run just that one page
  *   tui_torture [--all]           run every page in sequence
  *
- * In --all / no-args mode, each page waits for Enter before advancing so
- * you have time to look and call out which one (if any) glitches.
+ * In --all / no-args mode, each page waits for Enter before advancing so you have
+ * time to look and call out which one (if any) glitches.
  */
 
 #define _DEFAULT_SOURCE /* usleep() under -std=c11 without this */
@@ -29,16 +32,17 @@
 
 #define ESC "\x1b"
 
-/* Several pages (mouse reporting, Kitty keyboard query, OSC 10/11 color
- * query) make the terminal write a reply back into this program's stdin,
- * exactly like a real keystroke -- the kernel tty line discipline's ECHO
- * flag then reflects those bytes straight back out to the display as
- * literal text before this program ever reads them, regardless of whether a
- * human typed them or ghostcon injected them.
+/* Several pages (mouse reporting, Kitty keyboard query, OSC 10/11 color query)
+ * make the terminal write a reply back into this program's stdin, exactly like a
+ * real keystroke
  *
- * Found live: exactly this made those pages' output unreadable. Disabling
- * ECHO for the whole run (ICANON stays on, so wait_enter()'s line-buffered
- * getchar() loop is unaffected) suppresses it.
+ * the kernel tty line discipline's ECHO flag then reflects those bytes straight
+ * back out to the display as literal text before this program ever reads them,
+ * regardless of whether a human typed them or ghostcon injected them.
+ *
+ * Found live: exactly this made those pages' output unreadable. Disabling ECHO
+ * for the whole run (ICANON stays on, so wait_enter()'s line-buffered getchar()
+ * loop is unaffected) suppresses it.
  */
 static struct termios g_orig_termios;
 static bool g_termios_saved = false;
@@ -69,15 +73,16 @@ static void banner(const char *title, const char *desc)
     printf(ESC "[36m%s" ESC "[0m\r\n\r\n", desc);
     fflush(stdout);
     usleep(400000);
-    /* Clear again before returning -- pages assume a guaranteed-blank
-     * screen to draw on top of, but they don't all fully overwrite every
-     * cell they touch (e.g. a shorter line printed where the inverse-video
-     * title bar above was longer), which would otherwise leave leftover
-     * styled characters from this banner behind.
+    /* Clear again before returning
+     *
+     * pages assume a guaranteed-blank screen to draw on top of, but they don't
+     * all fully overwrite every cell they touch (e.g. a shorter line printed
+     * where the inverse-video title bar above was longer), which would otherwise
+     * leave leftover styled characters from this banner behind.
      *
      * Found live: reproduced identically on real Ghostty used as a control,
-     * confirming it's a bug in this tool's own output sequencing, not a
-     * terminal rendering bug.
+     * confirming it's a bug in this tool's own output sequencing, not a terminal
+     * rendering bug.
      */
     printf(ESC "[2J" ESC "[H");
     fflush(stdout);
@@ -95,11 +100,12 @@ static void wait_enter(void)
 
 /* Pages */
 
-/* Bare \r progress-line redraw, no cursor positioning or scroll region at
- * all -- the simplest and most common "spinner"/progress idiom.
+/* Bare \r progress-line redraw, no cursor positioning or scroll region at all
  *
- * Interleaved with plain log lines that scroll normally, so the spinner
- * line keeps moving down the screen as it's rewritten.
+ * the simplest and most common "spinner"/progress idiom.
+ *
+ * Interleaved with plain log lines that scroll normally, so the spinner line
+ * keeps moving down the screen as it's rewritten.
  */
 static void page_cr_redraw(void)
 {
@@ -109,11 +115,12 @@ static void page_cr_redraw(void)
     {
         if (i % 5 == 0)
         {
-            /* End the previous spinner line (which deliberately never
-             * emitted its own \n, so it could be overwritten in place)
-             * before starting this new log line -- otherwise it gets
-             * appended mid-row onto whatever the spinner left behind
-             * instead of starting fresh.
+            /* End the previous spinner line (which deliberately never emitted its
+             * own \n, so it could be overwritten in place) before starting this
+             * new log line
+             *
+             * otherwise it gets appended mid-row onto whatever the spinner left
+             * behind instead of starting fresh.
              */
             if (i != 0)
                 printf("\r\n");
@@ -138,15 +145,13 @@ static void page_scroll_status_bar(void)
     for (int i = 0; i < 30; i++)
     {
         printf("scrolling content line %d\r\n", i);
-        /* Save the in-region cursor position before jumping down to redraw
-         * the reserved status/input area, and restore it right after
-         * --otherwise the NEXT iteration's content line gets printed
-         * wherever the status/input redraw left the cursor (the reserved
-         * area itself), never actually reaching the visible scrollable
-         * region.
+        /* Save the in-region cursor position before jumping down to redraw the
+         * reserved status/input area, and restore it right after --otherwise the
+         * NEXT iteration's content line gets printed wherever the status/input
+         * redraw left the cursor (the reserved area itself), never actually
+         * reaching the visible scrollable region.
          *
-         * Found live: without this, only the very first content line ever
-         * showed.
+         * Found live: without this, only the very first content line ever showed.
          */
         printf(ESC "7");     /* save cursor */
         printf(ESC "[23;1H" ESC "[K" "status: tick %d", i);
@@ -161,7 +166,8 @@ static void page_scroll_status_bar(void)
 }
 
 /* A large (>4KB, so it spans multiple pty reads) diff wrapped in mode 2026
- * -- should present atomically, no visible tearing.
+ *
+ * should present atomically, no visible tearing.
  */
 static void page_sync_output(void)
 {
@@ -182,8 +188,9 @@ static void page_sync_output(void)
     }
 }
 
-/* Repeated ?1049h/l (vim/htop/less convention) -- cursor position on the
- * main screen must survive the round-trip.
+/* Repeated ?1049h/l (vim/htop/less convention)
+ *
+ * cursor position on the main screen must survive the round-trip.
  */
 static void page_alt_screen(void)
 {
@@ -217,11 +224,12 @@ static void page_insert_delete_lines(void)
     fflush(stdout);
     usleep(500000);
     printf(ESC "[3;1H" ESC "[2M");   /* delete them again */
-    /* Move well clear of the tested rows before returning -- cursor is left
-     * at row 3 (col 1) by the DL above, and wait_enter()'s own leading
-     * "\r\n" would otherwise print the "done" prompt exactly on row 4,
-     * overwriting the very content (the restored "line 3") this page exists
-     * to let you verify.
+    /* Move well clear of the tested rows before returning
+     *
+     * cursor is left at row 3 (col 1) by the DL above, and wait_enter()'s own
+     * leading "\r\n" would otherwise print the "done" prompt exactly on row 4,
+     * overwriting the very content (the restored "line 3") this page exists to
+     * let you verify.
      */
     printf(ESC "[12;1H");
 }
@@ -383,8 +391,9 @@ static void page_tabs(void)
 {
     banner("tabs", "HT (\\t), HTS (ESC H), TBC (CSI g).");
     printf(ESC "[H" "a\tb\tc\td\r\n");
-    /* Second demo goes on row 2, not back to row 1 -- homing there would
-     * silently overwrite the first demo before it's ever seen.
+    /* Second demo goes on row 2, not back to row 1
+     *
+     * homing there would silently overwrite the first demo before it's ever seen.
      */
     printf(ESC "[2;1H" ESC "[3G" ESC "H");  /* row 2, set a custom tab stop at column 3 */
     printf(ESC "[2;1H" "X\tY (custom stop at col 3 should apply after clearing defaults)\r\n");
@@ -404,8 +413,10 @@ static void page_margins_declrm(void)
     printf(ESC "[?69l");        /* disable */
 }
 
-/* Fires several mechanisms nested/back-to-back -- real bugs often only
- * surface from combinations, not any single feature in isolation.
+/* Fires several mechanisms nested/back-to-back
+ *
+ * real bugs often only surface from combinations, not any single feature in
+ * isolation.
  */
 static void page_combined_stress(void)
 {

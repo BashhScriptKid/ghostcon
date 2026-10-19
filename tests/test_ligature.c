@@ -1,14 +1,17 @@
-/* test_ligature -- opt-in programming-ligature detection (see
- * render/ligature.h).
+/* test_ligature
  *
- * No GL/EGL needed: ghostcon_ligature_scan_row() only touches
- * FreeType/HarfBuzz through the atlas, same as any other glyph lookup.
+ * opt-in programming-ligature detection (see render/ligature.h).
  *
- * Feeds known operator sequences through a real font (JetBrainsMono Nerd
- * Font Mono -- the font configured for the live deploy, see CLAUDE.md) and
- * asserts the scanner reports collapsed runs for the ones that font is
- * known to substitute a single ligature glyph for, and reports nothing for
- * plain text / isolated operators that should never collapse.
+ * No GL/EGL needed: ghostcon_ligature_scan_row() only touches FreeType/HarfBuzz
+ * through the atlas, same as any other glyph lookup.
+ *
+ * Feeds known operator sequences through a real font (JetBrainsMono Nerd Font
+ * Mono
+ *
+ * the font configured for the live deploy, see CLAUDE.md) and asserts the scanner
+ * reports collapsed runs for the ones that font is known to substitute a single
+ * ligature glyph for, and reports nothing for plain text / isolated operators
+ * that should never collapse.
  */
 
 #include "ghostcon/render/atlas.h"
@@ -56,13 +59,13 @@ int main(void)
     }
     printf("PASS: atlas created with %s\n", FONT_FAMILY);
 
-    /* Known JetBrains Mono ligature sequences (its own font spec lists
-     * arrows, comparison chains, etc. under calt).
+    /* Known JetBrains Mono ligature sequences (its own font spec lists arrows,
+     * comparison chains, etc. under calt).
      *
-     * If none of these collapse, either the installed build lacks calt (a
-     * real, useful finding) or ghostcon_atlas_shape_run() isn't reaching
-     * HarfBuzz --either way this test should fail loudly rather than
-     * silently pass on zero runs found.
+     * If none of these collapse, either the installed build lacks calt (a real,
+     * useful finding) or ghostcon_atlas_shape_run() isn't reaching HarfBuzz
+     * --either way this test should fail loudly rather than silently pass on zero
+     * runs found.
      */
     static const char *const positive_cases[] = {
         "x -> y",

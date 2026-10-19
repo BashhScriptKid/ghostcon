@@ -1,12 +1,13 @@
-/* test_undead_head — verifies undead-head's own specific job: forking
- * ghost-ptyserv + one supervisor per VT, and restarting whichever one dies
- * (whole-tree restart on ghost-ptyserv death, single-supervisor restart
- * otherwise).
+/* test_undead_head
  *
- * Uses the real ghost-ptyserv/supervisor binaries with
- * tests/fake_renderer.c standing in for ghostcon-core, so no real
- * DRM/KMS/VT hardware is needed. supervisor's own state machine is already
- * covered in detail by test_supervisor.c.
+ * verifies undead-head's own specific job: forking ghost-ptyserv + one supervisor
+ * per VT, and restarting whichever one dies (whole-tree restart on ghost-ptyserv
+ * death, single-supervisor restart otherwise).
+ *
+ * Uses the real ghost-ptyserv/supervisor binaries with tests/fake_renderer.c
+ * standing in for ghostcon-core, so no real DRM/KMS/VT hardware is needed.
+ * supervisor's own state machine is already covered in detail by
+ * test_supervisor.c.
  *
  * This test only exercises undead-head's restart-on-crash behavior.
  */
@@ -69,28 +70,30 @@ static bool registry_reachable(const char *registry_sock, int timeout_ms)
     }
 }
 
-/* Single pgrep -f call (no internal retry loop -- see pgrep_wait_ne, which
- * is where retry timing belongs; nesting timed retry loops inside each
- * other just makes the outer timeout unpredictable).
+/* Single pgrep -f call (no internal retry loop
  *
- * Returns the first (lowest-pid, i.e. oldest) matching pid, or -1. exec's
- * pgrep directly (no `sh -c "...pattern..."` wrapper) -- found the hard
- * way, via this exact function returning a real but WRONG pid for a
- * not-yet-started process instead of correctly waiting/retrying: pgrep only
- * excludes its own pid from results, not a parent shell's, and a `popen("sh
- * -c \"pgrep -f --'PATTERN' ...\"", ...)` wrapper's own cmdline necessarily
- * contains PATTERN as a literal substring too (it's right there in the
- * shell command string) -- so that wrapper shell was itself a guaranteed
- * spurious match for ANY pattern, one that only lost the "first/lowest pid"
- * race when a real, already-running, older target happened to exist by
- * query time.
+ * see pgrep_wait_ne, which is where retry timing belongs; nesting timed retry
+ * loops inside each other just makes the outer timeout unpredictable).
+ *
+ * Returns the first (lowest-pid, i.e. oldest) matching pid, or -1. exec's pgrep
+ * directly (no `sh -c "...pattern..."` wrapper)
+ *
+ * found the hard way, via this exact function returning a real but WRONG pid for
+ * a not-yet-started process instead of correctly waiting/retrying: pgrep only
+ * excludes its own pid from results, not a parent shell's, and a `popen("sh -c
+ * \"pgrep -f --'PATTERN' ...\"", ...)` wrapper's own cmdline necessarily contains
+ * PATTERN as a literal substring too (it's right there in the shell command
+ * string)
+ *
+ * so that wrapper shell was itself a guaranteed spurious match for ANY pattern,
+ * one that only lost the "first/lowest pid" race when a real, already-running,
+ * older target happened to exist by query time.
  *
  * A target checked before it's actually started (this file's new
- * supervisor_pid_before check, added for the ghost-ptyserv-restart-scoping
- * fix, is younger than every existing check in this file and was the first
- * to actually expose it) got the wrapper shell's pid back immediately, on
- * the very first attempt, instead of retrying until the real process
- * appeared.
+ * supervisor_pid_before check, added for the ghost-ptyserv-restart-scoping fix,
+ * is younger than every existing check in this file and was the first to actually
+ * expose it) got the wrapper shell's pid back immediately, on the very first
+ * attempt, instead of retrying until the real process appeared.
  */
 static pid_t pgrep_once(const char *pattern)
 {
@@ -247,15 +250,16 @@ int main(void)
         goto teardown;
     }
 
-    /* Kill ghost-ptyserv -- undead-head restarts ONLY ghost-ptyserv, not
-     * the whole tree (an already-connected renderer has no ongoing
-     * dependency on it.
+    /* Kill ghost-ptyserv
      *
-     * See undead_head/main.c's ghost_ptyserv_pid branch and its doc
-     * comment).
+     * undead-head restarts ONLY ghost-ptyserv, not the whole tree (an
+     * already-connected renderer has no ongoing dependency on it.
      *
-     * The supervisor must NOT be touched -- if it were, this pid would
-     * change too.
+     * See undead_head/main.c's ghost_ptyserv_pid branch and its doc comment).
+     *
+     * The supervisor must NOT be touched
+     *
+     * if it were, this pid would change too.
      */
     kill(ptyserv_pid1, SIGKILL);
 
@@ -296,8 +300,9 @@ teardown:
         waitpid(undead_pid, NULL, 0);
     }
     /* undead-head's own SIGTERM handler kills its whole process tree (see
-     * undead_head/main.c) -- best-effort extra cleanup in case that path
-     * itself is what's broken.
+     * undead_head/main.c)
+     *
+     * best-effort extra cleanup in case that path itself is what's broken.
      */
     char *kill_renderer[] = { "pkill", "-9", "-f", "test_fake_renderer", NULL };
     char *kill_pty_children[] = { "pkill", "-9", "-f", "pty-ttyN", NULL };

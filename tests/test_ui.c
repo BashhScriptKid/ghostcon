@@ -1,7 +1,8 @@
-/*
- * test_ui — unit tests for the UI interactions layer:
- * cursor hover hit-testing, text selection transitions, zoom calculation,
- * and command token / process name formatting.
+/* test_ui
+ *
+ * unit tests for the UI interactions layer: cursor hover hit-testing, text
+ * selection transitions, zoom calculation, and command token / process name
+ * formatting.
  */
 
 #include "ghostcon/core/ui.h"

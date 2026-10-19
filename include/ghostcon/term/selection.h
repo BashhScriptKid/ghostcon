@@ -47,17 +47,18 @@ bool ghostcon_selection_row_range(const ghostcon_selection_t *sel, int16_t y, in
                                    int16_t *out_xstart, int16_t *out_xend);
 
 /* Extracts the currently-selected text as UTF-8 into `out` (NUL-terminated,
- * truncated rather than overflowed if it wouldn't fit). Returns the number
- * of bytes written (excluding the NUL), or 0 if the selection isn't active.
+ * truncated rather than overflowed if it wouldn't fit). Returns the number of
+ * bytes written (excluding the NUL), or 0 if the selection isn't active.
  *
- * A newline separates rows UNLESS the next row is a soft-wrap continuation
- * of this one (row_t.wrap_continuation) -- matches how the text was
- * actually typed.
+ * A newline separates rows UNLESS the next row is a soft-wrap continuation of
+ * this one (row_t.wrap_continuation)
+ *
+ * matches how the text was actually typed.
  *
  * Trailing blank cells on each row are trimmed before its newline.
  *
  * Always reads from the live grid (screen->rows), never scrollback history
- * -- selection while scrolled back is a known, accepted limitation (see
- * PLAN.md).
+ *
+ * selection while scrolled back is a known, accepted limitation (see PLAN.md).
  */
 size_t ghostcon_selection_extract_text(ghostcon_screen_t *screen, char *out, size_t out_len);

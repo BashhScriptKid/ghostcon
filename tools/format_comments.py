@@ -11,7 +11,7 @@ Handles both classic multi-line comments and runs of adjacent
 single-line "boxed" comments (/* ---- */ / /* Title */ / /* text */),
 which collapse into one block. Code/verbatim paragraphs are preserved
 (only re-prefixed); license headers, ASCII banners, and inline/trailing
-comments are never touched. Width 76 incl. indentation.
+comments are never touched. Width 82 incl. indentation.
 
 Prose paragraphs are kept short: any paragraph longer than
 MAX_PARA_LINES wrapped lines is split at sentence boundaries, with a
@@ -20,7 +20,7 @@ in one paragraph become individual bullet paragraphs.
 """
 import glob, re, sys, textwrap
 
-WIDTH = 76
+WIDTH = 82
 MAX_PARA_LINES = 3
 SKIP_MARKERS = (
     "Copyright", "Permission is hereby granted", "SPDX-License-Identifier",
@@ -87,19 +87,21 @@ def is_verbatim_line(s):
 def join_para(para):
     text = para[0]
     for nxt in para[1:]:
-        text += nxt if text.endswith('-') else ' ' + nxt
+        hyphenated = text.endswith('-') and not text.endswith('--')
+        text += nxt if hyphenated else ' ' + nxt
     return text
 
-# Semicolons that introduce a new independent clause are sentence
-# boundaries. Split those (and capitalize the connector) instead of
-# producing long "x; and then y" sentences.
+# Semicolons that introduce a new independent clause start a new short
+# paragraph (lowercase preserved), rather than gluing clauses together.
 SEMI_CONNECTOR = re.compile(
-    r';\s+(see|use|add|call|write|pass|set|keep|run|check|return|then|'
-    r'so|this|it|that|the|but|and)\b')
+    r';\s+(?=(?:see|use|add|call|write|pass|set|keep|run|check|return|'
+    r'then|so|this|it|that|the|but|and)\b)')
+
+def split_connector_clauses(text):
+    return [chunk.strip() for chunk in SEMI_CONNECTOR.split(text)
+            if chunk.strip()]
 
 def split_sentences(text):
-    text = SEMI_CONNECTOR.sub(
-        lambda m: '. ' + m.group(1)[0].upper() + m.group(1)[1:], text)
     parts, start = [], 0
     for m in re.finditer(r'[.!?](?=\s)', text):
         end = m.end()
@@ -171,29 +173,7 @@ def paragraphs_of(lines):
             cur.append(l)
     if cur: paras.append(cur)
 
-    # Rejoin accidental fragments: a paragraph that starts lowercase after
-    # one that did not end in terminal punctuation (e.g. an earlier reflow
-    # split after an em dash) is a continuation, not a new paragraph.
-    merged = []
-    for para in paras:
-        if merged:
-            prev_text = join_para(merged[-1]).rstrip()
-            if (para[0][:1].islower() and prev_text
-                    and prev_text[-1] not in '.!?:;'):
-                tail = prev_text[-1]
-                if tail in ',;:)':
-                    # Explicit continuation punctuation: keep one sentence.
-                    merged[-1] = merged[-1] + para
-                else:
-                    # A dropped sentence boundary: close the previous
-                    # sentence and start a new, short one (capitalized).
-                    merged[-1][-1] = merged[-1][-1].rstrip() + '.'
-                    para = para[:]
-                    para[0] = para[0][0].upper() + para[0][1:]
-                    merged.append(para)
-                continue
-        merged.append(para)
-    return merged
+    return paras
 
 def render(indent, lines, allow_single=True):
     while lines and (lines[0] == '' or is_separator(lines[0])): lines.pop(0)
@@ -261,14 +241,21 @@ def render(indent, lines, allow_single=True):
             first_para = False
             continue
 
-        for gi, group in enumerate(pack_sentences(text, avail)):
-            if gi > 0:
+        first_clause = True
+        for clause in split_connector_clauses(text):
+            if not first_clause:
                 out.append(indent + ' *')
-            wrapped = textwrap.wrap(group, width=avail,
-                                    break_long_words=False, break_on_hyphens=False)
-            for k, w in enumerate(wrapped):
-                out.append(indent + ('/* ' if first_para and k == 0 else ' * ') + w)
-                first_para = False
+            first_clause = False
+            for gi, group in enumerate(pack_sentences(clause, avail)):
+                if gi > 0:
+                    out.append(indent + ' *')
+                wrapped = textwrap.wrap(group, width=avail,
+                                        break_long_words=False,
+                                        break_on_hyphens=False)
+                for k, w in enumerate(wrapped):
+                    out.append(indent + ('/* ' if first_para and k == 0
+                                         else ' * ') + w)
+                    first_para = False
     out.append(indent + ' */')
     return '\n'.join(out)
 

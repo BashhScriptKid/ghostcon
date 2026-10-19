@@ -1,24 +1,28 @@
-/* image_protocol_bench -- a plain terminal client (no libghostcon
- * dependency at all, same spirit as tools/tui_torture.c) that emits real
- * Kitty graphics protocol (APC _G), iTerm2 inline image protocol (OSC 1337
- * File=), and Sixel (DCS q) sequences to stdout, choreographed across pages
- * so each page exercises one specific mechanism of one specific image
- * protocol end-to-end through the real parser -> screen -> renderer
- * pipeline.
+/* image_protocol_bench
  *
- * All test images are generated synthetically at runtime (checkerboard,
- * gradient, alpha ramp) -- no external image files or image libraries are
- * used. iTerm2's File= payload must be a real decodable image format, so
- * this tool includes a minimal from-scratch PNG encoder
- * (stored/uncompressed DEFLATE blocks -- no zlib dependency).
+ * a plain terminal client (no libghostcon dependency at all, same spirit as
+ * tools/tui_torture.c) that emits real Kitty graphics protocol (APC _G), iTerm2
+ * inline image protocol (OSC 1337 File=), and Sixel (DCS q) sequences to stdout,
+ * choreographed across pages so each page exercises one specific mechanism of one
+ * specific image protocol end-to-end through the real parser -> screen ->
+ * renderer pipeline.
+ *
+ * All test images are generated synthetically at runtime (checkerboard, gradient,
+ * alpha ramp)
+ *
+ * no external image files or image libraries are used. iTerm2's File= payload
+ * must be a real decodable image format, so this tool includes a minimal
+ * from-scratch PNG encoder (stored/uncompressed DEFLATE blocks
+ *
+ * no zlib dependency).
  *
  * Usage:
  *   image_protocol_bench --list            list all pages
  *   image_protocol_bench <page>             run just that one page
  *   image_protocol_bench [--all]            run every page in sequence
  *
- * In --all / no-args mode, each page waits for Enter before advancing so
- * you have time to look and call out which one (if any) glitches.
+ * In --all / no-args mode, each page waits for Enter before advancing so you have
+ * time to look and call out which one (if any) glitches.
  */
 
 #define _DEFAULT_SOURCE /* usleep() under -std=c11 without this */
@@ -37,8 +41,11 @@
 
 #define ESC "\x1b"
 
-/* Terminal setup / banner (same idiom as tui_torture.c: replies that
- * protocols write back into our stdin -- e.g. Kitty's _Gi=...;OK acks --
+/* Terminal setup / banner (same idiom as tui_torture.c: replies that protocols
+ * write back into our stdin
+ *
+ * e.g. Kitty's _Gi=...;OK acks
+ *
  * would otherwise get ECHOed back onto the display as literal text)
  */
 
@@ -74,15 +81,18 @@ static void banner(const char *title, const char *desc)
     fflush(stdout);
 }
 
-/* Kitty graphics (and iTerm2/sixel) never move the cursor past a displayed
- * image themselves -- that's the client's job, same as any real image-aware
- * tool (kitten icat, chafa) does by computing rows from the image's pixel
- * height vs. the terminal's actual cell size.
+/* Kitty graphics (and iTerm2/sixel) never move the cursor past a displayed image
+ * themselves
  *
- * A page that just prints a fixed "\r\n\r\n" after an image only happens to
- * clear it for whatever specific size that page was tuned to -- found live:
- * a fixed two-line gap left kitty_basic_rgb's own label text overlapping
- * the bottom of its 64px-tall image on an 18px-cell real terminal.
+ * that's the client's job, same as any real image-aware tool (kitten icat, chafa)
+ * does by computing rows from the image's pixel height vs. the terminal's actual
+ * cell size.
+ *
+ * A page that just prints a fixed "\r\n\r\n" after an image only happens to clear
+ * it for whatever specific size that page was tuned to
+ *
+ * found live: a fixed two-line gap left kitty_basic_rgb's own label text
+ * overlapping the bottom of its 64px-tall image on an 18px-cell real terminal.
  */
 static int g_cell_w = 10; /* fallback if the pty doesn't report pixel size */
 static int g_cell_h = 20; /* fallback if the pty doesn't report pixel size */
@@ -130,21 +140,23 @@ static void advance_past_image(int height_px)
  * literal "  " provides, so each image partially overlapped the next
  * until the covering one made it look fine by accident.
  *
- * The exact ceil(width_px/cell_w) clearance (no +1) is what real Ghostty
- * uses too (confirmed against renderer/image.zig's own gridSize() -- no
- * padding term there either), but that means the gap is only as wide as the
- * division's remainder happens to be: at a cell width that divides the
- * image size evenly (this console's own 1920/240 = exactly 8px, and
- * 32px/8px = 4.0 with zero remainder), the real, correct gap is
- * legitimately zero pixels -- images end up touching, not overlapping, but
- * with nothing visually confirming a placement was actually deleted from
- * between them.
+ * The exact ceil(width_px/cell_w) clearance (no +1) is what real Ghostty uses too
+ * (confirmed against renderer/image.zig's own gridSize()
  *
- * This tool's job is to make deletions visually obvious on any terminal,
- * not to reproduce that remainder exactly, so it adds one guaranteed extra
- * column on top of the real clearance -- deliberately more generous than
- * protocol-correct spacing, unlike everywhere else in this file that
- * computes exact clearance.
+ * no padding term there either), but that means the gap is only as wide as the
+ * division's remainder happens to be: at a cell width that divides the image size
+ * evenly (this console's own 1920/240 = exactly 8px, and 32px/8px = 4.0 with zero
+ * remainder), the real, correct gap is legitimately zero pixels
+ *
+ * images end up touching, not overlapping, but with nothing visually confirming a
+ * placement was actually deleted from between them.
+ *
+ * This tool's job is to make deletions visually obvious on any terminal, not to
+ * reproduce that remainder exactly, so it adds one guaranteed extra column on top
+ * of the real clearance
+ *
+ * deliberately more generous than protocol-correct spacing, unlike everywhere
+ * else in this file that computes exact clearance.
  */
 static void advance_past_image_horizontal(int width_px)
 {
@@ -591,9 +603,10 @@ static void page_kitty_temp_file(void)
     gen_checkerboard(px, w, h, bpp, 6, 220, 160, 40, 40, 90, 220);
 
     char path[128];
-    /* Must contain "tty-graphics-protocol" -- ghostcon's read_temp_file()
-     * (kitty_graphics.c) requires this naming convention for t=t, matching
-     * Kitty's own reference client.
+    /* Must contain "tty-graphics-protocol"
+     *
+     * ghostcon's read_temp_file() (kitty_graphics.c) requires this naming
+     * convention for t=t, matching Kitty's own reference client.
      */
     snprintf(path, sizeof path, "/tmp/tty-graphics-protocol-bench-%d.data", (int)getpid());
 
@@ -614,11 +627,13 @@ static void page_kitty_temp_file(void)
         return;
     }
 
-    /* Ownership of deleting the file passes to the terminal on a successful
-     * t=t transmission -- don't unlink() here.
+    /* Ownership of deleting the file passes to the terminal on a successful t=t
+     * transmission
      *
-     * If ghostcon is buggy and never reads it, this leaks a temp file.
-     * That's the scenario this page exists to catch.
+     * don't unlink() here.
+     *
+     * If ghostcon is buggy and never reads it, this leaks a temp file. That's the
+     * scenario this page exists to catch.
      */
     size_t path_b64_len = 0;
     char *path_b64 = b64_encode((const uint8_t *)path, strlen(path), &path_b64_len);
@@ -644,15 +659,20 @@ static void page_kitty_cache_file(void)
     gen_checkerboard(px, w, h, bpp, 6, 240, 210, 60, 70, 40, 160);
 
     char path[128];
-    /* No naming convention required for t=f -- see read_cache_file()'s own
-     * doc comment. Still must live under /tmp or /dev/shm.
+    /* No naming convention required for t=f
      *
-     * Fixed (not per-PID) path -- unlike t=t/t=s, ghostcon never deletes
-     * this file, and a real t=f cache use case is exactly "write it once,
-     * the terminal may re-read it many times later" -- so this page
-     * deliberately doesn't clean up after itself either (same reasoning),
-     * and reuses one path across runs rather than accumulating a new file
-     * in /tmp every time it's run.
+     * see read_cache_file()'s own doc comment. Still must live under /tmp or
+     * /dev/shm.
+     *
+     * Fixed (not per-PID) path
+     *
+     * unlike t=t/t=s, ghostcon never deletes this file, and a real t=f cache use
+     * case is exactly "write it once, the terminal may re-read it many times
+     * later"
+     *
+     * so this page deliberately doesn't clean up after itself either (same
+     * reasoning), and reuses one path across runs rather than accumulating a new
+     * file in /tmp every time it's run.
      */
     snprintf(path, sizeof path, "/tmp/ghostcon-bench-cache.data");
 
@@ -686,19 +706,21 @@ static void page_kitty_cache_file(void)
 
     advance_past_image(h);
     printf("\r\n  cache-file-transmitted RGB checkerboard, 48x48, id=12, path %s\r\n", path);
-    /* Deliberately NOT unlink()ing here -- see the doc comment above
-     * path[]'s snprintf().
+    /* Deliberately NOT unlink()ing here
      *
-     * Found live: an earlier version of this page DID unlink() immediately
-     * after sending the escape sequence, and since the pty write is
-     * fire-and-forget (no ack-wait), that unlink() raced ahead of
-     * ghostcon's asynchronous read of the file -- ghostcon's own open()
-     * would see ENOENT most of the time because the client had already
-     * deleted the file out from under it before ghostcon's poll loop even
-     * got to processing the bytes. t=f's actual contract (unlike t=t) is
-     * that the FILE persists and the client owns cleanup on ITS OWN
-     * schedule, not "immediately after firing the escape sequence"
-     * --there's no synchronization point that makes "immediately" safe.
+     * see the doc comment above path[]'s snprintf().
+     *
+     * Found live: an earlier version of this page DID unlink() immediately after
+     * sending the escape sequence, and since the pty write is fire-and-forget (no
+     * ack-wait), that unlink() raced ahead of ghostcon's asynchronous read of the
+     * file
+     *
+     * ghostcon's own open() would see ENOENT most of the time because the client
+     * had already deleted the file out from under it before ghostcon's poll loop
+     * even got to processing the bytes. t=f's actual contract (unlike t=t) is
+     * that the FILE persists and the client owns cleanup on ITS OWN schedule, not
+     * "immediately after firing the escape sequence" --there's no synchronization
+     * point that makes "immediately" safe.
      */
 }
 
@@ -982,19 +1004,22 @@ int main(int argc, char **argv)
 
     disable_echo();
 
-    /* Full reset (RIS) before anything else -- this tool assumes a clean
-     * starting terminal state (scroll region spanning the whole screen,
-     * DECOM off, etc.), but nothing guarantees that: any earlier command in
-     * the same shell session that set a scroll region (DECSTBM) and didn't
-     * clear it leaves ESC[H (cursor home, what banner() uses to return to a
-     * blank canvas between pages) going to the top of THAT region instead
-     * of the physical top of the screen -- silently offsetting every page's
-     * layout by whatever the leftover top margin was.
+    /* Full reset (RIS) before anything else
      *
-     * Found live: a page's own image-to-label clearance was correct by the
-     * exact row count expected (confirmed via TIOCGWINSZ diagnostics --cell
-     * size was never the problem), but the label still landed 3 rows lower
-     * than it should have.
+     * this tool assumes a clean starting terminal state (scroll region spanning
+     * the whole screen, DECOM off, etc.), but nothing guarantees that: any
+     * earlier command in the same shell session that set a scroll region
+     * (DECSTBM) and didn't clear it leaves ESC[H (cursor home, what banner() uses
+     * to return to a blank canvas between pages) going to the top of THAT region
+     * instead of the physical top of the screen
+     *
+     * silently offsetting every page's layout by whatever the leftover top margin
+     * was.
+     *
+     * Found live: a page's own image-to-label clearance was correct by the exact
+     * row count expected (confirmed via TIOCGWINSZ diagnostics --cell size was
+     * never the problem), but the label still landed 3 rows lower than it should
+     * have.
      */
     printf(ESC "c");
     fflush(stdout);

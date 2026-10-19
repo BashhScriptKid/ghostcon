@@ -224,17 +224,18 @@ main(void)
     CHECK(exported && strcmp(exported, "/dev/dri/from-config") == 0,
           "export_env(overwrite=true) replaces an already-set env var");
 
-    /* GHOSTCON_CONFIG_PATH itself is always exported, regardless of
-     * overwrite -- it's how supervisor/ghostcon-core know what to watch for
-     * hot-reload.
+    /* GHOSTCON_CONFIG_PATH itself is always exported, regardless of overwrite
+     *
+     * it's how supervisor/ghostcon-core know what to watch for hot-reload.
      */
     exported = getenv("GHOSTCON_CONFIG_PATH");
     CHECK(exported && strcmp(exported, "/tmp/unused.toml") == 0,
           "export_env always exports GHOSTCON_CONFIG_PATH");
 
     /* Bool flip in both directions on reload: disable_wall true->false must
-     * unsetenv (readers check presence only, not value -- see config.c's
-     * own comment), not just skip setenv().
+     * unsetenv (readers check presence only, not value
+     *
+     * see config.c's own comment), not just skip setenv().
      */
     unsetenv("GHOSTCON_DISABLE_WALL");
     cfg.disable_wall = true;
@@ -256,9 +257,10 @@ main(void)
             snprintf(watched_path, sizeof(watched_path), "%s/ghostcon.toml", dir);
             snprintf(other_path, sizeof(other_path), "%s/unrelated.txt", dir);
 
-            /* File doesn't need to exist yet -- only its parent directory
-             * does (watch_open watches the directory, not the file itself.
-             * See its own doc comment on why).
+            /* File doesn't need to exist yet
+             *
+             * only its parent directory does (watch_open watches the directory,
+             * not the file itself. See its own doc comment on why).
              */
             int watch_fd = ghostcon_config_watch_open(watched_path);
             CHECK(watch_fd >= 0, "config_watch_open succeeds");
@@ -271,8 +273,10 @@ main(void)
                 CHECK(!ghostcon_config_watch_check(watch_fd, watched_path),
                       "config_watch_check ignores an unrelated file");
 
-                /* write-temp-then-rename, the pattern most editors use by
-                 * default (vim included) -- must match.
+                /* write-temp-then-rename, the pattern most editors use by default
+                 * (vim included)
+                 *
+                 * must match.
                  */
                 char tmp_path[512];
                 snprintf(tmp_path, sizeof(tmp_path), "%s/ghostcon.toml.tmp", dir);
