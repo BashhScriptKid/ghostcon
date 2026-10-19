@@ -103,36 +103,38 @@ ghostcon_config_load(const char *path, ghostcon_config_t *cfg)
     char errbuf[256];
     toml_table_t *root = toml_parse_file(fp, errbuf, sizeof(errbuf));
     fclose(fp);
+
+    // BOILERPLATE LOADER GOES BRRRR
     if (!root)
         return false; /* file exists but doesn't parse -- a real error */
 
     toml_table_t *general = toml_table_in(root, "general");
     if (general) {
-        load_string(general, "drm_node", cfg->drm_node, sizeof(cfg->drm_node));
-        load_string(general, "run_dir", cfg->run_dir, sizeof(cfg->run_dir));
-        load_int(general, "canary_deadline_ms", &cfg->canary_deadline_ms);
-        load_bool(general, "disable_wall", &cfg->disable_wall);
-        load_bool(general, "disable_kmscon_fallback", &cfg->disable_kmscon_fallback);
-        load_int(general, "font_size", &cfg->font_size);
-        load_string(general, "font_family", cfg->font_family, sizeof(cfg->font_family));
-        load_string(general, "font_variant", cfg->font_variant, sizeof(cfg->font_variant));
-        load_bool(general, "clear_on_logout", &cfg->clear_on_logout);
-        load_int(general, "zoom_step", &cfg->zoom_step);
-        load_int(general, "scrollback_lines", &cfg->scrollback_lines);
-        load_int(general, "repeat_delay_ms", &cfg->repeat_delay_ms);
-        load_int(general, "repeat_rate_ms", &cfg->repeat_rate_ms);
-        load_string(general, "antialiasing", cfg->antialiasing, sizeof(cfg->antialiasing));
-        load_string(general, "subpixel_order", cfg->subpixel_order, sizeof(cfg->subpixel_order));
-        load_bool(general, "gamma_correct", &cfg->gamma_correct);
-        load_bool(general, "ligatures", &cfg->ligatures);
-        load_string(general, "theme", cfg->theme, sizeof(cfg->theme));
+        load_string(general, "drm_node",                 cfg->drm_node,               sizeof(cfg->drm_node)      );
+        load_string(general, "run_dir",                  cfg->run_dir,                sizeof(cfg->run_dir)       );
+        load_int   (general, "canary_deadline_ms",      &cfg->canary_deadline_ms                                 );
+        load_bool  (general, "disable_wall",            &cfg->disable_wall                                       );
+        load_bool  (general, "disable_kmscon_fallback", &cfg->disable_kmscon_fallback                            );
+        load_int   (general, "font_size",               &cfg->font_size                                          );
+        load_string(general, "font_family",              cfg->font_family,            sizeof(cfg->font_family)   );
+        load_string(general, "font_variant",             cfg->font_variant,           sizeof(cfg->font_variant)  );
+        load_bool  (general, "clear_on_logout",         &cfg->clear_on_logout                                    );
+        load_int   (general, "zoom_step",               &cfg->zoom_step                                          );
+        load_int   (general, "repeat_rate_ms",          &cfg->repeat_rate_ms                                     );
+        load_int   (general, "scrollback_lines",        &cfg->scrollback_lines                                   );
+        load_int   (general, "repeat_delay_ms",         &cfg->repeat_delay_ms                                    );
+        load_string(general, "antialiasing",             cfg->antialiasing,           sizeof(cfg->antialiasing)  );
+        load_string(general, "subpixel_order",           cfg->subpixel_order,         sizeof(cfg->subpixel_order));
+        load_bool  (general, "gamma_correct",           &cfg->gamma_correct                                      );
+        load_bool  (general, "ligatures",               &cfg->ligatures                                          );
+        load_string(general, "theme",                    cfg->theme,                  sizeof(cfg->theme)         );
     }
 
     toml_table_t *colors = toml_table_in(root, "colors");
     if (colors) {
         load_string(colors, "background", cfg->color_background, sizeof(cfg->color_background));
         load_string(colors, "foreground", cfg->color_foreground, sizeof(cfg->color_foreground));
-        load_string(colors, "cursor", cfg->color_cursor, sizeof(cfg->color_cursor));
+        load_string(colors, "cursor",     cfg->color_cursor,     sizeof(cfg->color_cursor)    );
         char key[8];
         for (int i = 0; i < 16; i++) {
             snprintf(key, sizeof(key), "color%d", i);
@@ -142,37 +144,35 @@ ghostcon_config_load(const char *path, ghostcon_config_t *cfg)
 
     toml_table_t *cursor = toml_table_in(root, "cursor");
     if (cursor) {
-        load_string(cursor, "theme", cfg->cursor_theme, sizeof(cfg->cursor_theme));
-        load_string(cursor, "default", cfg->cursor_default_path, sizeof(cfg->cursor_default_path));
-        load_string(cursor, "link", cfg->cursor_link_path, sizeof(cfg->cursor_link_path));
-        load_double(cursor, "base_scale", &cfg->cursor_base_scale);
-        load_bool(cursor, "scale_with_terminal", &cfg->cursor_scale_with_terminal);
-        load_string(cursor, "default_hot_pos", cfg->cursor_default_hot_pos, sizeof(cfg->cursor_default_hot_pos));
-        load_string(cursor, "link_hot_pos", cfg->cursor_link_hot_pos, sizeof(cfg->cursor_link_hot_pos));
+        load_string(cursor, "theme",                cfg->cursor_theme,              sizeof(cfg->cursor_theme)          );
+        load_string(cursor, "default",              cfg->cursor_default_path,       sizeof(cfg->cursor_default_path)   );
+        load_string(cursor, "link",                 cfg->cursor_link_path,          sizeof(cfg->cursor_link_path)      );
+        load_double(cursor, "base_scale",          &cfg->cursor_base_scale                                             );
+        load_bool  (cursor, "scale_with_terminal", &cfg->cursor_scale_with_terminal                                    );
+        load_string(cursor, "default_hot_pos",      cfg->cursor_default_hot_pos,    sizeof(cfg->cursor_default_hot_pos));
+        load_string(cursor, "link_hot_pos",         cfg->cursor_link_hot_pos,       sizeof(cfg->cursor_link_hot_pos)   );
     }
 
     toml_table_t *keybindings = toml_table_in(root, "keybindings");
     if (keybindings) {
-        load_string(keybindings, "copy_to_clipboard", cfg->copy_to_clipboard_binding,
-                    sizeof(cfg->copy_to_clipboard_binding));
-        load_string(keybindings, "paste_from_clipboard", cfg->paste_from_clipboard_binding,
-                    sizeof(cfg->paste_from_clipboard_binding));
+        load_string(keybindings, "copy_to_clipboard",    cfg->copy_to_clipboard_binding,    sizeof(cfg->copy_to_clipboard_binding)   );
+        load_string(keybindings, "paste_from_clipboard", cfg->paste_from_clipboard_binding, sizeof(cfg->paste_from_clipboard_binding));
     }
 
     toml_table_t *mouse = toml_table_in(root, "mouse");
     if (mouse) {
-        load_bool(mouse, "enable", &cfg->mouse_enable);
+        load_bool  (mouse, "enable",       &cfg->mouse_enable      );
         load_double(mouse, "scroll_speed", &cfg->mouse_scroll_speed);
-        load_double(mouse, "sensitivity", &cfg->mouse_sensitivity);
+        load_double(mouse, "sensitivity",  &cfg->mouse_sensitivity );
     }
 
     toml_table_t *touchpad = toml_table_in(root, "touchpad");
     if (touchpad) {
-        load_bool(touchpad, "enable", &cfg->touchpad_enable);
-        load_double(touchpad, "scroll_speed", &cfg->touchpad_scroll_speed);
-        load_bool(touchpad, "tap_to_click", &cfg->touchpad_tap_to_click);
-        load_bool(touchpad, "natural_scroll", &cfg->touchpad_natural_scroll);
-        load_double(touchpad, "sensitivity", &cfg->touchpad_sensitivity);
+        load_bool  (touchpad, "enable",         &cfg->touchpad_enable        );
+        load_double(touchpad, "scroll_speed",   &cfg->touchpad_scroll_speed  );
+        load_bool  (touchpad, "tap_to_click",   &cfg->touchpad_tap_to_click  );
+        load_bool  (touchpad, "natural_scroll", &cfg->touchpad_natural_scroll);
+        load_double(touchpad, "sensitivity",    &cfg->touchpad_sensitivity   );
     }
 
     toml_free(root);
