@@ -1198,6 +1198,267 @@ static void present_frame_if_ready(app_t *app)
     app->screenshot_requested = false;
 }
 
+/* Env-var overrides applied before the config file is read
+ *
+ * the file then overrides whichever of these it specifies
+ * (apply_config_reload()'s later reloads follow the same precedence).
+ */
+static void parse_env_settings(app_t *app)
+{
+    const char *canary_fd_str = getenv("GHOSTCON_CANARY_FD");
+    app->canary_fd = -1;
+    if (canary_fd_str)
+        (void)ghostcon_parse_int(canary_fd_str, &app->canary_fd);
+
+    const char *clear_on_logout_str = getenv("GHOSTCON_CLEAR_ON_LOGOUT");
+    app->clear_on_logout = (clear_on_logout_str && strcmp(clear_on_logout_str, "0") == 0)
+                               ? false : CLEAR_ON_LOGOUT_DEFAULT;
+
+    const char *font_size_str = getenv("GHOSTCON_FONT_SIZE");
+    app->font_size = FONT_SIZE;
+    if (font_size_str)
+        (void)ghostcon_parse_int(font_size_str, &app->font_size);
+    if (app->font_size <= 0)
+        app->font_size = FONT_SIZE; /* malformed/nonsensical env value -- fall back rather than pass 0/negative to atlas_create */
+
+    const char *zoom_step_str = getenv("GHOSTCON_ZOOM_STEP");
+    app->zoom_step = ZOOM_STEP_DEFAULT;
+    if (zoom_step_str)
+        (void)ghostcon_parse_int(zoom_step_str, &app->zoom_step);
+    if (app->zoom_step <= 0)
+        app->zoom_step = ZOOM_STEP_DEFAULT; /* malformed/nonsensical env value */
+
+    /* Hot-reload watch
+     *
+     * see PLAN.md's "General config hot-reload" section.
+     *
+     * GHOSTCON_CONFIG_PATH is exported unconditionally by undead-head regardless
+     * of whether this process needed a config file before (config.h's doc
+     * comment); not fatal if either step fails, live-reload just silently doesn't
+     * happen.
+     */
+    app->config_path = getenv("GHOSTCON_CONFIG_PATH");
+    if (!app->config_path)
+        app->config_path = "/etc/ghostcon/ghostcon.toml";
+    app->config_watch_fd = ghostcon_config_watch_open(app->config_path);
+}
+
+/* Defaults first, then whatever the config file specifies. Split out of main()
+ * because the two blocks are otherwise one long run of straight-line
+ * assignments.
+ */
+static void load_initial_settings(app_t *app, int *scrollback_lines)
+{
+    /* [cursor] fields have no individual GHOSTCON_* env var (unlike
+     * font_size/zoom_step/clear_on_logout above)
+     *
+     * undead-head only exports one env var per config key for values every
+     * process in the tree might plausibly need at spawn time, and cursor assets
+     * are ghostcon-core-only.
+     *
+     * Simplest to just load the file directly here once for these three fields,
+     * same struct/function apply_config_reload() already uses for every later
+     * reload.
+     */
+    app->cursor_base_scale = 1.0f;
+    app->cursor_scale_with_terminal = true;
+    snprintf(app->copy_to_clipboard_binding, sizeof(app->copy_to_clipboard_binding), "%s", "ctrl+shift+c");
+    snprintf(app->paste_from_clipboard_binding, sizeof(app->paste_from_clipboard_binding), "%s", "ctrl+shift+v");
+    app->mouse_enable = true;
+    app->mouse_scroll_speed = 1.0f;
+    app->touchpad_enable = true;
+    app->touchpad_scroll_speed = 1.0f;
+    app->touchpad_tap_to_click = true;
+    app->repeat_delay_ms = 250;
+    app->repeat_rate_ms = 50;
+    *scrollback_lines = 2000;
+    {
+        ghostcon_config_t initial_cfg;
+        if (ghostcon_config_load(app->config_path, &initial_cfg)) {
+            snprintf(app->font_family, sizeof(app->font_family), "%s", initial_cfg.font_family);
+            snprintf(app->font_variant, sizeof(app->font_variant), "%s", initial_cfg.font_variant);
+            snprintf(app->antialiasing, sizeof(app->antialiasing), "%s", initial_cfg.antialiasing);
+            snprintf(app->subpixel_order, sizeof(app->subpixel_order), "%s", initial_cfg.subpixel_order);
+            app->gamma_correct = initial_cfg.gamma_correct;
+            app->ligatures = initial_cfg.ligatures;
+            snprintf(app->theme, sizeof(app->theme), "%s", initial_cfg.theme);
+            snprintf(app->color_background, sizeof(app->color_background), "%s", initial_cfg.color_background);
+            snprintf(app->color_foreground, sizeof(app->color_foreground), "%s", initial_cfg.color_foreground);
+            snprintf(app->color_cursor, sizeof(app->color_cursor), "%s", initial_cfg.color_cursor);
+            for (int i = 0; i < 16; i++)
+                snprintf(app->color[i], sizeof(app->color[i]), "%s", initial_cfg.color[i]);
+            snprintf(app->cursor_theme, sizeof(app->cursor_theme), "%s", initial_cfg.cursor_theme);
+            snprintf(app->cursor_default_path, sizeof(app->cursor_default_path), "%s", initial_cfg.cursor_default_path);
+            snprintf(app->cursor_link_path, sizeof(app->cursor_link_path), "%s", initial_cfg.cursor_link_path);
+            app->cursor_base_scale = initial_cfg.cursor_base_scale;
+            app->cursor_scale_with_terminal = initial_cfg.cursor_scale_with_terminal;
+            snprintf(app->cursor_default_hot_pos, sizeof(app->cursor_default_hot_pos),
+                     "%s", initial_cfg.cursor_default_hot_pos);
+            snprintf(app->cursor_link_hot_pos, sizeof(app->cursor_link_hot_pos),
+                     "%s", initial_cfg.cursor_link_hot_pos);
+            snprintf(app->copy_to_clipboard_binding, sizeof(app->copy_to_clipboard_binding),
+                     "%s", initial_cfg.copy_to_clipboard_binding);
+            snprintf(app->paste_from_clipboard_binding, sizeof(app->paste_from_clipboard_binding),
+                     "%s", initial_cfg.paste_from_clipboard_binding);
+            app->mouse_enable = initial_cfg.mouse_enable;
+            app->mouse_scroll_speed = initial_cfg.mouse_scroll_speed;
+            app->mouse_sensitivity = initial_cfg.mouse_sensitivity;
+            app->touchpad_enable = initial_cfg.touchpad_enable;
+            app->touchpad_scroll_speed = initial_cfg.touchpad_scroll_speed;
+            app->touchpad_tap_to_click = initial_cfg.touchpad_tap_to_click;
+            app->touchpad_natural_scroll = initial_cfg.touchpad_natural_scroll;
+            app->touchpad_sensitivity = initial_cfg.touchpad_sensitivity;
+            if (initial_cfg.repeat_delay_ms > 0)
+                app->repeat_delay_ms = initial_cfg.repeat_delay_ms;
+            if (initial_cfg.repeat_rate_ms > 0)
+                app->repeat_rate_ms = initial_cfg.repeat_rate_ms;
+            if (initial_cfg.scrollback_lines > 0)
+                *scrollback_lines = initial_cfg.scrollback_lines;
+        }
+    }
+}
+
+/* Connects the pty transport (retrying while the supervisor gets the session
+ * up), wires the terminal callbacks, and tells the child the initial grid size.
+ * The caller owns the failure cleanup.
+ */
+static bool core_connect_transport(app_t *app, const char *registry_socket)
+{
+    bool connected = false;
+    for (int i = 0; i < 50 && !connected; i++)
+    {
+        connected = ghostcon_transport_connect(&app->transport, registry_socket, app->vt_num);
+        if (!connected)
+            usleep(20000);
+    }
+    GC_LOG(pty, "connect to pty child for vt %d: %s",
+            app->vt_num, connected ? "ok" : "FAILED");
+    if (!connected)
+        return false;
+
+    ghostcon_term_set_output(&app->term, term_output_callback, app);
+    ghostcon_term_set_title(&app->term, term_title_callback, app);
+    ghostcon_term_set_notify(&app->term, term_notify_callback, app);
+
+    /* Covers the case the later reacquire-path resize (the main loop's own
+     * handlers) doesn't: the VT already being active at process start, so
+     * `app->term` was already correctly sized (from real KMS dimensions, not the
+     * 80x24 placeholder) before this connection even existed.
+     *
+     * Without this, a program launched before the first actual resize event
+     * --which might never come, if the VT is never released and reacquired during
+     * this run
+     *
+     * would never see the right size at all.
+     */
+    ghostcon_transport_resize(&app->transport, app->term.rows, app->term.cols,
+                              app->term.cols * app->cell_w, app->term.rows * app->cell_h);
+    return true;
+}
+
+/* One iteration's pollfd set. Indices are -1 when that source is unavailable
+ * this iteration (config watch, control socket, input/repeat while inactive).
+ */
+typedef struct
+{
+    struct pollfd fds[6];
+    int nfds;
+    int vtctl_idx;
+    int config_watch_idx;
+    int transport_idx;
+    int ctl_idx;
+    int input_idx;
+    int repeat_idx;
+} core_poll_t;
+
+static void core_fill_poll(app_t *app, core_poll_t *p)
+{
+    p->nfds = 0;
+    p->vtctl_idx = p->nfds++;
+    p->fds[p->vtctl_idx] = (struct pollfd){ .fd = ghostcon_vtctl_signal_fd(app->vt), .events = POLLIN };
+
+    p->config_watch_idx = -1;
+    if (app->config_watch_fd >= 0)
+    {
+        p->config_watch_idx = p->nfds++;
+        p->fds[p->config_watch_idx] = (struct pollfd){ .fd = app->config_watch_fd, .events = POLLIN };
+    }
+
+    p->transport_idx = p->nfds++;
+    p->fds[p->transport_idx] = (struct pollfd){ .fd = ghostcon_transport_fd(&app->transport), .events = POLLIN };
+
+    /* app->transport.ctl_fd is -1 when the control connection never came up
+     * (see its own doc comment)
+     *
+     * not fatal, CLEAR notifications just silently won't arrive, same
+     * tolerance already given to RESIZE going the other direction.
+     */
+    p->ctl_idx = -1;
+    if (app->transport.ctl_fd >= 0)
+    {
+        p->ctl_idx = p->nfds++;
+        p->fds[p->ctl_idx] = (struct pollfd){ .fd = app->transport.ctl_fd, .events = POLLIN };
+    }
+
+    /* app->input only exists while this VT is actually active/ acquired (see
+     * app_t's own doc comment on `input`, and acquire_display()/release_display()
+     *
+     * a fresh libinput context is opened per acquire and closed on release,
+     * rather than kept open across the inactive period).
+     *
+     * That's the real fix for a leak found live: with a single long-lived
+     * libinput context, every keystroke typed anywhere else on the machine while
+     * this VT was inactive still arrived at (and queued in) this process's own fd
+     * at the kernel level regardless of whether we called dispatch --so the
+     * moment this VT reactivated, the whole accumulated backlog replayed in one
+     * burst into the pty, indistinguishable from real input typed here.
+     *
+     * Simply skipping dispatch while inactive (tried first) only delayed
+     * consumption of that backlog, it didn't discard it.
+     *
+     * `app->input` being NULL while inactive is what keeps it out of the pollfd
+     * set below.
+     */
+    p->input_idx = -1;
+    p->repeat_idx = -1;
+    if (app->input)
+    {
+        p->input_idx = p->nfds++;
+        p->fds[p->input_idx] = (struct pollfd){ .fd = ghostcon_input_fd(app->input), .events = POLLIN };
+        /* -1 when timerfd_create() failed at input_open() time --key
+         * auto-repeat just silently doesn't work, same tolerance given
+         * to the ctl_fd/CLEAR path above.
+         */
+        int rfd = ghostcon_input_repeat_fd(app->input);
+        if (rfd >= 0)
+        {
+            p->repeat_idx = p->nfds++;
+            p->fds[p->repeat_idx] = (struct pollfd){ .fd = rfd, .events = POLLIN };
+        }
+    }
+}
+
+/* Runs each ready source; returns whether any of them updated the grid in a way
+ * that owes a present.
+ */
+static bool core_dispatch_events(app_t *app, core_poll_t *p)
+{
+    bool need_render = false;
+    if (p->config_watch_idx >= 0 && (p->fds[p->config_watch_idx].revents & POLLIN))
+        need_render |= handle_config_change(app);
+    if (p->fds[p->vtctl_idx].revents & POLLIN)
+        need_render |= handle_vt_events(app);
+    if (p->fds[p->transport_idx].revents & (POLLIN | POLLHUP | POLLERR))
+        need_render |= handle_transport_data(app);
+    if (p->ctl_idx >= 0 && (p->fds[p->ctl_idx].revents & (POLLIN | POLLHUP | POLLERR)))
+        need_render |= handle_control_clear(app);
+    if (p->input_idx >= 0 && (p->fds[p->input_idx].revents & POLLIN))
+        need_render |= handle_input_events(app);
+    if (p->repeat_idx >= 0 && (p->fds[p->repeat_idx].revents & POLLIN))
+        handle_repeat_fire(app);
+    return need_render;
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 2)
@@ -1217,110 +1478,10 @@ int main(int argc, char **argv)
     app.drm_node = argc > 2 ? argv[2] : DEFAULT_DRM_NODE;
     const char *registry_socket = argc > 3 ? argv[3] : GHOSTCON_PTYSERV_SOCKET_PATH;
 
-    const char *canary_fd_str = getenv("GHOSTCON_CANARY_FD");
-    app.canary_fd = -1;
-    if (canary_fd_str)
-        (void)ghostcon_parse_int(canary_fd_str, &app.canary_fd);
+    parse_env_settings(&app);
 
-    const char *clear_on_logout_str = getenv("GHOSTCON_CLEAR_ON_LOGOUT");
-    app.clear_on_logout = (clear_on_logout_str && strcmp(clear_on_logout_str, "0") == 0)
-                               ? false : CLEAR_ON_LOGOUT_DEFAULT;
-
-    const char *font_size_str = getenv("GHOSTCON_FONT_SIZE");
-    app.font_size = FONT_SIZE;
-    if (font_size_str)
-        (void)ghostcon_parse_int(font_size_str, &app.font_size);
-    if (app.font_size <= 0)
-        app.font_size = FONT_SIZE; /* malformed/nonsensical env value -- fall back rather than pass 0/negative to atlas_create */
-
-    const char *zoom_step_str = getenv("GHOSTCON_ZOOM_STEP");
-    app.zoom_step = ZOOM_STEP_DEFAULT;
-    if (zoom_step_str)
-        (void)ghostcon_parse_int(zoom_step_str, &app.zoom_step);
-    if (app.zoom_step <= 0)
-        app.zoom_step = ZOOM_STEP_DEFAULT; /* malformed/nonsensical env value */
-
-    /* Hot-reload watch
-     *
-     * see PLAN.md's "General config hot-reload" section.
-     *
-     * GHOSTCON_CONFIG_PATH is exported unconditionally by undead-head regardless
-     * of whether this process needed a config file before (config.h's doc
-     * comment); not fatal if either step fails, live-reload just silently doesn't
-     * happen.
-     */
-    app.config_path = getenv("GHOSTCON_CONFIG_PATH");
-    if (!app.config_path)
-        app.config_path = "/etc/ghostcon/ghostcon.toml";
-    app.config_watch_fd = ghostcon_config_watch_open(app.config_path);
-
-    /* [cursor] fields have no individual GHOSTCON_* env var (unlike
-     * font_size/zoom_step/clear_on_logout above)
-     *
-     * undead-head only exports one env var per config key for values every
-     * process in the tree might plausibly need at spawn time, and cursor assets
-     * are ghostcon-core-only.
-     *
-     * Simplest to just load the file directly here once for these three fields,
-     * same struct/function apply_config_reload() already uses for every later
-     * reload.
-     */
-    app.cursor_base_scale = 1.0f;
-    app.cursor_scale_with_terminal = true;
-    snprintf(app.copy_to_clipboard_binding, sizeof(app.copy_to_clipboard_binding), "%s", "ctrl+shift+c");
-    snprintf(app.paste_from_clipboard_binding, sizeof(app.paste_from_clipboard_binding), "%s", "ctrl+shift+v");
-    app.mouse_enable = true;
-    app.mouse_scroll_speed = 1.0f;
-    app.touchpad_enable = true;
-    app.touchpad_scroll_speed = 1.0f;
-    app.touchpad_tap_to_click = true;
-    app.repeat_delay_ms = 250;
-    app.repeat_rate_ms = 50;
-    int scrollback_lines = 2000;
-    {
-        ghostcon_config_t initial_cfg;
-        if (ghostcon_config_load(app.config_path, &initial_cfg)) {
-            snprintf(app.font_family, sizeof(app.font_family), "%s", initial_cfg.font_family);
-            snprintf(app.font_variant, sizeof(app.font_variant), "%s", initial_cfg.font_variant);
-            snprintf(app.antialiasing, sizeof(app.antialiasing), "%s", initial_cfg.antialiasing);
-            snprintf(app.subpixel_order, sizeof(app.subpixel_order), "%s", initial_cfg.subpixel_order);
-            app.gamma_correct = initial_cfg.gamma_correct;
-            app.ligatures = initial_cfg.ligatures;
-            snprintf(app.theme, sizeof(app.theme), "%s", initial_cfg.theme);
-            snprintf(app.color_background, sizeof(app.color_background), "%s", initial_cfg.color_background);
-            snprintf(app.color_foreground, sizeof(app.color_foreground), "%s", initial_cfg.color_foreground);
-            snprintf(app.color_cursor, sizeof(app.color_cursor), "%s", initial_cfg.color_cursor);
-            for (int i = 0; i < 16; i++)
-                snprintf(app.color[i], sizeof(app.color[i]), "%s", initial_cfg.color[i]);
-            snprintf(app.cursor_theme, sizeof(app.cursor_theme), "%s", initial_cfg.cursor_theme);
-            snprintf(app.cursor_default_path, sizeof(app.cursor_default_path), "%s", initial_cfg.cursor_default_path);
-            snprintf(app.cursor_link_path, sizeof(app.cursor_link_path), "%s", initial_cfg.cursor_link_path);
-            app.cursor_base_scale = initial_cfg.cursor_base_scale;
-            app.cursor_scale_with_terminal = initial_cfg.cursor_scale_with_terminal;
-            snprintf(app.cursor_default_hot_pos, sizeof(app.cursor_default_hot_pos),
-                     "%s", initial_cfg.cursor_default_hot_pos);
-            snprintf(app.cursor_link_hot_pos, sizeof(app.cursor_link_hot_pos),
-                     "%s", initial_cfg.cursor_link_hot_pos);
-            snprintf(app.copy_to_clipboard_binding, sizeof(app.copy_to_clipboard_binding),
-                     "%s", initial_cfg.copy_to_clipboard_binding);
-            snprintf(app.paste_from_clipboard_binding, sizeof(app.paste_from_clipboard_binding),
-                     "%s", initial_cfg.paste_from_clipboard_binding);
-            app.mouse_enable = initial_cfg.mouse_enable;
-            app.mouse_scroll_speed = initial_cfg.mouse_scroll_speed;
-            app.mouse_sensitivity = initial_cfg.mouse_sensitivity;
-            app.touchpad_enable = initial_cfg.touchpad_enable;
-            app.touchpad_scroll_speed = initial_cfg.touchpad_scroll_speed;
-            app.touchpad_tap_to_click = initial_cfg.touchpad_tap_to_click;
-            app.touchpad_natural_scroll = initial_cfg.touchpad_natural_scroll;
-            app.touchpad_sensitivity = initial_cfg.touchpad_sensitivity;
-            if (initial_cfg.repeat_delay_ms > 0)
-                app.repeat_delay_ms = initial_cfg.repeat_delay_ms;
-            if (initial_cfg.repeat_rate_ms > 0)
-                app.repeat_rate_ms = initial_cfg.repeat_rate_ms;
-            if (initial_cfg.scrollback_lines > 0)
-                scrollback_lines = initial_cfg.scrollback_lines;
-        }
-    }
+    int scrollback_lines = 0;
+    load_initial_settings(&app, &scrollback_lines);
 
     ghostcon_diag_init("ghostcon-core", app.vt_num);
 
@@ -1395,16 +1556,7 @@ int main(int argc, char **argv)
     apply_theme_config(&app);
     ghostcon_stream_set_cell_size(&app.term.stream, app.cell_w, app.cell_h);
 
-    bool transport_connected = false;
-    for (int i = 0; i < 50 && !transport_connected; i++)
-    {
-        transport_connected = ghostcon_transport_connect(&app.transport, registry_socket, app.vt_num);
-        if (!transport_connected)
-            usleep(20000);
-    }
-    GC_LOG(pty, "connect to pty child for vt %d: %s",
-            app.vt_num, transport_connected ? "ok" : "FAILED");
-    if (!transport_connected)
+    if (!core_connect_transport(&app, registry_socket))
     {
         fprintf(stderr, "ghostcon-core: could not connect to pty child for vt %d\n", app.vt_num);
         ghostcon_term_deinit(&app.term);
@@ -1413,23 +1565,6 @@ int main(int argc, char **argv)
         ghostcon_vtctl_close(app.vt);
         return 1;
     }
-    ghostcon_term_set_output(&app.term, term_output_callback, &app);
-    ghostcon_term_set_title(&app.term, term_title_callback, &app);
-    ghostcon_term_set_notify(&app.term, term_notify_callback, &app);
-
-    /* Covers the case the later reacquire-path resize (below, in the main loop)
-     * doesn't: the VT already being active at process start, so `app.term` was
-     * already correctly sized (from real KMS dimensions, not the 80x24
-     * placeholder) before this connection even existed.
-     *
-     * Without this, a program launched before the first actual resize event
-     * --which might never come, if the VT is never released and reacquired during
-     * this run
-     *
-     * would never see the right size at all.
-     */
-    ghostcon_transport_resize(&app.transport, app.term.rows, app.term.cols,
-                              app.term.cols * app.cell_w, app.term.rows * app.cell_h);
 
     /* No separate input_open() here
      *
@@ -1444,70 +1579,10 @@ int main(int argc, char **argv)
     app.running = true;
     while (app.running)
     {
-        struct pollfd fds[6];
-        int nfds = 0;
-        int vtctl_idx = nfds++;
-        fds[vtctl_idx] = (struct pollfd){ .fd = ghostcon_vtctl_signal_fd(app.vt), .events = POLLIN };
-        int config_watch_idx = -1;
-        if (app.config_watch_fd >= 0)
-        {
-            config_watch_idx = nfds++;
-            fds[config_watch_idx] = (struct pollfd){ .fd = app.config_watch_fd, .events = POLLIN };
-        }
-        int transport_idx = nfds++;
-        fds[transport_idx] = (struct pollfd){ .fd = ghostcon_transport_fd(&app.transport), .events = POLLIN };
-        /* app.transport.ctl_fd is -1 when the control connection never came up
-         * (see its own doc comment)
-         *
-         * not fatal, CLEAR notifications just silently won't arrive, same
-         * tolerance already given to RESIZE going the other direction.
-         */
-        int ctl_idx = -1;
-        if (app.transport.ctl_fd >= 0)
-        {
-            ctl_idx = nfds++;
-            fds[ctl_idx] = (struct pollfd){ .fd = app.transport.ctl_fd, .events = POLLIN };
-        }
-        /* app.input only exists while this VT is actually active/ acquired (see
-         * app_t's own doc comment on `input`, and
-         * acquire_display()/release_display()
-         *
-         * a fresh libinput context is opened per acquire and closed on release,
-         * rather than kept open across the inactive period).
-         *
-         * That's the real fix for a leak found live: with a single long-lived
-         * libinput context, every keystroke typed anywhere else on the machine
-         * while this VT was inactive still arrived at (and queued in) this
-         * process's own fd at the kernel level regardless of whether we called
-         * dispatch --so the moment this VT reactivated, the whole accumulated
-         * backlog replayed in one burst into the pty, indistinguishable from real
-         * input typed here.
-         *
-         * Simply skipping dispatch while inactive (tried first) only delayed
-         * consumption of that backlog, it didn't discard it.
-         *
-         * `app.input` being NULL while inactive is what keeps it out of the
-         * pollfd set below.
-         */
-        int input_idx = -1;
-        int repeat_idx = -1;
-        if (app.input)
-        {
-            input_idx = nfds++;
-            fds[input_idx] = (struct pollfd){ .fd = ghostcon_input_fd(app.input), .events = POLLIN };
-            /* -1 when timerfd_create() failed at input_open() time --key
-             * auto-repeat just silently doesn't work, same tolerance given
-             * to the ctl_fd/CLEAR path above.
-             */
-            int rfd = ghostcon_input_repeat_fd(app.input);
-            if (rfd >= 0)
-            {
-                repeat_idx = nfds++;
-                fds[repeat_idx] = (struct pollfd){ .fd = rfd, .events = POLLIN };
-            }
-        }
+        core_poll_t p;
+        core_fill_poll(&app, &p);
 
-        int rv = poll(fds, (nfds_t)nfds, POLL_INTERVAL_MS);
+        int rv = poll(p.fds, (nfds_t)p.nfds, POLL_INTERVAL_MS);
         if (rv < 0)
         {
             if (errno == EINTR)
@@ -1522,21 +1597,7 @@ int main(int argc, char **argv)
             (void)ignored; /* best-effort — supervisor's poll() is what matters */
         }
 
-        bool need_render = false;
-        if (config_watch_idx >= 0 && (fds[config_watch_idx].revents & POLLIN))
-            need_render |= handle_config_change(&app);
-        if (fds[vtctl_idx].revents & POLLIN)
-            need_render |= handle_vt_events(&app);
-        if (fds[transport_idx].revents & (POLLIN | POLLHUP | POLLERR))
-            need_render |= handle_transport_data(&app);
-        if (ctl_idx >= 0 && (fds[ctl_idx].revents & (POLLIN | POLLHUP | POLLERR)))
-            need_render |= handle_control_clear(&app);
-        if (input_idx >= 0 && (fds[input_idx].revents & POLLIN))
-            need_render |= handle_input_events(&app);
-        if (repeat_idx >= 0 && (fds[repeat_idx].revents & POLLIN))
-            handle_repeat_fire(&app);
-
-        if (need_render)
+        if (core_dispatch_events(&app, &p))
             app.render_deferred = true;
 
         present_frame_if_ready(&app);
