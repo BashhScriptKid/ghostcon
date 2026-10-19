@@ -828,8 +828,13 @@ ghostcon_gles_kitty_tex_get(ghostcon_gles_t *gles,
 
     if (gles->kitty_tex_count >= gles->kitty_tex_cap)
     {
-        gles->kitty_tex_cap = gles->kitty_tex_cap ? gles->kitty_tex_cap * 2 : 8;
-        gles->kitty_tex = realloc(gles->kitty_tex, gles->kitty_tex_cap * sizeof(*gles->kitty_tex));
+        size_t new_cap = gles->kitty_tex_cap ? gles->kitty_tex_cap * 2 : 8;
+        struct ghostcon_gles_kitty_tex_entry *grown =
+            realloc(gles->kitty_tex, new_cap * sizeof(*gles->kitty_tex));
+        if (!grown)
+            return NULL; /* old array (and cap) remain intact */
+        gles->kitty_tex = grown;
+        gles->kitty_tex_cap = new_cap;
     }
 
     ghostcon_gles_image_t *tex = ghostcon_gles_image_create(pixels, width, height, bpp);
@@ -888,8 +893,13 @@ ghostcon_gles_sixel_tex_get(ghostcon_gles_t *gles,
 
     if (gles->sixel_tex_count >= gles->sixel_tex_cap)
     {
-        gles->sixel_tex_cap = gles->sixel_tex_cap ? gles->sixel_tex_cap * 2 : 8;
-        gles->sixel_tex = realloc(gles->sixel_tex, gles->sixel_tex_cap * sizeof(*gles->sixel_tex));
+        size_t new_cap = gles->sixel_tex_cap ? gles->sixel_tex_cap * 2 : 8;
+        struct ghostcon_gles_sixel_tex_entry *grown =
+            realloc(gles->sixel_tex, new_cap * sizeof(*gles->sixel_tex));
+        if (!grown)
+            return NULL; /* old array (and cap) remain intact */
+        gles->sixel_tex = grown;
+        gles->sixel_tex_cap = new_cap;
     }
 
     ghostcon_gles_image_t *tex = ghostcon_gles_image_create(pixels, width, height, 4);
@@ -908,9 +918,13 @@ void ghostcon_gles_queue_image(ghostcon_gles_t *gles, ghostcon_gles_image_t *img
 {
     if (gles->queued_count >= gles->queued_cap)
     {
-        gles->queued_cap = gles->queued_cap ? gles->queued_cap * 2 : 8;
-        gles->queued_images = realloc(gles->queued_images,
-                                      gles->queued_cap * sizeof(*gles->queued_images));
+        size_t new_cap = gles->queued_cap ? gles->queued_cap * 2 : 8;
+        struct ghostcon_gles_queued_image *grown =
+            realloc(gles->queued_images, new_cap * sizeof(*gles->queued_images));
+        if (!grown)
+            return; /* drop this placement rather than corrupt the queue */
+        gles->queued_images = grown;
+        gles->queued_cap = new_cap;
     }
     gles->queued_images[gles->queued_count++] = (struct ghostcon_gles_queued_image){
         img, x, y, w, h, src_x, src_y, src_w, src_h, alpha, above_text,

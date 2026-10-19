@@ -216,8 +216,15 @@ static void buf_append(buf_t *b, const void *p, size_t n)
 {
     if (b->len + n > b->cap)
     {
-        b->cap = (b->len + n) * 2 + 64;
-        b->data = realloc(b->data, b->cap);
+        size_t new_cap = (b->len + n) * 2 + 64;
+        void *grown = realloc(b->data, new_cap);
+        if (!grown)
+        {
+            fprintf(stderr, "image_protocol_bench: out of memory\n");
+            exit(1);
+        }
+        b->data = grown;
+        b->cap = new_cap;
     }
     memcpy(b->data + b->len, p, n);
     b->len += n;
