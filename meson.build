@@ -17,7 +17,11 @@ cc = meson.get_compiler('c')
 # declared dependency -- a sanitizer build's stricter linking
 # (-Wl,--no-undefined) surfaced the missing explicit link.
 dep_m = cc.find_library('m', required: false)
-dep_ghostty_vt = dependency('libghostty-vt', version: '>=0.0')
+# Pinned to the API generation the terminal core was ported against
+# (see IMPLEMENTATION.md section 8). Bump deliberately after re-running
+# the conformance suite -- libghostty-vt owns decoding, not the screen
+# model, so a breaking change here can silently alter parser behavior.
+dep_ghostty_vt = dependency('libghostty-vt', version: '>=0.1.0')
 dep_libdrm     = dependency('libdrm',     required: false)
 dep_libgbm     = dependency('gbm',        required: false)
 dep_egl        = dependency('egl',        required: false)
