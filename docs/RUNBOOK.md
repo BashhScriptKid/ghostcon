@@ -15,42 +15,109 @@ meson test -C build-release          # currently 21 tests
 
 ## 0. Code style
 
-- **Braces: Allman.** Block braces go on their own line for functions,
-  if/for/while/switch, else, do, and struct/enum/union:
-  ```c
-  if (condition)
-  {
-      statement;
-  }
-  ```
-  Initializers, designated initializers, and compound literals keep
-  their K&R `= { ... }` / `(T){ ... }` form. Indentation is 4 spaces.
-  Check or apply with:
-  ```sh
-  python3 tools/format_braces.py --check   # exit 1 if reformatting needed
-  python3 tools/format_braces.py --apply
-  ```
-- **Function-definition return types:** portable types stay on the
-  same line as the name; domain/library types split.
-  ```c
-  static bool load_config(const char *path)
-  ghostcon_display_t *
-  ghostcon_display_create(const char *node, int vt)
-  ```
-  "Portable" = a C builtin scalar or a standard/POSIX scalar typedef
-  (`uint32_t`, `size_t`, `pid_t`, ...), ignoring qualifiers and
-  pointers/arrays (`char *xstrdup(...)` is one line). Anything declared
-  by ghostcon or a third-party dependency, and struct/union/enum tags,
-  splits. Prototypes are left as written.
-  Enforce with:
-  ```sh
-  python3 tools/format_signatures.py --check
-  python3 tools/format_signatures.py --apply
-  ```
-- **Comments: wrapped block style**, first paragraph on the `/*` line,
-  continuations prefixed ` * `, blank paragraph separators as ` *`,
-  wrapped at 76 columns.
-- `meson test -C build-release` must stay green (currently 21 tests).
+Three rules, each enforced by a script in `tools/`. The scripts are the
+executable specification; update both if a rule changes. Run them from
+the repository root before sending changes:
+
+```sh
+python3 tools/format_comments.py   --check
+python3 tools/format_braces.py     --check
+python3 tools/format_signatures.py --check
+```
+
+Each accepts `--apply` to rewrite in place and is idempotent. All three
+are tokenizer-based, not full C parsers: they ignore comments and
+strings while tokenizing, skip preprocessor logical lines (including
+macro bodies), and only inspect top-level function definitions. Review
+the diff after `--apply`, and always run the tests.
+
+### Braces — Allman
+
+Block braces go on their own line for functions,
+if/for/while/switch, else, do, and struct/enum/union:
+
+```c
+if (condition)
+{
+    statement;
+}
+```
+
+Indentation is 4 spaces. Initializers, designated initializers, and
+compound literals keep their K&R `= { ... }` / `(T){ ... }` form.
+`tools/format_braces.py` moves same-line block braces, expands
+single-line blocks, and rewrites `} else {` as `}`, `else`, and `{`
+on separate lines. It does
+not touch initializer/compound-literal braces or macro definitions.
+
+### Function-definition return types
+
+Only definitions are governed; prototypes are left as written.
+
+One line when the return type's base is:
+
+- a C builtin scalar keyword: `void`, `char`, `short`, `int`, `long`,
+  `float`, `double`, `signed`, `unsigned`, `_Bool` (`bool` via
+  `<stdbool.h>`); or
+- a standard/POSIX scalar typedef: `int8_t`..`int64_t`,
+  `uint8_t`..`uint64_t`, `int_least*`/`uint_least*`, `int_fast*`/
+  `uint_fast*`, `intptr_t`, `uintptr_t`, `intmax_t`, `uintmax_t`,
+  `size_t`, `ssize_t`, `ptrdiff_t`, `wchar_t`, `wint_t`, `clock_t`,
+  `time_t`, `off_t`, `pid_t`, `uid_t`, `gid_t`, `mode_t`, `dev_t`,
+  `ino_t`, `nlink_t`, `blksize_t`, `blkcnt_t`, `FILE`, `va_list`.
+
+```c
+static bool load_config(const char *path)
+char *xstrdup(const char *s)
+size_t ghostcon_input_encode_key(...)
+```
+
+Qualifiers (`const`, `volatile`, `restrict`, `_Atomic`) and storage
+specifiers (`static`, `inline`, `extern`, `register`, `auto`,
+`_Noreturn`) are ignored when finding the base. Pointers and arrays do
+not change the base: `char *xstrdup(...)` stays one line.
+
+Split when the base is:
+
+- a type declared in this repository (`ghostcon_*`); or
+- a third-party type (`Ghostty*` from libghostty, `drmMode*` from
+  libdrm, `libinput_*`, `xkb_*`, ...); or
+- a struct/union/enum tag, including standard/POSIX tags (deliberately
+  conservative); or
+- a function-pointer declarator return — the tool skips these rather
+  than attempting a split.
+
+```c
+ghostcon_display_t *
+ghostcon_display_create(const char *node, int vt)
+
+ghostcon_style_id_t
+ghostcon_style_add(...)
+```
+
+Wrapped parameter lists are realigned when the name joins the
+return-type line. The exact classification sets are `PRIMITIVE` and
+`STD_TYPEDEFS` in `tools/format_signatures.py`; update both that script
+and this list together.
+
+### Comments — wrapped block style
+
+```c
+/* First line of the paragraph
+ * continuation wrapped at 76 columns
+ *
+ * next paragraph
+ */
+```
+
+Inline/trailing comments are untouched. License headers, ASCII banners,
+comments inside `#define` continuations, and comments already in this
+style are skipped. Boxed runs of adjacent one-line comments collapse
+into one block. `tools/format_comments.py` enforces this.
+
+### Tests
+
+`meson test -C build-release` must stay green (currently 21 tests).
 
 ## 1. Where things live now (post-refactor map)
 
