@@ -138,6 +138,11 @@ breaking the sentence:
 Leave just the marker inline. Indent footnote continuation lines so they
 group with the marker.
 
+Cross-reference instructions follow the same rule. If a `see X` aside
+would make a sentence long, end the sentence with `[n]` and put `See X`
+in the footnote block. A standalone `See X.` paragraph is already brief
+and can stay as one.
+
 The same applies to struct-field comments: keep the trailing comment to
 one line (`float is_glyph; // 1.0 for glyph quads, else 0.0 [2]`) and put
 the long explanation in a `[n]` block after the field list, rather than

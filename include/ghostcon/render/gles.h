@@ -20,11 +20,8 @@ struct ghostcon_sixel_state;
 
 /* GLES 2.0 renderer
  *
- * One shader program, two atlas textures (u_atlas: mask, u_atlas_color: color
- * glyphs
- *
- * see atlas.h's doc comment on ghostcon_glyph_t.is_color for why they're
- * separate).
+ * One shader program, two atlas textures: u_atlas for masks and
+ * u_atlas_color for color glyphs[4].
  *
  * A quad is either a solid fill[1], a mask glyph[2], or a color glyph[3].
  *
@@ -42,6 +39,9 @@ struct ghostcon_sixel_state;
  *     foreground color.
  *
  * [3] Sampled from u_atlas_color as direct source color, no tint.
+ *
+ * [4] See atlas.h's doc comment on ghostcon_glyph_t.is_color for why the
+ *     two atlases are separate.
  */
 
 typedef struct

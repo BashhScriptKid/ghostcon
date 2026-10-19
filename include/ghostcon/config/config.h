@@ -70,11 +70,10 @@ typedef struct
      * grayscale, but not true per-subpixel-channel blending.
      *
      * "cleartype" is the real thing: an RGB atlas texture storing genuine
-     * distinct R/G/B coverage, blended per-channel in the shader. See
-     * render/gles.c's FRAG_SRC doc comment.
+     * distinct R/G/B coverage, blended per-channel in the shader[1].
      *
-     * See render/atlas.c's own doc comment on ghostcon_atlas_create() for
-     * the exact FT_LOAD_TARGET mapping.
+     * [1] See render/gles.c's FRAG_SRC and render/atlas.c's
+     *     ghostcon_atlas_create() doc comments for the exact mapping.
      */
     char antialiasing[16];
 

@@ -240,9 +240,10 @@ typedef struct
  * Callers should pass active=false when a kernel check (for example
  * /sys/class/tty/tty0/active) disagrees with their own ownership state.
  *
- * This is a safety net for a missed signal, not the normal mechanism: no input
- * context exists while the VT is inactive (see app_t's `input` comment in
- * core/main.c).
+ * This is a safety net for a missed signal, not the normal mechanism[1].
+ *
+ * [1] While the VT is inactive, no input context normally exists. See
+ *     app_t's `input` comment in core/main.c.
  *
  * With active=false, key events still update XKB modifiers and are drained, but
  * nothing is forwarded, no shortcut fires, and pointer events are skipped
