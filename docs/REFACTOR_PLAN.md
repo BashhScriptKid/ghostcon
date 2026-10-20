@@ -277,9 +277,9 @@ build-release/src/headless_probe out.ppm 1920 1080 16 500 -- htop
 
 Phases 1-4 are complete (§6). The active milestone is **Phase 5: Code Structure & Complexity** (§7).
 
-**Done so far:** §7.5 S1 (the stream module's own directory) and §7.1.1 (the CSI dispatch table) — see §6.
+**Done so far:** §7.5 S1 (the stream module's own directory), §7.1.1 (the CSI dispatch table), and §7.1.2 + §7.1.3 (the Kitty graphics transmit path, with the module's first unit test) — see §6.
 
-The next step is **§7.1.2 + §7.1.3 — the Kitty graphics transmit path**. `handle_transmit` is 416 lines with a 12-argument signature and 22 copies of the same `kitty_ack(...); return;` error shape, and `src/term/kitty_graphics.c` has **no test file at all** — including for the `shm_open` path sandbox (`/tmp` and `/dev/shm` only, the `t=t` "must be named `tty-graphics-protocol`" rule). That is the one place in §7 where a mistake is a security problem rather than a rendering glitch, and it is a better use of effort than the remaining naming and boilerplate items.
+The next step is **§7.4 N2-N4 — the naming consolidation**. 44 C identifiers share the `GHOSTCON_` prefix with the *runtime strings* (env var names, crash-report fields), which is what makes the prefix read as noise rather than as a rule; 23 of the `GHOSTCON_*` names are genuinely runtime strings and must not move. The migration is compiler-checked, has no behaviour change, and fits in one commit — but two of the names live in a **generated** file (`src/term/theme_ghostty_presets.c`), so the generator has to move with them or the next regeneration reintroduces the old names.
 
 ---
 
@@ -305,8 +305,10 @@ Phases 1-4 above are implemented, each as a reviewable commit:
 
 | Phase 5 S1 | the stream module moved into `src/term/stream/`; 4 lines in `src/meson.build` | full suite + ASan/UBSan |
 | Phase 5 7.1.1 | `csi_lookup()` became `csi_table[]`, searched with a binary search over a table sorted by final byte: CCN 84 -> 11, and the RUNBOOK recipe is now "add one row". Covered by the new `tests/test_csi_dispatch.c`, which asserts every intermediate variant still dispatches and that the table stays sorted | `test_csi_dispatch` (new); equivalence against the old switch checked over 4,499,456 combinations of final byte / intermediate count / intermediate values / parameter count |
+| Phase 5 7.1.2 + 7.1.3 | `src/term/kitty_graphics.c`: the transmit path runs through a per-command context (`kitty_cmd_t`) that carries the ack target and the buffer and image slot the command owns, so every failure exit is one `kitty_fail(cmd, "error=...")` line instead of a re-typed five-argument `kitty_ack(...)` call. The path is split into the steps it actually has (resolve transfer / medium / format / dimensions, fetch payload, claim slot, accumulate, finalize, place). `kitty_parse_control`'s 17-arm `strcmp` chain became a table of (key, kind, length rule, field offset) rows. `handle_transmit` CCN 79 -> 12 (416 -> 33 lines); `kitty_parse_control` CCN 39 -> 6 (121 -> 72 lines) | `test_kitty_graphics` (new); equivalence against the old implementation checked over 46 single-command cases and 9 multi-command sessions, comparing the ack bytes, the image store, the placement table, the byte accounting and the reported cursor move after every command -- all identical, and clean under ASan/UBSan |
+| Phase 5 kitty test | `tests/test_kitty_graphics.c` -- the module's first unit test, covering the transmission/placement/ack protocol, the medium sandbox (`/tmp` and `/dev/shm` only, the `t=t` "must be named `tty-graphics-protocol`" rule, and exactly which files get deleted), and the chunked transfer's cross-chunk placement state | 65 assertions; three deliberate regressions (dropping the `t=t` filename convention, not unlinking the shm segment, not restoring the first chunk's `z=`) each make it fail |
 
-Current test count: **24/24** (`meson test -C build-release`).
+Current test count: **25/25** (`meson test -C build-release`).
 Live-service deploys use `build-release` + `meson install` + restart, per
 `CLAUDE.md`; that restart drops active VT sessions.
 
@@ -337,20 +339,30 @@ The long tail is healthy. The problem is 12 functions at CCN >= 28 and two above
 
 ### 7.1 Complexity hotspots
 
+Re-measured after §7.1.1 and §7.1.2 + §7.1.3 (`lizard src/`, 541 functions,
+13,916 NLOC, average CCN 6.2, 45 functions at CCN >= 15).
+
 | Function | Location | CCN | Lines | Params |
 |---|---|---:|---:|---:|
-| `csi_lookup` | `src/term/stream_csi.c:770` | **84** | 110 | 2 |
-| `handle_transmit` | `src/term/kitty_graphics.c:740` | **79** | 416 | 12 |
-| `kitty_parse_control` | `src/term/kitty_graphics.c:445` | 39 | 121 | 1 |
-| `handle_pointer_event` | `src/core/input.c:1179` | 38 | 147 | 8 |
+| `handle_pointer_event` | `src/core/input.c:1179` | **38** | 147 | 8 |
 | `ghostcon_machine_render_dirty` | `src/render/machine.c:110` | 38 | 300 | 6 |
-| `handle_csi_sgr` | `src/term/stream_csi.c:638` | 34 | 126 | 3 |
+| `handle_csi_sgr` | `src/term/stream/stream_csi.c:638` | 34 | 126 | 2 |
 | `sixel_measure` | `src/term/sixel.c:176` | 31 | 77 | 4 |
-| `stream_state_esc` | `src/term/stream.c:244` | 30 | 84 | 3 |
-| `gc_stream_osc_dispatch` | `src/term/stream_osc.c:412` | 30 | 96 | 2 |
-| `parse_color_intro` | `src/term/sixel.c:71` | 28 | 82 | 4 |
-| `load_glyph_into_slot` | `src/render/atlas.c:646` | 28 | 180 | 5 |
+| `stream_state_esc` | `src/term/stream/stream.c:244` | 30 | 84 | 3 |
+| `gc_stream_osc_dispatch` | `src/term/stream/stream_osc.c:412` | 30 | 96 | 2 |
 | `handle_keyboard_event` | `src/core/input.c:903` | 28 | 158 | 7 |
+| `parse_color_intro` | `src/term/sixel.c:71` | 28 | 82 | 4 |
+| `handle_csi_request_mode` | `src/term/stream/stream_csi.c:399` | 28 | 44 | 2 |
+| `load_glyph_into_slot` | `src/render/atlas.c:645` | 28 | 180 | 5 |
+
+**Done:** `csi_lookup` (CCN 84 -> 11, §7.1.1), `handle_transmit` (CCN 79 ->
+12, §7.1.2), `kitty_parse_control` (CCN 39 -> 6, §7.1.3).
+
+Nothing is above CCN 40 any more. The worst remaining offender,
+`handle_pointer_event`, is a pointer event handler that mixes hover
+hit-testing, drag state and click detection (§7.1.5) — a mechanical split,
+but one where the "is this a drag or a click" decision is worth reading
+twice before touching it.
 
 #### 7.1.1 `csi_lookup` (CCN 84) — labelled a table, but it is not one
 
@@ -406,6 +418,40 @@ return;
 
 Fix: a per-transfer context struct carrying the ack fields plus the decoded buffer, with a `kitty_fail(ctx, "error=...")` helper that acks and returns. Expected: CCN 79 -> ~25, and the 22 exits become one-liners.
 
+**Status: done.** The context is `kitty_cmd_t`, and it carries more than the
+ack fields: the resolved transfer parameters, the buffer the command owns,
+and the image slot it claimed. `kitty_fail()` releases the latter two, so a
+failing command cannot leak either — the two things that actually leak
+memory in a terminal that reads images off the filesystem.
+
+The result is **CCN 79 -> 12** (416 -> 33 lines), but not by the route the
+sketch predicted: removing the 22 duplicated `kitty_ack(...)` calls removes
+*lines*, not *branches*, and CCN counts branches. The complexity came down
+because the path was split into the steps it actually has:
+
+```
+kitty_resolve_transfer  ->  kitty_resolve_medium  ->  kitty_resolve_format
+                         ->  kitty_resolve_dimensions
+                         ->  kitty_fetch_payload  ->  kitty_begin_transfer
+                         ->  kitty_accumulate_chunk / kitty_finalize_transfer
+                         ->  kitty_place_image
+```
+
+Each of those returns `bool` and sets `cmd->error`, so the failure exits
+stay one-liners and each step is separately testable.
+
+Two things the sketch did not anticipate:
+
+- **The context has to own the image slot, not just the buffer.** The
+  original freed the slot by hand at four of the failure sites and not at
+  the others; making that a property of the context (`release_img`) is what
+  turned "did I remember to free this?" into "the context does it".
+- **One asymmetry had to be preserved deliberately.** The failure ack for
+  "too many placements" names the *resolved* placement id, while the
+  success ack names the *current chunk's* placement id — for a chunked
+  transfer those differ, since only the first chunk carries `p=`. The
+  comment at the call site says so.
+
 #### 7.1.3 `kitty_parse_control` (CCN 39) — a 17-arm `strcmp` chain
 
 `src/term/kitty_graphics.c:445`. Every control key is hand-compared:
@@ -415,6 +461,27 @@ else if (strcmp(key, "s") == 0 && parse_i64(val, val_len, &iv)) { c.width = (int
 ```
 
 Fix: a `{key, min_len, kind, offset}` table, where `kind` selects char vs. i64 extraction.
+
+**Status: done.** The table is `kitty_control_keys[]`
+(`src/term/kitty_graphics.c`), and the result is **CCN 39 -> 6** (121 -> 72
+lines). Every recognized key is a single character, so the lookup is a
+linear scan over 18 rows rather than a comparison chain.
+
+Two details the sketch did not anticipate:
+
+- **The length rule is per key, not per kind.** `a=` and `t=` accept
+  exactly one character, `d=` accepts one *or more* (only the first
+  character is used), and the numeric keys accept anything `parse_i64`
+  understands. The table therefore carries `min_len`/`max_len` per row, not
+  just per kind.
+- **A key whose value does not parse must be ignored, not rejected.** The
+  original chain fell through to the next arm, so `i=abc` left the field at
+  its "absent" sentinel rather than failing the command. The table keeps
+  that: a value that does not parse leaves the field untouched.
+
+The same change folded in **B6**: the eight "absent" sentinel assignments
+became one designated-initializer list, with the `z=` sentinel's comment
+(`INT32_MIN`, because `z=-1` is a legal value) attached to it.
 
 #### 7.1.4 `ghostcon_machine_render_dirty` (CCN 38, 300 lines)
 
@@ -747,7 +814,7 @@ src/term/stream/stream_apc.h  ->  gc_stream_apc_dispatch, gc_stream_dcs_dispatch
 
 Nothing currently stops a hotspot from growing back. Two options:
 
-1. **CI complexity gate.** Add a `lizard` run to `.github/workflows/ci.yml` that fails when any function exceeds a CCN threshold. Cost: `lizard` must be added to the CI container, and the threshold needs choosing (a reasonable starting point is CCN 40 — only the two worst functions are currently above it).
+1. **CI complexity gate.** Add a `lizard` run to `.github/workflows/ci.yml` that fails when any function exceeds a CCN threshold. Cost: `lizard` must be added to the CI container, and the threshold needs choosing. A reasonable starting point is CCN 40 — **nothing in the tree is above it now**, so the first gate would be a pure regression net.
 2. **Cheaper heuristic.** Extend the existing `tools/format_*.py` style checks with a "no function longer than N lines" rule. No new dependency, but it catches length, not branchiness — and §7.1.1 is 110 lines, so it would not have flagged the worst offender.
 
 Option 1 is the real gate. Option 2 is a reasonable stopgap.
@@ -758,7 +825,7 @@ Option 1 is the real gate. Option 2 is a reasonable stopgap.
 |---|---|---|---|
 | 1 | ~~**S1** — stream directory move~~ | none | **done** |
 | 2 | ~~**7.1.1** — `csi_lookup` -> table~~ | low | **done** (CCN 84 -> 11) |
-| 3 | **7.1.2 + 7.1.3** — kitty context struct + key table | low | Second-worst hotspot; 22 duplicated exits and 17 strcmp arms |
+| 3 | ~~**7.1.2 + 7.1.3** — kitty context struct + key table~~ | low | **done** (CCN 79 -> 12 and 39 -> 6), plus the module's first unit test |
 | 4 | **N2-N4** — naming consolidation (§7.4) | low | ~44 identifiers + 1 duplicated constant; compiler-checked, no behaviour change; one commit |
 | 5 | **B1-B7** — boilerplate extraction | low | Each is a pure extraction; `ghostcon_row_copy()` first |
 | 6 | **S2-S4** — stream header split + doc fixes | low | After S1 (paths settle) and after 7.1.1 (the CSI contract is then final) |
@@ -776,6 +843,23 @@ test file at all**, on a path that decides which files the terminal will
 open. Item 3 (kitty) is arguably worth more than items 4 and 5, and
 worth more than item 2 was.
 
+**That re-ranking was right, and it paid off.** The kitty item turned out
+to be worth more than its CCN number suggested, for a reason the plan did
+not anticipate: the module had no test file, so *the refactor itself* had
+to be verified against a reference implementation rather than against
+existing assertions. The differential harness that proved the refactor
+behaviour-preserving (46 single-command cases and 9 multi-command
+sessions, comparing the complete observable state) is a reusable tool, and
+the unit test that came out of it is what makes the next change to this
+module safe.
+
+The general lesson for the remaining items: **a hotspot that is not
+covered costs more to change than its CCN suggests**, because the change
+has to be justified by something other than the existing suite. Items 4-8
+are all in better-covered territory -- except §7.1.4 (`ghostcon_machine_
+render_dirty`, which has no unit test of its own) and §7.1.5 (the input
+handlers, which have `test_input` but not for the pointer path).
+
 ---
 
 ## 8. Verification
@@ -783,7 +867,7 @@ worth more than item 2 was.
 Every item in §7 must pass all of the following before it is marked done:
 
 ```sh
-# 1. Headless test suite -- must be 23/23
+# 1. Headless test suite -- must be 25/25
 meson test -C build-release --print-errorlogs
 
 # 2. Sanitizers
