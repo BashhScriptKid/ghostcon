@@ -1,6 +1,7 @@
 #define _DEFAULT_SOURCE /* CLOCK_MONOTONIC under -std=c11 without this */
 
 #include "ghostcon/core/input.h"
+#include "ghostcon/core/input_rules.h"
 #include "ghostcon/term/base64.h"
 #include "ghostcon/term/mouse.h"
 #include "ghostcon/term/selection.h"
@@ -817,15 +818,12 @@ static bool is_vt_switch_combo(uint32_t evdev_code, GhosttyMods mods)
  */
 static bool handle_scroll_shortcut(ghostcon_screen_t *screen, uint32_t evdev_code, GhosttyMods mods, GhosttyKeyAction action)
 {
-    if (mods != GHOSTTY_MODS_SHIFT || action != GHOSTTY_KEY_ACTION_PRESS)
-        return false;
-
-    switch (evdev_code)
+    switch (ghostcon_input_match_shortcut(evdev_code, mods, action))
     {
-    case KEY_UP:       ghostcon_screen_scroll_view(screen, 1); return true;
-    case KEY_DOWN:     ghostcon_screen_scroll_view(screen, -1); return true;
-    case KEY_PAGEUP:   ghostcon_screen_scroll_view(screen, (int)screen->rows_visible); return true;
-    case KEY_PAGEDOWN: ghostcon_screen_scroll_view(screen, -(int)screen->rows_visible); return true;
+    case GC_SHORTCUT_SCROLL_UP:   ghostcon_screen_scroll_view(screen, 1); return true;
+    case GC_SHORTCUT_SCROLL_DOWN: ghostcon_screen_scroll_view(screen, -1); return true;
+    case GC_SHORTCUT_PAGE_UP:     ghostcon_screen_scroll_view(screen, (int)screen->rows_visible); return true;
+    case GC_SHORTCUT_PAGE_DOWN:   ghostcon_screen_scroll_view(screen, -(int)screen->rows_visible); return true;
     default: return false;
     }
 }
@@ -851,17 +849,12 @@ static bool handle_scroll_shortcut(ghostcon_screen_t *screen, uint32_t evdev_cod
  */
 static bool handle_zoom_shortcut(int *zoom_delta, uint32_t evdev_code, GhosttyMods mods, GhosttyKeyAction action)
 {
-    if (mods != GHOSTTY_MODS_CTRL || action != GHOSTTY_KEY_ACTION_PRESS)
-        return false;
-
-    switch (evdev_code)
+    switch (ghostcon_input_match_shortcut(evdev_code, mods, action))
     {
-    case KEY_EQUAL:
-    case KEY_KPPLUS:
+    case GC_SHORTCUT_ZOOM_IN:
         *zoom_delta += 1;
         return true;
-    case KEY_MINUS:
-    case KEY_KPMINUS:
+    case GC_SHORTCUT_ZOOM_OUT:
         *zoom_delta -= 1;
         return true;
     default:
@@ -884,9 +877,7 @@ static bool handle_zoom_shortcut(int *zoom_delta, uint32_t evdev_code, GhosttyMo
  */
 static bool handle_dump_shortcut(bool *dump_requested, uint32_t evdev_code, GhosttyMods mods, GhosttyKeyAction action)
 {
-    if (!(mods & GHOSTTY_MODS_CTRL) || !(mods & GHOSTTY_MODS_ALT))
-        return false;
-    if (evdev_code != KEY_D || action != GHOSTTY_KEY_ACTION_PRESS)
+    if (ghostcon_input_match_shortcut(evdev_code, mods, action) != GC_SHORTCUT_DUMP)
         return false;
     *dump_requested = true;
     return true;
@@ -1018,14 +1009,14 @@ static bool handle_keyboard_shortcut(ghostcon_input_t *input, const key_event_t 
      * Exact mods match (not "held among others"), same specificity as the
      * scroll/zoom shortcuts above. Press-only.
      */
-    if (k->mods == input->copy_mods && k->evdev_code == input->copy_evdev &&
-        k->action == GHOSTTY_KEY_ACTION_PRESS)
+    if (ghostcon_input_match_binding(k->evdev_code, k->mods, k->action,
+                                     input->copy_mods, input->copy_evdev))
     {
         copy_selection_to_clipboard(screen);
         return true;
     }
-    if (k->mods == input->paste_mods && k->evdev_code == input->paste_evdev &&
-        k->action == GHOSTTY_KEY_ACTION_PRESS)
+    if (ghostcon_input_match_binding(k->evdev_code, k->mods, k->action,
+                                     input->paste_mods, input->paste_evdev))
     {
         paste_clipboard_to_pty(screen, transport);
         return true;
@@ -1250,10 +1241,8 @@ static bool handle_pointer_motion(ghostcon_input_t *input, struct libinput_event
         return true;
     }
 
-    if (input->pointer_x < 0) input->pointer_x = 0;
-    if (input->pointer_y < 0) input->pointer_y = 0;
-    if (input->pointer_x >= input->viewport_w) input->pointer_x = input->viewport_w - 1;
-    if (input->pointer_y >= input->viewport_h) input->pointer_y = input->viewport_h - 1;
+    ghostcon_input_clamp_pointer(&input->pointer_x, &input->pointer_y,
+                                 input->viewport_w, input->viewport_h);
 
     out_pointer->x = input->pointer_x;
     out_pointer->y = input->pointer_y;
@@ -1383,18 +1372,16 @@ static bool handle_pointer_scroll(ghostcon_input_t *input, struct libinput_event
     bool touchpad = device_is_touchpad(libinput_event_get_device(ev));
     double *accum = touchpad ? &input->touchpad_scroll_accum : &input->mouse_scroll_accum;
     float speed = touchpad ? input->touchpad_scroll_speed : input->mouse_scroll_speed;
-    double raw_ticks = (type == LIBINPUT_EVENT_POINTER_SCROLL_WHEEL) ? fabs(value) / 120.0 : 1.0;
-
-    if (*accum != 0.0 && (value > 0) != (*accum > 0))
-        *accum = 0.0;
-    *accum += (value > 0 ? 1.0 : -1.0) * raw_ticks * (double)speed;
+    int ticks = ghostcon_input_scroll_accumulate(accum, value, speed,
+                                                 type == LIBINPUT_EVENT_POINTER_SCROLL_WHEEL);
 
     ghostcon_mouse_button_t wheel = (value > 0) ? GC_MOUSE_WHEEL_DOWN : GC_MOUSE_WHEEL_UP;
     bool ok = true;
-    while (ok && fabs(*accum) >= 1.0)
+    while (ok && ticks > 0)
     {
         ok = send_mouse_report(input, transport, screen, cell_w, cell_h, wheel, GC_MOUSE_PRESS);
         *accum += (*accum > 0) ? -1.0 : 1.0;
+        ticks--;
     }
     return ok;
 }

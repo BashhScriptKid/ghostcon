@@ -524,6 +524,7 @@ endif
 # core/input.c (Phase 1 item 5) — libinput + xkbcommon + key encoding
 core_input_lib = static_library('ghostcon-core-input',
     'core/input.c',
+    'core/input_rules.c',
     include_directories: include_directories('../include'),
     # dep_m: the [mouse]/[touchpad] scroll_speed accumulator uses fabs() --
     # same previously-implicit-link gap as render_lib's dep_m, see its own
@@ -541,6 +542,15 @@ if not meson.is_subproject()
         dependencies: [dep_ghostty_vt, dep_libinput, dep_libudev, dep_xkbcommon],
     )
     test('test_input', test_input_exe)
+
+    # The input decisions that do not need libinput (core/input_rules.c).
+    test_input_rules_exe = executable('test_input_rules',
+        '../tests/test_input_rules.c',
+        include_directories: include_directories('../include'),
+        link_with: core_input_lib,
+        dependencies: [dep_ghostty_vt, dep_libinput, dep_libudev, dep_xkbcommon],
+    )
+    test('test_input_rules', test_input_rules_exe)
 endif
 
 # core/display.c — display backend extracted out of main.c (PLAN.md
