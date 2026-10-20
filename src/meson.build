@@ -177,6 +177,19 @@ if not meson.is_subproject()
     )
     test('test_sixel', test_sixel_exe)
 
+    # The Kitty graphics protocol path (term/kitty_graphics.c) had no test
+    # file at all, which is not great for the module that decides which
+    # paths the terminal opens: the shared-memory, temporary-file and
+    # plain-file media are the ones with a security dimension (the t=t
+    # medium deletes the file it reads).
+    test_kitty_graphics_exe = executable('test_kitty_graphics',
+        '../tests/test_kitty_graphics.c',
+        include_directories: include_directories('../include'),
+        link_with: term_lib,
+        dependencies: [dep_ghostty_vt],
+    )
+    test('test_kitty_graphics', test_kitty_graphics_exe)
+
     test_theme_exe = executable('test_theme',
         '../tests/test_theme.c',
         include_directories: include_directories('../include'),
