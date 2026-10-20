@@ -279,8 +279,25 @@ Phases 1-4 are complete (§6). The active milestone is **Phase 5: Code Structure
 
 **Done so far:** §7.5 S1 (the stream module's own directory), §7.1.1 (the CSI dispatch table), and §7.1.2 + §7.1.3 (the Kitty graphics transmit path, with the module's first unit test) — see §6.
 
-The next step is **§7.3 H2-H5 — the smaller header fixes**, before the
-`screen.c` split (H1) that §7.7 puts last:
+The next step is **§7.1.4-7.1.6 — the remaining complexity hotspots**,
+now that the structure work (§7.2-§7.5) is done and the tree's shape has
+stopped moving. The order §7.7 gives them is 7.1.4, then 7.1.5, then
+7.1.6:
+
+- **7.1.4** — `ghostcon_machine_render_dirty` (CCN 38, 300 lines) mixes
+  ligature override scanning, colour resolution, background-quad emission
+  and glyph-quad emission in one per-row loop. Split into
+  `render_row_backgrounds()` / `render_row_glyphs()`, **preserving the
+  ordering invariant**: the background quad must be pushed before the
+  glyph quad for every cell, every frame (`src/render/gles.c:114`).
+- **7.1.5** — the input event handlers: `handle_pointer_event` (CCN 38)
+  splits into hover / drag / click, and `handle_keyboard_event` (CCN 28)
+  into key-encoding / shortcut-dispatch / repeat.
+- **7.1.6** — the rest: `handle_csi_sgr` (34), `sixel_measure` (31),
+  `stream_state_esc` (30), `gc_stream_osc_dispatch` (30),
+  `parse_color_intro` (28), `load_glyph_into_slot` (28).
+
+The header fixes are done:
 
 - **H2** — `cell.h`'s 25 inline accessors each hardcode their own field
   width, while the `SHIFT`/`MASK` macros above them are used exactly once
@@ -333,6 +350,7 @@ Phases 1-4 above are implemented, each as a reviewable commit:
 | Phase 5 kitty test | `tests/test_kitty_graphics.c` -- the module's first unit test, covering the transmission/placement/ack protocol, the medium sandbox (`/tmp` and `/dev/shm` only, the `t=t` "must be named `tty-graphics-protocol`" rule, and exactly which files get deleted), and the chunked transfer's cross-chunk placement state | 65 assertions; three deliberate regressions (dropping the `t=t` filename convention, not unlinking the shm segment, not restoring the first chunk's `z=`) each make it fail |
 | Phase 5 N2-N4 | the 44 `GHOSTCON_*` C identifiers moved to `GC_*` (the generator `tools/gen_ghostty_themes.py` moved with the two names it emits); the 25 remaining `GHOSTCON_*` names are runtime strings only. The two old-style include guards became `#pragma once` like the other 35 headers. `GC_STYLE_ID_DEFAULT` deleted in favour of `GC_STYLE_DEFAULT_ID`. The `gc_` file-static tables in `cell.c` renamed, and the `GC_LOG` verdict cache hoisted from per-call-site to per-domain (with the domain list as an X-macro, so an unknown domain is a compile error) | full suite + ASan/UBSan; the rename is compiler-checked, and the diff contains no changed string literal |
 | Phase 5 B1-B7 | the boilerplate extractions: `ghostcon_row_copy()` in `row.c` for the four byte-identical row shifts (B1); one `ghostcon_resolve_sibling_path()` in the new `core/paths.h` for the three copies (B2, B3); one `ghostcon_unix_listen_socket()` / `ghostcon_unix_connect_socket()` in the new `ptyserv/socket.h` for the three AF_UNIX socket sites (B4); `push_quad()` takes a `ghostcon_quad_t` instead of 19 positional floats, with `is_glyph`/`is_color_glyph` as bools again (B5); the `kitty_control_t` sentinels were already a designated-initializer list (B6, done with the kitty work); one named `ghostcon_plane_props_t` and one table-driven property resolver for the two plane structs and their twenty repeated lookups (B7) | full suite + ASan/UBSan; every one is a pure extraction |
+| Phase 5 H1-H5 | `screen.c` (1755 lines, 47 public functions) split into four files with four headers (`screen_cursor.c`, `screen_edit.c`, `screen_scroll.c` + the matching headers), with the module's private helpers in `src/term/screen_internal.h` (H1); `cell.h`'s field widths named and the accessors collapsed behind `GC_CELL_GET`/`GC_CELL_SET` (H2); `parse.h`'s four conversions collapsed to two bodies (H3); the duplicate `ghostcon_screen_t` declaration moved to `screen_fwd.h`, which both `screen.h` and `selection.h` include (H4); the Kitty *keyboard* protocol renamed to `kitty_keyboard.h`/`kitty_keyboard.c` (H5) | full suite + ASan/UBSan + fuzzer smoke; all 47 screen functions still defined exactly once, every header still compiles standalone (all 40) |
 | Phase 5 S2-S4 | the stream module's private header split per dispatch module (`stream_csi.h`, `stream_osc.h`, `stream_apc.h`; `stream_internal.h` is now the shared preamble) (S2); the false opacity claim in the module's header comment corrected -- the public header *does* expose the stream struct, and the term layer embeds it by value (S3); the public header now describes the 4-file layout, and the RUNBOOK's stale OSC recipe (it still said "add a `case` to `osc_dispatch_manual()`", which is now the table `osc_dispatch_table[]`) plus the module's paths in the RUNBOOK map and in `IMPLEMENTATION.md` are fixed (S4) | full suite + ASan/UBSan |
 
 Current test count: **25/25** (`meson test -C build-release`).
@@ -902,7 +920,7 @@ Option 1 is the real gate. Option 2 is a reasonable stopgap.
 | 4 | ~~**N2-N4** — naming consolidation (§7.4)~~ | low | **done** (44 identifiers moved; the 25 remaining `GHOSTCON_*` names are runtime strings) |
 | 5 | ~~**B1-B7** — boilerplate extraction~~ | low | **done** (seven pure extractions) |
 | 6 | ~~**S2-S4** — stream header split + doc fixes~~ | low | **done** (per-module private headers; the stale RUNBOOK recipe fixed) |
-| 7 | **H1-H5** — header decomposition | medium | Last: splitting `screen.c` changes the shape of everything above it |
+| 7 | ~~**H1-H5** — header decomposition~~ | medium | **done** (`screen.c` split into four files with four headers; the two include-guard and duplicate-typedef issues fixed) |
 | 8 | **7.1.4-7.1.6** — remaining hotspots | medium | Lower value per unit of risk |
 
 Do **not** split `screen.c` before items 1-6: the split points move once the parser and kitty modules change shape, and you would end up splitting twice.
