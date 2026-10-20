@@ -900,21 +900,42 @@ static bool handle_dump_shortcut(bool *dump_requested, uint32_t evdev_code, Ghos
 static void copy_selection_to_clipboard(ghostcon_screen_t *screen);
 static void paste_clipboard_to_pty(ghostcon_screen_t *screen, ghostcon_transport_t *transport);
 
-static bool handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev, ghostcon_transport_t *transport, ghostcon_screen_t *screen, int *zoom_delta, bool *dump_requested, bool active)
+/* A keyboard event, decoded.
+ *
+ * The key's identity, the action it is, the modifiers held with it, and the
+ * text it produces (empty for a release).
+ */
+typedef struct
+{
+    uint32_t         evdev_code;
+    xkb_keycode_t    xkb_code;
+    GhosttyKeyAction action;
+    GhosttyMods      mods;
+    char             utf8[32];
+    int              utf8_len;
+    uint32_t         unshifted_cp;
+} key_event_t;
+
+/* Decodes a libinput keyboard event, and updates the XKB state.
+ *
+ * Also stops the auto-repeat when this is the release of the key that is
+ * currently repeating.
+ */
+static void decode_key_event(ghostcon_input_t *input, struct libinput_event *ev, key_event_t *k)
 {
     struct libinput_event_keyboard *kbev = libinput_event_get_keyboard_event(ev);
-    uint32_t evdev_code = libinput_event_keyboard_get_key(kbev);
+    k->evdev_code = libinput_event_keyboard_get_key(kbev);
     enum libinput_key_state state = libinput_event_keyboard_get_key_state(kbev);
 
     /* XKB keycodes are evdev keycodes + 8 (historical X11 offset). */
-    xkb_keycode_t xkb_code = evdev_code + 8;
+    k->xkb_code = k->evdev_code + 8;
 
-    xkb_state_update_key(input->xkb_state, xkb_code,
-                          state == LIBINPUT_KEY_STATE_PRESSED ? XKB_KEY_DOWN : XKB_KEY_UP);
+    xkb_state_update_key(input->xkb_state, k->xkb_code,
+                         state == LIBINPUT_KEY_STATE_PRESSED ? XKB_KEY_DOWN : XKB_KEY_UP);
 
-    GhosttyKeyAction action = state == LIBINPUT_KEY_STATE_PRESSED
-                                   ? GHOSTTY_KEY_ACTION_PRESS
-                                   : GHOSTTY_KEY_ACTION_RELEASE;
+    k->action = state == LIBINPUT_KEY_STATE_PRESSED
+                    ? GHOSTTY_KEY_ACTION_PRESS
+                    : GHOSTTY_KEY_ACTION_RELEASE;
 
     /* Releasing the key currently auto-repeating stops it
      *
@@ -922,28 +943,22 @@ static bool handle_keyboard_event(ghostcon_input_t *input, struct libinput_event
      * below) since a release often encodes to zero bytes in legacy mode and would
      * otherwise never reach that code.
      */
-    if (action == GHOSTTY_KEY_ACTION_RELEASE && input->repeating &&
-        input->repeat_evdev_code == evdev_code)
+    if (k->action == GHOSTTY_KEY_ACTION_RELEASE && input->repeating &&
+        input->repeat_evdev_code == k->evdev_code)
     {
         input->repeating = false;
         if (input->repeat_fd >= 0)
             timerfd_settime(input->repeat_fd, 0, &(struct itimerspec){0}, NULL);
     }
 
-    /* Inactive (see ghostcon_input_dispatch()'s own doc comment on `active`): XKB
-     * modifier tracking above and the repeat-cancel just above are both cheap and
-     * worth keeping correct regardless, but nothing past this point
-     *
-     * forwarding, shortcuts, paste --should happen while a stray keystroke typed
-     * on a different VT is being defensively discarded here.
+    k->utf8_len = 0;
+    k->unshifted_cp = 0;
+    /* Zeroed even when there is no text: the encoder is handed the buffer
+     * with a length of 0, and a release must not carry whatever the
+     * previous key left in it.
      */
-    if (!active)
-        return true;
-
-    char utf8[32] = {0};
-    int utf8_len = 0;
-    uint32_t unshifted_cp = 0;
-    if (action == GHOSTTY_KEY_ACTION_PRESS)
+    memset(k->utf8, 0, sizeof(k->utf8));
+    if (k->action == GHOSTTY_KEY_ACTION_PRESS)
     {
         /* xkb_state_key_get_utf8() on input->xkb_state (which has Ctrl
          * currently held for a Ctrl+letter combo) has xkbcommon's own
@@ -964,27 +979,34 @@ static bool handle_keyboard_event(ghostcon_input_t *input, struct libinput_event
          * behavior, so the encoder gets the plain letter and does its
          * own (correct, verified) Ctrl+letter encoding.
          */
-        xkb_keysym_t sym = xkb_state_key_get_one_sym(input->xkb_state, xkb_code);
-        utf8_len = xkb_keysym_to_utf8(sym, utf8, sizeof(utf8));
-        if (utf8_len > 0)
-            utf8_len--; /* xkb_keysym_to_utf8 counts the trailing NUL */
-        if (utf8_len < 0)
-            utf8_len = 0;
-        unshifted_cp = xkb_state_key_get_utf32(input->xkb_state_unshifted, xkb_code);
+        xkb_keysym_t sym = xkb_state_key_get_one_sym(input->xkb_state, k->xkb_code);
+        k->utf8_len = xkb_keysym_to_utf8(sym, k->utf8, sizeof(k->utf8));
+        if (k->utf8_len > 0)
+            k->utf8_len--; /* xkb_keysym_to_utf8 counts the trailing NUL */
+        if (k->utf8_len < 0)
+            k->utf8_len = 0;
+        k->unshifted_cp = xkb_state_key_get_utf32(input->xkb_state_unshifted, k->xkb_code);
     }
 
-    GhosttyMods mods = current_mods(input->xkb_state);
+    k->mods = current_mods(input->xkb_state);
+}
 
-    if (is_vt_switch_combo(evdev_code, mods))
+/* The shortcuts that are consumed locally, never forwarded to the pty.
+ *
+ * Returns true if the key was consumed.
+ */
+static bool handle_keyboard_shortcut(ghostcon_input_t *input, const key_event_t *k, ghostcon_transport_t *transport, ghostcon_screen_t *screen, int *zoom_delta, bool *dump_requested)
+{
+    if (is_vt_switch_combo(k->evdev_code, k->mods))
         return true; /* reserved for the kernel's own VT switch, never forward */
 
-    if (handle_scroll_shortcut(screen, evdev_code, mods, action))
+    if (handle_scroll_shortcut(screen, k->evdev_code, k->mods, k->action))
         return true; /* consumed locally, never forwarded to the pty */
 
-    if (handle_zoom_shortcut(zoom_delta, evdev_code, mods, action))
+    if (handle_zoom_shortcut(zoom_delta, k->evdev_code, k->mods, k->action))
         return true; /* consumed locally, never forwarded to the pty */
 
-    if (handle_dump_shortcut(dump_requested, evdev_code, mods, action))
+    if (handle_dump_shortcut(dump_requested, k->evdev_code, k->mods, k->action))
         return true; /* consumed locally, never forwarded to the pty */
 
     /* Configurable copy/paste shortcuts ([keybindings] in ghostcon.toml, parsed
@@ -996,22 +1018,30 @@ static bool handle_keyboard_event(ghostcon_input_t *input, struct libinput_event
      * Exact mods match (not "held among others"), same specificity as the
      * scroll/zoom shortcuts above. Press-only.
      */
-    if (mods == input->copy_mods && evdev_code == input->copy_evdev &&
-        action == GHOSTTY_KEY_ACTION_PRESS)
+    if (k->mods == input->copy_mods && k->evdev_code == input->copy_evdev &&
+        k->action == GHOSTTY_KEY_ACTION_PRESS)
     {
         copy_selection_to_clipboard(screen);
         return true;
     }
-    if (mods == input->paste_mods && evdev_code == input->paste_evdev &&
-        action == GHOSTTY_KEY_ACTION_PRESS)
+    if (k->mods == input->paste_mods && k->evdev_code == input->paste_evdev &&
+        k->action == GHOSTTY_KEY_ACTION_PRESS)
     {
         paste_clipboard_to_pty(screen, transport);
         return true;
     }
+    return false;
+}
 
+/* Encodes the key, sends it to the pty, and arms the auto-repeat.
+ *
+ * Returns false when the key could not be delivered.
+ */
+static bool forward_key_to_pty(ghostcon_input_t *input, const key_event_t *k, ghostcon_transport_t *transport, ghostcon_screen_t *screen)
+{
     char encoded[128];
-    size_t written = ghostcon_input_encode_key(input->encoder, action, evdev_code, mods,
-                                                utf8, (size_t)utf8_len, unshifted_cp,
+    size_t written = ghostcon_input_encode_key(input->encoder, k->action, k->evdev_code, k->mods,
+                                                k->utf8, (size_t)k->utf8_len, k->unshifted_cp,
                                                 encoded, sizeof(encoded));
     if (written == (size_t)-1 || written == 0)
         return true; /* nothing to send (e.g. bare modifier), not an error */
@@ -1039,11 +1069,11 @@ static bool handle_keyboard_event(ghostcon_input_t *input, struct libinput_event
      * repeating naturally takes over --no separate "stop the old one first" step
      * needed.
      */
-    if (action == GHOSTTY_KEY_ACTION_PRESS && input->repeat_fd >= 0 &&
-        xkb_keymap_key_repeats(input->xkb_keymap, xkb_code))
+    if (k->action == GHOSTTY_KEY_ACTION_PRESS && input->repeat_fd >= 0 &&
+        xkb_keymap_key_repeats(input->xkb_keymap, k->xkb_code))
     {
         input->repeating = true;
-        input->repeat_evdev_code = evdev_code;
+        input->repeat_evdev_code = k->evdev_code;
         memcpy(input->repeat_encoded, encoded, written);
         input->repeat_len = written;
 
@@ -1057,6 +1087,27 @@ static bool handle_keyboard_event(ghostcon_input_t *input, struct libinput_event
     }
 
     return true;
+}
+
+static bool handle_keyboard_event(ghostcon_input_t *input, struct libinput_event *ev, ghostcon_transport_t *transport, ghostcon_screen_t *screen, int *zoom_delta, bool *dump_requested, bool active)
+{
+    key_event_t k;
+    decode_key_event(input, ev, &k);
+
+    /* Inactive (see ghostcon_input_dispatch()'s own doc comment on `active`): XKB
+     * modifier tracking above and the repeat-cancel just above are both cheap and
+     * worth keeping correct regardless, but nothing past this point
+     *
+     * forwarding, shortcuts, paste --should happen while a stray keystroke typed
+     * on a different VT is being defensively discarded here.
+     */
+    if (!active)
+        return true;
+
+    if (handle_keyboard_shortcut(input, &k, transport, screen, zoom_delta, dump_requested))
+        return true;
+
+    return forward_key_to_pty(input, &k, transport, screen);
 }
 
 /* Maps an evdev button code (BTN_LEFT/BTN_RIGHT/BTN_MIDDLE, as returned by
@@ -1176,7 +1227,10 @@ static void paste_clipboard_to_pty(ghostcon_screen_t *screen, ghostcon_transport
  *
  * Returns false only on a transport write failure.
  */
-static bool handle_pointer_event(ghostcon_input_t *input, struct libinput_event *ev, enum libinput_event_type type, ghostcon_transport_t *transport, ghostcon_screen_t *screen, int cell_w, int cell_h, ghostcon_input_pointer_t *out_pointer)
+/* A pointer motion: the pointer's new position, and the button state that
+ * goes with it.
+ */
+static bool handle_pointer_motion(ghostcon_input_t *input, struct libinput_event *ev, enum libinput_event_type type, ghostcon_transport_t *transport, ghostcon_screen_t *screen, int cell_w, int cell_h, ghostcon_input_pointer_t *out_pointer)
 {
     struct libinput_event_pointer *p = libinput_event_get_pointer_event(ev);
 
@@ -1192,104 +1246,8 @@ static bool handle_pointer_event(ghostcon_input_t *input, struct libinput_event 
         input->pointer_y = (int)libinput_event_pointer_get_absolute_y_transformed(
             p, (uint32_t)input->viewport_h);
         break;
-    case LIBINPUT_EVENT_POINTER_BUTTON: {
-        ghostcon_mouse_button_t button;
-        if (!evdev_button_to_mouse(libinput_event_pointer_get_button(p), &button))
-            return true; /* side/extra button we don't map -- silent no-op */
-        bool pressed = libinput_event_pointer_get_button_state(p) == LIBINPUT_BUTTON_STATE_PRESSED;
-
-        /* Middle-click paste (X11 convention)
-         *
-         * only when this click would otherwise be intercepted for local
-         * selection; if the app has grabbed mouse reporting and Shift isn't
-         * overriding it, middle-click reports to the app like any other button,
-         * same as before this feature existed.
-         */
-        if (button == GC_MOUSE_MIDDLE && pressed &&
-            should_intercept_for_selection(screen, current_mods(input->xkb_state))) {
-            paste_clipboard_to_pty(screen, transport);
-            return true;
-        }
-
-        /* The intercept decision is made ONCE, at press time, and remembered
-         * until release
-         *
-         * so a drag can't switch between local selection and app-reported
-         * mid-gesture if e.g. the app toggles mouse-reporting mid-drag
-         * (pathological, but cheap to guard against.
-         *
-         * See the struct field's own doc comment).
-         */
-        if (button == GC_MOUSE_LEFT && pressed)
-            input->left_button_intercepted =
-                should_intercept_for_selection(screen, current_mods(input->xkb_state));
-
-        if (button == GC_MOUSE_LEFT && input->left_button_intercepted) {
-            if (pressed)
-                input->pressed_buttons |= (1u << button);
-            else
-                input->pressed_buttons &= ~(1u << button);
-            out_pointer->left_pressed = pressed;
-            out_pointer->left_released = !pressed;
-            return true; /* swallowed locally, never forwarded to the pty */
-        }
-
-        if (pressed)
-            input->pressed_buttons |= (1u << button);
-        else
-            input->pressed_buttons &= ~(1u << button);
-        return send_mouse_report(input, transport, screen, cell_w, cell_h, button,
-                                  pressed ? GC_MOUSE_PRESS : GC_MOUSE_RELEASE);
-    }
-    case LIBINPUT_EVENT_POINTER_SCROLL_WHEEL:
-    case LIBINPUT_EVENT_POINTER_SCROLL_FINGER: {
-        /* v120 for a real wheel (per-detent already discretized by libinput);
-         * plain scroll_value for touchpad two-finger scroll (a continuous
-         * pixel-ish distance)
-         *
-         * it is an application bug to call get_scroll_value_v120() on a non-wheel
-         * event (per libinput.h's own doc comment), hence the split here.
-         */
-        if (!libinput_event_pointer_has_axis(p, LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL))
-            return true;
-        double value = (type == LIBINPUT_EVENT_POINTER_SCROLL_WHEEL)
-                            ? libinput_event_pointer_get_scroll_value_v120(p, LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL)
-                            : libinput_event_pointer_get_scroll_value(p, LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL);
-        if (value == 0.0)
-            return true;
-
-        /* scroll_speed (config.h's own doc comment has the full algorithm):
-         * fractional accumulator over raw ticks, per device class. raw_ticks is
-         * the wheel's own detent count (a single flick can report multiple 120s)
-         * for a real wheel; touchpad two-finger scroll has no natural "detent"
-         * concept, so each event with a nonzero value simply counts as one raw
-         * tick, same simplification the pre-scroll_speed code already made.
-         *
-         * A direction reversal wipes any built-up fractional backlog from the
-         * opposite direction
-         *
-         * otherwise a throttled (speed<1) scroll that reverses could fire an
-         * unexpected extra tick from leftover accumulation.
-         */
-        bool touchpad = device_is_touchpad(libinput_event_get_device(ev));
-        double *accum = touchpad ? &input->touchpad_scroll_accum : &input->mouse_scroll_accum;
-        float speed = touchpad ? input->touchpad_scroll_speed : input->mouse_scroll_speed;
-        double raw_ticks = (type == LIBINPUT_EVENT_POINTER_SCROLL_WHEEL) ? fabs(value) / 120.0 : 1.0;
-
-        if (*accum != 0.0 && (value > 0) != (*accum > 0))
-            *accum = 0.0;
-        *accum += (value > 0 ? 1.0 : -1.0) * raw_ticks * (double)speed;
-
-        ghostcon_mouse_button_t wheel = (value > 0) ? GC_MOUSE_WHEEL_DOWN : GC_MOUSE_WHEEL_UP;
-        bool ok = true;
-        while (ok && fabs(*accum) >= 1.0) {
-            ok = send_mouse_report(input, transport, screen, cell_w, cell_h, wheel, GC_MOUSE_PRESS);
-            *accum += (*accum > 0) ? -1.0 : 1.0;
-        }
-        return ok;
-    }
     default:
-        return true; /* other pointer/gesture event types: not handled in this pass */
+        return true;
     }
 
     if (input->pointer_x < 0) input->pointer_x = 0;
@@ -1322,6 +1280,140 @@ static bool handle_pointer_event(ghostcon_input_t *input, struct libinput_event 
         }
     }
     return send_mouse_report(input, transport, screen, cell_w, cell_h, held, GC_MOUSE_MOTION);
+}
+
+/* A pointer button press or release.
+ *
+ * The left button is swallowed locally when the click was intercepted for
+ * selection (see should_intercept_for_selection()); every other button is
+ * reported to the app.
+ */
+static bool handle_pointer_button(ghostcon_input_t *input, struct libinput_event *ev, ghostcon_transport_t *transport, ghostcon_screen_t *screen, int cell_w, int cell_h, ghostcon_input_pointer_t *out_pointer)
+{
+    struct libinput_event_pointer *p = libinput_event_get_pointer_event(ev);
+
+    ghostcon_mouse_button_t button;
+    if (!evdev_button_to_mouse(libinput_event_pointer_get_button(p), &button))
+        return true; /* side/extra button we don't map -- silent no-op */
+    bool pressed = libinput_event_pointer_get_button_state(p) == LIBINPUT_BUTTON_STATE_PRESSED;
+
+    /* Middle-click paste (X11 convention)
+     *
+     * only when this click would otherwise be intercepted for local selection; if
+     * the app has grabbed mouse reporting and Shift isn't overriding it,
+     * middle-click reports to the app like any other button, same as before this
+     * feature existed.
+     */
+    if (button == GC_MOUSE_MIDDLE && pressed &&
+        should_intercept_for_selection(screen, current_mods(input->xkb_state)))
+    {
+        paste_clipboard_to_pty(screen, transport);
+        return true;
+    }
+
+    /* The intercept decision is made ONCE, at press time, and remembered
+     * until release
+     *
+     * so a drag can't switch between local selection and app-reported
+     * mid-gesture if e.g. the app toggles mouse-reporting mid-drag
+     * (pathological, but cheap to guard against.
+     *
+     * See the struct field's own doc comment).
+     */
+    if (button == GC_MOUSE_LEFT && pressed)
+        input->left_button_intercepted =
+            should_intercept_for_selection(screen, current_mods(input->xkb_state));
+
+    if (button == GC_MOUSE_LEFT && input->left_button_intercepted)
+    {
+        if (pressed)
+            input->pressed_buttons |= (1u << button);
+        else
+            input->pressed_buttons &= ~(1u << button);
+        out_pointer->left_pressed = pressed;
+        out_pointer->left_released = !pressed;
+        return true; /* swallowed locally, never forwarded to the pty */
+    }
+
+    if (pressed)
+        input->pressed_buttons |= (1u << button);
+    else
+        input->pressed_buttons &= ~(1u << button);
+    return send_mouse_report(input, transport, screen, cell_w, cell_h, button,
+                              pressed ? GC_MOUSE_PRESS : GC_MOUSE_RELEASE);
+}
+
+/* A scroll wheel or a two-finger touchpad scroll.
+ *
+ * The scroll_speed accumulator (config.h's own doc comment has the full
+ * algorithm) turns the raw values into whole ticks.
+ */
+static bool handle_pointer_scroll(ghostcon_input_t *input, struct libinput_event *ev, enum libinput_event_type type, ghostcon_transport_t *transport, ghostcon_screen_t *screen, int cell_w, int cell_h)
+{
+    struct libinput_event_pointer *p = libinput_event_get_pointer_event(ev);
+
+    /* v120 for a real wheel (per-detent already discretized by libinput);
+     * plain scroll_value for touchpad two-finger scroll (a continuous
+     * pixel-ish distance)
+     *
+     * it is an application bug to call get_scroll_value_v120() on a non-wheel
+     * event (per libinput.h's own doc comment), hence the split here.
+     */
+    if (!libinput_event_pointer_has_axis(p, LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL))
+        return true;
+    double value = (type == LIBINPUT_EVENT_POINTER_SCROLL_WHEEL)
+                        ? libinput_event_pointer_get_scroll_value_v120(p, LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL)
+                        : libinput_event_pointer_get_scroll_value(p, LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL);
+    if (value == 0.0)
+        return true;
+
+    /* scroll_speed (config.h's own doc comment has the full algorithm):
+     * fractional accumulator over raw ticks, per device class. raw_ticks is the
+     * wheel's own detent count (a single flick can report multiple 120s) for a
+     * real wheel; touchpad two-finger scroll has no natural "detent" concept, so
+     * each event with a nonzero value simply counts as one raw tick, same
+     * simplification the pre-scroll_speed code already made.
+     *
+     * A direction reversal wipes any built-up fractional backlog from the
+     * opposite direction
+     *
+     * otherwise a throttled (speed<1) scroll that reverses could fire an
+     * unexpected extra tick from leftover accumulation.
+     */
+    bool touchpad = device_is_touchpad(libinput_event_get_device(ev));
+    double *accum = touchpad ? &input->touchpad_scroll_accum : &input->mouse_scroll_accum;
+    float speed = touchpad ? input->touchpad_scroll_speed : input->mouse_scroll_speed;
+    double raw_ticks = (type == LIBINPUT_EVENT_POINTER_SCROLL_WHEEL) ? fabs(value) / 120.0 : 1.0;
+
+    if (*accum != 0.0 && (value > 0) != (*accum > 0))
+        *accum = 0.0;
+    *accum += (value > 0 ? 1.0 : -1.0) * raw_ticks * (double)speed;
+
+    ghostcon_mouse_button_t wheel = (value > 0) ? GC_MOUSE_WHEEL_DOWN : GC_MOUSE_WHEEL_UP;
+    bool ok = true;
+    while (ok && fabs(*accum) >= 1.0)
+    {
+        ok = send_mouse_report(input, transport, screen, cell_w, cell_h, wheel, GC_MOUSE_PRESS);
+        *accum += (*accum > 0) ? -1.0 : 1.0;
+    }
+    return ok;
+}
+
+static bool handle_pointer_event(ghostcon_input_t *input, struct libinput_event *ev, enum libinput_event_type type, ghostcon_transport_t *transport, ghostcon_screen_t *screen, int cell_w, int cell_h, ghostcon_input_pointer_t *out_pointer)
+{
+    switch (type)
+    {
+    case LIBINPUT_EVENT_POINTER_MOTION:
+    case LIBINPUT_EVENT_POINTER_MOTION_ABSOLUTE:
+        return handle_pointer_motion(input, ev, type, transport, screen, cell_w, cell_h, out_pointer);
+    case LIBINPUT_EVENT_POINTER_BUTTON:
+        return handle_pointer_button(input, ev, transport, screen, cell_w, cell_h, out_pointer);
+    case LIBINPUT_EVENT_POINTER_SCROLL_WHEEL:
+    case LIBINPUT_EVENT_POINTER_SCROLL_FINGER:
+        return handle_pointer_scroll(input, ev, type, transport, screen, cell_w, cell_h);
+    default:
+        return true; /* other pointer/gesture event types: not handled in this pass */
+    }
 }
 
 bool ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport, ghostcon_screen_t *screen, int cell_w, int cell_h, int *out_zoom_delta, ghostcon_input_pointer_t *out_pointer, bool *out_dump_requested, bool active)
