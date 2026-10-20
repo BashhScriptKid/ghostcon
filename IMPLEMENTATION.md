@@ -305,13 +305,13 @@ state machine. It takes PTY bytes and mutates the screen:
 
 ```c
 typedef enum {
-    GHOSTCON_STREAM_GROUND,
-    GHOSTCON_STREAM_ESC,
-    GHOSTCON_STREAM_CSI,
-    GHOSTCON_STREAM_OSC,
-    GHOSTCON_STREAM_DCS,
-    GHOSTCON_STREAM_SOS,
-    GHOSTCON_STREAM_STRING_TERM,
+    GC_STREAM_GROUND,
+    GC_STREAM_ESC,
+    GC_STREAM_CSI,
+    GC_STREAM_OSC,
+    GC_STREAM_DCS,
+    GC_STREAM_SOS,
+    GC_STREAM_STRING_TERM,
     // ... (full DEC VT state machine)
 } ghostcon_stream_state_t;
 

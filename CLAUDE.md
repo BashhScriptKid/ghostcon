@@ -46,7 +46,7 @@ like a non-issue. What actually resolved the last such investigation:
 ## Cell background representation
 
 `include/ghostcon/term/cell.h` has two content tags,
-`GHOSTCON_CELL_BG_COLOR_PALETTE` and `GHOSTCON_CELL_BG_COLOR_RGB`, for a
+`GC_CELL_BG_COLOR_PALETTE` and `GC_CELL_BG_COLOR_RGB`, for a
 blank cell that carries *only* a background color. This matches Ghostty's
 own representation and is what erase operations (ED/EL/ECH, and the blank
 rows scrolling produces) should use — see `erase_fill_cell()` in

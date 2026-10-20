@@ -190,7 +190,7 @@ visible where the declaration is written, which is how header-declared
 *variables* must already be spelled:
 
 ```c
-extern const ghostcon_style_t GHOSTCON_STYLE_DEFAULT;
+extern const ghostcon_style_t GC_STYLE_DEFAULT;
 ```
 
 Left alone: definitions (a body follows the parameter list), `static`
@@ -288,7 +288,7 @@ performance, portability, minus the noisy checks documented there).
 | CSI sequences | `src/term/stream/stream_csi.c` |
 | OSC sequences | `src/term/stream/stream_osc.c` |
 | APC (Kitty graphics), DCS (sixel) | `src/term/stream/stream_apc.c` |
-| Grid/cursor/scrollback/selection model | `src/term/screen.c`, `cell.c`, `row.c` |
+| Grid/cursor/scrollback/selection model | `src/term/screen.c` (+ `screen_cursor.c`, `screen_edit.c`, `screen_scroll.c`), `cell.c`, `row.c` |
 | Frame rendering (glyphs, images, cursor, selection) | `src/render/machine.c`, `gles.c` |
 | Config load/hot-reload | `src/config/config.c`, `include/ghostcon/config/config.h` |
 | Crash reporting (journald) | `src/core/diag.c` |
@@ -554,7 +554,7 @@ no `drmSetMaster failed`.
 - **Selection/zoom/hover changes go through `ui.c`**, pointer moves and
   cursor-state commits through `display.c`. Do not reintroduce the
   inline copies in `main.c`.
-- **A blank colored cell uses a content tag** (`GHOSTCON_CELL_BG_COLOR_*`),
+- **A blank colored cell uses a content tag** (`GC_CELL_BG_COLOR_*`),
   never an interned style. Any new code that reads cell backgrounds must
   check `ghostcon_cell_get_tag()` in addition to `style_id`.
 - **Release order matters:** `ghostcon_display_release()` (drops DRM
