@@ -1,6 +1,7 @@
 #include "ghostcon/core/kms.h"
 
 #include <drm_fourcc.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,6 +35,47 @@ static bool get_property_id(int fd, uint32_t obj_id, uint32_t obj_type, const ch
     }
     drmModeFreeObjectProperties(props);
     return found;
+}
+
+/* The ten atomic properties a plane needs, and where each one lands.
+ *
+ * The primary plane and the hardware cursor plane need the same ten, so
+ * they are resolved from one table.
+ */
+typedef struct
+{
+    const char *name;
+    size_t      offset; /* into ghostcon_plane_props_t */
+} plane_prop_t;
+
+static const plane_prop_t plane_props_table[] = {
+    { "CRTC_ID", offsetof(ghostcon_plane_props_t, crtc_id) },
+    { "FB_ID",   offsetof(ghostcon_plane_props_t, fb_id) },
+    { "SRC_X",   offsetof(ghostcon_plane_props_t, src_x) },
+    { "SRC_Y",   offsetof(ghostcon_plane_props_t, src_y) },
+    { "SRC_W",   offsetof(ghostcon_plane_props_t, src_w) },
+    { "SRC_H",   offsetof(ghostcon_plane_props_t, src_h) },
+    { "CRTC_X",  offsetof(ghostcon_plane_props_t, crtc_x) },
+    { "CRTC_Y",  offsetof(ghostcon_plane_props_t, crtc_y) },
+    { "CRTC_W",  offsetof(ghostcon_plane_props_t, crtc_w) },
+    { "CRTC_H",  offsetof(ghostcon_plane_props_t, crtc_h) },
+};
+
+/* Resolves every property in plane_props_table for `plane_id`.
+ *
+ * Every property is attempted even if an earlier one failed, so a plane
+ * with a missing optional property still gets the rest of its ids.
+ */
+static bool resolve_plane_props(int drm_fd, uint32_t plane_id, ghostcon_plane_props_t *props)
+{
+    bool ok = true;
+    for (size_t i = 0; i < sizeof plane_props_table / sizeof plane_props_table[0]; i++)
+    {
+        uint32_t *slot = (uint32_t *)((char *)props + plane_props_table[i].offset);
+        ok &= get_property_id(drm_fd, plane_id, DRM_MODE_OBJECT_PLANE,
+                              plane_props_table[i].name, slot);
+    }
+    return ok;
 }
 
 static bool plane_is_type(int fd, uint32_t plane_id, uint64_t want_type)
@@ -503,16 +545,7 @@ bool ghostcon_kms_init(ghostcon_kms_t *kms, int drm_fd)
     kms->height = kms->mode.vdisplay;
 
     bool ok = true;
-    ok &= get_property_id(drm_fd, kms->plane_id, DRM_MODE_OBJECT_PLANE, "CRTC_ID", &kms->plane_props.crtc_id);
-    ok &= get_property_id(drm_fd, kms->plane_id, DRM_MODE_OBJECT_PLANE, "FB_ID", &kms->plane_props.fb_id);
-    ok &= get_property_id(drm_fd, kms->plane_id, DRM_MODE_OBJECT_PLANE, "SRC_X", &kms->plane_props.src_x);
-    ok &= get_property_id(drm_fd, kms->plane_id, DRM_MODE_OBJECT_PLANE, "SRC_Y", &kms->plane_props.src_y);
-    ok &= get_property_id(drm_fd, kms->plane_id, DRM_MODE_OBJECT_PLANE, "SRC_W", &kms->plane_props.src_w);
-    ok &= get_property_id(drm_fd, kms->plane_id, DRM_MODE_OBJECT_PLANE, "SRC_H", &kms->plane_props.src_h);
-    ok &= get_property_id(drm_fd, kms->plane_id, DRM_MODE_OBJECT_PLANE, "CRTC_X", &kms->plane_props.crtc_x);
-    ok &= get_property_id(drm_fd, kms->plane_id, DRM_MODE_OBJECT_PLANE, "CRTC_Y", &kms->plane_props.crtc_y);
-    ok &= get_property_id(drm_fd, kms->plane_id, DRM_MODE_OBJECT_PLANE, "CRTC_W", &kms->plane_props.crtc_w);
-    ok &= get_property_id(drm_fd, kms->plane_id, DRM_MODE_OBJECT_PLANE, "CRTC_H", &kms->plane_props.crtc_h);
+    ok &= resolve_plane_props(drm_fd, kms->plane_id, &kms->plane_props);
     ok &= get_property_id(drm_fd, kms->crtc_id, DRM_MODE_OBJECT_CRTC, "MODE_ID", &kms->crtc_props.mode_id);
     ok &= get_property_id(drm_fd, kms->crtc_id, DRM_MODE_OBJECT_CRTC, "ACTIVE", &kms->crtc_props.active);
     ok &= get_property_id(drm_fd, kms->connector_id, DRM_MODE_OBJECT_CONNECTOR, "CRTC_ID", &kms->connector_props.crtc_id);
@@ -537,17 +570,7 @@ bool ghostcon_kms_init(ghostcon_kms_t *kms, int drm_fd)
      */
     if (kms->cursor_plane_id)
     {
-        bool cok = true;
-        cok &= get_property_id(drm_fd, kms->cursor_plane_id, DRM_MODE_OBJECT_PLANE, "CRTC_ID", &kms->cursor_plane_props.crtc_id);
-        cok &= get_property_id(drm_fd, kms->cursor_plane_id, DRM_MODE_OBJECT_PLANE, "FB_ID", &kms->cursor_plane_props.fb_id);
-        cok &= get_property_id(drm_fd, kms->cursor_plane_id, DRM_MODE_OBJECT_PLANE, "SRC_X", &kms->cursor_plane_props.src_x);
-        cok &= get_property_id(drm_fd, kms->cursor_plane_id, DRM_MODE_OBJECT_PLANE, "SRC_Y", &kms->cursor_plane_props.src_y);
-        cok &= get_property_id(drm_fd, kms->cursor_plane_id, DRM_MODE_OBJECT_PLANE, "SRC_W", &kms->cursor_plane_props.src_w);
-        cok &= get_property_id(drm_fd, kms->cursor_plane_id, DRM_MODE_OBJECT_PLANE, "SRC_H", &kms->cursor_plane_props.src_h);
-        cok &= get_property_id(drm_fd, kms->cursor_plane_id, DRM_MODE_OBJECT_PLANE, "CRTC_X", &kms->cursor_plane_props.crtc_x);
-        cok &= get_property_id(drm_fd, kms->cursor_plane_id, DRM_MODE_OBJECT_PLANE, "CRTC_Y", &kms->cursor_plane_props.crtc_y);
-        cok &= get_property_id(drm_fd, kms->cursor_plane_id, DRM_MODE_OBJECT_PLANE, "CRTC_W", &kms->cursor_plane_props.crtc_w);
-        cok &= get_property_id(drm_fd, kms->cursor_plane_id, DRM_MODE_OBJECT_PLANE, "CRTC_H", &kms->cursor_plane_props.crtc_h);
+        bool cok = resolve_plane_props(drm_fd, kms->cursor_plane_id, &kms->cursor_plane_props);
         if (!cok)
         {
             fprintf(stderr, "kms: failed to resolve cursor plane property IDs, cursor disabled\n");

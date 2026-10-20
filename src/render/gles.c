@@ -673,19 +673,44 @@ static void push_vertex(ghostcon_gles_t *gles, ghostcon_vertex_t v, bool bg)
     (*arr)[(*count)++] = v;
 }
 
-static void push_quad(ghostcon_gles_t *gles, float x, float y, float w, float h, float u0, float v0, float u1, float v1, float r, float g, float b, float a, float bg_r, float bg_g, float bg_b, float is_glyph, float is_color_glyph, bool bg)
+/* A quad to push into the vertex buffer.
+ *
+ * The colour half of this is exactly ghostcon_vertex_t's, so the quad description
+ * and the vertex it produces cannot drift apart
+ *
+ * the position half is the rect rather than a corner, because that is what the
+ * callers have.
+ *
+ * is_glyph and is_color_glyph are bools here and floats in the vertex, because
+ * the shader wants a float and the caller wants to say "yes" or "no". The
+ * conversion happens once, in push_quad().
+ */
+typedef struct
 {
-    ghostcon_vertex_t tl = { x,     y,     u0, v0, r, g, b, a, bg_r, bg_g, bg_b, is_glyph, is_color_glyph };
-    ghostcon_vertex_t tr = { x + w, y,     u1, v0, r, g, b, a, bg_r, bg_g, bg_b, is_glyph, is_color_glyph };
-    ghostcon_vertex_t bl = { x,     y + h, u0, v1, r, g, b, a, bg_r, bg_g, bg_b, is_glyph, is_color_glyph };
-    ghostcon_vertex_t br = { x + w, y + h, u1, v1, r, g, b, a, bg_r, bg_g, bg_b, is_glyph, is_color_glyph };
+    float x, y, w, h;       /* screen-space rect, top-left origin */
+    float u0, v0, u1, v1;   /* texture coordinates */
+    float r, g, b, a;       /* foreground colour */
+    float bg_r, bg_g, bg_b; /* cell background, for gamma alpha correction */
+    bool  is_glyph;
+    bool  is_color_glyph;
+    bool  bg;              /* push into the background layer */
+} ghostcon_quad_t;
 
-    push_vertex(gles, tl, bg);
-    push_vertex(gles, bl, bg);
-    push_vertex(gles, tr, bg);
-    push_vertex(gles, tr, bg);
-    push_vertex(gles, bl, bg);
-    push_vertex(gles, br, bg);
+static void push_quad(ghostcon_gles_t *gles, const ghostcon_quad_t *q)
+{
+    float is_glyph = q->is_glyph ? 1.0f : 0.0f;
+    float is_color_glyph = q->is_color_glyph ? 1.0f : 0.0f;
+    ghostcon_vertex_t tl = { q->x,     q->y,     q->u0, q->v0, q->r, q->g, q->b, q->a, q->bg_r, q->bg_g, q->bg_b, is_glyph, is_color_glyph };
+    ghostcon_vertex_t tr = { q->x + q->w, q->y,     q->u1, q->v0, q->r, q->g, q->b, q->a, q->bg_r, q->bg_g, q->bg_b, is_glyph, is_color_glyph };
+    ghostcon_vertex_t bl = { q->x,     q->y + q->h, q->u0, q->v1, q->r, q->g, q->b, q->a, q->bg_r, q->bg_g, q->bg_b, is_glyph, is_color_glyph };
+    ghostcon_vertex_t br = { q->x + q->w, q->y + q->h, q->u1, q->v1, q->r, q->g, q->b, q->a, q->bg_r, q->bg_g, q->bg_b, is_glyph, is_color_glyph };
+
+    push_vertex(gles, tl, q->bg);
+    push_vertex(gles, bl, q->bg);
+    push_vertex(gles, tr, q->bg);
+    push_vertex(gles, tr, q->bg);
+    push_vertex(gles, bl, q->bg);
+    push_vertex(gles, br, q->bg);
 }
 
 void ghostcon_gles_push_rect(ghostcon_gles_t *gles, float x, float y, float w, float h, float r, float g, float b, float a)
@@ -701,18 +726,36 @@ void ghostcon_gles_push_rect(ghostcon_gles_t *gles, float x, float y, float w, f
      *
      * see gles.h for why cell backgrounds use push_bg_rect instead.
      */
-    push_quad(gles, x, y, w, h, 0.0f, 0.0f, 0.0f, 0.0f, r, g, b, a, r, g, b, 0.0f, 0.0f, false);
+    ghostcon_quad_t q = {
+        .x = x, .y = y, .w = w, .h = h,
+        .r = r, .g = g, .b = b, .a = a,
+        .bg_r = r, .bg_g = g, .bg_b = b,
+    };
+    push_quad(gles, &q);
 }
 
 void ghostcon_gles_push_bg_rect(ghostcon_gles_t *gles, float x, float y, float w, float h, float r, float g, float b, float a)
 {
-    push_quad(gles, x, y, w, h, 0.0f, 0.0f, 0.0f, 0.0f, r, g, b, a, r, g, b, 0.0f, 0.0f, true);
+    ghostcon_quad_t q = {
+        .x = x, .y = y, .w = w, .h = h,
+        .r = r, .g = g, .b = b, .a = a,
+        .bg_r = r, .bg_g = g, .bg_b = b,
+        .bg = true,
+    };
+    push_quad(gles, &q);
 }
 
 void ghostcon_gles_push_glyph(ghostcon_gles_t *gles, float x, float y, float w, float h, const ghostcon_glyph_t *glyph, float r, float g, float b, float a, float bg_r, float bg_g, float bg_b)
 {
-    push_quad(gles, x, y, w, h, glyph->u0, glyph->v0, glyph->u1, glyph->v1,
-              r, g, b, a, bg_r, bg_g, bg_b, 1.0f, glyph->is_color ? 1.0f : 0.0f, false);
+    ghostcon_quad_t q = {
+        .x = x, .y = y, .w = w, .h = h,
+        .u0 = glyph->u0, .v0 = glyph->v0, .u1 = glyph->u1, .v1 = glyph->v1,
+        .r = r, .g = g, .b = b, .a = a,
+        .bg_r = bg_r, .bg_g = bg_g, .bg_b = bg_b,
+        .is_glyph = true,
+        .is_color_glyph = glyph->is_color,
+    };
+    push_quad(gles, &q);
 }
 
 void ghostcon_gles_set_gamma_correct(ghostcon_gles_t *gles, bool enabled)

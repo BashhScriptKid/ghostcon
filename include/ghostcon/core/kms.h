@@ -32,6 +32,17 @@
  * ghostcon_kms_init.
  */
 
+/* The atomic plane properties ghostcon sets on every commit.
+ *
+ * The primary plane and the hardware cursor plane need the same ten
+ * properties, so they share one type.
+ */
+typedef struct
+{
+    uint32_t crtc_id, fb_id, src_x, src_y, src_w, src_h,
+             crtc_x, crtc_y, crtc_w, crtc_h;
+} ghostcon_plane_props_t;
+
 typedef struct
 {
     int fd; /* not owned — caller (core/vtctl.c) manages master/VT lifecycle */
@@ -46,11 +57,7 @@ typedef struct
     /* Cached atomic property IDs, resolved once at init by name so we never
      * re-walk drmModeObjectGetProperties() per frame.
      */
-    struct
-    {
-        uint32_t crtc_id, fb_id, src_x, src_y, src_w, src_h,
-                 crtc_x, crtc_y, crtc_w, crtc_h;
-    } plane_props;
+    ghostcon_plane_props_t plane_props;
     struct
     {
         uint32_t mode_id, active;
@@ -73,11 +80,7 @@ typedef struct
      * doesn't turn off the very cursor plane we're now using ourselves.
      */
     uint32_t cursor_plane_id;
-    struct
-    {
-        uint32_t crtc_id, fb_id, src_x, src_y, src_w, src_h,
-                 crtc_x, crtc_y, crtc_w, crtc_h;
-    } cursor_plane_props;
+    ghostcon_plane_props_t cursor_plane_props;
     uint32_t cursor_w, cursor_h;     /* fixed square canvas size, same for every state
                                          (see draw_cursor_ibeam's own doc comment on why
                                          square -- an amdgpu cursor-plane constraint) */
