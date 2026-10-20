@@ -120,5 +120,20 @@ TEST(symbol_table_matches_ucd)
 
 int main(void)
 {
+    /* The UCD input is fetched on demand (tools/fetch_ucd.sh) and is not
+     * committed -- see .gitignore.
+     *
+     * Without it there is nothing to compare the generated table against, so the
+     * test has nothing to check rather than something to fail about.
+     */
+    FILE *probe = fopen(GHOSTCON_UCD_PATH, "r");
+    if (!probe)
+    {
+        printf("SKIP: %s is not present (fetch it with tools/fetch_ucd.sh)\n",
+               GHOSTCON_UCD_PATH);
+        return 77; /* meson's skip code */
+    }
+    fclose(probe);
+
     return gc_test_run_all();
 }

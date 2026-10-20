@@ -29,6 +29,18 @@
 #define TEST_VT 42
 #define TEST_COMPONENT "ghostcon-test-diag"
 
+
+/* True when there is a journal to query.
+ *
+ * The crash report only reaches journald where journald runs. In a container
+ * (CI) there is no journal at all, and the lookup below would then fail for
+ * a reason that has nothing to do with the code under test.
+ */
+static bool journald_available(void)
+{
+    return access("/run/systemd/journal/socket", F_OK) == 0;
+}
+
 /* On success, copies the matched entry's raw -o export text into out_buf
  * (caller-owned) so the caller can inspect fields beyond the three checked here
  *
@@ -146,6 +158,13 @@ int main(void)
         return 1;
     }
     printf("PASS: child crashed with SIGABRT as expected (diag.c re-raised correctly)\n");
+
+    if (!journald_available())
+    {
+        printf("SKIP: no journald on this system (the crash report cannot be "
+               "checked here)\n");
+        return 77; /* meson's skip code */
+    }
 
     char journal_buf[8192];
     if (!journal_has_entry(child, journal_buf, sizeof(journal_buf)))

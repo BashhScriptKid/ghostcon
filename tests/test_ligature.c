@@ -18,6 +18,7 @@
 #include "ghostcon/render/ligature.h"
 #include "ghostcon/term/term.h"
 
+#include <fontconfig/fontconfig.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -28,6 +29,47 @@
 #define ROWS        2
 
 static int failures = 0;
+
+
+/* True when the requested font family is actually installed.
+ *
+ * The atlas falls back to fontconfig's default when the family is missing, and a
+ * default font has no programming ligatures -- so without this check the test
+ * would fail for a reason that has nothing to do with the code under test (a
+ * machine without the Nerd Font installed).
+ */
+static bool font_installed(const char *family)
+{
+    if (!FcInit())
+        return false;
+    FcPattern *pattern = FcPatternCreate();
+    if (!pattern)
+        return false;
+    FcPatternAddString(pattern, FC_FAMILY, (const FcChar8 *)family);
+    FcConfigSubstitute(NULL, pattern, FcMatchPattern);
+    FcDefaultSubstitute(pattern);
+
+    FcResult result;
+    FcPattern *match = FcFontMatch(NULL, pattern, &result);
+    bool found = false;
+    if (match)
+    {
+        for (int i = 0; i < 16; i++)
+        {
+            FcChar8 *matched = NULL;
+            if (FcPatternGetString(match, FC_FAMILY, i, &matched) != FcResultMatch)
+                break;
+            if (strcmp((const char *)matched, family) == 0)
+            {
+                found = true;
+                break;
+            }
+        }
+        FcPatternDestroy(match);
+    }
+    FcPatternDestroy(pattern);
+    return found;
+}
 
 static int scan_line(ghostcon_atlas_t *atlas, const char *text, ghostcon_ligature_glyph_t *out_glyphs, int max_glyphs)
 {
@@ -49,6 +91,13 @@ static int scan_line(ghostcon_atlas_t *atlas, const char *text, ghostcon_ligatur
 
 int main(void)
 {
+    if (!font_installed(FONT_FAMILY))
+    {
+        printf("SKIP: %s is not installed (the test needs a font with "
+               "programming ligatures)\n", FONT_FAMILY);
+        return 77; /* meson's skip code */
+    }
+
     ghostcon_atlas_t *atlas = ghostcon_atlas_create(FONT_FAMILY, NULL, NULL, NULL,
                                                       FONT_SIZE, ATLAS_DIM);
     if (!atlas)

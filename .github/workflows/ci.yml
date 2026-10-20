@@ -36,6 +36,18 @@ jobs:
         run: meson setup build -Dinstall_systemd_unit=false
       - name: Build
         run: ninja -C build
+      - name: Fetch the UCD input
+        # test_symbol_table compares the generated symbol table against the
+        # Unicode Character Database. The input is fetched on demand and is
+        # not committed (see .gitignore), and the test SKIPs without it --
+        # so a unicode.org outage delays the check rather than breaking the
+        # build.
+        run: tools/fetch_ucd.sh || true
+      - name: Install a font with programming ligatures
+        # test_ligature needs a font with calt ligatures. It SKIPs without
+        # one, so this is best-effort: the package name is not worth failing
+        # the whole build over.
+        run: pacman -S --noconfirm --needed ttf-jetbrains-mono-nerd || true
       - name: Test
         run: meson test -C build --print-errorlogs
 
@@ -52,6 +64,18 @@ jobs:
         run: meson setup build-san -Db_sanitize=address,undefined -Dinstall_systemd_unit=false
       - name: Build
         run: ninja -C build-san
+      - name: Fetch the UCD input
+        # test_symbol_table compares the generated symbol table against the
+        # Unicode Character Database. The input is fetched on demand and is
+        # not committed (see .gitignore), and the test SKIPs without it --
+        # so a unicode.org outage delays the check rather than breaking the
+        # build.
+        run: tools/fetch_ucd.sh || true
+      - name: Install a font with programming ligatures
+        # test_ligature needs a font with calt ligatures. It SKIPs without
+        # one, so this is best-effort: the package name is not worth failing
+        # the whole build over.
+        run: pacman -S --noconfirm --needed ttf-jetbrains-mono-nerd || true
       - name: Test
         run: meson test -C build-san --print-errorlogs
 
