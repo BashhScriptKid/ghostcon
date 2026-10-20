@@ -279,9 +279,31 @@ Phases 1-4 are complete (§6). The active milestone is **Phase 5: Code Structure
 
 **Done so far:** §7.5 S1 (the stream module's own directory), §7.1.1 (the CSI dispatch table), and §7.1.2 + §7.1.3 (the Kitty graphics transmit path, with the module's first unit test) — see §6.
 
-The next step is **§7.2 B1-B7 — the boilerplate extraction**. Seven pure extractions, each independently reviewable, and none of them changes behaviour: the four byte-identical row copies in `screen.c` (B1, which becomes `ghostcon_row_copy()` in the `row.c` that already owns the row helpers), the three copies each of `resolve_sibling_path` (B2) and `self_path` (B3) and the `socket()`+fd-check preamble (B4), the 19-positional-float `push_quad` (B5), the `kitty_control_t` sentinel init (B6 — already done as part of the kitty work), and the two identical anonymous plane-props structs plus their twenty repeated `get_property_id` calls (B7).
+The next step is **§7.3 H2-H5 — the smaller header fixes**, before the
+`screen.c` split (H1) that §7.7 puts last:
 
-B1 is the clearest case and the recommended first one: the four copies are byte-identical, and `src/term/row.c` already owns `ghostcon_row_fill_range` / `ghostcon_row_clear_range`, so `ghostcon_row_copy()` belongs there.
+- **H2** — `cell.h`'s 25 inline accessors each hardcode their own field
+  width, while the `SHIFT`/`MASK` macros above them are used exactly once
+  each (by their own setter). One 24-bit field, three widths in play, two
+  of them unnamed. Adding `GC_CELL_CODEPOINT_MASK` and
+  `GC_CELL_PALETTE_MASK`, and collapsing the accessors behind a
+  `GC_CELL_GET(field)` / `GC_CELL_SET(field, v)` pair, removes the
+  possibility of a getter and its setter disagreeing on the width.
+- **H3** — `parse.h`'s four near-identical conversion functions (78 lines)
+  collapse to one body plus four one-line wrappers.
+- **H4** — `selection.h` forward-declares `ghostcon_screen_t` without
+  including `screen.h`, so if either tag ever changes, `selection.h`
+  silently becomes a *different* type rather than failing to compile.
+- **H5** — `term/kitty.h` (the Kitty *keyboard* protocol) and
+  `term/kitty_graphics.h` (the Kitty *graphics* protocol) share the
+  `ghostcon_kitty_` prefix without saying which. Renaming the two files
+  to `kitty_keyboard.c` / `kitty_keyboard.h` disambiguates without
+  lengthening a single identifier.
+
+H1 (splitting `screen.c` into four files with four headers) is the big
+one and stays last: it changes the shape of everything above it, and the
+plan's own advice is to do it only once the parser and kitty modules have
+stopped moving.
 
 ---
 
@@ -310,6 +332,8 @@ Phases 1-4 above are implemented, each as a reviewable commit:
 | Phase 5 7.1.2 + 7.1.3 | `src/term/kitty_graphics.c`: the transmit path runs through a per-command context (`kitty_cmd_t`) that carries the ack target and the buffer and image slot the command owns, so every failure exit is one `kitty_fail(cmd, "error=...")` line instead of a re-typed five-argument `kitty_ack(...)` call. The path is split into the steps it actually has (resolve transfer / medium / format / dimensions, fetch payload, claim slot, accumulate, finalize, place). `kitty_parse_control`'s 17-arm `strcmp` chain became a table of (key, kind, length rule, field offset) rows. `handle_transmit` CCN 79 -> 12 (416 -> 33 lines); `kitty_parse_control` CCN 39 -> 6 (121 -> 72 lines) | `test_kitty_graphics` (new); equivalence against the old implementation checked over 46 single-command cases and 9 multi-command sessions, comparing the ack bytes, the image store, the placement table, the byte accounting and the reported cursor move after every command -- all identical, and clean under ASan/UBSan |
 | Phase 5 kitty test | `tests/test_kitty_graphics.c` -- the module's first unit test, covering the transmission/placement/ack protocol, the medium sandbox (`/tmp` and `/dev/shm` only, the `t=t` "must be named `tty-graphics-protocol`" rule, and exactly which files get deleted), and the chunked transfer's cross-chunk placement state | 65 assertions; three deliberate regressions (dropping the `t=t` filename convention, not unlinking the shm segment, not restoring the first chunk's `z=`) each make it fail |
 | Phase 5 N2-N4 | the 44 `GHOSTCON_*` C identifiers moved to `GC_*` (the generator `tools/gen_ghostty_themes.py` moved with the two names it emits); the 25 remaining `GHOSTCON_*` names are runtime strings only. The two old-style include guards became `#pragma once` like the other 35 headers. `GC_STYLE_ID_DEFAULT` deleted in favour of `GC_STYLE_DEFAULT_ID`. The `gc_` file-static tables in `cell.c` renamed, and the `GC_LOG` verdict cache hoisted from per-call-site to per-domain (with the domain list as an X-macro, so an unknown domain is a compile error) | full suite + ASan/UBSan; the rename is compiler-checked, and the diff contains no changed string literal |
+| Phase 5 B1-B7 | the boilerplate extractions: `ghostcon_row_copy()` in `row.c` for the four byte-identical row shifts (B1); one `ghostcon_resolve_sibling_path()` in the new `core/paths.h` for the three copies (B2, B3); one `ghostcon_unix_listen_socket()` / `ghostcon_unix_connect_socket()` in the new `ptyserv/socket.h` for the three AF_UNIX socket sites (B4); `push_quad()` takes a `ghostcon_quad_t` instead of 19 positional floats, with `is_glyph`/`is_color_glyph` as bools again (B5); the `kitty_control_t` sentinels were already a designated-initializer list (B6, done with the kitty work); one named `ghostcon_plane_props_t` and one table-driven property resolver for the two plane structs and their twenty repeated lookups (B7) | full suite + ASan/UBSan; every one is a pure extraction |
+| Phase 5 S2-S4 | the stream module's private header split per dispatch module (`stream_csi.h`, `stream_osc.h`, `stream_apc.h`; `stream_internal.h` is now the shared preamble) (S2); the false opacity claim in the module's header comment corrected -- the public header *does* expose the stream struct, and the term layer embeds it by value (S3); the public header now describes the 4-file layout, and the RUNBOOK's stale OSC recipe (it still said "add a `case` to `osc_dispatch_manual()`", which is now the table `osc_dispatch_table[]`) plus the module's paths in the RUNBOOK map and in `IMPLEMENTATION.md` are fixed (S4) | full suite + ASan/UBSan |
 
 Current test count: **25/25** (`meson test -C build-release`).
 Live-service deploys use `build-release` + `meson install` + restart, per
@@ -876,8 +900,8 @@ Option 1 is the real gate. Option 2 is a reasonable stopgap.
 | 2 | ~~**7.1.1** — `csi_lookup` -> table~~ | low | **done** (CCN 84 -> 11) |
 | 3 | ~~**7.1.2 + 7.1.3** — kitty context struct + key table~~ | low | **done** (CCN 79 -> 12 and 39 -> 6), plus the module's first unit test |
 | 4 | ~~**N2-N4** — naming consolidation (§7.4)~~ | low | **done** (44 identifiers moved; the 25 remaining `GHOSTCON_*` names are runtime strings) |
-| 5 | **B1-B7** — boilerplate extraction | low | Each is a pure extraction; `ghostcon_row_copy()` first |
-| 6 | **S2-S4** — stream header split + doc fixes | low | After S1 (paths settle) and after 7.1.1 (the CSI contract is then final) |
+| 5 | ~~**B1-B7** — boilerplate extraction~~ | low | **done** (seven pure extractions) |
+| 6 | ~~**S2-S4** — stream header split + doc fixes~~ | low | **done** (per-module private headers; the stale RUNBOOK recipe fixed) |
 | 7 | **H1-H5** — header decomposition | medium | Last: splitting `screen.c` changes the shape of everything above it |
 | 8 | **7.1.4-7.1.6** — remaining hotspots | medium | Lower value per unit of risk |
 
