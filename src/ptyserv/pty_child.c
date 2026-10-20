@@ -46,6 +46,7 @@
 
 #include "ghostcon/ptyserv/protocol.h"
 #include "ghostcon/core/parse.h"
+#include "ghostcon/ptyserv/socket.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -267,28 +268,7 @@ static pid_t spawn_session(const char *shell, int *out_master_fd)
 
 static int listen_unix(const char *path)
 {
-    unlink(path);
-
-    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (fd < 0)
-        return -1;
-
-    struct sockaddr_un addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
-
-    if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
-    {
-        close(fd);
-        return -1;
-    }
-    if (listen(fd, 1) < 0)
-    {
-        close(fd);
-        return -1;
-    }
-    return fd;
+    return ghostcon_unix_listen_socket(path, 1);
 }
 
 /* main

@@ -48,6 +48,7 @@
 
 #include "ghostcon/config/config.h"
 #include "ghostcon/core/parse.h"
+#include "ghostcon/core/paths.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -105,34 +106,6 @@ static void apply_restart_backoff(time_t *last_death, int *backoff, const char *
         *backoff = RESTART_BACKOFF_MAX_SECS;
 }
 
-/* Resolves `name` relative to this executable's own directory (via
- * /proc/self/exe), for finding sibling binaries without depending on PATH
- *
- * see the file header comment on why that can't be trusted here.
- *
- * Falls back to the bare name (PATH lookup) only if /proc/self/exe itself is
- * unavailable.
- */
-static void resolve_sibling_path(char *out, size_t out_len, const char *name)
-{
-    char self_path[4096];
-    ssize_t n = readlink("/proc/self/exe", self_path, sizeof(self_path) - 1);
-    if (n <= 0)
-    {
-        snprintf(out, out_len, "%s", name);
-        return;
-    }
-    self_path[n] = '\0';
-
-    char *slash = strrchr(self_path, '/');
-    if (!slash)
-    {
-        snprintf(out, out_len, "%s", name);
-        return;
-    }
-    *slash = '\0';
-    snprintf(out, out_len, "%s/%s", self_path, name);
-}
 
 static volatile sig_atomic_t g_shutdown_requested = 0;
 
@@ -179,7 +152,7 @@ static pid_t fork_ghost_ptyserv(const char *registry_socket, const int *vts, int
         char bin_buf[4096];
         if (!bin || !*bin)
         {
-            resolve_sibling_path(bin_buf, sizeof(bin_buf), "ghost-ptyserv");
+            ghostcon_resolve_sibling_path(bin_buf, sizeof(bin_buf), "ghost-ptyserv");
             bin = bin_buf;
         }
 
@@ -223,7 +196,7 @@ static pid_t fork_supervisor(int vtnum, const char *registry_socket)
         char bin_buf[4096];
         if (!bin || !*bin)
         {
-            resolve_sibling_path(bin_buf, sizeof(bin_buf), "supervisor");
+            ghostcon_resolve_sibling_path(bin_buf, sizeof(bin_buf), "supervisor");
             bin = bin_buf;
         }
 

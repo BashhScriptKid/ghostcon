@@ -75,38 +75,12 @@
 
 #include "ghostcon/config/config.h"
 #include "ghostcon/core/parse.h"
+#include "ghostcon/core/paths.h"
 #include "ghostcon/ptyserv/protocol.h"
 
 #define DEFAULT_DRM_NODE "/dev/dri/card1" /* mirrors core/main.c's own default -- see its comment */
 #define DEFAULT_CANARY_DEADLINE_MS 4000
 
-/* Resolves `name` relative to this executable's own directory (via
- * /proc/self/exe) instead of trusting PATH
- *
- * see this file's header comment on GHOSTCON_CORE_BIN.
- *
- * Falls back to the bare name only if /proc/self/exe itself is unavailable.
- */
-static void resolve_sibling_path(char *out, size_t out_len, const char *name)
-{
-    char self_path[4096];
-    ssize_t n = readlink("/proc/self/exe", self_path, sizeof(self_path) - 1);
-    if (n <= 0)
-    {
-        snprintf(out, out_len, "%s", name);
-        return;
-    }
-    self_path[n] = '\0';
-
-    char *slash = strrchr(self_path, '/');
-    if (!slash)
-    {
-        snprintf(out, out_len, "%s", name);
-        return;
-    }
-    *slash = '\0';
-    snprintf(out, out_len, "%s/%s", self_path, name);
-}
 #define DEFAULT_RUN_DIR "/run/ghostcon"
 #define WALL_RATE_LIMIT_SECS 60 /* per failure class, per supervisor process lifetime */
 
@@ -171,7 +145,7 @@ static pid_t spawn_renderer(int vtnum, const char *registry_socket, const char *
         char bin_buf[4096];
         if (!bin || !*bin)
         {
-            resolve_sibling_path(bin_buf, sizeof(bin_buf), "ghostcon-core");
+            ghostcon_resolve_sibling_path(bin_buf, sizeof(bin_buf), "ghostcon-core");
             bin = bin_buf;
         }
 

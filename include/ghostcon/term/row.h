@@ -56,3 +56,14 @@ extern void ghostcon_row_fill_range(ghostcon_row_t *row, uint16_t left, uint16_t
 extern void ghostcon_row_fill_range_unprotected(ghostcon_row_t *row, uint16_t left, uint16_t end, ghostcon_cell_t fill);
 /* Fill all cells in the row with `fill` */
 extern void ghostcon_row_fill(ghostcon_row_t *row, ghostcon_cell_t fill);
+
+/* Copy a row's contents and metadata into another row.
+ *
+ * Copies min(dst->cols, src->cols) cells, and the wrap / grapheme / styled /
+ * hyperlink metadata with them. The destination is marked dirty.
+ *
+ * This is the row shift that the four grid-scrolling operations (insert
+ * lines, delete lines, scroll up, scroll down) all perform; they were four
+ * byte-identical copies of the same seven assignments.
+ */
+extern void ghostcon_row_copy(ghostcon_row_t *dst, const ghostcon_row_t *src);

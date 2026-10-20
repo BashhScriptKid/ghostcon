@@ -113,3 +113,16 @@ void ghostcon_row_clear_range_unprotected(ghostcon_row_t *row, uint16_t left, ui
 {
     ghostcon_row_fill_range_unprotected(row, left, end, (ghostcon_cell_t){0});
 }
+
+void ghostcon_row_copy(ghostcon_row_t *dst, const ghostcon_row_t *src)
+{
+    uint16_t cols = dst->cols < src->cols ? dst->cols : src->cols;
+    if (cols > 0 && dst->cells && src->cells)
+        memcpy(dst->cells, src->cells, cols * sizeof(ghostcon_cell_t));
+    dst->wrap = src->wrap;
+    dst->wrap_continuation = src->wrap_continuation;
+    dst->grapheme = src->grapheme;
+    dst->styled = src->styled;
+    dst->hyperlink = src->hyperlink;
+    dst->dirty = true;
+}

@@ -1315,13 +1315,7 @@ void ghostcon_screen_insert_lines(ghostcon_screen_t *s, uint16_t n)
         ghostcon_row_t *dst = &s->rows[row_idx(s, (int16_t)y)];
         ghostcon_row_t *src = &s->rows[row_idx(s, (int16_t)(y - shift))];
         /* Copy cells */
-        memcpy(dst->cells, src->cells, s->cols * sizeof(ghostcon_cell_t));
-        dst->wrap = src->wrap;
-        dst->wrap_continuation = src->wrap_continuation;
-        dst->grapheme = src->grapheme;
-        dst->styled = src->styled;
-        dst->hyperlink = src->hyperlink;
-        dst->dirty = true;
+        ghostcon_row_copy(dst, src);
         mark_dirty(s, (int16_t)y);
     }
 
@@ -1352,13 +1346,7 @@ void ghostcon_screen_delete_lines(ghostcon_screen_t *s, uint16_t n)
     {
         ghostcon_row_t *dst = &s->rows[row_idx(s, (int16_t)y)];
         ghostcon_row_t *src = &s->rows[row_idx(s, (int16_t)(y + count_to_delete))];
-        memcpy(dst->cells, src->cells, s->cols * sizeof(ghostcon_cell_t));
-        dst->wrap = src->wrap;
-        dst->wrap_continuation = src->wrap_continuation;
-        dst->grapheme = src->grapheme;
-        dst->styled = src->styled;
-        dst->hyperlink = src->hyperlink;
-        dst->dirty = true;
+        ghostcon_row_copy(dst, src);
         mark_dirty(s, (int16_t)y);
     }
 
@@ -1409,13 +1397,7 @@ void ghostcon_screen_scroll_up(ghostcon_screen_t *s, uint16_t n)
     {
         ghostcon_row_t *dst = &s->rows[row_idx(s, y)];
         ghostcon_row_t *src = &s->rows[row_idx(s, y + n)];
-        memcpy(dst->cells, src->cells, s->cols * sizeof(ghostcon_cell_t));
-        dst->wrap = src->wrap;
-        dst->wrap_continuation = src->wrap_continuation;
-        dst->grapheme = src->grapheme;
-        dst->styled = src->styled;
-        dst->hyperlink = src->hyperlink;
-        dst->dirty = true;
+        ghostcon_row_copy(dst, src);
         mark_dirty(s, y);
     }
 
@@ -1445,13 +1427,7 @@ void ghostcon_screen_scroll_down(ghostcon_screen_t *s, uint16_t n)
     {
         ghostcon_row_t *dst = &s->rows[row_idx(s, y)];
         ghostcon_row_t *src = &s->rows[row_idx(s, y - n)];
-        memcpy(dst->cells, src->cells, s->cols * sizeof(ghostcon_cell_t));
-        dst->wrap = src->wrap;
-        dst->wrap_continuation = src->wrap_continuation;
-        dst->grapheme = src->grapheme;
-        dst->styled = src->styled;
-        dst->hyperlink = src->hyperlink;
-        dst->dirty = true;
+        ghostcon_row_copy(dst, src);
         mark_dirty(s, y);
     }
 

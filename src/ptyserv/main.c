@@ -22,7 +22,9 @@
 #define _DEFAULT_SOURCE
 
 #include "ghostcon/ptyserv/protocol.h"
+#include "ghostcon/ptyserv/socket.h"
 #include "ghostcon/core/parse.h"
+#include "ghostcon/core/paths.h"
 
 #include <errno.h>
 #include <libgen.h>
@@ -52,41 +54,10 @@ static char g_pty_child_path_buf[4096];
 static char g_pty_child_path_canonical[4096]; /* g_pty_child_path, realpath()-resolved --
     /proc/<pid>/exe is always absolute and symlink-resolved, so the
     pidfile-liveness cross-check (read_live_pid_file) needs this form
-    regardless of whether g_pty_child_path came from resolve_sibling_path
+    regardless of whether g_pty_child_path came from ghostcon_resolve_sibling_path
     (already absolute-ish, but not guaranteed symlink-free) or
     GHOSTCON_PTY_CHILD_BIN (often a relative test-harness path). */
 static char g_registry_dir[GC_PTYSERV_LINE_MAX];
-
-/* Resolves `name` relative to this executable's own directory (via
- * /proc/self/exe) instead of trusting PATH
- *
- * this normally runs under pkexec, which resets the environment (including PATH)
- * for security, so a bare name silently fails to exec.
- *
- * Same fix as undead_head/main.c and supervisor/main.c; found the same way, one
- * binary later (pty-ttyN wasn't covered by that earlier fix). Falls back to the
- * bare name only if /proc/self/exe itself is unavailable.
- */
-static void resolve_sibling_path(char *out, size_t out_len, const char *name)
-{
-    char self_path[4096];
-    ssize_t n = readlink("/proc/self/exe", self_path, sizeof(self_path) - 1);
-    if (n <= 0)
-    {
-        snprintf(out, out_len, "%s", name);
-        return;
-    }
-    self_path[n] = '\0';
-
-    char *slash = strrchr(self_path, '/');
-    if (!slash)
-    {
-        snprintf(out, out_len, "%s", name);
-        return;
-    }
-    *slash = '\0';
-    snprintf(out, out_len, "%s/%s", self_path, name);
-}
 
 /* Sidecar pidfile path for a VT's pty-ttyN, alongside its socket
  * (<dir>/pty-tty<N>.pid next to <dir>/pty-tty<N>.sock).
@@ -226,28 +197,7 @@ static bool spawn_pty_child(int vtnum)
 
 static int listen_unix(const char *path)
 {
-    unlink(path);
-
-    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (fd < 0)
-        return -1;
-
-    struct sockaddr_un addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
-
-    if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
-    {
-        close(fd);
-        return -1;
-    }
-    if (listen(fd, 16) < 0)
-    {
-        close(fd);
-        return -1;
-    }
-    return fd;
+    return ghostcon_unix_listen_socket(path, 16);
 }
 
 static void handle_client(int client_fd)
@@ -312,7 +262,7 @@ int main(int argc, char **argv)
     }
     else
     {
-        resolve_sibling_path(g_pty_child_path_buf, sizeof(g_pty_child_path_buf), "pty-ttyN");
+        ghostcon_resolve_sibling_path(g_pty_child_path_buf, sizeof(g_pty_child_path_buf), "pty-ttyN");
         g_pty_child_path = g_pty_child_path_buf;
     }
     if (!realpath(g_pty_child_path, g_pty_child_path_canonical))

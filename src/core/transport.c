@@ -2,6 +2,7 @@
 
 #include "ghostcon/core/transport.h"
 #include "ghostcon/ptyserv/protocol.h"
+#include "ghostcon/ptyserv/socket.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -13,21 +14,7 @@
 
 static int connect_unix(const char *path)
 {
-    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (fd < 0)
-        return -1;
-
-    struct sockaddr_un addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
-
-    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
-    {
-        close(fd);
-        return -1;
-    }
-    return fd;
+    return ghostcon_unix_connect_socket(path);
 }
 
 static bool write_all(int fd, const char *buf, size_t n)
