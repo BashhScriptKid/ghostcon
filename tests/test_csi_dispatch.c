@@ -13,7 +13,7 @@
 #include "ghostcon/term/cell.h"
 #include "ghostcon/term/style.h"
 
-#include "term/stream/stream_internal.h"
+#include "term/stream/stream_csi.h"
 
 #include "conftest.h"
 

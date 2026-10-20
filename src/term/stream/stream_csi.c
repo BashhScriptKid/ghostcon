@@ -1,5 +1,5 @@
 #define _DEFAULT_SOURCE /* CLOCK_MONOTONIC under -std=c11 without this */
-#include "stream_internal.h"
+#include "stream_csi.h"
 #include "ghostcon/core/log.h"
 #include <ghostty/vt/sgr.h>
 #include <ghostty/vt/osc.h>

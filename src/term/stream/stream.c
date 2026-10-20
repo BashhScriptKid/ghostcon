@@ -1,5 +1,7 @@
 #define _DEFAULT_SOURCE /* CLOCK_MONOTONIC under -std=c11 without this */
-#include "stream_internal.h"
+#include "stream_apc.h"
+#include "stream_csi.h"
+#include "stream_osc.h"
 #include "ghostcon/term/cell.h"
 #include <stdlib.h>
 #include <string.h>

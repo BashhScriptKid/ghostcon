@@ -1,5 +1,5 @@
 #define _DEFAULT_SOURCE
-#include "stream_internal.h"
+#include "stream_osc.h"
 #include "ghostcon/core/log.h"
 #include <ghostty/vt/osc.h>
 #include <stdlib.h>

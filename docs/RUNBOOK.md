@@ -274,20 +274,20 @@ performance, portability, minus the noisy checks documented there).
 
 ### Tests
 
-`meson test -C build-release` must stay green (currently 22 tests).
+`meson test -C build-release` must stay green (currently 25 tests).
 
 ## 1. Where things live now (post-refactor map)
 
 | Concern | Module |
 |---|---|
-| Event loop, VT lifecycle orchestration | `src/core/main.c` (~1.2k lines) |
+| Event loop, VT lifecycle orchestration | `src/core/main.c` (~1.6k lines) |
 | DRM/KMS/GBM/EGL/GLES, master retry, cursor plane, frame present | `src/core/display.c` (`ghostcon_display_*`) |
 | Hover hit-testing, selection transitions, zoom clamp, comm-name | `src/core/ui.c` (`ghostcon_ui_*`) |
 | Raw input dispatch (libinput/xkb/key encoding) | `src/core/input.c` |
-| Terminal emulation state machine (ECMA-48/DEC) | `src/term/stream.c` |
-| CSI sequences | `src/term/stream_csi.c` |
-| OSC sequences | `src/term/stream_osc.c` |
-| APC (Kitty graphics), DCS (sixel) | `src/term/stream_apc.c` |
+| Terminal emulation state machine (ECMA-48/DEC) | `src/term/stream/stream.c` |
+| CSI sequences | `src/term/stream/stream_csi.c` |
+| OSC sequences | `src/term/stream/stream_osc.c` |
+| APC (Kitty graphics), DCS (sixel) | `src/term/stream/stream_apc.c` |
 | Grid/cursor/scrollback/selection model | `src/term/screen.c`, `cell.c`, `row.c` |
 | Frame rendering (glyphs, images, cursor, selection) | `src/render/machine.c`, `gles.c` |
 | Config load/hot-reload | `src/config/config.c`, `include/ghostcon/config/config.h` |
@@ -376,7 +376,7 @@ back to `main.c` through `ghostcon_input_dispatch()`'s out-params
 
 ### CSI (e.g. a new `CSI Ps xyz`)
 
-1. Add a handler in `src/term/stream_csi.c`:
+1. Add a handler in `src/term/stream/stream_csi.c`:
    ```c
    static void
    handle_csi_my_thing(ghostcon_stream_t *st, ghostcon_screen_t *s) {
@@ -386,7 +386,8 @@ back to `main.c` through `ghostcon_input_dispatch()`'s out-params
    }
    ```
    Shared helpers (`PARAM*`, `csi_param_count()`, `clamp_loop_count()`,
-   `stream_output()`) come from `src/term/stream_internal.h`.
+   `stream_output()`) come from `src/term/stream/stream_csi.h` -- the
+   module's private header, which only this module includes.
 2. Register it in `csi_table[]` in the same file — one row:
    ```c
    { 'x', 0, 0, 0, handle_csi_my_thing },
@@ -410,10 +411,24 @@ back to `main.c` through `ghostcon_input_dispatch()`'s out-params
 
 ### OSC (e.g. a new `OSC 1337;...`)
 
-1. In `src/term/stream_osc.c`, add a `case` to `osc_dispatch_manual()`
-   keyed on the leading number (the number tier is deliberately manual
-   because libghostty-vt's C API doesn't expose payloads). Return
-   `true` if you recognized the number.
+1. In `src/term/stream/stream_osc.c`, add a handler and one row to
+   `osc_dispatch_table[]`, keyed on the leading number (the number tier
+   is deliberately manual because libghostty-vt's C API doesn't expose
+   payloads):
+   ```c
+   static bool
+   osc_handle_my_thing(ghostcon_stream_t *st, ghostcon_screen_t *s,
+                       long num, char **fields, int nfields)
+   {
+       ...
+       return true;   /* recognized */
+   }
+   ```
+   ```c
+   { 1234, osc_handle_my_thing },
+   ```
+   Return `true` if you recognized the number, `false` to fall through
+   to the libghostty-vt path.
 2. If the payload is structured, split it with
    `osc_split_fields(copy, len, fields, n)` and remember it mutates in
    place — the existing code copies `st->buf` first for exactly that
@@ -424,7 +439,7 @@ back to `main.c` through `ghostcon_input_dispatch()`'s out-params
 ### DCS / APC
 
 Add a branch keyed on `st->dcs_final` in `gc_stream_dcs_dispatch()`
-(`src/term/stream_apc.c`) or on `st->apc_introducer` in
+(`src/term/stream/stream_apc.c`) or on `st->apc_introducer` in
 `gc_stream_apc_dispatch()`. DCS payload collection/growth is already
 handled by the state machine.
 

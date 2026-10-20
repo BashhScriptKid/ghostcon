@@ -1,5 +1,5 @@
 #define _DEFAULT_SOURCE
-#include "stream_internal.h"
+#include "stream_apc.h"
 #include <stdlib.h>
 #include <string.h>
 

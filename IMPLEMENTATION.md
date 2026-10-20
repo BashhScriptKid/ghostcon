@@ -140,7 +140,7 @@ Vulkan) are replaced by a KMS/EGL/GLES 2.0 renderer written fresh.
 | `src/terminal/style.zig` | `src/term/style.h` + `style.c` | Style attributes (bold/italic/underline/colors) as an interned table addressed by 15-bit `ghostcon_style_id_t`; cells store an ID, not inline style bits |
 | `src/terminal/Row.zig` | `src/term/row.h` + `row.c` | Row of cells, wrapped-char handling |
 | `src/terminal/Screen.zig` | `src/term/screen.h` + `screen.c` | Grid of rows, scrollback ring buffer, cursor, alt screen |
-| `src/terminal/stream.zig` | `src/term/stream.h` + `stream.c` | Byte stream parser (the main ESC[/OSC/DCS/etc. dispatch loop) |
+| `src/terminal/stream.zig` | `src/term/stream.h` + `src/term/stream/stream.c` | Byte stream parser (the main ESC[/OSC/DCS/etc. dispatch loop) |
 | `src/terminal/selection.zig` | `src/term/selection.h` + `selection.c` | Selection tracking |
 | `src/terminal/scrollback.zig` | `src/term/screen.c` (inline) | Scrollback is part of Screen |
 | `src/terminal/SynchronizedOutput.zig` | `src/term/screen.h` + `screen.c` | Mode 2026 defer/commit flag |
@@ -300,7 +300,7 @@ colors, handle bold/italic/underline via offset/scale adjustments.
 
 ## 5. Byte Stream Processing
 
-The stream processor (`src/term/stream.c`) is the heart of the terminal
+The stream processor (`src/term/stream/stream.c`) is the heart of the terminal
 state machine. It takes PTY bytes and mutates the screen:
 
 ```c
@@ -384,7 +384,7 @@ The installed `libghostty-vt` exports **no** UTF-8 or width helpers
   replaces. Returns 0 (combining/zero-width), 1, or 2. Fast path `cp <=
   0xFF → 1` mirrors Ghostty's `print`.
 
-- **`ghostcon_stream_t.utf8_state` / `utf8_acc`** (`src/term/stream.c`):
+- **`ghostcon_stream_t.utf8_state` / `utf8_acc`** (`src/term/stream/stream.c`):
   Bjoern Hoehrmann's DFA decoder, ported byte-for-byte from Ghostty's
   `UTF8Decoder.zig` (`char_classes`/`transitions` tables verified equal by
   script). Decoder state lives on the stream struct so a codepoint split
@@ -413,7 +413,7 @@ Ghostty's parser collects **all** of `0x20–0x2F` *and* the private
 markers `< = > ?` into `intermediates[]` when they lead a sequence
 (`parse_table.zig` csi_entry `.collect` → csi_param); a private marker
 seen mid-params routes the whole sequence to `csi_ignore`. ghostcon's
-`csi_dispatch` (`src/term/stream.c`) mirrors Ghostty's
+`csi_dispatch` (`src/term/stream/stream_csi.c`) mirrors Ghostty's
 `switch (input.intermediates.len)` so these sequences no longer
 misroute:
 
@@ -649,7 +649,7 @@ Files to write:
 - `src/term/style.h` + `style.c` (interned style table; see §3 departure note)
 - `src/term/row.h` + `row.c`
 - `src/term/screen.h` + `screen.c` (includes scrollback, alt screen, mode 2026)
-- `src/term/stream.h` + `stream.c` (byte stream parser with full DEC state machine)
+- `src/term/stream.h` + `src/term/stream/stream.c` (byte stream parser with full DEC state machine)
 - `src/term/color.h` + `color.c` (palette, truecolor conversion)
 - `src/term/kitty.h` + `kitty.c` (Kitty keyboard protocol state)
 - `src/term/selection.h` + `selection.c`

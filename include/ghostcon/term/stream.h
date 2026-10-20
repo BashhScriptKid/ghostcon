@@ -5,7 +5,28 @@
 #include <stddef.h>
 #include "screen.h"
 
-/* Stream state — ECMA-48 / DEC VT state machine */
+/* Stream state — ECMA-48 / DEC VT state machine
+ *
+ * The implementation is a module of four files, under src/term/stream/:
+ *
+ *   stream.c       the state machine. It collects the bytes of one escape
+ *                  sequence and hands each sequence category to exactly one
+ *                  dispatch module. The per-state handlers
+ *                  (stream_state_*) are file-static in there.
+ *   stream_csi.c   CSI finals, including the DEC-private variants. Its
+ *                  dispatch table is csi_table[]; a new CSI sequence is
+ *                  one handler plus one row.
+ *   stream_osc.c   OSC payloads: the manual number tier
+ *                  (osc_dispatch_table[]) plus the libghostty-vt fallback.
+ *   stream_apc.c   Kitty graphics and SOS/PM/APC payloads, and sixel (DCS q).
+ *
+ * The per-module private headers (stream_csi.h, stream_osc.h, stream_apc.h)
+ * are implementation details of that module and are not installed.
+ *
+ * Note that the struct below is exposed in full, rather than behind an
+ * opaque handle: ghostcon_term_t embeds the stream by value, so the layout
+ * is not free to change anyway.
+ */
 
 typedef enum
 {
