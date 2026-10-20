@@ -144,7 +144,7 @@ Vulkan) are replaced by a KMS/EGL/GLES 2.0 renderer written fresh.
 | `src/terminal/selection.zig` | `src/term/selection.h` + `selection.c` | Selection tracking |
 | `src/terminal/scrollback.zig` | `src/term/screen.c` (inline) | Scrollback is part of Screen |
 | `src/terminal/SynchronizedOutput.zig` | `src/term/screen.h` + `screen.c` | Mode 2026 defer/commit flag |
-| `src/terminal/kitty.zig` | `src/term/kitty.h` + `kitty.c` | Kitty keyboard protocol state tracking |
+| `src/terminal/kitty.zig` | `src/term/kitty_keyboard.h` + `kitty_keyboard.c` | Kitty keyboard protocol state tracking |
 | `src/terminal/size.zig` | `src/term/size.h` (struct only) | Cell dimensions |
 | `src/terminal/color.zig` | `src/term/color.h` + `color.c` | Color palette, indexed→RGB conversion |
 | `src/renderer/atlas.zig` | `src/render/atlas.h` + `atlas.c` | Glyph atlas (freetype → GPU texture) |
@@ -651,7 +651,7 @@ Files to write:
 - `src/term/screen.h` + `screen.c` (includes scrollback, alt screen, mode 2026)
 - `src/term/stream.h` + `src/term/stream/stream.c` (byte stream parser with full DEC state machine)
 - `src/term/color.h` + `color.c` (palette, truecolor conversion)
-- `src/term/kitty.h` + `kitty.c` (Kitty keyboard protocol state)
+- `src/term/kitty_keyboard.h` + `kitty_keyboard.c` (Kitty keyboard protocol state)
 - `src/term/selection.h` + `selection.c`
 - `src/term/term.h` + `term.c` (orchestrator: screen + stream + callbacks)
 

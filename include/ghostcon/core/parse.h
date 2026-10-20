@@ -21,7 +21,18 @@
  * library dependency.
  */
 
-static inline bool ghostcon_parse_int(const char *s, int *out)
+/* One body for the signed conversions, one for the unsigned ones.
+ *
+ * The signed body allows a leading '-'
+ *
+ * the unsigned one rejects it (a negative value has no meaning for an unsigned
+ * type, and strtoul() would silently wrap it). Both require the whole string to
+ * be consumed, and reject a value that does not fit.
+ *
+ * The four public conversions below are these two plus a range check for their
+ * own target type.
+ */
+static inline bool ghostcon_parse_signed(const char *s, long *out)
 {
     if (!s || *s == '\0')
         return false;
@@ -30,7 +41,27 @@ static inline bool ghostcon_parse_int(const char *s, int *out)
     long v = strtol(s, &end, 10);
     if (end == s || errno == ERANGE || (*end != '\0'))
         return false;
-    if (v < INT_MIN || v > INT_MAX)
+    *out = v;
+    return true;
+}
+
+static inline bool ghostcon_parse_unsigned(const char *s, unsigned long *out)
+{
+    if (!s || *s == '\0' || *s == '-')
+        return false;
+    errno = 0;
+    char *end = NULL;
+    unsigned long v = strtoul(s, &end, 10);
+    if (end == s || errno == ERANGE || (*end != '\0'))
+        return false;
+    *out = v;
+    return true;
+}
+
+static inline bool ghostcon_parse_int(const char *s, int *out)
+{
+    long v;
+    if (!ghostcon_parse_signed(s, &v) || v < INT_MIN || v > INT_MAX)
         return false;
     *out = (int)v;
     return true;
@@ -38,27 +69,13 @@ static inline bool ghostcon_parse_int(const char *s, int *out)
 
 static inline bool ghostcon_parse_long(const char *s, long *out)
 {
-    if (!s || *s == '\0')
-        return false;
-    errno = 0;
-    char *end = NULL;
-    long v = strtol(s, &end, 10);
-    if (end == s || errno == ERANGE || (*end != '\0'))
-        return false;
-    *out = v;
-    return true;
+    return ghostcon_parse_signed(s, out);
 }
 
 static inline bool ghostcon_parse_uint(const char *s, unsigned *out)
 {
-    if (!s || *s == '\0' || *s == '-')
-        return false;
-    errno = 0;
-    char *end = NULL;
-    unsigned long v = strtoul(s, &end, 10);
-    if (end == s || errno == ERANGE || (*end != '\0'))
-        return false;
-    if (v > UINT_MAX)
+    unsigned long v;
+    if (!ghostcon_parse_unsigned(s, &v) || v > UINT_MAX)
         return false;
     *out = (unsigned)v;
     return true;
@@ -66,13 +83,5 @@ static inline bool ghostcon_parse_uint(const char *s, unsigned *out)
 
 static inline bool ghostcon_parse_ulong(const char *s, unsigned long *out)
 {
-    if (!s || *s == '\0' || *s == '-')
-        return false;
-    errno = 0;
-    char *end = NULL;
-    unsigned long v = strtoul(s, &end, 10);
-    if (end == s || errno == ERANGE || (*end != '\0'))
-        return false;
-    *out = v;
-    return true;
+    return ghostcon_parse_unsigned(s, out);
 }

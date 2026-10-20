@@ -5,6 +5,11 @@
 
 /* Kitty keyboard protocol state
  * https://sw.kovidgoyal.net/kitty/keyboard-protocol/
+ *
+ * The *keyboard* half of the Kitty protocol family
+ *
+ * the *graphics* half lives in kitty_graphics.h. The two share the
+ * ghostcon_kitty_ prefix, so the file names are what say which one you are in.
  */
 
 /* Flags bit positions */

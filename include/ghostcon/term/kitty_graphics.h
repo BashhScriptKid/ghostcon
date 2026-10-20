@@ -40,6 +40,11 @@
  * Compositing is a renderer concern, not part of the screen model. Compare
  * CLAUDE.md's note on erase-only backgrounds being a content tag: the renderer
  * reads a side table in both cases.
+ *
+ * The *graphics* half of the Kitty protocol family
+ *
+ * the *keyboard* half lives in kitty_keyboard.h. The two share the
+ * ghostcon_kitty_ prefix, so the file names are what say which one you are in.
  */
 
 #include <stdbool.h>

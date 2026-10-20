@@ -1,5 +1,15 @@
 #pragma once
 
+/* readlink() is POSIX, not ISO C, so the feature test macro has to be set before
+ * any system header is included. The binaries that use this header already define
+ * it at the top of their own source
+ *
+ * this keeps the header usable on its own.
+ */
+#ifndef _DEFAULT_SOURCE
+#define _DEFAULT_SOURCE
+#endif
+
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>

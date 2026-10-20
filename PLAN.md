@@ -484,7 +484,7 @@ ghostcon-core (per-VT process)
 │   ├── stream.h + .c  — Byte stream parser (full DEC state machine)
 │   ├── color.h + .c   — Palette, indexed/RGB conversion
 │   ├── selection.h + .c — Selection state
-│   ├── kitty.h + .c   — Kitty keyboard protocol state
+│   ├── kitty_keyboard.h + .c — Kitty keyboard protocol state
 │   └── term.h + .c    — Top-level: screen + stream + callbacks
 ├── render/
 │   ├── atlas.h + .c   — Font glyph atlas (freetype → GPU texture)
@@ -1380,7 +1380,7 @@ PTY bytes and queried for screen state.
    DEC VT state machine (ground, esc, csi, osc, dcs, sos, string_term,
    etc.). Ported from `stream.zig`. Calls into `libghostty-vt` for OSC
    and SGR sub-parsing.
-7. **`term/kitty.h` + `kitty.c`** — Kitty keyboard protocol state (flags,
+7. **`term/kitty_keyboard.h` + `kitty_keyboard.c`** — Kitty keyboard protocol state (flags,
    progressive enhancement handshake). Ported from `kitty.zig`.
 8. **`term/selection.h` + `selection.c`** — Selection tracking and
    management. Ported from `selection.zig`.
@@ -3593,7 +3593,7 @@ set once, never revisited), breaking Ctrl+Left/Right word-jump (and
 anything else relying on precise CSI-u modifier reporting) in
 Kitty-protocol-aware apps like `opencode` -- worked fine under real
 Ghostty. Investigating turned up a gap one level deeper than expected:
-`term/kitty.c`/`kitty.h` already existed (push/pop/set-mode stack
+`term/kitty_keyboard.c`/`kitty_keyboard.h` already existed (push/pop/set-mode stack
 logic, unit-testable) but were **entirely unwired from the actual
 parser** -- nothing in `term/stream.c` ever called them, so
 `screen->kitty` stayed permanently stuck at its own init default no

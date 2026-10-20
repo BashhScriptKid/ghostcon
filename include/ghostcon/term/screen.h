@@ -9,8 +9,9 @@
 #include "style.h"
 #include "color.h"
 #include "modes.h"
+#include "screen_fwd.h"
 #include "selection.h"
-#include "kitty.h"
+#include "kitty_keyboard.h"
 #include "kitty_graphics.h"
 #include "sixel.h"
 #include "hyperlink.h"
@@ -101,11 +102,13 @@ typedef struct
  * Manages the grid, cursor, scrollback, alternate screen, and damage tracking.
  */
 /* Tagged (not anonymous) specifically so lower-level headers that only need a
- * pointer type (e.g. selection.h's extract_text() declaration) can
- * forward-declare `struct ghostcon_screen;` without including this header
+ * pointer type (e.g. selection.h's extract_text() declaration) can name it
+ * without including this header
  *
- * screen.h itself includes selection.h transitively (via the `selection` field
- * below), so selection.h including screen.h back would be circular.
+ * the declaration itself lives in screen_fwd.h, which both this header and
+ * selection.h include: this header includes selection.h (for the `selection`
+ * field below) and selection.h needs the screen type, so the two cannot include
+ * each other.
  */
 struct ghostcon_screen {
     /* Grid */
@@ -278,7 +281,6 @@ struct ghostcon_screen {
     /* Damage tracking */
     ghostcon_dirty_region_t dirty;
 };
-typedef struct ghostcon_screen ghostcon_screen_t;
 
 /* Screen lifecycle */
 

@@ -4,8 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "cell.h"
-
-typedef struct ghostcon_screen ghostcon_screen_t;
+#include "screen_fwd.h"
 
 typedef enum
 {

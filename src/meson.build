@@ -28,7 +28,7 @@ term_srcs = files(
     'term/color.c',
     'term/theme.c',
     'term/theme_ghostty_presets.c',
-    'term/kitty.c',
+    'term/kitty_keyboard.c',
     'term/kitty_graphics.c',
     'term/sixel.c',
     'term/hyperlink.c',

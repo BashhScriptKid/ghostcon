@@ -56,21 +56,48 @@ typedef struct
     uint64_t raw;
 } ghostcon_cell_t;
 
-/* Bitfield positions */
+/* Bitfield positions and widths.
+ *
+ * Every mask here is the *width* of its field, unshifted -- the same mask
+ * serves the getter (which shifts down and masks) and the setter (which
+ * masks and shifts up), so a getter and its setter cannot disagree about
+ * how wide the field is.
+ *
+ * The content field is 24 bits wide and holds three different things,
+ * each with its own width, so it has three masks:
+ *
+ *   codepoint   21 bits
+ *   rgb         24 bits (the whole field -- GC_CELL_CONTENT_MASK)
+ *   palette      8 bits
+ */
 #define GC_CELL_TAG_SHIFT        0
-#define GC_CELL_TAG_MASK         ((uint64_t)0x3 << 0)
+#define GC_CELL_TAG_MASK         0x3
 #define GC_CELL_CONTENT_SHIFT    2
-#define GC_CELL_CONTENT_MASK     ((uint64_t)0xFFFFFF << 2)
+#define GC_CELL_CONTENT_MASK     0xFFFFFF
+#define GC_CELL_CODEPOINT_MASK   0x1FFFFF
+#define GC_CELL_PALETTE_MASK     0xFF
 #define GC_CELL_STYLE_SHIFT      26
-#define GC_CELL_STYLE_MASK       ((uint64_t)0x7FFF << 26)
+#define GC_CELL_STYLE_MASK       0x7FFF
 #define GC_CELL_WIDE_SHIFT       41
-#define GC_CELL_WIDE_MASK        ((uint64_t)0x3 << 41)
+#define GC_CELL_WIDE_MASK        0x3
 #define GC_CELL_PROTECTED_SHIFT  43
-#define GC_CELL_PROTECTED_MASK   ((uint64_t)0x1 << 43)
+#define GC_CELL_PROTECTED_MASK   0x1
 #define GC_CELL_SEMANTIC_SHIFT   45
-#define GC_CELL_SEMANTIC_MASK    ((uint64_t)0x3 << 45)
+#define GC_CELL_SEMANTIC_MASK    0x3
 #define GC_CELL_HYPERLINK_ID_SHIFT 47
-#define GC_CELL_HYPERLINK_ID_MASK  ((uint64_t)0x7FFF << 47)
+#define GC_CELL_HYPERLINK_ID_MASK  0x7FFF
+
+/* Generic access to the cell's simple bitfields.
+ *
+ * Everything except the 24-bit content field (which holds three different
+ * things, and so has its own three accessors) goes through this pair.
+ */
+#define GC_CELL_GET(c, field) \
+    ((uint32_t)(((c).raw >> GC_CELL_##field##_SHIFT) & GC_CELL_##field##_MASK))
+
+#define GC_CELL_SET(c, field, v) \
+    ((c).raw = ((c).raw & ~((uint64_t)GC_CELL_##field##_MASK << GC_CELL_##field##_SHIFT)) | \
+               (((uint64_t)(v) & GC_CELL_##field##_MASK) << GC_CELL_##field##_SHIFT))
 
 /* Style ID type (15-bit, 0 = default style)
  *
@@ -82,37 +109,37 @@ typedef uint16_t ghostcon_style_id_t;
 #define GC_STYLE_ID_MAX     0x7FFF
 
 /* Codepoint extracted from content field */
-#define GC_CELL_MAX_CODEPOINT 0x1FFFFF
+#define GC_CELL_MAX_CODEPOINT GC_CELL_CODEPOINT_MASK
 
 /* Inline accessors */
 
 static inline ghostcon_cell_content_tag_t
 ghostcon_cell_get_tag(ghostcon_cell_t c)
 {
-    return (ghostcon_cell_content_tag_t)((c.raw >> GC_CELL_TAG_SHIFT) & 0x3);
+    return (ghostcon_cell_content_tag_t)GC_CELL_GET(c, TAG);
 }
 
 static inline void ghostcon_cell_set_tag(ghostcon_cell_t *c, ghostcon_cell_content_tag_t tag)
 {
-    c->raw = (c->raw & ~GC_CELL_TAG_MASK) | ((uint64_t)tag << GC_CELL_TAG_SHIFT);
+    GC_CELL_SET(*c, TAG, tag);
 }
 
 static inline uint32_t ghostcon_cell_get_codepoint(ghostcon_cell_t c)
 {
-    return (uint32_t)((c.raw >> GC_CELL_CONTENT_SHIFT) & 0x1FFFFF);
+    return (uint32_t)((c.raw >> GC_CELL_CONTENT_SHIFT) & GC_CELL_CODEPOINT_MASK);
 }
 
 static inline void ghostcon_cell_set_codepoint(ghostcon_cell_t *c, uint32_t cp)
 {
-    c->raw = (c->raw & ~GC_CELL_CONTENT_MASK) |
-             ((uint64_t)(cp & 0x1FFFFF) << GC_CELL_CONTENT_SHIFT);
+    c->raw = (c->raw & ~(GC_CELL_CONTENT_MASK << GC_CELL_CONTENT_SHIFT)) |
+             ((uint64_t)(cp & GC_CELL_CODEPOINT_MASK) << GC_CELL_CONTENT_SHIFT);
 }
 
 /* Content as RGB (only valid when tag == BG_COLOR_RGB) */
 static inline ghostcon_rgb_t
 ghostcon_cell_get_rgb(ghostcon_cell_t c)
 {
-    uint32_t v = (uint32_t)((c.raw >> GC_CELL_CONTENT_SHIFT) & 0xFFFFFF);
+    uint32_t v = (uint32_t)((c.raw >> GC_CELL_CONTENT_SHIFT) & GC_CELL_CONTENT_MASK);
     return (ghostcon_rgb_t){
         .r = (uint8_t)((v >> 16) & 0xFF),
         .g = (uint8_t)((v >> 8) & 0xFF),
@@ -123,67 +150,63 @@ ghostcon_cell_get_rgb(ghostcon_cell_t c)
 static inline void ghostcon_cell_set_rgb(ghostcon_cell_t *c, ghostcon_rgb_t rgb)
 {
     uint32_t v = ((uint32_t)rgb.r << 16) | ((uint32_t)rgb.g << 8) | rgb.b;
-    c->raw = (c->raw & ~GC_CELL_CONTENT_MASK) |
-             ((uint64_t)(v & 0xFFFFFF) << GC_CELL_CONTENT_SHIFT);
+    c->raw = (c->raw & ~(GC_CELL_CONTENT_MASK << GC_CELL_CONTENT_SHIFT)) |
+             ((uint64_t)(v & GC_CELL_CONTENT_MASK) << GC_CELL_CONTENT_SHIFT);
 }
 
 /* Content as palette index (only valid when tag == BG_COLOR_PALETTE) */
 static inline uint8_t ghostcon_cell_get_palette_idx(ghostcon_cell_t c)
 {
-    return (uint8_t)((c.raw >> GC_CELL_CONTENT_SHIFT) & 0xFF);
+    return (uint8_t)((c.raw >> GC_CELL_CONTENT_SHIFT) & GC_CELL_PALETTE_MASK);
 }
 
 static inline void ghostcon_cell_set_palette_idx(ghostcon_cell_t *c, uint8_t idx)
 {
-    c->raw = (c->raw & ~GC_CELL_CONTENT_MASK) |
-             ((uint64_t)idx << GC_CELL_CONTENT_SHIFT);
+    c->raw = (c->raw & ~(GC_CELL_CONTENT_MASK << GC_CELL_CONTENT_SHIFT)) |
+             ((uint64_t)(idx & GC_CELL_PALETTE_MASK) << GC_CELL_CONTENT_SHIFT);
 }
 
 static inline ghostcon_style_id_t
 ghostcon_cell_get_style(ghostcon_cell_t c)
 {
-    return (ghostcon_style_id_t)((c.raw >> GC_CELL_STYLE_SHIFT) & 0x7FFF);
+    return (ghostcon_style_id_t)GC_CELL_GET(c, STYLE);
 }
 
 static inline void ghostcon_cell_set_style(ghostcon_cell_t *c, ghostcon_style_id_t id)
 {
-    c->raw = (c->raw & ~GC_CELL_STYLE_MASK) |
-             ((uint64_t)(id & 0x7FFF) << GC_CELL_STYLE_SHIFT);
+    GC_CELL_SET(*c, STYLE, id);
 }
 
 static inline ghostcon_cell_wide_t
 ghostcon_cell_get_wide(ghostcon_cell_t c)
 {
-    return (ghostcon_cell_wide_t)((c.raw >> GC_CELL_WIDE_SHIFT) & 0x3);
+    return (ghostcon_cell_wide_t)GC_CELL_GET(c, WIDE);
 }
 
 static inline void ghostcon_cell_set_wide(ghostcon_cell_t *c, ghostcon_cell_wide_t w)
 {
-    c->raw = (c->raw & ~GC_CELL_WIDE_MASK) |
-             ((uint64_t)w << GC_CELL_WIDE_SHIFT);
+    GC_CELL_SET(*c, WIDE, w);
 }
 
 static inline bool ghostcon_cell_get_protected(ghostcon_cell_t c)
 {
-    return (bool)((c.raw >> GC_CELL_PROTECTED_SHIFT) & 0x1);
+    return GC_CELL_GET(c, PROTECTED) != 0;
 }
 
 static inline void ghostcon_cell_set_protected(ghostcon_cell_t *c, bool v)
 {
-    c->raw = (c->raw & ~GC_CELL_PROTECTED_MASK) |
-             ((uint64_t)(v ? 1 : 0) << GC_CELL_PROTECTED_SHIFT);
+    GC_CELL_SET(*c, PROTECTED, v ? 1 : 0);
 }
 
 static inline ghostcon_style_id_t
 ghostcon_cell_get_hyperlink_id(ghostcon_cell_t c)
 {
-    return (ghostcon_style_id_t)((c.raw >> GC_CELL_HYPERLINK_ID_SHIFT) & 0x7FFF);
+    return (ghostcon_style_id_t)GC_CELL_GET(c, HYPERLINK_ID);
 }
 
 static inline void ghostcon_cell_set_hyperlink_id(ghostcon_cell_t *c, ghostcon_style_id_t id)
 {
-    c->raw = (c->raw & ~GC_CELL_HYPERLINK_ID_MASK) |
-             ((uint64_t)(id & 0x7FFF) << GC_CELL_HYPERLINK_ID_SHIFT);
+    GC_CELL_SET(*c, HYPERLINK_ID, id);
 }
 
 static inline bool ghostcon_cell_get_hyperlink(ghostcon_cell_t c)
@@ -194,13 +217,12 @@ static inline bool ghostcon_cell_get_hyperlink(ghostcon_cell_t c)
 static inline ghostcon_cell_semantic_t
 ghostcon_cell_get_semantic(ghostcon_cell_t c)
 {
-    return (ghostcon_cell_semantic_t)((c.raw >> GC_CELL_SEMANTIC_SHIFT) & 0x3);
+    return (ghostcon_cell_semantic_t)GC_CELL_GET(c, SEMANTIC);
 }
 
 static inline void ghostcon_cell_set_semantic(ghostcon_cell_t *c, ghostcon_cell_semantic_t s)
 {
-    c->raw = (c->raw & ~GC_CELL_SEMANTIC_MASK) |
-             ((uint64_t)s << GC_CELL_SEMANTIC_SHIFT);
+    GC_CELL_SET(*c, SEMANTIC, s);
 }
 
 /* Utility predicates */

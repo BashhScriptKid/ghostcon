@@ -1,4 +1,4 @@
-#include "ghostcon/term/kitty.h"
+#include "ghostcon/term/kitty_keyboard.h"
 
 void ghostcon_kitty_push(ghostcon_kitty_state_t *k, uint8_t f)
 {
