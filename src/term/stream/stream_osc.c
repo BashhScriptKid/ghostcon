@@ -409,6 +409,70 @@ static bool osc_dispatch_manual(ghostcon_stream_t *st, ghostcon_screen_t *s)
 
 /* OSC dispatch */
 
+/* The OSC commands the library classifies, which ghostcon does not act on
+ * here.
+ *
+ * A table rather than a switch: the list is long, and every entry does the
+ * same thing -- nothing. The comments say why each one is not handled.
+ */
+static const GhosttyOscCommandType osc_unhandled[] = {
+    /* OSC 133
+     *
+     * handled above in osc_dispatch_manual() (OSC 633, the VSCode superset,
+     * isn't classified by the library at all since it isn't in
+     * GhosttyOscCommandType
+     *
+     * it's caught purely by number in the manual tier).
+     */
+    GHOSTTY_OSC_COMMAND_SEMANTIC_PROMPT,
+    /* OSC 52 -- stub, needs ghostcon-ipc */
+    GHOSTTY_OSC_COMMAND_CLIPBOARD_CONTENTS,
+    /* OSC 7
+     *
+     * handled above in osc_dispatch_manual(). The library classifies the
+     * command but exposes none of its URI data, same limitation as the
+     * color-operation tier.
+     */
+    GHOSTTY_OSC_COMMAND_REPORT_PWD,
+    /* OSC 22 -- store cursor shape request */
+    GHOSTTY_OSC_COMMAND_MOUSE_SHAPE,
+    /* OSC 4/10/11/12/104
+     *
+     * palette operations Stub: handled in Phase 1 with proper palette
+     * integration
+     */
+    GHOSTTY_OSC_COMMAND_COLOR_OPERATION,
+    GHOSTTY_OSC_COMMAND_KITTY_COLOR_PROTOCOL,
+    /* OSC 9 -- stub, needs ghostcon-ipc */
+    GHOSTTY_OSC_COMMAND_SHOW_DESKTOP_NOTIFICATION,
+    /* OSC 8 -- hyperlinks. Store on cursor/cell */
+    GHOSTTY_OSC_COMMAND_HYPERLINK_START,
+    GHOSTTY_OSC_COMMAND_HYPERLINK_END,
+    /* ConEmu -- discard, application-specific */
+    GHOSTTY_OSC_COMMAND_CONEMU_SLEEP,
+    GHOSTTY_OSC_COMMAND_CONEMU_SHOW_MESSAGE_BOX,
+    GHOSTTY_OSC_COMMAND_CONEMU_CHANGE_TAB_TITLE,
+    GHOSTTY_OSC_COMMAND_CONEMU_PROGRESS_REPORT,
+    GHOSTTY_OSC_COMMAND_CONEMU_WAIT_INPUT,
+    GHOSTTY_OSC_COMMAND_CONEMU_GUIMACRO,
+    GHOSTTY_OSC_COMMAND_CONEMU_RUN_PROCESS,
+    GHOSTTY_OSC_COMMAND_CONEMU_OUTPUT_ENVIRONMENT_VARIABLE,
+    GHOSTTY_OSC_COMMAND_CONEMU_XTERM_EMULATION,
+    GHOSTTY_OSC_COMMAND_CONEMU_COMMENT,
+    GHOSTTY_OSC_COMMAND_KITTY_TEXT_SIZING,
+};
+
+/* True for a command ghostcon knows about but does not act on. */
+static bool osc_is_unhandled(GhosttyOscCommandType type)
+{
+    for (size_t i = 0; i < sizeof osc_unhandled / sizeof osc_unhandled[0]; i++)
+    {
+        if (osc_unhandled[i] == type)
+            return true;
+    }
+    return false;
+}
+
 void gc_stream_osc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s)
 {
     if (osc_dispatch_manual(st, s))
@@ -437,67 +501,9 @@ void gc_stream_osc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s)
         (void)s;
         break;
     }
-    case GHOSTTY_OSC_COMMAND_SEMANTIC_PROMPT:
-        /* OSC 133
-         *
-         * handled above in osc_dispatch_manual() (OSC 633, the VSCode superset,
-         * isn't classified by the library at all since it isn't in
-         * GhosttyOscCommandType
-         *
-         * it's caught purely by number in the manual tier).
-         */
-        break;
-    case GHOSTTY_OSC_COMMAND_CLIPBOARD_CONTENTS: {
-        /* OSC 52 — stub, needs ghostcon-ipc */
-        break;
-    }
-    case GHOSTTY_OSC_COMMAND_REPORT_PWD: {
-        /* OSC 7
-         *
-         * handled above in osc_dispatch_manual(). The library classifies the
-         * command but exposes none of its URI data, same limitation as the
-         * color-operation tier.
-         */
-        break;
-    }
-    case GHOSTTY_OSC_COMMAND_MOUSE_SHAPE: {
-        /* OSC 22 — store cursor shape request */
-        break;
-    }
-    case GHOSTTY_OSC_COMMAND_COLOR_OPERATION: {
-        /* OSC 4/10/11/12/104
-         *
-         * palette operations Stub: handled in Phase 1 with proper palette
-         * integration
-         */
-        break;
-    }
-    case GHOSTTY_OSC_COMMAND_KITTY_COLOR_PROTOCOL:
-        break;
-    case GHOSTTY_OSC_COMMAND_SHOW_DESKTOP_NOTIFICATION: {
-        /* OSC 9 — stub, needs ghostcon-ipc */
-        break;
-    }
-    case GHOSTTY_OSC_COMMAND_HYPERLINK_START:
-    case GHOSTTY_OSC_COMMAND_HYPERLINK_END:
-        /* OSC 8 — hyperlinks. Store on cursor/cell */
-        break;
-    case GHOSTTY_OSC_COMMAND_CONEMU_SLEEP:
-    case GHOSTTY_OSC_COMMAND_CONEMU_SHOW_MESSAGE_BOX:
-    case GHOSTTY_OSC_COMMAND_CONEMU_CHANGE_TAB_TITLE:
-    case GHOSTTY_OSC_COMMAND_CONEMU_PROGRESS_REPORT:
-    case GHOSTTY_OSC_COMMAND_CONEMU_WAIT_INPUT:
-    case GHOSTTY_OSC_COMMAND_CONEMU_GUIMACRO:
-    case GHOSTTY_OSC_COMMAND_CONEMU_RUN_PROCESS:
-    case GHOSTTY_OSC_COMMAND_CONEMU_OUTPUT_ENVIRONMENT_VARIABLE:
-    case GHOSTTY_OSC_COMMAND_CONEMU_XTERM_EMULATION:
-    case GHOSTTY_OSC_COMMAND_CONEMU_COMMENT:
-        /* ConEmu — discard, application-specific */
-        break;
-    case GHOSTTY_OSC_COMMAND_KITTY_TEXT_SIZING:
-        break;
-    case GHOSTTY_OSC_COMMAND_INVALID:
     default:
+        if (osc_is_unhandled(type))
+            break; /* a command ghostcon knows about, and does not act on */
         /* Per PLAN.md: log to journald (future), discard, continue */
         GC_LOG(stream, "OSC discarded (%s)", st->buf);
         break;

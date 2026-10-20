@@ -641,187 +641,208 @@ const ghostcon_glyph_t
  *
  * rendering itself only cares about face+gidx.
  */
+/* Loads a color bitmap glyph (CBDT/CBLC, e.g. Noto Color Emoji) into its
+ * atlas slot.
+ *
+ * A color bitmap face needs a completely different load path from an ordinary
+ * outline font: FT_LOAD_COLOR (so FreeType hands back the color strike
+ * instead of trying
+ *
+ * and failing
+ *
+ * to render an outline that doesn't exist for this face), and FT_Select_Size to
+ * pick which discrete strike size, since these fonts aren't scalable.
+ *
+ * See best_fixed_size_index()'s doc comment above for why an exact size match
+ * isn't expected or needed.
+ */
+static const ghostcon_glyph_t
+*load_color_glyph_into_slot(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t slot_key, FT_Face face, FT_UInt gidx)
+{
+    FT_Select_Size(face, best_fixed_size_index(face, atlas->font_size_px));
+    if (FT_Load_Glyph(face, gidx, FT_LOAD_COLOR | FT_LOAD_RENDER))
+        return NULL;
+
+    FT_GlyphSlot cg = face->glyph;
+    FT_Bitmap *cbmp = &cg->bitmap;
+    if (cbmp->pixel_mode != FT_PIXEL_MODE_BGRA)
+        return NULL; /* unexpected for a FT_HAS_COLOR face -- give up gracefully */
+    /* Wider cap than the mono/outline path's 128x128 (see below) --color bitmap
+     * strikes are fixed, pre-rendered sizes, not scaled to the target pixel size,
+     * and commonly come out larger than a small text font size would suggest:
+     * found live, Noto Color Emoji's closest strike to this project's actual
+     * font_size_px is 136x128, already past 128 wide.
+     */
+    if (cbmp->width == 0 || cbmp->width > GC_ATLAS_COLOR_GLYPH_MAX ||
+        cbmp->rows > GC_ATLAS_COLOR_GLYPH_MAX)
+        return NULL;
+
+    /* FreeType's color bitmaps are BGRA, premultiplied alpha. gles.c's
+     * color-glyph shader path samples this atlas as direct (non-premultiplied)
+     * source color, so both the channel order and the premultiplication need
+     * undoing here, once, at pack time rather than per-frame in the shader.
+     */
+    uint8_t conv[GC_ATLAS_COLOR_GLYPH_MAX * GC_ATLAS_COLOR_GLYPH_MAX * 4];
+    for (unsigned row = 0; row < cbmp->rows; row++)
+    {
+        const uint8_t *src = cbmp->buffer + (size_t)row * (unsigned)cbmp->pitch;
+        uint8_t *dst = conv + (size_t)row * cbmp->width * 4;
+        for (unsigned col = 0; col < cbmp->width; col++)
+        {
+            uint8_t bch = src[col * 4 + 0], gch = src[col * 4 + 1],
+                    rch = src[col * 4 + 2], ach = src[col * 4 + 3];
+            if (ach > 0 && ach < 255)
+            {
+                rch = (uint8_t)((unsigned)rch * 255 / ach);
+                gch = (uint8_t)((unsigned)gch * 255 / ach);
+                bch = (uint8_t)((unsigned)bch * 255 / ach);
+            }
+            dst[col * 4 + 0] = rch;
+            dst[col * 4 + 1] = gch;
+            dst[col * 4 + 2] = bch;
+            dst[col * 4 + 3] = ach;
+        }
+    }
+    return pack_bitmap_rgba(atlas, slot, slot_key, conv, cbmp->width, cbmp->rows,
+                             cbmp->width * 4, (int16_t)cg->bitmap_left, (int16_t)cg->bitmap_top,
+                             (float)(cg->advance.x >> 6));
+}
+
+/* Loads an outline glyph into its atlas slot.
+ */
+static const ghostcon_glyph_t
+*load_outline_glyph_into_slot(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t slot_key, FT_Face face, FT_UInt gidx)
+{
+
+
+FT_Int32 load_flags = FT_LOAD_RENDER;
+switch (atlas->aa_mode)
+{
+case GC_ATLAS_AA_NONE:                          load_flags |= FT_LOAD_TARGET_MONO; break;
+case GC_ATLAS_AA_SUBPIXEL: case GC_ATLAS_AA_CLEARTYPE: load_flags |= FT_LOAD_TARGET_LCD; break;
+default:                                        load_flags |= FT_LOAD_TARGET_NORMAL; break;
+}
+if (FT_Load_Glyph(face, gidx, load_flags))
+    return NULL;
+
+FT_GlyphSlot g = face->glyph;
+FT_Bitmap *bmp = &g->bitmap;
+
+/* pack_bitmap() expects 3 bytes (RGB) per pixel
+ *
+ * every FreeType pixel mode needs converting to that shape: MONO is bit-packed (1
+ * bit/pixel), GRAY is already single-byte coverage but needs replicating across
+ * channels, and LCD is 3-byte RGB triplets/ pixel (width reported as 3x the real
+ * glyph width) that either get averaged down to a replicated mask
+ * (GC_ATLAS_AA_SUBPIXEL --LCD-optimized hinting only, no real subpixel color) or
+ * copied through as genuine per-subpixel coverage, respecting the configured
+ * physical subpixel order (GC_ATLAS_AA_CLEARTYPE).
+ *
+ * Bounded scratch buffer matches the box-drawing path's own 128x128 headroom
+ * precedent above
+ *
+ * an absurdly large glyph at any sane font size just silently doesn't render,
+ * same "give up gracefully" convention as an atlas-full/no-outline miss elsewhere
+ * in this function.
+ *
+ * A genuinely EMPTY bitmap (real_width==0 and/or bmp->rows==0) is NOT a failure
+ * to reject here, unlike the too-large case
+ *
+ * found live: some fonts' ligature substitutions (see ligature.h) use a real,
+ * deliberately empty glyph for one half of a 2-glyph pair (JetBrains Mono does
+ * this for every pair this project tested).
+ *
+ * Rejecting it as if the load had failed sent ghostcon_atlas_glyph_by_index()
+ * down the "no glyph" path, which render/machine.c was (reasonably) treating as
+ * "fall back to the plain per-codepoint glyph"
+ *
+ * drawing a real, visible character where the font intended nothing to appear at
+ * all (a stray disconnected mark next to the real ligature glyph, e.g. "!="'s "!"
+ * leaving a tiny tick above the "≠"). pack_bitmap() below already handles
+ * width==0/rows==0 safely (copies nothing, packs a zero-size UV rect), so just
+ * let it through.
+ */
+unsigned real_width = (bmp->pixel_mode == FT_PIXEL_MODE_LCD) ? bmp->width / 3 : bmp->width;
+if (real_width > 128 || bmp->rows > 128)
+    return NULL;
+uint8_t conv[128 * 128 * 3];
+for (unsigned row = 0; row < bmp->rows; row++)
+{
+    const uint8_t *src = bmp->buffer + (size_t)row * (unsigned)bmp->pitch;
+    uint8_t *dst = conv + (size_t)row * real_width * 3;
+    switch (bmp->pixel_mode)
+    {
+    case FT_PIXEL_MODE_MONO:
+        for (unsigned col = 0; col < real_width; col++)
+        {
+            uint8_t v = (src[col / 8] & (0x80 >> (col % 8))) ? 0xFF : 0x00;
+            dst[col * 3 + 0] = dst[col * 3 + 1] = dst[col * 3 + 2] = v;
+        }
+        break;
+    case FT_PIXEL_MODE_LCD:
+        if (atlas->aa_mode == GC_ATLAS_AA_CLEARTYPE)
+        {
+            /* Real per-subpixel coverage.
+             *
+             * FreeType always writes bytes in physical left-to-right order;
+             * map that to R/G/B according to the panel's actual subpixel
+             * order
+             *
+             * getting this backwards produces visible color fringing instead
+             * of removing it.
+             */
+            for (unsigned col = 0; col < real_width; col++)
+            {
+                uint8_t b0 = src[col * 3 + 0], b1 = src[col * 3 + 1], b2 = src[col * 3 + 2];
+                if (atlas->bgr_order)
+                {
+                    dst[col * 3 + 0] = b2;
+                    dst[col * 3 + 1] = b1;
+                    dst[col * 3 + 2] = b0;
+                }
+                else
+                {
+                    dst[col * 3 + 0] = b0;
+                    dst[col * 3 + 1] = b1;
+                    dst[col * 3 + 2] = b2;
+                }
+            }
+        }
+        else
+        { /* GC_ATLAS_AA_SUBPIXEL -- average into a replicated mask */
+            for (unsigned col = 0; col < real_width; col++)
+            {
+                uint8_t v = (uint8_t)(((unsigned)src[col * 3] + src[col * 3 + 1] + src[col * 3 + 2]) / 3);
+                dst[col * 3 + 0] = dst[col * 3 + 1] = dst[col * 3 + 2] = v;
+            }
+        }
+        break;
+    default: /* FT_PIXEL_MODE_GRAY */
+        for (unsigned col = 0; col < real_width; col++)
+        {
+            uint8_t v = src[col];
+            dst[col * 3 + 0] = dst[col * 3 + 1] = dst[col * 3 + 2] = v;
+        }
+        break;
+    }
+}
+return pack_bitmap(atlas, slot, slot_key, conv, real_width, bmp->rows, real_width * 3,
+                    (int16_t)g->bitmap_left, (int16_t)g->bitmap_top, (float)(g->advance.x >> 6));
+}
+
+/* Loads a glyph into its atlas slot.
+ *
+ * A color bitmap font needs a completely different load path from an ordinary
+ * outline font, so the two are separate functions.
+ */
 static const ghostcon_glyph_t
 *load_glyph_into_slot(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t slot_key, FT_Face face, FT_UInt gidx)
 {
-    /* Color bitmap fonts (CBDT/CBLC, e.g. Noto Color Emoji) need a completely
-     * different load path from ordinary outline fonts: FT_LOAD_COLOR (so FreeType
-     * hands back the color strike instead of trying
-     *
-     * and failing
-     *
-     * to render an outline that doesn't exist for this face), and FT_Select_Size
-     * to pick which discrete strike size, since these fonts aren't scalable.
-     *
-     * See best_fixed_size_index()'s doc comment above for why an exact size match
-     * isn't expected or needed.
-     */
     if (FT_HAS_COLOR(face))
-    {
-        FT_Select_Size(face, best_fixed_size_index(face, atlas->font_size_px));
-        if (FT_Load_Glyph(face, gidx, FT_LOAD_COLOR | FT_LOAD_RENDER))
-            return NULL;
-
-        FT_GlyphSlot cg = face->glyph;
-        FT_Bitmap *cbmp = &cg->bitmap;
-        if (cbmp->pixel_mode != FT_PIXEL_MODE_BGRA)
-            return NULL; /* unexpected for a FT_HAS_COLOR face -- give up gracefully */
-        /* Wider cap than the mono/outline path's 128x128 (see below) --color
-         * bitmap strikes are fixed, pre-rendered sizes, not scaled to the target
-         * pixel size, and commonly come out larger than a small text font size
-         * would suggest: found live, Noto Color Emoji's closest strike to this
-         * project's actual font_size_px is 136x128, already past 128 wide.
-         */
-        if (cbmp->width == 0 || cbmp->width > GC_ATLAS_COLOR_GLYPH_MAX ||
-            cbmp->rows > GC_ATLAS_COLOR_GLYPH_MAX)
-            return NULL;
-
-        /* FreeType's color bitmaps are BGRA, premultiplied alpha. gles.c's
-         * color-glyph shader path samples this atlas as direct
-         * (non-premultiplied) source color, so both the channel order and the
-         * premultiplication need undoing here, once, at pack time rather than
-         * per-frame in the shader.
-         */
-        uint8_t conv[GC_ATLAS_COLOR_GLYPH_MAX * GC_ATLAS_COLOR_GLYPH_MAX * 4];
-        for (unsigned row = 0; row < cbmp->rows; row++)
-        {
-            const uint8_t *src = cbmp->buffer + (size_t)row * (unsigned)cbmp->pitch;
-            uint8_t *dst = conv + (size_t)row * cbmp->width * 4;
-            for (unsigned col = 0; col < cbmp->width; col++)
-            {
-                uint8_t bch = src[col * 4 + 0], gch = src[col * 4 + 1],
-                        rch = src[col * 4 + 2], ach = src[col * 4 + 3];
-                if (ach > 0 && ach < 255)
-                {
-                    rch = (uint8_t)((unsigned)rch * 255 / ach);
-                    gch = (uint8_t)((unsigned)gch * 255 / ach);
-                    bch = (uint8_t)((unsigned)bch * 255 / ach);
-                }
-                dst[col * 4 + 0] = rch;
-                dst[col * 4 + 1] = gch;
-                dst[col * 4 + 2] = bch;
-                dst[col * 4 + 3] = ach;
-            }
-        }
-        return pack_bitmap_rgba(atlas, slot, slot_key, conv, cbmp->width, cbmp->rows,
-                                 cbmp->width * 4, (int16_t)cg->bitmap_left, (int16_t)cg->bitmap_top,
-                                 (float)(cg->advance.x >> 6));
-    }
-
-    FT_Int32 load_flags = FT_LOAD_RENDER;
-    switch (atlas->aa_mode)
-    {
-    case GC_ATLAS_AA_NONE:                          load_flags |= FT_LOAD_TARGET_MONO; break;
-    case GC_ATLAS_AA_SUBPIXEL: case GC_ATLAS_AA_CLEARTYPE: load_flags |= FT_LOAD_TARGET_LCD; break;
-    default:                                        load_flags |= FT_LOAD_TARGET_NORMAL; break;
-    }
-    if (FT_Load_Glyph(face, gidx, load_flags))
-        return NULL;
-
-    FT_GlyphSlot g = face->glyph;
-    FT_Bitmap *bmp = &g->bitmap;
-
-    /* pack_bitmap() expects 3 bytes (RGB) per pixel
-     *
-     * every FreeType pixel mode needs converting to that shape: MONO is
-     * bit-packed (1 bit/pixel), GRAY is already single-byte coverage but needs
-     * replicating across channels, and LCD is 3-byte RGB triplets/ pixel (width
-     * reported as 3x the real glyph width) that either get averaged down to a
-     * replicated mask (GC_ATLAS_AA_SUBPIXEL --LCD-optimized hinting only, no real
-     * subpixel color) or copied through as genuine per-subpixel coverage,
-     * respecting the configured physical subpixel order (GC_ATLAS_AA_CLEARTYPE).
-     *
-     * Bounded scratch buffer matches the box-drawing path's own 128x128 headroom
-     * precedent above
-     *
-     * an absurdly large glyph at any sane font size just silently doesn't render,
-     * same "give up gracefully" convention as an atlas-full/no-outline miss
-     * elsewhere in this function.
-     *
-     * A genuinely EMPTY bitmap (real_width==0 and/or bmp->rows==0) is NOT a
-     * failure to reject here, unlike the too-large case
-     *
-     * found live: some fonts' ligature substitutions (see ligature.h) use a real,
-     * deliberately empty glyph for one half of a 2-glyph pair (JetBrains Mono
-     * does this for every pair this project tested).
-     *
-     * Rejecting it as if the load had failed sent ghostcon_atlas_glyph_by_index()
-     * down the "no glyph" path, which render/machine.c was (reasonably) treating
-     * as "fall back to the plain per-codepoint glyph"
-     *
-     * drawing a real, visible character where the font intended nothing to appear
-     * at all (a stray disconnected mark next to the real ligature glyph, e.g.
-     * "!="'s "!" leaving a tiny tick above the "≠"). pack_bitmap() below already
-     * handles width==0/rows==0 safely (copies nothing, packs a zero-size UV
-     * rect), so just let it through.
-     */
-    unsigned real_width = (bmp->pixel_mode == FT_PIXEL_MODE_LCD) ? bmp->width / 3 : bmp->width;
-    if (real_width > 128 || bmp->rows > 128)
-        return NULL;
-    uint8_t conv[128 * 128 * 3];
-    for (unsigned row = 0; row < bmp->rows; row++)
-    {
-        const uint8_t *src = bmp->buffer + (size_t)row * (unsigned)bmp->pitch;
-        uint8_t *dst = conv + (size_t)row * real_width * 3;
-        switch (bmp->pixel_mode)
-        {
-        case FT_PIXEL_MODE_MONO:
-            for (unsigned col = 0; col < real_width; col++)
-            {
-                uint8_t v = (src[col / 8] & (0x80 >> (col % 8))) ? 0xFF : 0x00;
-                dst[col * 3 + 0] = dst[col * 3 + 1] = dst[col * 3 + 2] = v;
-            }
-            break;
-        case FT_PIXEL_MODE_LCD:
-            if (atlas->aa_mode == GC_ATLAS_AA_CLEARTYPE)
-            {
-                /* Real per-subpixel coverage.
-                 *
-                 * FreeType always writes bytes in physical left-to-right order;
-                 * map that to R/G/B according to the panel's actual subpixel
-                 * order
-                 *
-                 * getting this backwards produces visible color fringing instead
-                 * of removing it.
-                 */
-                for (unsigned col = 0; col < real_width; col++)
-                {
-                    uint8_t b0 = src[col * 3 + 0], b1 = src[col * 3 + 1], b2 = src[col * 3 + 2];
-                    if (atlas->bgr_order)
-                    {
-                        dst[col * 3 + 0] = b2;
-                        dst[col * 3 + 1] = b1;
-                        dst[col * 3 + 2] = b0;
-                    }
-                    else
-                    {
-                        dst[col * 3 + 0] = b0;
-                        dst[col * 3 + 1] = b1;
-                        dst[col * 3 + 2] = b2;
-                    }
-                }
-            }
-            else
-            { /* GC_ATLAS_AA_SUBPIXEL -- average into a replicated mask */
-                for (unsigned col = 0; col < real_width; col++)
-                {
-                    uint8_t v = (uint8_t)(((unsigned)src[col * 3] + src[col * 3 + 1] + src[col * 3 + 2]) / 3);
-                    dst[col * 3 + 0] = dst[col * 3 + 1] = dst[col * 3 + 2] = v;
-                }
-            }
-            break;
-        default: /* FT_PIXEL_MODE_GRAY */
-            for (unsigned col = 0; col < real_width; col++)
-            {
-                uint8_t v = src[col];
-                dst[col * 3 + 0] = dst[col * 3 + 1] = dst[col * 3 + 2] = v;
-            }
-            break;
-        }
-    }
-    return pack_bitmap(atlas, slot, slot_key, conv, real_width, bmp->rows, real_width * 3,
-                        (int16_t)g->bitmap_left, (int16_t)g->bitmap_top, (float)(g->advance.x >> 6));
+        return load_color_glyph_into_slot(atlas, slot, slot_key, face, gidx);
+    return load_outline_glyph_into_slot(atlas, slot, slot_key, face, gidx);
 }
+
 
 /* Synthetic slot key for ghostcon_atlas_glyph_by_index()
  *

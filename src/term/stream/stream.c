@@ -243,6 +243,42 @@ static void stream_state_ground(ghostcon_stream_t *st, uint8_t c, ghostcon_scree
 }
 
 /* Byte after a lone ESC: pick the escape-string/CSI/ESC-intermediate branch. */
+/* The ESC state's final byte: what it does.
+ *
+ * The bytes that start a longer sequence (CSI, OSC, DCS, SOS/PM/APC) are handled
+ * by the state machine itself
+ *
+ * this is the rest.
+ */
+static void stream_state_esc_final(ghostcon_stream_t *st, uint8_t c, ghostcon_screen_t *s)
+{
+    switch (c)
+    {
+    case '7': ghostcon_screen_cursor_save(s); break;
+    case '8': ghostcon_screen_cursor_restore(s); break;
+    case 'D': ghostcon_screen_linefeed(s); break;
+    case 'E': ghostcon_screen_carriage_return(s); ghostcon_screen_linefeed(s); break;
+    case 'M': ghostcon_screen_reverse_index(s); break;
+    case 'H': ghostcon_screen_tab_set(s); break; /* HTS -- the 7-bit
+        two-character form every real program actually sends; only
+        the rare 1-byte C1 form (0x88) was wired up before. Found
+        via direct comparison against real libghostty-vt: it sets
+        the stop where ghostcon silently did nothing. */
+    case 'c': ghostcon_screen_reset(s); break; /* RIS — full reset */
+    /* DEC private */
+    case '=': break; /* DECKPAM — application keypad */
+    case '>': break; /* DECPNM — numeric keypad */
+    case '(': case ')': case '*': case '+':
+        /* Designate character set — defer */
+        st->intermediates[0] = c;
+        st->intermediates_idx = 1;
+        st->state = GC_STREAM_ESC_INTERMEDIATE;
+        break;
+    default:
+        break;
+    }
+}
+
 static void stream_state_esc(ghostcon_stream_t *st, uint8_t c, ghostcon_screen_t *s)
 {
     st->state = GC_STREAM_GROUND;
@@ -278,53 +314,7 @@ static void stream_state_esc(ghostcon_stream_t *st, uint8_t c, ghostcon_screen_t
     else if (c >= 0x30 && c <= 0x7E)
     {
         /* Final byte — dispatch */
-        switch (c)
-        {
-        case '7': ghostcon_screen_cursor_save(s); break;
-        case '8': ghostcon_screen_cursor_restore(s); break;
-        case 'D': ghostcon_screen_linefeed(s); break;
-        case 'E': ghostcon_screen_carriage_return(s); ghostcon_screen_linefeed(s); break;
-        case 'M': ghostcon_screen_reverse_index(s); break;
-        case 'H': ghostcon_screen_tab_set(s); break; /* HTS -- the 7-bit
-            two-character form every real program actually sends; only
-            the rare 1-byte C1 form (0x88) was wired up before. Found
-            via direct comparison against real libghostty-vt: it sets
-            the stop where ghostcon silently did nothing. */
-        case 'c': ghostcon_screen_reset(s); break; /* RIS — full reset */
-        /* DEC private */
-        case '=': break; /* DECKPAM — application keypad */
-        case '>': break; /* DECPNM — numeric keypad */
-        case '(': case ')': case '*': case '+':
-            /* Designate character set — defer */
-            st->intermediates[0] = c;
-            st->intermediates_idx = 1;
-            st->state = GC_STREAM_ESC_INTERMEDIATE;
-            break;
-        default:
-            break;
-        }
-    }
-    else if (c == '[')
-    {
-        st->state = GC_STREAM_CSI_ENTRY;
-    }
-    else if (c == ']')
-    {
-        st->state = GC_STREAM_OSC_STRING;
-        st->osc_len = 0;
-    }
-    else if (c == 'P')
-    {
-        st->state = GC_STREAM_DCS_ENTRY;
-        st->dcs_len = 0;
-    }
-    else if (c == 'X' || c == '^' || c == '_')
-    {
-        /* SOS, PM, APC */
-        st->state = GC_STREAM_SOS_PM_APC_STRING;
-        st->apc_introducer = (char)c;
-        st->apc_len = 0;
-        st->apc_overflow = false;
+        stream_state_esc_final(st, c, s);
     }
 }
 
