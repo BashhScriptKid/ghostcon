@@ -14,10 +14,12 @@
         ghostcon_style_set_t
         *ghostcon_style_set_create(...)
   * The parameter list is always collapsed onto the name line, however
-    long:
+    long -- for prototypes as well as definitions:
         static void foo(int a, int b)
 
-Prototypes are left alone. Definitions whose return type contains
+Prototypes are left alone by the return-type rules (their return type
+is written as the author wrote it), but their parameter lists are
+collapsed like a definition's. Definitions whose return type contains
 a comment or a function-pointer declarator are skipped, as are
 parameter lists containing line comments, multi-line comments, or
 preprocessor lines (anything that can't safely be moved onto one line).
@@ -304,13 +306,22 @@ def collapse_ws(inner):
 def collapse_params(s):
     """Join every wrapped parameter list onto the name line.
 
-    Runs after the return-type pass, so a non-portable return type may
-    still be split but name/parameters are always one line.
+    Covers definitions and prototypes alike. Runs after the return-type
+    pass, so a non-portable return type may still be split but
+    name/parameters are always one line.
     """
     toks=tokenize(s); ms=macro_lines(s)
     defs,_=analyze_defs(s,toks,ms)
     edits=[]
     for _,name_i,_,open_i,close_i in defs:
+        op=toks[open_i][0]; cp=toks[close_i][0]
+        if line_start(s,op)==line_start(s,cp):
+            continue
+        collapsed=collapse_ws(s[op+1:cp])
+        if collapsed is None:
+            continue
+        edits.append((op+1,cp,collapsed))
+    for _,_,open_i,close_i in analyze_protos(s,toks,ms):
         op=toks[open_i][0]; cp=toks[close_i][0]
         if line_start(s,op)==line_start(s,cp):
             continue

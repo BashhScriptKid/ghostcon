@@ -43,8 +43,7 @@ typedef struct
  *
  * the headless path (render node, no DRM master).
  */
-extern bool ghostcon_egl_init(ghostcon_egl_t *egl, const char *drm_path,
-                               uint32_t width, uint32_t height);
+extern bool ghostcon_egl_init(ghostcon_egl_t *egl, const char *drm_path, uint32_t width, uint32_t height);
 
 /* Binds to an already-created GBM device/surface instead of making its own
  *
@@ -53,10 +52,7 @@ extern bool ghostcon_egl_init(ghostcon_egl_t *egl, const char *drm_path,
  * this just wraps that surface in an EGL context. gbm_dev/gbm_surf remain owned
  * by the caller (kms.c); deinit does not destroy them.
  */
-extern bool ghostcon_egl_init_with_gbm(ghostcon_egl_t *egl,
-                                        struct gbm_device *gbm_dev,
-                                        struct gbm_surface *gbm_surf,
-                                        uint32_t width, uint32_t height);
+extern bool ghostcon_egl_init_with_gbm(ghostcon_egl_t *egl, struct gbm_device *gbm_dev, struct gbm_surface *gbm_surf, uint32_t width, uint32_t height);
 
 extern void ghostcon_egl_deinit(ghostcon_egl_t *egl);
 

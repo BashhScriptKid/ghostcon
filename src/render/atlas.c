@@ -565,8 +565,7 @@ find_face_for_codepoint(ghostcon_atlas_t *atlas, uint32_t codepoint, FT_UInt *ou
     return NULL;
 }
 
-static const ghostcon_glyph_t *load_glyph_into_slot(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t slot_key,
-                      FT_Face face, FT_UInt gidx);
+static const ghostcon_glyph_t *load_glyph_into_slot(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t slot_key, FT_Face face, FT_UInt gidx);
 
 const ghostcon_glyph_t
 *ghostcon_atlas_glyph(ghostcon_atlas_t *atlas, uint32_t codepoint)

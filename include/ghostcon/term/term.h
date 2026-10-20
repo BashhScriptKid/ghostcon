@@ -23,9 +23,7 @@ typedef struct
 
 /* Lifecycle */
 
-extern bool ghostcon_term_init(ghostcon_term_t *term,
-                               uint16_t cols, uint16_t rows,
-                               uint16_t scrollback_cap);
+extern bool ghostcon_term_init(ghostcon_term_t *term, uint16_t cols, uint16_t rows, uint16_t scrollback_cap);
 extern void ghostcon_term_deinit(ghostcon_term_t *term);
 
 /* Feeding data */
@@ -33,13 +31,11 @@ extern void ghostcon_term_deinit(ghostcon_term_t *term);
 /* Feed raw PTY bytes into the terminal. Updates screen state via the stream
  * processor.
  */
-extern void ghostcon_term_feed(ghostcon_term_t *term,
-                               const uint8_t *data, size_t len);
+extern void ghostcon_term_feed(ghostcon_term_t *term, const uint8_t *data, size_t len);
 
 /* Resize */
 
-extern bool ghostcon_term_resize(ghostcon_term_t *term,
-                                 uint16_t new_cols, uint16_t new_rows);
+extern bool ghostcon_term_resize(ghostcon_term_t *term, uint16_t new_cols, uint16_t new_rows);
 
 /* Output channel
  *
@@ -47,8 +43,7 @@ extern bool ghostcon_term_resize(ghostcon_term_t *term,
  * callback receives raw response bytes to write back to the PTY.
  */
 
-extern void ghostcon_term_set_output(ghostcon_term_t *term,
-                                     ghostcon_output_fn fn, void *userdata);
+extern void ghostcon_term_set_output(ghostcon_term_t *term, ghostcon_output_fn fn, void *userdata);
 
 /* Title channel
  *
@@ -58,8 +53,7 @@ extern void ghostcon_term_set_output(ghostcon_term_t *term,
  * see PLAN.md.
  */
 
-extern void ghostcon_term_set_title(ghostcon_term_t *term,
-                                    ghostcon_title_fn fn, void *userdata);
+extern void ghostcon_term_set_title(ghostcon_term_t *term, ghostcon_title_fn fn, void *userdata);
 
 /* Notify channel
  *
@@ -68,8 +62,7 @@ extern void ghostcon_term_set_title(ghostcon_term_t *term,
  * see stream.h's notify_fn doc comment).
  */
 
-extern void ghostcon_term_set_notify(ghostcon_term_t *term,
-                                     ghostcon_notify_fn fn, void *userdata);
+extern void ghostcon_term_set_notify(ghostcon_term_t *term, ghostcon_notify_fn fn, void *userdata);
 
 /* Accessors */
 

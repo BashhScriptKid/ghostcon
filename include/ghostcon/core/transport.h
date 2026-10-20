@@ -38,9 +38,7 @@ typedef struct
  *
  * the first ghostcon_transport_read() calls will see that.
  */
-extern bool ghostcon_transport_connect(ghostcon_transport_t *t,
-                                        const char *registry_socket_path,
-                                        int vtnum);
+extern bool ghostcon_transport_connect(ghostcon_transport_t *t, const char *registry_socket_path, int vtnum);
 
 extern void ghostcon_transport_close(ghostcon_transport_t *t);
 
@@ -69,8 +67,7 @@ extern ssize_t ghostcon_transport_write(ghostcon_transport_t *t, const uint8_t *
  *
  * see ctl_fd's own doc comment on why that's not fatal.
  */
-extern bool ghostcon_transport_resize(ghostcon_transport_t *t, int rows, int cols,
-                                      int xpixel, int ypixel);
+extern bool ghostcon_transport_resize(ghostcon_transport_t *t, int rows, int cols, int xpixel, int ypixel);
 
 /* Sends "DUMP" over the control socket
  *

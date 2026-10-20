@@ -142,16 +142,13 @@ extern void ghostcon_stream_deinit(ghostcon_stream_t *st);
 extern void ghostcon_stream_reset(ghostcon_stream_t *st);
 
 /* Set the output callback for terminal responses. Pass NULL to disable. */
-extern void ghostcon_stream_set_output(ghostcon_stream_t *st,
-                                       ghostcon_output_fn fn, void *userdata);
+extern void ghostcon_stream_set_output(ghostcon_stream_t *st, ghostcon_output_fn fn, void *userdata);
 
 /* Set the title callback for OSC 0/2. Pass NULL to disable. */
-extern void ghostcon_stream_set_title(ghostcon_stream_t *st,
-                                      ghostcon_title_fn fn, void *userdata);
+extern void ghostcon_stream_set_title(ghostcon_stream_t *st, ghostcon_title_fn fn, void *userdata);
 
 /* Set the notify callback for OSC 9/777. Pass NULL to disable. */
-extern void ghostcon_stream_set_notify(ghostcon_stream_t *st,
-                                       ghostcon_notify_fn fn, void *userdata);
+extern void ghostcon_stream_set_notify(ghostcon_stream_t *st, ghostcon_notify_fn fn, void *userdata);
 
 /* Tell the stream the renderer's current cell pixel size, so Kitty graphics
  * placements can compute their default post-placement cursor move (see
@@ -168,11 +165,7 @@ extern void ghostcon_stream_set_cell_size(ghostcon_stream_t *st, int32_t cell_w,
 /* Feed bytes to the stream processor. The stream processor calls the
  * appropriate screen functions.
  */
-extern void ghostcon_stream_process(ghostcon_stream_t *st,
-                                    const uint8_t *data, size_t len,
-                                    ghostcon_screen_t *screen);
+extern void ghostcon_stream_process(ghostcon_stream_t *st, const uint8_t *data, size_t len, ghostcon_screen_t *screen);
 
 /* Feed a single byte */
-extern void ghostcon_stream_process_byte(ghostcon_stream_t *st,
-                                         uint8_t c,
-                                         ghostcon_screen_t *screen);
+extern void ghostcon_stream_process_byte(ghostcon_stream_t *st, uint8_t c, ghostcon_screen_t *screen);

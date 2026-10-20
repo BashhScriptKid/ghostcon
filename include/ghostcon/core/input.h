@@ -54,13 +54,7 @@ extern GhosttyKey ghostcon_input_evdev_to_ghostty_key(uint32_t evdev_code);
  * legitimately encode to nothing, e.g. a bare modifier press), or SIZE_MAX on
  * encoder error.
  */
-extern size_t ghostcon_input_encode_key(GhosttyKeyEncoder encoder,
-                                         GhosttyKeyAction action,
-                                         uint32_t evdev_code,
-                                         GhosttyMods mods,
-                                         const char *utf8, size_t utf8_len,
-                                         uint32_t unshifted_codepoint,
-                                         char *out, size_t out_len);
+extern size_t ghostcon_input_encode_key(GhosttyKeyEncoder encoder, GhosttyKeyAction action, uint32_t evdev_code, GhosttyMods mods, const char *utf8, size_t utf8_len, uint32_t unshifted_codepoint, char *out, size_t out_len);
 
 /* Parses a Ghostty-style keybinding trigger string ("ctrl+shift+c") --mirrors
  * Ghostty's own Trigger.parse() syntax (mod names joined by '+', single-letter or
@@ -97,8 +91,7 @@ typedef struct ghostcon_input ghostcon_input_t;
  * or reload, the values below are passed fresh to
  * ghostcon_input_dispatch() instead of being fixed here.
  */
-extern ghostcon_input_t *ghostcon_input_open(const char *seat_id, int viewport_w, int viewport_h,
-                                              int repeat_delay_ms, int repeat_rate_ms);
+extern ghostcon_input_t *ghostcon_input_open(const char *seat_id, int viewport_w, int viewport_h, int repeat_delay_ms, int repeat_rate_ms);
 extern void ghostcon_input_close(ghostcon_input_t *input);
 
 /* fd suitable for poll()'ing in the main event loop. */
@@ -145,9 +138,7 @@ extern void ghostcon_input_sync_modes(ghostcon_input_t *input, const ghostcon_sc
  * Defaults (ctrl+shift+c/v) are already set at ghostcon_input_open() time, so
  * copy/paste work correctly even before the first call to this.
  */
-extern void ghostcon_input_set_clipboard_bindings(ghostcon_input_t *input,
-                                                   GhosttyMods copy_mods, uint32_t copy_evdev,
-                                                   GhosttyMods paste_mods, uint32_t paste_evdev);
+extern void ghostcon_input_set_clipboard_bindings(ghostcon_input_t *input, GhosttyMods copy_mods, uint32_t copy_evdev, GhosttyMods paste_mods, uint32_t paste_evdev);
 
 /* Pushes the [mouse]/[touchpad] config tables (config.h's own doc comment has the
  * field-by-field libinput mapping) into this input context, applying immediately
@@ -164,11 +155,8 @@ extern void ghostcon_input_set_clipboard_bindings(ghostcon_input_t *input,
  * libinput's own default sensitivity) are already set at ghostcon_input_open()
  * time.
  */
-extern void ghostcon_input_set_mouse_config(ghostcon_input_t *input, bool enable,
-                                             float scroll_speed, float sensitivity);
-extern void ghostcon_input_set_touchpad_config(ghostcon_input_t *input, bool enable,
-                                                float scroll_speed, bool tap_to_click,
-                                                bool natural_scroll, float sensitivity);
+extern void ghostcon_input_set_mouse_config(ghostcon_input_t *input, bool enable, float scroll_speed, float sensitivity);
+extern void ghostcon_input_set_touchpad_config(ghostcon_input_t *input, bool enable, float scroll_speed, bool tap_to_click, bool natural_scroll, float sensitivity);
 
 /* Reported by ghostcon_input_dispatch() below
  *
@@ -259,7 +247,4 @@ typedef struct
  *
  * See handle_dump_shortcut()'s own doc comment for why this exists.
  */
-extern bool ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport,
-                                     ghostcon_screen_t *screen, int cell_w, int cell_h,
-                                     int *out_zoom_delta, ghostcon_input_pointer_t *out_pointer,
-                                     bool *out_dump_requested, bool active);
+extern bool ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport, ghostcon_screen_t *screen, int cell_w, int cell_h, int *out_zoom_delta, ghostcon_input_pointer_t *out_pointer, bool *out_dump_requested, bool active);

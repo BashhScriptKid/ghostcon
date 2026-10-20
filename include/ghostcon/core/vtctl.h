@@ -130,8 +130,7 @@ typedef enum
  * No ioctl, no callback, no /dev/ttyN — this is the piece of the handshake a
  * unit test can pin down; ghostcon_vtctl_process_pending() is the thin executor.
  */
-extern int ghostcon_vtctl_transition(ghostcon_vt_state_t *state, char event,
-                                     ghostcon_vt_op_t *ops, int max);
+extern int ghostcon_vtctl_transition(ghostcon_vt_state_t *state, char event, ghostcon_vt_op_t *ops, int max);
 
 /* Drains the self-pipe and updates state, invoking `pre_ack` (if non-NULL)
  * immediately before each individual signal's ack.
@@ -151,6 +150,4 @@ extern int ghostcon_vtctl_transition(ghostcon_vt_state_t *state, char event,
  *
  * only the release side has the ordering hazard).
  */
-extern void ghostcon_vtctl_process_pending(ghostcon_vtctl_t *vt,
-                                           ghostcon_vtctl_pre_ack_fn pre_ack,
-                                           void *userdata);
+extern void ghostcon_vtctl_process_pending(ghostcon_vtctl_t *vt, ghostcon_vtctl_pre_ack_fn pre_ack, void *userdata);

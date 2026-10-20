@@ -56,9 +56,7 @@ extern void ghostcon_kitty_push(ghostcon_kitty_state_t *k, uint8_t f);
 extern void ghostcon_kitty_pop(ghostcon_kitty_state_t *k, uint8_t n);
 
 /* Apply set/or/not to current flags (CSI = {mode} {flags} u) */
-extern void ghostcon_kitty_set_mode(ghostcon_kitty_state_t *k,
-                                    ghostcon_kitty_set_mode_t mode,
-                                    uint8_t f);
+extern void ghostcon_kitty_set_mode(ghostcon_kitty_state_t *k, ghostcon_kitty_set_mode_t mode, uint8_t f);
 
 /* Get current flags (top of stack) */
 static inline uint8_t ghostcon_kitty_current(const ghostcon_kitty_state_t *k)

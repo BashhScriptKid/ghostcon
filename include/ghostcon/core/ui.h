@@ -20,23 +20,18 @@
  *
  * Returns GC_CURSOR_STATE_DEFAULT if not over a hyperlink or out of bounds.
  */
-extern ghostcon_cursor_state_t ghostcon_ui_compute_cursor_state(ghostcon_screen_t *screen,
-                                                                int cell_w, int cell_h,
-                                                                int pointer_x, int pointer_y);
+extern ghostcon_cursor_state_t ghostcon_ui_compute_cursor_state(ghostcon_screen_t *screen, int cell_w, int cell_h, int pointer_x, int pointer_y);
 
 /* Handles click-drag text selection transitions (left pressed, moved,
  * released). Updates screen->selection directly. Returns true if the
  * selection changed state and a screen redraw is needed.
  */
-extern bool ghostcon_ui_update_selection(ghostcon_screen_t *screen,
-                                         const ghostcon_input_pointer_t *pointer,
-                                         int cell_w, int cell_h);
+extern bool ghostcon_ui_update_selection(ghostcon_screen_t *screen, const ghostcon_input_pointer_t *pointer, int cell_w, int cell_h);
 
 /* Computes the clamped font size given a zoom delta (+1 or -1 tick), zoom
  * step, and min/max bounds.
  */
-extern int ghostcon_ui_compute_zoom(int current_font_size, int zoom_delta, int zoom_step,
-                                    int min_font_size, int max_font_size);
+extern int ghostcon_ui_compute_zoom(int current_font_size, int zoom_delta, int zoom_step, int min_font_size, int max_font_size);
 
 /* Extracts the "command token" from a terminal window title (OSC 0/2): the
  * first word if the title looks like "cmd args...", reduced to its basename

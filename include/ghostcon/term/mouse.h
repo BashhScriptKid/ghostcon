@@ -62,8 +62,4 @@ typedef enum
  * release is always encoded as button code 3). buf_len should be at least 32 to
  * guarantee the worst case (SGR with large coordinates) always fits.
  */
-extern size_t ghostcon_mouse_encode(const ghostcon_screen_t *screen,
-                                     ghostcon_mouse_button_t button,
-                                     ghostcon_mouse_action_t action,
-                                     GhosttyMods mods, int col, int row,
-                                     char *buf, size_t buf_len);
+extern size_t ghostcon_mouse_encode(const ghostcon_screen_t *screen, ghostcon_mouse_button_t button, ghostcon_mouse_action_t action, GhosttyMods mods, int col, int row, char *buf, size_t buf_len);

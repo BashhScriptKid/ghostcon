@@ -43,8 +43,7 @@ extern bool ghostcon_selection_contains(const ghostcon_selection_t *sel, int16_t
  * so "which columns are selected on row y" has exactly one implementation
  * instead of three that could drift apart.
  */
-extern bool ghostcon_selection_row_range(const ghostcon_selection_t *sel, int16_t y, int16_t cols,
-                                          int16_t *out_xstart, int16_t *out_xend);
+extern bool ghostcon_selection_row_range(const ghostcon_selection_t *sel, int16_t y, int16_t cols, int16_t *out_xstart, int16_t *out_xend);
 
 /* Extracts the currently-selected text as UTF-8 into `out` (NUL-terminated,
  * truncated rather than overflowed if it wouldn't fit). Returns the number of

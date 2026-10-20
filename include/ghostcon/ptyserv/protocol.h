@@ -67,8 +67,7 @@ extern bool ghostcon_ptyserv_parse_get(const char *line, int *vtnum);
 /* Formats "OK pid=<pid> socket=<path>\n" into buf. Returns written length,
  * or 0 if it wouldn't fit.
  */
-extern size_t ghostcon_ptyserv_format_ok(char *buf, size_t buf_len,
-                                          int pid, const char *socket_path);
+extern size_t ghostcon_ptyserv_format_ok(char *buf, size_t buf_len, int pid, const char *socket_path);
 
 /* Parses an "OK pid=<pid> socket=<path>\n" response line. socket_path must
  * be at least GHOSTCON_PTYSERV_LINE_MAX bytes. Returns true on success.
@@ -87,8 +86,7 @@ extern bool ghostcon_ptyserv_parse_ok(const char *line, int *pid, char *socket_p
  * Returns written length, or 0 if it wouldn't fit. Sent over the control
  * socket (GHOSTCON_PTY_CTL_SOCKET_FMT), never the data socket.
  */
-extern size_t ghostcon_ptyserv_format_resize(char *buf, size_t buf_len, int rows, int cols,
-                                             int xpixel, int ypixel);
+extern size_t ghostcon_ptyserv_format_resize(char *buf, size_t buf_len, int rows, int cols, int xpixel, int ypixel);
 
 /* Parses a "RESIZE <rows> <cols> <xpixel> <ypixel>\n" line.
  *
@@ -99,8 +97,7 @@ extern size_t ghostcon_ptyserv_format_resize(char *buf, size_t buf_len, int rows
  * (kept parseable rather than rejected, since nothing else
  * on this internal control socket needs strict versioning).
  */
-extern bool ghostcon_ptyserv_parse_resize(const char *line, int *rows, int *cols,
-                                          int *xpixel, int *ypixel);
+extern bool ghostcon_ptyserv_parse_resize(const char *line, int *rows, int *cols, int *xpixel, int *ypixel);
 
 /* Formats "CLEAR\n" into buf. Returns written length, or 0 if it wouldn't
  * fit.

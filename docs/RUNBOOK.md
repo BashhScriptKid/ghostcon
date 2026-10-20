@@ -54,7 +54,9 @@ not touch initializer/compound-literal braces or macro definitions.
 
 ### Function-definition return types
 
-Only definitions are governed; prototypes are left as written.
+Only definitions are governed by the return-type rules below; a
+prototype's return type is left as written. (The parameter-list rule
+applies to both.)
 
 One line when the return type's base is:
 
@@ -104,7 +106,8 @@ ghostcon_style_set_t
 ```
 
 Parameter lists are always collapsed onto the name line, however long;
-only a non-pointer return type may remain split:
+only a non-pointer return type may remain split. This applies to
+prototypes as well as definitions:
 
 ```c
 static bool handle_scroll_shortcut(ghostcon_screen_t *screen,
@@ -122,6 +125,25 @@ Lists containing line comments, multi-line comments, or preprocessor
 lines are left as written. The exact classification sets are
 `PRIMITIVE` and `STD_TYPEDEFS` in `tools/format_signatures.py`; update
 both that script and this list together.
+
+There is no code line-length limit. The ~82-column guidance below
+applies to prose inside comments, not to code.
+
+Splitting is a guideline, not a rule: a call's argument list may be
+split across lines wherever that reads better, and no formatter
+enforces either way. Break at a meaningful boundary -- an operator, or
+the open paren -- rather than in the middle of a list:
+
+```c
+if (!ghostcon_kms_init(&disp->kms, disp->drm_fd) ||
+    !ghostcon_kms_create_scanout_surface(&disp->kms))
+
+sd_journal_send(
+    "MESSAGE=%s crashed on signal %d", g_component, signum);
+```
+
+The one hard rule is on *declarations*: a function's parameter list is
+always on one line, however long. See the return-type section above.
 
 ### Pointer declarators — `T *name`
 

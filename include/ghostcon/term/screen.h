@@ -286,16 +286,13 @@ typedef struct ghostcon_screen ghostcon_screen_t;
  * scrollback_cap is the max number of historical rows (0 = no scrollback).
  * Returns true on success.
  */
-extern bool ghostcon_screen_init(ghostcon_screen_t *screen,
-                                 uint16_t cols, uint16_t rows,
-                                 uint16_t scrollback_cap);
+extern bool ghostcon_screen_init(ghostcon_screen_t *screen, uint16_t cols, uint16_t rows, uint16_t scrollback_cap);
 
 /* Destroy screen, freeing all memory */
 extern void ghostcon_screen_deinit(ghostcon_screen_t *screen);
 
 /* Resize screen to new dimensions. Preserves contents as much as possible. */
-extern bool ghostcon_screen_resize(ghostcon_screen_t *screen,
-                                   uint16_t new_cols, uint16_t new_rows);
+extern bool ghostcon_screen_resize(ghostcon_screen_t *screen, uint16_t new_cols, uint16_t new_rows);
 
 /* RIS (ESC c)
  *
@@ -354,8 +351,7 @@ extern void ghostcon_screen_cursor_restore(ghostcon_screen_t *screen);
 extern void ghostcon_screen_put_char(ghostcon_screen_t *screen, uint32_t codepoint);
 
 /* Insert a string of codepoints */
-extern void ghostcon_screen_put_text(ghostcon_screen_t *screen,
-                                     const uint32_t *codepoints, size_t len);
+extern void ghostcon_screen_put_text(ghostcon_screen_t *screen, const uint32_t *codepoints, size_t len);
 
 /* Carriage return */
 extern void ghostcon_screen_carriage_return(ghostcon_screen_t *screen);
@@ -414,12 +410,10 @@ extern void ghostcon_screen_scroll_down(ghostcon_screen_t *screen, uint16_t n);
 /* Set scroll region (DECSTBM). top/bottom are 0-based, inclusive. Pass -1
  * for both to reset to full screen.
  */
-extern void ghostcon_screen_set_scroll_region(ghostcon_screen_t *screen,
-                                              int16_t top, int16_t bottom);
+extern void ghostcon_screen_set_scroll_region(ghostcon_screen_t *screen, int16_t top, int16_t bottom);
 
 /* Set left/right margin region (DECSLRM). Pass -1 for both to reset. */
-extern void ghostcon_screen_set_margin_region(ghostcon_screen_t *screen,
-                                              int16_t left, int16_t right);
+extern void ghostcon_screen_set_margin_region(ghostcon_screen_t *screen, int16_t left, int16_t right);
 
 /* Alternate screen */
 
@@ -460,16 +454,12 @@ extern void ghostcon_screen_tab_set(ghostcon_screen_t *screen);
 /* Set the current (cursor) style by applying an SGR attribute. Returns the
  * style_id for the new cursor style.
  */
-extern ghostcon_style_id_t ghostcon_screen_set_style(ghostcon_screen_t *screen,
-                                                     ghostcon_style_id_t style_id);
+extern ghostcon_style_id_t ghostcon_screen_set_style(ghostcon_screen_t *screen, ghostcon_style_id_t style_id);
 
 /* Apply a raw SGR attribute to a style, returning the modified style. This
  * is the bridge to libghostty-vt's SGR parser output.
  */
-extern ghostcon_style_t ghostcon_screen_apply_sgr_attribute(
-    const ghostcon_style_t *base,
-    int sgr_tag,
-    const void *sgr_value);
+extern ghostcon_style_t ghostcon_screen_apply_sgr_attribute(const ghostcon_style_t *base, int sgr_tag, const void *sgr_value);
 
 /* Damage tracking */
 
@@ -519,6 +509,4 @@ extern void ghostcon_screen_scroll_view(ghostcon_screen_t *screen, int delta);
  * it (crash, bug) freezing rendering forever. `now` is CLOCK_MONOTONIC, the
  * same clock the timestamp is stamped with.
  */
-extern bool ghostcon_screen_sync_output_expired(const ghostcon_screen_t *screen,
-                                                const struct timespec *now,
-                                                double timeout_ms);
+extern bool ghostcon_screen_sync_output_expired(const ghostcon_screen_t *screen, const struct timespec *now, double timeout_ms);

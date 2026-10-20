@@ -34,8 +34,7 @@ extern void ghostcon_display_destroy(ghostcon_display_t *disp);
 /* Acquire DRM master, initialize KMS, GBM, EGL, and GLES. Returns true on
  * success, and populates out_width / out_height with screen resolution.
  */
-extern bool ghostcon_display_acquire(ghostcon_display_t *disp, int cell_h, ghostcon_atlas_t *atlas,
-                                     uint32_t *out_width, uint32_t *out_height);
+extern bool ghostcon_display_acquire(ghostcon_display_t *disp, int cell_h, ghostcon_atlas_t *atlas, uint32_t *out_width, uint32_t *out_height);
 
 /* Release GLES, EGL, KMS, and drop DRM master synchronously for VT switch */
 extern void ghostcon_display_release(ghostcon_display_t *disp);
@@ -48,9 +47,7 @@ extern uint32_t ghostcon_display_width(const ghostcon_display_t *disp);
 extern uint32_t ghostcon_display_height(const ghostcon_display_t *disp);
 
 /* Update cursor configuration and reload sprites on cursor plane */
-extern void ghostcon_display_configure_cursor(ghostcon_display_t *disp,
-                                              const ghostcon_display_cursor_config_t *cfg,
-                                              int cell_h);
+extern void ghostcon_display_configure_cursor(ghostcon_display_t *disp, const ghostcon_display_cursor_config_t *cfg, int cell_h);
 extern void ghostcon_display_reload_cursor(ghostcon_display_t *disp, int cell_h);
 
 /* Move the hardware cursor sprite on the plane */
@@ -69,6 +66,4 @@ extern void ghostcon_display_sync_atlas(ghostcon_display_t *disp, ghostcon_atlas
 /* Render a complete frame and commit to display (swap + page flip /
  * modeset). Returns true on success.
  */
-extern bool ghostcon_display_render_frame(ghostcon_display_t *disp, ghostcon_screen_t *screen,
-                                          ghostcon_atlas_t *atlas, int cell_w, int cell_h,
-                                          bool ligatures, bool screenshot_requested);
+extern bool ghostcon_display_render_frame(ghostcon_display_t *disp, ghostcon_screen_t *screen, ghostcon_atlas_t *atlas, int cell_w, int cell_h, bool ligatures, bool screenshot_requested);

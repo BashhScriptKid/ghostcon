@@ -303,8 +303,7 @@ extern bool ghostcon_config_load(const char *path, ghostcon_config_t *cfg);
  *
  * Call at startup with false, and again on every hot-reload with true.
  */
-extern void ghostcon_config_export_env(const ghostcon_config_t *cfg, const char *config_path,
-                                        bool overwrite);
+extern void ghostcon_config_export_env(const ghostcon_config_t *cfg, const char *config_path, bool overwrite);
 
 /* Hot-reload watch (inotify)
  *

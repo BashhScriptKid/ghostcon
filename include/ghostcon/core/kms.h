@@ -179,10 +179,7 @@ extern bool ghostcon_kms_move_cursor(ghostcon_kms_t *kms, int x, int y);
  * actually gets committed (FB_ID isn't touched by move_cursor()'s fast path once
  * already enabled).
  */
-extern bool ghostcon_kms_set_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t state,
-                                           const uint32_t *pixels, uint32_t w, uint32_t h,
-                                           uint32_t hot_x, uint32_t hot_y,
-                                           unsigned int fallback_font_height);
+extern bool ghostcon_kms_set_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t state, const uint32_t *pixels, uint32_t w, uint32_t h, uint32_t hot_x, uint32_t hot_y, unsigned int fallback_font_height);
 
 /* Switches which pre-loaded state's image is bound to the plane --e.g. call
  * when the pointer moves onto/off an OSC-8 hyperlink cell. A cheap atomic

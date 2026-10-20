@@ -37,5 +37,4 @@
  *     alpha is a coverage mask, not a color source. the renderer tints it
  *     with the cell's foreground color.
  */
-extern bool ghostcon_box_draw_render(uint32_t codepoint, int cell_w, int cell_h,
-                                      uint8_t *alpha);
+extern bool ghostcon_box_draw_render(uint32_t codepoint, int cell_w, int cell_h, uint8_t *alpha);

@@ -86,11 +86,6 @@ typedef struct
  *
  * pass 0 for either to suppress it.
  */
-extern void ghostcon_sixel_decode(ghostcon_sixel_state_t *st,
-                                  const int32_t *dcs_params, size_t params_count,
-                                  const char *body, size_t body_len,
-                                  int32_t cursor_col, int32_t cursor_row,
-                                  int32_t cell_w, int32_t cell_h,
-                                  ghostcon_sixel_cursor_move_t *out_move);
+extern void ghostcon_sixel_decode(ghostcon_sixel_state_t *st, const int32_t *dcs_params, size_t params_count, const char *body, size_t body_len, int32_t cursor_col, int32_t cursor_row, int32_t cell_w, int32_t cell_h, ghostcon_sixel_cursor_move_t *out_move);
 
 #endif
