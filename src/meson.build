@@ -180,6 +180,29 @@ if not meson.is_subproject()
     )
     test('test_sixel', test_sixel_exe)
 
+    # The render loop's decisions, without a GPU: the GLES quad pushes are
+    # stubbed out by the test, so it needs the render sources *except*
+    # gles.c. (The test therefore defines the ghostcon_gles_push_* symbols
+    # itself -- it must not link render_lib, which defines them too.)
+    render_nogles_lib = static_library('ghostcon-render-nogles',
+        'render/atlas.c',
+        'render/box_draw.c',
+        'render/ligature.c',
+        'render/machine.c',
+        include_directories: include_directories('../include'),
+        dependencies: [dep_fontconfig, dep_freetype, dep_harfbuzz, dep_glesv2],
+        link_with: term_lib,
+        install: false,
+    )
+
+    test_render_quads_exe = executable('test_render_quads',
+        '../tests/test_render_quads.c',
+        include_directories: include_directories('../include'),
+        link_with: [render_nogles_lib, term_lib],
+        dependencies: [dep_ghostty_vt, dep_fontconfig, dep_freetype, dep_harfbuzz, dep_glesv2, dep_m],
+    )
+    test('test_render_quads', test_render_quads_exe)
+
     # The Kitty graphics protocol path (term/kitty_graphics.c) had no test
     # file at all, which is not great for the module that decides which
     # paths the terminal opens: the shared-memory, temporary-file and
