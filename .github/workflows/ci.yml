@@ -67,6 +67,26 @@ jobs:
       - name: format
         run: python3 tools/format.py --check
 
+  complexity:
+    name: Complexity gate
+    # The gate that stops a hotspot from growing back (REFACTOR_PLAN.md
+    # section 7.6). Nothing else in CI notices that a function has quietly
+    # become a 40-branch tangle.
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm --needed python python-pip
+      - name: Install lizard
+        # lizard is a measurement tool for the gate, not a repo dependency:
+        # the build does not need it, and the tree does not import it.
+        # Arch's Python is externally managed (PEP 668), hence the flag.
+        run: pip install --break-system-packages lizard
+      - name: Complexity gate
+        run: python3 tools/complexity.py
+
   fuzz:
     name: Fuzz term parser
     # Scheduled/dispatch only: a coverage-guided run is minutes, not the

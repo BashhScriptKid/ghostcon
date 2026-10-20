@@ -274,26 +274,37 @@ performance, portability, minus the noisy checks documented there).
 
 ### Tests
 
-`meson test -C build-release` must stay green (currently 25 tests).
+`meson test -C build-release` must stay green (currently 27 tests).
 
 ## 1. Where things live now (post-refactor map)
 
-| Concern | Module |
-|---|---|
-| Event loop, VT lifecycle orchestration | `src/core/main.c` (~1.6k lines) |
-| DRM/KMS/GBM/EGL/GLES, master retry, cursor plane, frame present | `src/core/display.c` (`ghostcon_display_*`) |
-| Hover hit-testing, selection transitions, zoom clamp, comm-name | `src/core/ui.c` (`ghostcon_ui_*`) |
-| Raw input dispatch (libinput/xkb/key encoding) | `src/core/input.c` |
-| Terminal emulation state machine (ECMA-48/DEC) | `src/term/stream/stream.c` |
-| CSI sequences | `src/term/stream/stream_csi.c` |
-| OSC sequences | `src/term/stream/stream_osc.c` |
-| APC (Kitty graphics), DCS (sixel) | `src/term/stream/stream_apc.c` |
-| Grid/cursor/scrollback/selection model | `src/term/screen.c` (+ `screen_cursor.c`, `screen_edit.c`, `screen_scroll.c`), `cell.c`, `row.c` |
-| Frame rendering (glyphs, images, cursor, selection) | `src/render/machine.c`, `gles.c` |
-| Config load/hot-reload | `src/config/config.c`, `include/ghostcon/config/config.h` |
-| Crash reporting (journald) | `src/core/diag.c` |
-| Domain debug logging | `include/ghostcon/core/log.h` |
-| Offline state inspection | `tools/gc_inspect.c` (`gc-inspect`) |
+| Concern | Module | How to verify a change here |
+|---|---|---|
+| Event loop, VT lifecycle orchestration | `src/core/main.c` (~1.6k lines) | `test_supervisor`, `test_undead_head` (the process tree); the reactor itself has no unit test |
+| DRM/KMS/GBM/EGL/GLES, master retry, cursor plane, frame present | `src/core/display.c` (`ghostcon_display_*`) | nothing automated -- needs a real console (see section 6) |
+| Hover hit-testing, selection transitions, zoom clamp, comm-name | `src/core/ui.c` (`ghostcon_ui_*`) | `test_ui` |
+| Raw input dispatch (libinput/xkb/key encoding) | `src/core/input.c` | `test_input` (the encoder and the key map), `test_input_rules` (the shortcut, scroll and clamp decisions); the libinput event handling itself needs a device |
+| Terminal emulation state machine (ECMA-48/DEC) | `src/term/stream/stream.c` | `test_conformance`, `test_term`, and the fuzzer |
+| CSI sequences | `src/term/stream/stream_csi.c` | `test_conformance`, `test_csi_dispatch` |
+| OSC sequences | `src/term/stream/stream_osc.c` | `test_osc` |
+| APC (Kitty graphics), DCS (sixel) | `src/term/stream/stream_apc.c` | `test_kitty_graphics`, `test_sixel` |
+| Grid/cursor/scrollback/selection model | `src/term/screen.c` (+ `screen_cursor.c`, `screen_edit.c`, `screen_scroll.c`), `cell.c`, `row.c` | `test_conformance`, `test_term`, `test_selection` |
+| Frame rendering (glyphs, images, cursor, selection) | `src/render/machine.c`, `gles.c` | `test_render_quads` (what the renderer decides -- no GPU needed), `test_render` (the real GL path -- needs a render node) |
+| Config load/hot-reload | `src/config/config.c`, `include/ghostcon/config/config.h` | `test_config` |
+| Crash reporting (journald) | `src/core/diag.c` | `test_diag` |
+| Domain debug logging | `include/ghostcon/core/log.h` | `test_log` |
+| Offline state inspection | `tools/gc_inspect.c` (`gc-inspect`) | `test_gc_inspect` |
+
+Two gates run on every push besides the tests themselves:
+
+```sh
+python3 tools/format.py --check   # the house style rules
+python3 tools/complexity.py        # no function above CCN 30
+```
+
+The complexity gate needs `lizard` (`pip install lizard`); it is a
+measurement tool for the gate, not a repo dependency. `python3
+tools/complexity.py --report` prints the numbers without failing.
 
 ---
 
