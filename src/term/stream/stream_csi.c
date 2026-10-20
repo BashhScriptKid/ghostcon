@@ -634,6 +634,97 @@ static void handle_csi_dec_reset(ghostcon_stream_t *st, ghostcon_screen_t *s)
     }
 }
 
+/* Applies the colour attributes of an SGR sequence to the style.
+ *
+ * The palette, truecolour and underline-colour attributes are one group
+ * because they share their flag bookkeeping: setting a palette colour clears
+ * the truecolour flag, and setting a truecolour colour clears the default
+ * flag.
+ */
+static ghostcon_style_t
+sgr_apply_color(ghostcon_style_t cur, const GhosttySgrAttribute *attr)
+{
+    switch (attr->tag)
+    {
+        case GHOSTTY_SGR_ATTR_FG_8:
+            cur.flags &= ~(GC_STYLE_FG_TRUECOLOR | GC_STYLE_FG_DEFAULT);
+            cur.fg_palette = (uint8_t)attr->value.fg_8;
+            break;
+        case GHOSTTY_SGR_ATTR_BG_8:
+            cur.flags &= ~(GC_STYLE_BG_TRUECOLOR | GC_STYLE_BG_DEFAULT);
+            cur.bg_palette = (uint8_t)attr->value.bg_8;
+            break;
+        case GHOSTTY_SGR_ATTR_BRIGHT_FG_8:
+            cur.flags &= ~(GC_STYLE_FG_TRUECOLOR | GC_STYLE_FG_DEFAULT);
+            /* bright_fg_8 is already the absolute 0-15 palette index (e.g. 9 for
+             * bright red / SGR 91, matching GHOSTTY_COLOR_NAMED_BRIGHT_RED)
+             *
+             * NOT a 0-7 offset that needs +8.
+             *
+             * Adding 8 here double-offset it (9+8=17), which isn't a named color
+             * at all
+             *
+             * it lands inside the 216 color cube (indices 16-231) at a
+             * essentially arbitrary color.
+             *
+             * Confirmed against libghostty-vt directly: see PLAN.md for the live
+             * repro (bright red rendering as dark blue) and the standalone parser
+             * test that caught this.
+             */
+            cur.fg_palette = (uint8_t)attr->value.bright_fg_8;
+            break;
+        case GHOSTTY_SGR_ATTR_BRIGHT_BG_8:
+            cur.flags &= ~(GC_STYLE_BG_TRUECOLOR | GC_STYLE_BG_DEFAULT);
+            cur.bg_palette = (uint8_t)attr->value.bright_bg_8;
+            break;
+        case GHOSTTY_SGR_ATTR_FG_256:
+            cur.flags &= ~(GC_STYLE_FG_TRUECOLOR | GC_STYLE_FG_DEFAULT);
+            cur.fg_palette = (uint8_t)attr->value.fg_256;
+            break;
+        case GHOSTTY_SGR_ATTR_BG_256:
+            cur.flags &= ~(GC_STYLE_BG_TRUECOLOR | GC_STYLE_BG_DEFAULT);
+            cur.bg_palette = (uint8_t)attr->value.bg_256;
+            break;
+        case GHOSTTY_SGR_ATTR_DIRECT_COLOR_FG:
+            cur.flags |= GC_STYLE_FG_TRUECOLOR;
+            cur.flags &= ~GC_STYLE_FG_DEFAULT;
+            cur.fg_rgb.r = attr->value.direct_color_fg.r;
+            cur.fg_rgb.g = attr->value.direct_color_fg.g;
+            cur.fg_rgb.b = attr->value.direct_color_fg.b;
+            break;
+        case GHOSTTY_SGR_ATTR_DIRECT_COLOR_BG:
+            cur.flags |= GC_STYLE_BG_TRUECOLOR;
+            cur.flags &= ~GC_STYLE_BG_DEFAULT;
+            cur.bg_rgb.r = attr->value.direct_color_bg.r;
+            cur.bg_rgb.g = attr->value.direct_color_bg.g;
+            cur.bg_rgb.b = attr->value.direct_color_bg.b;
+            break;
+        case GHOSTTY_SGR_ATTR_UNDERLINE_COLOR:
+            cur.flags |= GC_STYLE_UNDERLINE_TRUECOLOR;
+            cur.ul_rgb.r = attr->value.underline_color.r;
+            cur.ul_rgb.g = attr->value.underline_color.g;
+            cur.ul_rgb.b = attr->value.underline_color.b;
+            break;
+        case GHOSTTY_SGR_ATTR_UNDERLINE_COLOR_256:
+            cur.flags &= ~GC_STYLE_UNDERLINE_TRUECOLOR;
+            cur.underline = (uint8_t)attr->value.underline_color_256;
+            break;
+        case GHOSTTY_SGR_ATTR_RESET_UNDERLINE_COLOR:
+            cur.flags &= ~GC_STYLE_UNDERLINE_TRUECOLOR;
+            break;
+        case GHOSTTY_SGR_ATTR_RESET_FG:
+            cur.flags &= ~GC_STYLE_FG_TRUECOLOR;
+            cur.flags |= GC_STYLE_FG_DEFAULT;
+            break;
+        case GHOSTTY_SGR_ATTR_RESET_BG:
+            cur.flags &= ~GC_STYLE_BG_TRUECOLOR;
+            cur.flags |= GC_STYLE_BG_DEFAULT;
+            break;
+    default: break;
+    }
+    return cur;
+}
+
 /* SGR handler (CSI m) */
 static void handle_csi_sgr(ghostcon_stream_t *st, ghostcon_screen_t *s)
 {
@@ -680,84 +771,11 @@ static void handle_csi_sgr(ghostcon_stream_t *st, ghostcon_screen_t *s)
         case GHOSTTY_SGR_ATTR_OVERLINE:      cur.flags |= GC_STYLE_OVERLINE; break;
         case GHOSTTY_SGR_ATTR_RESET_OVERLINE: cur.flags &= ~GC_STYLE_OVERLINE; break;
 
-        case GHOSTTY_SGR_ATTR_FG_8:
-            cur.flags &= ~(GC_STYLE_FG_TRUECOLOR | GC_STYLE_FG_DEFAULT);
-            cur.fg_palette = (uint8_t)attr.value.fg_8;
+        default:
+            cur = sgr_apply_color(cur, &attr);
             break;
-        case GHOSTTY_SGR_ATTR_BG_8:
-            cur.flags &= ~(GC_STYLE_BG_TRUECOLOR | GC_STYLE_BG_DEFAULT);
-            cur.bg_palette = (uint8_t)attr.value.bg_8;
-            break;
-        case GHOSTTY_SGR_ATTR_BRIGHT_FG_8:
-            cur.flags &= ~(GC_STYLE_FG_TRUECOLOR | GC_STYLE_FG_DEFAULT);
-            /* bright_fg_8 is already the absolute 0-15 palette index (e.g. 9 for
-             * bright red / SGR 91, matching GHOSTTY_COLOR_NAMED_BRIGHT_RED)
-             *
-             * NOT a 0-7 offset that needs +8.
-             *
-             * Adding 8 here double-offset it (9+8=17), which isn't a named color
-             * at all
-             *
-             * it lands inside the 216 color cube (indices 16-231) at a
-             * essentially arbitrary color.
-             *
-             * Confirmed against libghostty-vt directly: see PLAN.md for the live
-             * repro (bright red rendering as dark blue) and the standalone parser
-             * test that caught this.
-             */
-            cur.fg_palette = (uint8_t)attr.value.bright_fg_8;
-            break;
-        case GHOSTTY_SGR_ATTR_BRIGHT_BG_8:
-            cur.flags &= ~(GC_STYLE_BG_TRUECOLOR | GC_STYLE_BG_DEFAULT);
-            cur.bg_palette = (uint8_t)attr.value.bright_bg_8;
-            break;
-        case GHOSTTY_SGR_ATTR_FG_256:
-            cur.flags &= ~(GC_STYLE_FG_TRUECOLOR | GC_STYLE_FG_DEFAULT);
-            cur.fg_palette = (uint8_t)attr.value.fg_256;
-            break;
-        case GHOSTTY_SGR_ATTR_BG_256:
-            cur.flags &= ~(GC_STYLE_BG_TRUECOLOR | GC_STYLE_BG_DEFAULT);
-            cur.bg_palette = (uint8_t)attr.value.bg_256;
-            break;
-        case GHOSTTY_SGR_ATTR_DIRECT_COLOR_FG:
-            cur.flags |= GC_STYLE_FG_TRUECOLOR;
-            cur.flags &= ~GC_STYLE_FG_DEFAULT;
-            cur.fg_rgb.r = attr.value.direct_color_fg.r;
-            cur.fg_rgb.g = attr.value.direct_color_fg.g;
-            cur.fg_rgb.b = attr.value.direct_color_fg.b;
-            break;
-        case GHOSTTY_SGR_ATTR_DIRECT_COLOR_BG:
-            cur.flags |= GC_STYLE_BG_TRUECOLOR;
-            cur.flags &= ~GC_STYLE_BG_DEFAULT;
-            cur.bg_rgb.r = attr.value.direct_color_bg.r;
-            cur.bg_rgb.g = attr.value.direct_color_bg.g;
-            cur.bg_rgb.b = attr.value.direct_color_bg.b;
-            break;
-        case GHOSTTY_SGR_ATTR_UNDERLINE_COLOR:
-            cur.flags |= GC_STYLE_UNDERLINE_TRUECOLOR;
-            cur.ul_rgb.r = attr.value.underline_color.r;
-            cur.ul_rgb.g = attr.value.underline_color.g;
-            cur.ul_rgb.b = attr.value.underline_color.b;
-            break;
-        case GHOSTTY_SGR_ATTR_UNDERLINE_COLOR_256:
-            cur.flags &= ~GC_STYLE_UNDERLINE_TRUECOLOR;
-            cur.underline = (uint8_t)attr.value.underline_color_256;
-            break;
-        case GHOSTTY_SGR_ATTR_RESET_UNDERLINE_COLOR:
-            cur.flags &= ~GC_STYLE_UNDERLINE_TRUECOLOR;
-            break;
-        case GHOSTTY_SGR_ATTR_RESET_FG:
-            cur.flags &= ~GC_STYLE_FG_TRUECOLOR;
-            cur.flags |= GC_STYLE_FG_DEFAULT;
-            break;
-        case GHOSTTY_SGR_ATTR_RESET_BG:
-            cur.flags &= ~GC_STYLE_BG_TRUECOLOR;
-            cur.flags |= GC_STYLE_BG_DEFAULT;
-            break;
-        default: break;
         }
     }
-
     ghostty_sgr_free(parser);
     s->cursor.style_id = ghostcon_style_set_add(s->styles, &cur);
 }

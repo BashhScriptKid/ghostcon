@@ -68,25 +68,77 @@ typedef struct
  * HLS is supported anyway since it's part of the spec and some encoders can use
  * it.
  */
-static void parse_color_intro(const char **p, const char *end, color_reg_t *regs, int *current_reg)
+/* Parses up to `max_vals` semicolon-separated decimal numbers.
+ *
+ * Stops at the first thing that is not a number, and at `end`. Advances `*p`
+ * past what it consumed.
+ */
+static int sixel_parse_numbers(const char **p, const char *end, long *vals, int max_vals)
 {
     const char *s = *p;
-    long vals[5];
-    int nvals = 0;
-    while (nvals < 5)
+    int n = 0;
+    while (n < max_vals)
     {
         char *after;
         long v = strtol(s, &after, 10);
         if (after == s)
             break;
-        vals[nvals++] = v;
+        vals[n++] = v;
         s = after;
-        if (*s == ';' && s < end)
+        if (s < end && *s == ';')
             s++;
         else
             break;
     }
     *p = s;
+    return n;
+}
+
+/* Converts an HLS colour (hue 0-360, lightness/saturation 0-100) to RGB. */
+static void sixel_hls_to_rgb(long hue, long lightness, long saturation, color_reg_t *reg)
+{
+    double h = (double)(((hue % 360) + 360) % 360);
+    double l = (double)(lightness < 0 ? 0 : lightness > 100 ? 100 : lightness) / 100.0;
+    double s_ = (double)(saturation < 0 ? 0 : saturation > 100 ? 100 : saturation) / 100.0;
+    double c = (1.0 - (l < 0.5 ? 1.0 - 2.0 * l : 2.0 * l - 1.0)) * s_;
+    double hp = h / 60.0;
+    double hp_mod2 = hp - 2.0 * (double)((long)(hp / 2.0)); /* fmod(hp, 2) */
+    double x = c * (1.0 - (hp_mod2 > 1.0 ? 2.0 - hp_mod2 : hp_mod2));
+    double r1, g1, b1;
+    if (hp < 1)
+    {
+        r1 = c; g1 = x; b1 = 0;
+    }
+    else if (hp < 2)
+    {
+        r1 = x; g1 = c; b1 = 0;
+    }
+    else if (hp < 3)
+    {
+        r1 = 0; g1 = c; b1 = x;
+    }
+    else if (hp < 4)
+    {
+        r1 = 0; g1 = x; b1 = c;
+    }
+    else if (hp < 5)
+    {
+        r1 = x; g1 = 0; b1 = c;
+    }
+    else
+    {
+        r1 = c; g1 = 0; b1 = x;
+    }
+    double m = l - c / 2.0;
+    reg->r = (uint8_t)(((r1 + m) * 255.0) + 0.5);
+    reg->g = (uint8_t)(((g1 + m) * 255.0) + 0.5);
+    reg->b = (uint8_t)(((b1 + m) * 255.0) + 0.5);
+}
+
+static void parse_color_intro(const char **p, const char *end, color_reg_t *regs, int *current_reg)
+{
+    long vals[5];
+    int nvals = sixel_parse_numbers(p, end, vals, 5);
     if (nvals < 1)
         return;
     int pc = (int)vals[0];
@@ -111,42 +163,7 @@ static void parse_color_intro(const char **p, const char *end, color_reg_t *regs
     else if (pu == 1)
     {
         /* HLS: hue 0-360, lightness/saturation 0-100 */
-        double h = (double)(((px % 360) + 360) % 360);
-        double l = (double)(py < 0 ? 0 : py > 100 ? 100 : py) / 100.0;
-        double s_ = (double)(pz < 0 ? 0 : pz > 100 ? 100 : pz) / 100.0;
-        double c = (1.0 - (l < 0.5 ? 1.0 - 2.0 * l : 2.0 * l - 1.0)) * s_;
-        double hp = h / 60.0;
-        double hp_mod2 = hp - 2.0 * (double)((long)(hp / 2.0)); /* fmod(hp, 2) */
-        double x = c * (1.0 - (hp_mod2 > 1.0 ? 2.0 - hp_mod2 : hp_mod2));
-        double r1, g1, b1;
-        if (hp < 1)
-        {
-            r1 = c; g1 = x; b1 = 0;
-        }
-        else if (hp < 2)
-        {
-            r1 = x; g1 = c; b1 = 0;
-        }
-        else if (hp < 3)
-        {
-            r1 = 0; g1 = c; b1 = x;
-        }
-        else if (hp < 4)
-        {
-            r1 = 0; g1 = x; b1 = c;
-        }
-        else if (hp < 5)
-        {
-            r1 = x; g1 = 0; b1 = c;
-        }
-        else
-        {
-            r1 = c; g1 = 0; b1 = x;
-        }
-        double m = l - c / 2.0;
-        regs[pc].r = (uint8_t)(((r1 + m) * 255.0) + 0.5);
-        regs[pc].g = (uint8_t)(((g1 + m) * 255.0) + 0.5);
-        regs[pc].b = (uint8_t)(((b1 + m) * 255.0) + 0.5);
+        sixel_hls_to_rgb(px, py, pz, &regs[pc]);
         regs[pc].defined = true;
     }
 }
@@ -173,6 +190,26 @@ static void parse_color_intro(const char **p, const char *end, color_reg_t *regs
  * clipped the way a real terminal clips to the raster size. max_y_band_end is
  * only the fallback when no raster attribute was sent.
  */
+/* A repeat introducer ("!<count><char>"): advances the column by the repeat
+ * count.
+ *
+ * A count that does not parse (or is not followed by a sixel character)
+ * advances the column by one, which is what a lone repeat introducer means.
+ */
+static void sixel_measure_repeat(const char **p, const char *end, int32_t *x)
+{
+    const char *s = *p;
+    char *after;
+    long rep = strtol(s, &after, 10);
+    s = (after == s) ? s + 1 : after;
+    if (s < end && *s >= 0x3F && *s <= 0x7E)
+    {
+        *x += (int32_t)(rep > 0 ? rep : 1);
+        s++;
+    }
+    *p = s;
+}
+
 static void sixel_measure(const char *body, size_t body_len, int32_t *out_width, int32_t *out_height)
 {
     int32_t declared_w = 0, declared_h = 0;
@@ -185,17 +222,8 @@ static void sixel_measure(const char *body, size_t body_len, int32_t *out_width,
         if (c == '"')
         {
             p++;
-            long vals[4]; int n = 0;
-            while (n < 4 && p < end)
-            {
-                char *after;
-                long v = strtol(p, &after, 10);
-                if (after == p) break;
-                vals[n++] = v;
-                p = after;
-                if (p < end && *p == ';') p++;
-                else break;
-            }
+            long vals[4];
+            int n = sixel_parse_numbers(&p, end, vals, 4);
             if (n >= 4)
             {
                 declared_w = (int32_t)vals[2]; declared_h = (int32_t)vals[3];
@@ -210,14 +238,7 @@ static void sixel_measure(const char *body, size_t body_len, int32_t *out_width,
         else if (c == '!')
         {
             p++;
-            char *after;
-            long rep = strtol(p, &after, 10);
-            p = (after == p) ? p + 1 : after;
-            if (p < end && *p >= 0x3F && *p <= 0x7E)
-            {
-                x += (int32_t)(rep > 0 ? rep : 1);
-                p++;
-            }
+            sixel_measure_repeat(&p, end, &x);
         }
         else if (c >= 0x3F && c <= 0x7E)
         {
