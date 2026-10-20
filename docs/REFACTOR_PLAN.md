@@ -283,10 +283,19 @@ module's first unit test), §7.2 (the boilerplate extraction), §7.3 (the header
 decomposition), §7.4 (the naming consolidation), §7.5 S2-S4 (the stream
 module's private headers) and §7.1.4-§7.1.6 (the remaining hotspots) -- see §6.
 
-**The plan's scope is now executed.** What is left is not work, but
-enforcement: §7.6's complexity gate, so that none of the hotspots grows back.
-Nothing in the tree is above CCN 30 now (the worst is 28), the average is 5.9
-(down from 6.5), and 40 functions are at CCN >= 15 (down from 48).
+**The plan's scope is now executed**, and the *enforcement* is in place
+too: §7.6's complexity gate (CCN 30) runs in CI, so none of the hotspots
+can grow back. Nothing in the tree is above CCN 30 now (the worst is 28),
+the average is 5.9 (down from 6.5), and 40 functions are at CCN >= 15 (down
+from 48).
+
+**What is left is coverage, not structure.** The two subsystems where a
+mistake is most expensive -- the render loop and the input event handling
+-- now have tests of their own decisions (`test_render_quads`,
+`test_input_rules`), but the paths that need real hardware (DRM master,
+VT signals, a libinput device) still have no automated check, and the
+renderer still has no oracle other than a human comparing it against a
+real Ghostty. See the RUNBOOK's module map for what covers what.
 
 ---
 
@@ -872,14 +881,17 @@ src/term/stream/stream_apc.h  ->  gc_stream_apc_dispatch, gc_stream_dcs_dispatch
 > [!WARNING]
 > The RUNBOOK recipe at `docs/RUNBOOK.md:350` is already stale — it says "add a `case` to `osc_dispatch_manual()`", but that function is now the table `osc_dispatch_table[]` at `src/term/stream_osc.c:352`. Fix it as part of S4.
 
-### 7.6 Enforcement (optional)
+### 7.6 Enforcement (done)
 
-Nothing currently stops a hotspot from growing back. Two options:
+Nothing used to stop a hotspot from growing back. Now:
 
-1. **CI complexity gate.** Add a `lizard` run to `.github/workflows/ci.yml` that fails when any function exceeds a CCN threshold. Cost: `lizard` must be added to the CI container, and the threshold needs choosing. A reasonable starting point is CCN 40 — **nothing in the tree is above it now**, so the first gate would be a pure regression net.
-2. **Cheaper heuristic.** Extend the existing `tools/format_*.py` style checks with a "no function longer than N lines" rule. No new dependency, but it catches length, not branchiness — and §7.1.1 is 110 lines, so it would not have flagged the worst offender.
+1. **CI complexity gate.** `tools/complexity.py` runs lizard over `src/` and fails when any function exceeds CCN 30; it is its own CI job, next to the style checks. lizard is a measurement tool for the gate, not a repo dependency -- the build does not need it, and nothing in the tree imports it.
 
-Option 1 is the real gate. Option 2 is a reasonable stopgap.
+   The threshold is 30, above the current worst function (28), so the gate is a pure regression net: it fires on something that got worse, not on anything that already exists. `python3 tools/complexity.py --report` prints the numbers without failing.
+
+2. **The style checks** (option 2's cheaper heuristic) were already there, and are the reason the conventions survived a refactor of this size: `tools/format_*.py` is a set of scripted rules, not a paragraph in a document.
+
+The gate was checked against a deliberately branchy function (it fails and names the offender) and against a lowered threshold (it lists every offender).
 
 ### 7.7 Recommended order of work
 
@@ -893,6 +905,7 @@ Option 1 is the real gate. Option 2 is a reasonable stopgap.
 | 6 | ~~**S2-S4** — stream header split + doc fixes~~ | low | **done** (per-module private headers; the stale RUNBOOK recipe fixed) |
 | 7 | ~~**H1-H5** — header decomposition~~ | medium | **done** (`screen.c` split into four files with four headers; the two include-guard and duplicate-typedef issues fixed) |
 | 8 | ~~**7.1.4-7.1.6** — remaining hotspots~~ | medium | **done** (the worst function is now CCN 28, and it was not in the original table) |
+| 9 | **§7.6** — the complexity gate | low | **done** (CCN 30, its own CI job) |
 
 Do **not** split `screen.c` before items 1-6: the split points move once the parser and kitty modules change shape, and you would end up splitting twice.
 
