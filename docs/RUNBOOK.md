@@ -93,11 +93,13 @@ ghostcon_style_id_t
 ghostcon_style_add(...)
 ```
 
-A pointer return is a declarator, not a base type, so it stays on one
-line with the `*` attached to the name:
+A pointer return splits between the base type and the declarator,
+so the `*` goes down with the name — the `*` is part of the
+declarator, not of the base type:
 
 ```c
-ghostcon_display_t *ghostcon_display_create(const char *node, int vt)
+ghostcon_style_set_t
+*ghostcon_style_set_create(uint16_t capacity)
 ```
 
 Parameter lists are always collapsed onto the name line, however long;
@@ -140,10 +142,11 @@ char            *buf;
 
 The name must be on the `*`'s line: a `*` left at the end of a line is
 joined to the name too, since the `*` belongs to the declarator. This
-is why a pointer return is never split (see above). Spacing around
-pointer qualifiers (`char *const *p`) and function-pointer declarators
-(`bool (*fn)(int)`) is left alone; expressions such as `width * height`
-are not touched because the token before the `*` is not a type.
+is why a pointer return splits above the `*` rather than below it
+(see above). Spacing around pointer qualifiers (`char *const *p`) and
+function-pointer declarators (`bool (*fn)(int)`) is left alone;
+expressions such as `width * height` are not touched because the token
+before the `*` is not a type.
 
 ### Comments — wrapped block style
 

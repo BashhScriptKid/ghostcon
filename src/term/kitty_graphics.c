@@ -605,7 +605,8 @@ static void kitty_ack(ghostcon_kitty_output_fn output_fn, void *userdata, int32_
 
 /* Image store */
 
-static ghostcon_kitty_image_t *find_image(ghostcon_kitty_graphics_t *kg, uint32_t id)
+static ghostcon_kitty_image_t
+*find_image(ghostcon_kitty_graphics_t *kg, uint32_t id)
 {
     for (int i = 0; i < GHOSTCON_KITTY_MAX_IMAGES; i++)
         if (kg->images[i].in_use && kg->images[i].id == id)
@@ -626,7 +627,8 @@ static void free_image(ghostcon_kitty_graphics_t *kg, ghostcon_kitty_image_t *im
     memset(img, 0, sizeof *img);
 }
 
-static ghostcon_kitty_image_t *alloc_image_slot(ghostcon_kitty_graphics_t *kg, uint32_t id)
+static ghostcon_kitty_image_t
+*alloc_image_slot(ghostcon_kitty_graphics_t *kg, uint32_t id)
 {
     ghostcon_kitty_image_t *existing = find_image(kg, id);
     if (existing)
@@ -661,7 +663,8 @@ static void delete_placements_for_image(ghostcon_kitty_graphics_t *kg, uint32_t 
     }
 }
 
-static ghostcon_kitty_placement_t *alloc_placement_slot(ghostcon_kitty_graphics_t *kg, uint32_t image_id, uint32_t placement_id)
+static ghostcon_kitty_placement_t
+*alloc_placement_slot(ghostcon_kitty_graphics_t *kg, uint32_t image_id, uint32_t placement_id)
 {
     for (int i = 0; i < GHOSTCON_KITTY_MAX_PLACEMENTS; i++)
     {
@@ -1251,7 +1254,8 @@ static void handle_delete(ghostcon_kitty_graphics_t *kg, const kitty_control_t *
      */
 }
 
-const ghostcon_kitty_image_t *ghostcon_kitty_graphics_find_image(const ghostcon_kitty_graphics_t *kg, uint32_t id)
+const ghostcon_kitty_image_t
+*ghostcon_kitty_graphics_find_image(const ghostcon_kitty_graphics_t *kg, uint32_t id)
 {
     for (int i = 0; i < GHOSTCON_KITTY_MAX_IMAGES; i++)
     {

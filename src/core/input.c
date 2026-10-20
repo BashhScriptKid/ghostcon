@@ -409,7 +409,8 @@ static const struct libinput_interface LI_INTERFACE = {
     .close_restricted = close_restricted,
 };
 
-ghostcon_input_t *ghostcon_input_open(const char *seat_id, int viewport_w, int viewport_h, int repeat_delay_ms, int repeat_rate_ms)
+ghostcon_input_t
+*ghostcon_input_open(const char *seat_id, int viewport_w, int viewport_h, int repeat_delay_ms, int repeat_rate_ms)
 {
     ghostcon_input_t *input = calloc(1, sizeof(*input));
     if (!input)

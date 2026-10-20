@@ -52,7 +52,8 @@ static uint32_t hash_style(const ghostcon_style_t *s)
     return h;
 }
 
-ghostcon_style_set_t *ghostcon_style_set_create(uint16_t capacity)
+ghostcon_style_set_t
+*ghostcon_style_set_create(uint16_t capacity)
 {
     if (capacity < STYLE_SET_MIN_CAPACITY)
         capacity = STYLE_SET_MIN_CAPACITY;
@@ -242,7 +243,8 @@ void ghostcon_style_set_unref(ghostcon_style_set_t *set, ghostcon_style_id_t id)
     }
 }
 
-const ghostcon_style_t *ghostcon_style_set_get(const ghostcon_style_set_t *set, ghostcon_style_id_t id)
+const ghostcon_style_t
+*ghostcon_style_set_get(const ghostcon_style_set_t *set, ghostcon_style_id_t id)
 {
     if (id == GC_STYLE_DEFAULT_ID)
         return &GHOSTCON_STYLE_DEFAULT;

@@ -36,7 +36,8 @@ static uint32_t hash_uri(const char *uri)
     return h;
 }
 
-ghostcon_hyperlink_set_t *ghostcon_hyperlink_set_create(uint16_t capacity)
+ghostcon_hyperlink_set_t
+*ghostcon_hyperlink_set_create(uint16_t capacity)
 {
     if (capacity < HYPERLINK_SET_MIN_CAPACITY)
         capacity = HYPERLINK_SET_MIN_CAPACITY;

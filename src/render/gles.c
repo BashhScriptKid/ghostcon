@@ -385,7 +385,8 @@ compile_shader(GLenum type, const char *src)
     return sh;
 }
 
-ghostcon_gles_t *ghostcon_gles_create(uint32_t viewport_w, uint32_t viewport_h, bool want_linear_blending)
+ghostcon_gles_t
+*ghostcon_gles_create(uint32_t viewport_w, uint32_t viewport_h, bool want_linear_blending)
 {
     ghostcon_gles_t *gles = calloc(1, sizeof(*gles));
     if (!gles)
@@ -724,7 +725,8 @@ bool ghostcon_gles_linear_blending_active(const ghostcon_gles_t *gles)
     return gles->linear_blending;
 }
 
-ghostcon_gles_image_t *ghostcon_gles_image_create(const uint8_t *pixels, int width, int height, int bpp)
+ghostcon_gles_image_t
+*ghostcon_gles_image_create(const uint8_t *pixels, int width, int height, int bpp)
 {
     if (width <= 0 || height <= 0 || (bpp != 3 && bpp != 4))
         return NULL;
@@ -811,7 +813,8 @@ static void draw_image_internal(ghostcon_gles_t *gles, ghostcon_gles_image_t *im
     glDisableVertexAttribArray(gles->img_attr_uv);
 }
 
-ghostcon_gles_image_t *ghostcon_gles_kitty_tex_get(ghostcon_gles_t *gles, const struct ghostcon_kitty_graphics *kg, uint32_t image_id, uint32_t generation, const uint8_t *pixels, int width, int height, int bpp)
+ghostcon_gles_image_t
+*ghostcon_gles_kitty_tex_get(ghostcon_gles_t *gles, const struct ghostcon_kitty_graphics *kg, uint32_t image_id, uint32_t generation, const uint8_t *pixels, int width, int height, int bpp)
 {
     for (size_t i = 0; i < gles->kitty_tex_count; i++)
     {
@@ -869,7 +872,8 @@ ghostcon_gles_image_t *ghostcon_gles_kitty_tex_get(ghostcon_gles_t *gles, const 
     return tex;
 }
 
-ghostcon_gles_image_t *ghostcon_gles_sixel_tex_get(ghostcon_gles_t *gles, const struct ghostcon_sixel_state *sx, int slot, uint32_t generation, const uint8_t *pixels, int width, int height)
+ghostcon_gles_image_t
+*ghostcon_gles_sixel_tex_get(ghostcon_gles_t *gles, const struct ghostcon_sixel_state *sx, int slot, uint32_t generation, const uint8_t *pixels, int width, int height)
 {
     for (size_t i = 0; i < gles->sixel_tex_count; i++)
     {

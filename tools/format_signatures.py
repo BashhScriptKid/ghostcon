@@ -8,9 +8,11 @@
     struct/union/enum tag -> split:
         ghostcon_style_id_t
         ghostcon_style_add(...)
-  * A pointer return keeps the `*` with the declared name, so it stays
-    one line (the `*` is part of the declarator, not the base type):
-        ghostcon_style_set_t *ghostcon_style_set_create(...)
+  * A pointer return splits between the base type and the declarator,
+    so the `*` goes down with the name (the `*` is part of the
+    declarator, not the base type):
+        ghostcon_style_set_t
+        *ghostcon_style_set_create(...)
   * The parameter list is always collapsed onto the name line, however
     long:
         static void foo(int a, int b)
@@ -243,12 +245,16 @@ def rewrite(s):
     for tstart,name_i,brace_i,open_i,close_i in defs:
         if tstart>=name_i: continue
         if any(toks[k][1]=='(' for k in range(tstart,name_i)): continue
-        # A pointer return is a declarator, not a base type: keep the `*`
-        # with the name on one line rather than splitting `T *` / `name`.
-        star_return=any(t=='*' for _,t in toks[tstart:name_i])
-        portable=classify_base(s,toks,tstart,name_i) or star_return
+        portable=classify_base(s,toks,tstart,name_i)
         name_pos=toks[name_i][0]
         last=name_i-1
+        # A pointer's `*` is part of the declarator, not of the base type,
+        # so the declarator starts at the first `*` of the trailing star run
+        # and the split goes between the base type and the declarator.
+        decl_start=name_i
+        while decl_start>tstart and toks[decl_start-1][1]=='*':
+            decl_start-=1
+        base_last=decl_start-1
         # collapse type-internal newlines and fix type/name gap
         # first, any newlines within the type range -> single space (or none after '*')
         for k in range(tstart+1,name_i+1):
@@ -263,11 +269,16 @@ def rewrite(s):
                 edits.append((prev_end,cur,rep))
             # non-portable: leave existing split alone
         if not portable:
-            # ensure split between last type token and name
-            last_end=toks[last][0]+len(toks[last][1])
-            gap=s[last_end:name_pos]
-            if '\n' not in gap and '/*' not in gap and '//' not in gap:
-                edits.append((last_end,name_pos,'\n'+indent_of(s,toks[tstart][0])))
+            # ensure the split sits between the base type and the
+            # declarator, with the `*`s going down with the name
+            if base_last>=tstart:
+                base_end=toks[base_last][0]+len(toks[base_last][1])
+                gap=s[base_end:name_pos]
+                if '/*' not in gap and '//' not in gap:
+                    decl=s[toks[decl_start][0]:name_pos].strip()
+                    rep='\n'+indent_of(s,toks[tstart][0])+decl
+                    if gap!=rep:
+                        edits.append((base_end,name_pos,rep))
         else:
             # If the parameter list wraps, shift continuation lines by the
             # same amount the open paren moved when the name joined the

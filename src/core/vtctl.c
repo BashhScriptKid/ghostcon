@@ -79,7 +79,8 @@ static bool currently_active(int fd, int vt_num, bool *out_active)
     return true;
 }
 
-ghostcon_vtctl_t *ghostcon_vtctl_open(int vt_num)
+ghostcon_vtctl_t
+*ghostcon_vtctl_open(int vt_num)
 {
     if (g_instance)
     {
