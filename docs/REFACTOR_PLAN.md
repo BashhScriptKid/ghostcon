@@ -277,50 +277,16 @@ build-release/src/headless_probe out.ppm 1920 1080 16 500 -- htop
 
 Phases 1-4 are complete (§6). The active milestone is **Phase 5: Code Structure & Complexity** (§7).
 
-**Done so far:** §7.5 S1 (the stream module's own directory), §7.1.1 (the CSI dispatch table), and §7.1.2 + §7.1.3 (the Kitty graphics transmit path, with the module's first unit test) — see §6.
+**Done so far:** §7.5 S1 (the stream module's own directory), §7.1.1 (the CSI
+dispatch table), §7.1.2 + §7.1.3 (the Kitty graphics transmit path, with the
+module's first unit test), §7.2 (the boilerplate extraction), §7.3 (the header
+decomposition), §7.4 (the naming consolidation), §7.5 S2-S4 (the stream
+module's private headers) and §7.1.4-§7.1.6 (the remaining hotspots) -- see §6.
 
-The next step is **§7.1.4-7.1.6 — the remaining complexity hotspots**,
-now that the structure work (§7.2-§7.5) is done and the tree's shape has
-stopped moving. The order §7.7 gives them is 7.1.4, then 7.1.5, then
-7.1.6:
-
-- **7.1.4** — `ghostcon_machine_render_dirty` (CCN 38, 300 lines) mixes
-  ligature override scanning, colour resolution, background-quad emission
-  and glyph-quad emission in one per-row loop. Split into
-  `render_row_backgrounds()` / `render_row_glyphs()`, **preserving the
-  ordering invariant**: the background quad must be pushed before the
-  glyph quad for every cell, every frame (`src/render/gles.c:114`).
-- **7.1.5** — the input event handlers: `handle_pointer_event` (CCN 38)
-  splits into hover / drag / click, and `handle_keyboard_event` (CCN 28)
-  into key-encoding / shortcut-dispatch / repeat.
-- **7.1.6** — the rest: `handle_csi_sgr` (34), `sixel_measure` (31),
-  `stream_state_esc` (30), `gc_stream_osc_dispatch` (30),
-  `parse_color_intro` (28), `load_glyph_into_slot` (28).
-
-The header fixes are done:
-
-- **H2** — `cell.h`'s 25 inline accessors each hardcode their own field
-  width, while the `SHIFT`/`MASK` macros above them are used exactly once
-  each (by their own setter). One 24-bit field, three widths in play, two
-  of them unnamed. Adding `GC_CELL_CODEPOINT_MASK` and
-  `GC_CELL_PALETTE_MASK`, and collapsing the accessors behind a
-  `GC_CELL_GET(field)` / `GC_CELL_SET(field, v)` pair, removes the
-  possibility of a getter and its setter disagreeing on the width.
-- **H3** — `parse.h`'s four near-identical conversion functions (78 lines)
-  collapse to one body plus four one-line wrappers.
-- **H4** — `selection.h` forward-declares `ghostcon_screen_t` without
-  including `screen.h`, so if either tag ever changes, `selection.h`
-  silently becomes a *different* type rather than failing to compile.
-- **H5** — `term/kitty.h` (the Kitty *keyboard* protocol) and
-  `term/kitty_graphics.h` (the Kitty *graphics* protocol) share the
-  `ghostcon_kitty_` prefix without saying which. Renaming the two files
-  to `kitty_keyboard.c` / `kitty_keyboard.h` disambiguates without
-  lengthening a single identifier.
-
-H1 (splitting `screen.c` into four files with four headers) is the big
-one and stays last: it changes the shape of everything above it, and the
-plan's own advice is to do it only once the parser and kitty modules have
-stopped moving.
+**The plan's scope is now executed.** What is left is not work, but
+enforcement: §7.6's complexity gate, so that none of the hotspots grows back.
+Nothing in the tree is above CCN 30 now (the worst is 28), the average is 5.9
+(down from 6.5), and 40 functions are at CCN >= 15 (down from 48).
 
 ---
 
@@ -384,30 +350,35 @@ The long tail is healthy. The problem is 12 functions at CCN >= 28 and two above
 
 ### 7.1 Complexity hotspots
 
-Re-measured after §7.1.1 and §7.1.2 + §7.1.3 (`lizard src/`, 541 functions,
-13,916 NLOC, average CCN 6.2, 45 functions at CCN >= 15).
+Re-measured after the whole of §7 (`lizard src/`, 559 functions, 13,977
+NLOC, average CCN 5.9, 40 functions at CCN >= 15 -- down from 6.5 and 48).
 
 | Function | Location | CCN | Lines | Params |
 |---|---|---:|---:|---:|
-| `handle_pointer_event` | `src/core/input.c:1179` | **38** | 147 | 8 |
-| `ghostcon_machine_render_dirty` | `src/render/machine.c:110` | 38 | 300 | 6 |
-| `handle_csi_sgr` | `src/term/stream/stream_csi.c:638` | 34 | 126 | 2 |
-| `sixel_measure` | `src/term/sixel.c:176` | 31 | 77 | 4 |
-| `stream_state_esc` | `src/term/stream/stream.c:244` | 30 | 84 | 3 |
-| `gc_stream_osc_dispatch` | `src/term/stream/stream_osc.c:412` | 30 | 96 | 2 |
-| `handle_keyboard_event` | `src/core/input.c:903` | 28 | 158 | 7 |
-| `parse_color_intro` | `src/term/sixel.c:71` | 28 | 82 | 4 |
-| `handle_csi_request_mode` | `src/term/stream/stream_csi.c:399` | 28 | 44 | 2 |
-| `load_glyph_into_slot` | `src/render/atlas.c:645` | 28 | 180 | 5 |
+| `handle_csi_request_mode` | `src/term/stream/stream_csi.c:399` | **28** | 44 | 2 |
+| `main` | `src/undead_head/main.c:242` | 27 | 228 | 2 |
+| `load_cursor_state` | `src/core/display.c:45` | 26 | 91 | 7 |
+| `main` | `src/supervisor/main.c:476` | 25 | 219 | 2 |
+| `ghostcon_screen_put_char` | `src/term/screen_edit.c:86` | 24 | 110 | 2 |
+| `ghostcon_screen_dump` | `src/term/dump.c:6` | 23 | 63 | 2 |
+| `render_rounded_corner` | `src/render/box_draw.c:231` | 22 | 53 | 4 |
+| `ghostcon_kms_set_cursor_image` | `src/core/kms.c:360` | 21 | 130 | 8 |
+| `ghostcon_parse_keybinding` | `src/core/input.c:668` | 20 | 89 | 3 |
+| `ghostcon_display_acquire` | `src/core/display.c:276` | 19 | 93 | 5 |
 
 **Done:** `csi_lookup` (CCN 84 -> 11, §7.1.1), `handle_transmit` (CCN 79 ->
-12, §7.1.2), `kitty_parse_control` (CCN 39 -> 6, §7.1.3).
+12, §7.1.2), `kitty_parse_control` (CCN 39 -> 6, §7.1.3),
+`ghostcon_machine_render_dirty` (CCN 38 -> 8, §7.1.4),
+`handle_pointer_event` (CCN 38 -> 6, §7.1.5),
+`handle_keyboard_event` (CCN 28 -> 3, §7.1.5), `handle_csi_sgr` (CCN 34 ->
+21), `sixel_measure` (CCN 31 -> 21), `stream_state_esc` (CCN 30 -> 11),
+`gc_stream_osc_dispatch` (CCN 30 -> 10), `parse_color_intro` (CCN 28 -> 13),
+`load_glyph_into_slot` (CCN 28 -> 2) -- §7.1.6.
 
-Nothing is above CCN 40 any more. The worst remaining offender,
-`handle_pointer_event`, is a pointer event handler that mixes hover
-hit-testing, drag state and click detection (§7.1.5) — a mechanical split,
-but one where the "is this a drag or a click" decision is worth reading
-twice before touching it.
+Nothing in the tree is above CCN 30 any more. The three that took the place
+at the top of the list were not in the original table at all: they are
+process-lifecycle `main()`s, a cursor-state loader, and the CSI request-mode
+handler -- all real code, none of them a parser or a render loop.
 
 #### 7.1.1 `csi_lookup` (CCN 84) — labelled a table, but it is not one
 
@@ -921,7 +892,7 @@ Option 1 is the real gate. Option 2 is a reasonable stopgap.
 | 5 | ~~**B1-B7** — boilerplate extraction~~ | low | **done** (seven pure extractions) |
 | 6 | ~~**S2-S4** — stream header split + doc fixes~~ | low | **done** (per-module private headers; the stale RUNBOOK recipe fixed) |
 | 7 | ~~**H1-H5** — header decomposition~~ | medium | **done** (`screen.c` split into four files with four headers; the two include-guard and duplicate-typedef issues fixed) |
-| 8 | **7.1.4-7.1.6** — remaining hotspots | medium | Lower value per unit of risk |
+| 8 | ~~**7.1.4-7.1.6** — remaining hotspots~~ | medium | **done** (the worst function is now CCN 28, and it was not in the original table) |
 
 Do **not** split `screen.c` before items 1-6: the split points move once the parser and kitty modules change shape, and you would end up splitting twice.
 
