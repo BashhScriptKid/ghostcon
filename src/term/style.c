@@ -16,7 +16,7 @@
  * Phase 0's tests never checked colors, only codepoints/dirty tracking, so this
  * went unnoticed.
  */
-const ghostcon_style_t GHOSTCON_STYLE_DEFAULT = {
+const ghostcon_style_t GC_STYLE_DEFAULT = {
     .flags = GC_STYLE_FG_DEFAULT | GC_STYLE_BG_DEFAULT,
 };
 
@@ -150,7 +150,7 @@ ghostcon_style_id_t
 ghostcon_style_set_add(ghostcon_style_set_t *set, const ghostcon_style_t *style)
 {
     /* Default style always maps to ID 0 */
-    if (ghostcon_style_eq(style, &GHOSTCON_STYLE_DEFAULT))
+    if (ghostcon_style_eq(style, &GC_STYLE_DEFAULT))
         return GC_STYLE_DEFAULT_ID;
 
     /* Check if already exists */
@@ -247,12 +247,12 @@ const ghostcon_style_t
 *ghostcon_style_set_get(const ghostcon_style_set_t *set, ghostcon_style_id_t id)
 {
     if (id == GC_STYLE_DEFAULT_ID)
-        return &GHOSTCON_STYLE_DEFAULT;
+        return &GC_STYLE_DEFAULT;
 
     for (uint16_t i = 0; i < set->capacity; i++)
     {
         if (set->entries[i].id == id)
             return &set->entries[i].style;
     }
-    return &GHOSTCON_STYLE_DEFAULT;
+    return &GC_STYLE_DEFAULT;
 }

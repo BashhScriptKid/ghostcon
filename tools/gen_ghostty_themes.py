@@ -70,8 +70,8 @@ with open(OUT, 'w') as f:
     f.write('    const char *ansi[16];\n')
     f.write('    const char *fg, *bg, *cursor;\n')
     f.write('} ghostty_theme_preset_t;\n\n')
-    f.write(f'const int GHOSTCON_GHOSTTY_PRESET_COUNT = {len(entries)};\n\n')
-    f.write('const ghostty_theme_preset_t GHOSTCON_GHOSTTY_PRESETS[] = {\n')
+    f.write(f'const int GC_GHOSTTY_PRESET_COUNT = {len(entries)};\n\n')
+    f.write('const ghostty_theme_preset_t GC_GHOSTTY_PRESETS[] = {\n')
     for name, ansi, fg, bg, cursor in entries:
         ansi_str = ', '.join(f'"{c}"' for c in ansi)
         f.write(f'    {{ "{esc(name)}", {{ {ansi_str} }}, "{fg}", "{bg}", "{cursor}" }},\n')

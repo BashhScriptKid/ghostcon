@@ -279,7 +279,9 @@ Phases 1-4 are complete (§6). The active milestone is **Phase 5: Code Structure
 
 **Done so far:** §7.5 S1 (the stream module's own directory), §7.1.1 (the CSI dispatch table), and §7.1.2 + §7.1.3 (the Kitty graphics transmit path, with the module's first unit test) — see §6.
 
-The next step is **§7.4 N2-N4 — the naming consolidation**. 44 C identifiers share the `GHOSTCON_` prefix with the *runtime strings* (env var names, crash-report fields), which is what makes the prefix read as noise rather than as a rule; 23 of the `GHOSTCON_*` names are genuinely runtime strings and must not move. The migration is compiler-checked, has no behaviour change, and fits in one commit — but two of the names live in a **generated** file (`src/term/theme_ghostty_presets.c`), so the generator has to move with them or the next regeneration reintroduces the old names.
+The next step is **§7.2 B1-B7 — the boilerplate extraction**. Seven pure extractions, each independently reviewable, and none of them changes behaviour: the four byte-identical row copies in `screen.c` (B1, which becomes `ghostcon_row_copy()` in the `row.c` that already owns the row helpers), the three copies each of `resolve_sibling_path` (B2) and `self_path` (B3) and the `socket()`+fd-check preamble (B4), the 19-positional-float `push_quad` (B5), the `kitty_control_t` sentinel init (B6 — already done as part of the kitty work), and the two identical anonymous plane-props structs plus their twenty repeated `get_property_id` calls (B7).
+
+B1 is the clearest case and the recommended first one: the four copies are byte-identical, and `src/term/row.c` already owns `ghostcon_row_fill_range` / `ghostcon_row_clear_range`, so `ghostcon_row_copy()` belongs there.
 
 ---
 
@@ -307,6 +309,7 @@ Phases 1-4 above are implemented, each as a reviewable commit:
 | Phase 5 7.1.1 | `csi_lookup()` became `csi_table[]`, searched with a binary search over a table sorted by final byte: CCN 84 -> 11, and the RUNBOOK recipe is now "add one row". Covered by the new `tests/test_csi_dispatch.c`, which asserts every intermediate variant still dispatches and that the table stays sorted | `test_csi_dispatch` (new); equivalence against the old switch checked over 4,499,456 combinations of final byte / intermediate count / intermediate values / parameter count |
 | Phase 5 7.1.2 + 7.1.3 | `src/term/kitty_graphics.c`: the transmit path runs through a per-command context (`kitty_cmd_t`) that carries the ack target and the buffer and image slot the command owns, so every failure exit is one `kitty_fail(cmd, "error=...")` line instead of a re-typed five-argument `kitty_ack(...)` call. The path is split into the steps it actually has (resolve transfer / medium / format / dimensions, fetch payload, claim slot, accumulate, finalize, place). `kitty_parse_control`'s 17-arm `strcmp` chain became a table of (key, kind, length rule, field offset) rows. `handle_transmit` CCN 79 -> 12 (416 -> 33 lines); `kitty_parse_control` CCN 39 -> 6 (121 -> 72 lines) | `test_kitty_graphics` (new); equivalence against the old implementation checked over 46 single-command cases and 9 multi-command sessions, comparing the ack bytes, the image store, the placement table, the byte accounting and the reported cursor move after every command -- all identical, and clean under ASan/UBSan |
 | Phase 5 kitty test | `tests/test_kitty_graphics.c` -- the module's first unit test, covering the transmission/placement/ack protocol, the medium sandbox (`/tmp` and `/dev/shm` only, the `t=t` "must be named `tty-graphics-protocol`" rule, and exactly which files get deleted), and the chunked transfer's cross-chunk placement state | 65 assertions; three deliberate regressions (dropping the `t=t` filename convention, not unlinking the shm segment, not restoring the first chunk's `z=`) each make it fail |
+| Phase 5 N2-N4 | the 44 `GHOSTCON_*` C identifiers moved to `GC_*` (the generator `tools/gen_ghostty_themes.py` moved with the two names it emits); the 25 remaining `GHOSTCON_*` names are runtime strings only. The two old-style include guards became `#pragma once` like the other 35 headers. `GC_STYLE_ID_DEFAULT` deleted in favour of `GC_STYLE_DEFAULT_ID`. The `gc_` file-static tables in `cell.c` renamed, and the `GC_LOG` verdict cache hoisted from per-call-site to per-domain (with the domain list as an X-macro, so an unknown domain is a compile error) | full suite + ASan/UBSan; the rename is compiler-checked, and the diff contains no changed string literal |
 
 Current test count: **25/25** (`meson test -C build-release`).
 Live-service deploys use `build-release` + `meson install` + restart, per
@@ -617,15 +620,17 @@ include/ghostcon/term/kitty.h  ->  include/ghostcon/term/kitty_keyboard.h
 
 ### 7.4 Symbol naming conventions
 
-**Census** (372 distinct `ghostcon_` identifiers, 147 `GC_*` constants, 13 `gc_` functions, 67 `GHOSTCON_*` all-caps names):
+**Census** (re-measured after N2-N4: 372 distinct `ghostcon_` identifiers,
+193 `GC_*` constants, 14 `gc_` internal identifiers, 25 `GHOSTCON_*` all-caps
+names — all of them runtime strings):
 
 | tier | convention | count | consistent? |
 |---|---|---:|---|
 | public functions / types | `ghostcon_` | 372 | yes |
-| internal functions | `gc_` | 13 | mostly |
-| constants | `GC_` | 147 | no |
-| constants | `GHOSTCON_` | 44 | no |
-| runtime strings (env var names, crash-report fields) | `GHOSTCON_` | 23 | yes (legitimate) |
+| internal functions | `gc_` | 14 | yes |
+| constants | `GC_*` | 193 | yes |
+| constants | `GHOSTCON_` | 0 | — |
+| runtime strings (env var names, crash-report fields) | `GHOSTCON_` | 25 | yes (legitimate) |
 
 #### N1 — keep `ghostcon_` on functions and types
 
@@ -711,6 +716,25 @@ Migration list — the 44 C identifiers, with their defining site:
 > [!IMPORTANT]
 > Two of these are globals in a **generated** file — `src/term/theme_ghostty_presets.c:23,25`. The generator `tools/gen_ghostty_themes.py` must be updated in the same change, or the next regeneration silently reintroduces the old names. `src/term/theme.c:21-22` declares them `extern`.
 
+**Status: done.** All 44 identifiers moved to `GC_*`, the generator moved
+with the two names it emits, and the 25 remaining `GHOSTCON_*` names are
+runtime strings (env vars, crash-report fields, build defines) — the
+namespace split the item asked for.
+
+Two deviations from the table above, both deliberate:
+
+- **The two include guards disappeared instead of being renamed.** They were
+  the *only* two old-style include guards in the tree — the other 35 headers
+  all use `#pragma once` — so renaming them to `GC_TERM_*_H` would have
+  left two lone include guards in a different namespace rather than
+  removing the problem. Both headers are now `#pragma once`, and the
+  identifiers are gone.
+- **The constants that name a *style id* stayed in `style.h`.** `cell.h`
+  owns the `ghostcon_style_id_t` type and its range, but `style.h` includes
+  `cell.h`, so the "default style id" constant cannot live in `cell.h`
+  without an include cycle. `cell.h` now says so in a comment instead of
+  defining a second constant for the same value.
+
 #### N3 — collapse the duplicated default-style constant
 
 Two constants, same value, same meaning, inverted word order, in two headers:
@@ -722,11 +746,36 @@ include/ghostcon/term/cell.h:77    #define GC_STYLE_ID_DEFAULT 0     ( 2 uses)
 
 Both mean "the default style id". Keep one — `GC_STYLE_DEFAULT_ID`, in `style.h`, since that is where the style API lives — and delete the other.
 
+**Status: done.** `GC_STYLE_ID_DEFAULT` is gone; `cell.h` keeps the type
+and its range (`GC_STYLE_ID_MAX`) and points at `style.h` for the default
+id, and the two users (`src/term/row.c`, `src/term/dump.c`) now include
+`style.h` explicitly rather than relying on a transitive include.
+
 #### N4 — drop `gc_` from file-static tables
 
 `gc_combining` and `gc_wide` (`src/term/cell.c:21,62`) are `static const` file-local tables. `static` already scopes them; the prefix buys nothing. Rename to `combining_ranges` / `wide_ranges`, and `gc_width_range_t` -> `width_range_t` for consistency.
 
 Separately, `gc_log_state` (`include/ghostcon/core/log.h:84`) is a macro-introduced file-scope `static`, instantiated **once per `GC_LOG` call site** — so the "cached per-domain verdict" is really a per-site cache. The comment at `log.h:79-82` says "per site" honestly, but the variable name reads as per-domain. Either rename it (`gc_log_site_state`) or hoist the cache so one `getenv()` happens per domain rather than per site — the latter is a small behaviour change and the better long-term shape.
+
+**Status: done, and the second half took the "hoist" option.** The tables
+in `cell.c` are renamed, and the log cache is now a per-domain array in a
+`static inline` function, so there is one copy per translation unit that
+logs rather than one per call site.
+
+Hoisting it needed the domain list to be enumerable, which it now is:
+
+```c
+#define GC_LOG_DOMAINS(X) X(vt) X(drm) X(cursor) X(input) \
+                             X(selection) X(config) X(pty) X(stream)
+```
+
+The macro turns the domain into an index (`GC_LOG_DOMAIN_##domain`), so
+the enum and the name string cannot drift apart — and a domain that is not
+in the list is now a **compile error** rather than a tag that silently
+matches nothing in `GHOSTCON_LOG`. The behaviour change is that `getenv()`
+runs once per domain per translation unit instead of once per call site;
+`GHOSTCON_LOG` does not change during a run, so this is not observable.
+
 
 ---
 
@@ -826,7 +875,7 @@ Option 1 is the real gate. Option 2 is a reasonable stopgap.
 | 1 | ~~**S1** — stream directory move~~ | none | **done** |
 | 2 | ~~**7.1.1** — `csi_lookup` -> table~~ | low | **done** (CCN 84 -> 11) |
 | 3 | ~~**7.1.2 + 7.1.3** — kitty context struct + key table~~ | low | **done** (CCN 79 -> 12 and 39 -> 6), plus the module's first unit test |
-| 4 | **N2-N4** — naming consolidation (§7.4) | low | ~44 identifiers + 1 duplicated constant; compiler-checked, no behaviour change; one commit |
+| 4 | ~~**N2-N4** — naming consolidation (§7.4)~~ | low | **done** (44 identifiers moved; the 25 remaining `GHOSTCON_*` names are runtime strings) |
 | 5 | **B1-B7** — boilerplate extraction | low | Each is a pure extraction; `ghostcon_row_copy()` first |
 | 6 | **S2-S4** — stream header split + doc fixes | low | After S1 (paths settle) and after 7.1.1 (the CSI contract is then final) |
 | 7 | **H1-H5** — header decomposition | medium | Last: splitting `screen.c` changes the shape of everything above it |

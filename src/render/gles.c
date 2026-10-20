@@ -831,7 +831,7 @@ ghostcon_gles_image_t
         }
     }
 
-    if (gles->kitty_tex_count >= GHOSTCON_KITTY_MAX_IMAGES)
+    if (gles->kitty_tex_count >= GC_KITTY_MAX_IMAGES)
     {
         /* Under pressure: evict whichever cached id no longer resolves in
          * the current image store (genuinely deleted), else the oldest
@@ -893,7 +893,7 @@ ghostcon_gles_image_t
         }
     }
 
-    if (gles->sixel_tex_count >= GHOSTCON_SIXEL_MAX_PLACEMENTS)
+    if (gles->sixel_tex_count >= GC_SIXEL_MAX_PLACEMENTS)
     {
         /* Same eviction posture as ghostcon_gles_kitty_tex_get above:
          * prefer a cached slot that's no longer actually in use, else
@@ -903,7 +903,7 @@ ghostcon_gles_image_t
         for (size_t i = 0; i < gles->sixel_tex_count; i++)
         {
             int s = gles->sixel_tex[i].slot;
-            if (!sx || s < 0 || s >= GHOSTCON_SIXEL_MAX_PLACEMENTS || !sx->placements[s].in_use)
+            if (!sx || s < 0 || s >= GC_SIXEL_MAX_PLACEMENTS || !sx->placements[s].in_use)
             {
                 victim = i;
                 break;

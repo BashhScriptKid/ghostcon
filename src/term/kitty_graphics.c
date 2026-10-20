@@ -50,7 +50,7 @@ static uint8_t *decode_png_rgba(const uint8_t *data, size_t len, int32_t *out_w,
         return NULL;
 
     if (image.width == 0 || image.height == 0 ||
-        image.width > GHOSTCON_KITTY_MAX_DIM || image.height > GHOSTCON_KITTY_MAX_DIM)
+        image.width > GC_KITTY_MAX_DIM || image.height > GC_KITTY_MAX_DIM)
     {
         png_image_free(&image);
         return NULL;
@@ -59,7 +59,7 @@ static uint8_t *decode_png_rgba(const uint8_t *data, size_t len, int32_t *out_w,
     image.format = PNG_FORMAT_RGBA;
     size_t stride = PNG_IMAGE_ROW_STRIDE(image);
     size_t total = PNG_IMAGE_BUFFER_SIZE(image, stride);
-    if (total == 0 || total > GHOSTCON_KITTY_MAX_IMAGE_BYTES)
+    if (total == 0 || total > GC_KITTY_MAX_IMAGE_BYTES)
     {
         png_image_free(&image);
         return NULL;
@@ -702,7 +702,7 @@ typedef struct
 static ghostcon_kitty_image_t
 *find_image(ghostcon_kitty_graphics_t *kg, uint32_t id)
 {
-    for (int i = 0; i < GHOSTCON_KITTY_MAX_IMAGES; i++)
+    for (int i = 0; i < GC_KITTY_MAX_IMAGES; i++)
         if (kg->images[i].in_use && kg->images[i].id == id)
             return &kg->images[i];
     return NULL;
@@ -732,7 +732,7 @@ static ghostcon_kitty_image_t
         existing->id = id;
         return existing;
     }
-    for (int i = 0; i < GHOSTCON_KITTY_MAX_IMAGES; i++)
+    for (int i = 0; i < GC_KITTY_MAX_IMAGES; i++)
     {
         if (!kg->images[i].in_use)
         {
@@ -746,7 +746,7 @@ static ghostcon_kitty_image_t
 
 static void delete_placements_for_image(ghostcon_kitty_graphics_t *kg, uint32_t image_id, int64_t placement_id /* -1 = all placements of this image */)
 {
-    for (int i = 0; i < GHOSTCON_KITTY_MAX_PLACEMENTS; i++)
+    for (int i = 0; i < GC_KITTY_MAX_PLACEMENTS; i++)
     {
         ghostcon_kitty_placement_t *p = &kg->placements[i];
         if (!p->in_use || p->image_id != image_id)
@@ -760,7 +760,7 @@ static void delete_placements_for_image(ghostcon_kitty_graphics_t *kg, uint32_t 
 static ghostcon_kitty_placement_t
 *alloc_placement_slot(ghostcon_kitty_graphics_t *kg, uint32_t image_id, uint32_t placement_id)
 {
-    for (int i = 0; i < GHOSTCON_KITTY_MAX_PLACEMENTS; i++)
+    for (int i = 0; i < GC_KITTY_MAX_PLACEMENTS; i++)
     {
         if (kg->placements[i].in_use &&
             kg->placements[i].image_id == image_id &&
@@ -769,7 +769,7 @@ static ghostcon_kitty_placement_t
             return &kg->placements[i]; /* replace existing placement */
         }
     }
-    for (int i = 0; i < GHOSTCON_KITTY_MAX_PLACEMENTS; i++)
+    for (int i = 0; i < GC_KITTY_MAX_PLACEMENTS; i++)
     {
         if (!kg->placements[i].in_use)
         {
@@ -868,7 +868,7 @@ void ghostcon_kitty_graphics_init(ghostcon_kitty_graphics_t *kg)
 
 void ghostcon_kitty_graphics_deinit(ghostcon_kitty_graphics_t *kg)
 {
-    for (int i = 0; i < GHOSTCON_KITTY_MAX_IMAGES; i++)
+    for (int i = 0; i < GC_KITTY_MAX_IMAGES; i++)
     {
         free(kg->images[i].pixels);
         free(kg->images[i].recv_buf);
@@ -1062,7 +1062,7 @@ static bool kitty_resolve_dimensions(kitty_cmd_t *cmd)
     {
         cmd->width = 0;
         cmd->height = 0;
-        cmd->expected_len = GHOSTCON_KITTY_MAX_IMAGE_BYTES;
+        cmd->expected_len = GC_KITTY_MAX_IMAGE_BYTES;
         return true;
     }
     if (cmd->continuing)
@@ -1075,15 +1075,15 @@ static bool kitty_resolve_dimensions(kitty_cmd_t *cmd)
         cmd->width = cmd->ctl->width;
         cmd->height = cmd->ctl->height;
         if (cmd->width <= 0 || cmd->height <= 0 ||
-            (uint32_t)cmd->width > GHOSTCON_KITTY_MAX_DIM ||
-            (uint32_t)cmd->height > GHOSTCON_KITTY_MAX_DIM)
+            (uint32_t)cmd->width > GC_KITTY_MAX_DIM ||
+            (uint32_t)cmd->height > GC_KITTY_MAX_DIM)
         {
             cmd->error = "error=EINVAL:missing or out-of-range s=/v=";
             return false;
         }
     }
     cmd->expected_len = (size_t)cmd->width * (size_t)cmd->height * (size_t)cmd->bpp;
-    if (cmd->expected_len > GHOSTCON_KITTY_MAX_IMAGE_BYTES)
+    if (cmd->expected_len > GC_KITTY_MAX_IMAGE_BYTES)
     {
         cmd->error = "error=EINVAL:image too large";
         return false;
@@ -1152,11 +1152,11 @@ static bool kitty_fetch_payload(kitty_cmd_t *cmd, const char *payload, size_t pa
     uint8_t *data = NULL;
     size_t data_len = 0;
     if (cmd->medium == KITTY_MEDIUM_SHM)
-        data = read_shm_segment((char *)name_buf, GHOSTCON_KITTY_MAX_IMAGE_BYTES, &data_len);
+        data = read_shm_segment((char *)name_buf, GC_KITTY_MAX_IMAGE_BYTES, &data_len);
     else if (cmd->medium == KITTY_MEDIUM_TEMP_FILE)
-        data = read_temp_file((char *)name_buf, GHOSTCON_KITTY_MAX_IMAGE_BYTES, &data_len);
+        data = read_temp_file((char *)name_buf, GC_KITTY_MAX_IMAGE_BYTES, &data_len);
     else
-        data = read_cache_file((char *)name_buf, GHOSTCON_KITTY_MAX_IMAGE_BYTES, &data_len);
+        data = read_cache_file((char *)name_buf, GC_KITTY_MAX_IMAGE_BYTES, &data_len);
     free(name_buf);
     if (!data)
     {
@@ -1302,7 +1302,7 @@ static bool kitty_finalize_transfer(kitty_cmd_t *cmd)
     cmd->pending = final_pixels;
     cmd->pending_len = final_len;
 
-    if (cmd->kg->total_bytes + final_len > GHOSTCON_KITTY_MAX_TOTAL_BYTES)
+    if (cmd->kg->total_bytes + final_len > GC_KITTY_MAX_TOTAL_BYTES)
     {
         cmd->release_img = true;
         cmd->error = "error=ENOSPC:total image memory limit exceeded";
@@ -1474,7 +1474,7 @@ static void handle_delete(kitty_cmd_t *cmd)
      */
     if (ctl->delete_mode == 'a')
     {
-        for (int i = 0; i < GHOSTCON_KITTY_MAX_IMAGES; i++)
+        for (int i = 0; i < GC_KITTY_MAX_IMAGES; i++)
             free_image(cmd->kg, &cmd->kg->images[i]);
         memset(cmd->kg->placements, 0, sizeof cmd->kg->placements);
         return;
@@ -1502,7 +1502,7 @@ static void handle_delete(kitty_cmd_t *cmd)
 const ghostcon_kitty_image_t
 *ghostcon_kitty_graphics_find_image(const ghostcon_kitty_graphics_t *kg, uint32_t id)
 {
-    for (int i = 0; i < GHOSTCON_KITTY_MAX_IMAGES; i++)
+    for (int i = 0; i < GC_KITTY_MAX_IMAGES; i++)
     {
         const ghostcon_kitty_image_t *img = &kg->images[i];
         if (img->in_use && img->id == id && img->pixels)

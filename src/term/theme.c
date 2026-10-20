@@ -18,8 +18,8 @@ typedef struct
     const char *ansi[16];
     const char *fg, *bg, *cursor;
 } ghostty_theme_preset_t;
-extern const int GHOSTCON_GHOSTTY_PRESET_COUNT;
-extern const ghostty_theme_preset_t GHOSTCON_GHOSTTY_PRESETS[];
+extern const int GC_GHOSTTY_PRESET_COUNT;
+extern const ghostty_theme_preset_t GC_GHOSTTY_PRESETS[];
 
 typedef struct
 {
@@ -119,9 +119,9 @@ bool ghostcon_theme_apply(ghostcon_palette_t *pal, const char *name)
      * theme, same "degrade gracefully" convention used elsewhere in this
      * codebase.
      */
-    for (int i = 0; i < GHOSTCON_GHOSTTY_PRESET_COUNT; i++)
+    for (int i = 0; i < GC_GHOSTTY_PRESET_COUNT; i++)
     {
-        const ghostty_theme_preset_t *p = &GHOSTCON_GHOSTTY_PRESETS[i];
+        const ghostty_theme_preset_t *p = &GC_GHOSTTY_PRESETS[i];
         if (strcmp(p->name, name) != 0)
             continue;
         GhosttyColorRgb rgb;

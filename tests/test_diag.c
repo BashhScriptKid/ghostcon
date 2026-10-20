@@ -34,7 +34,7 @@
  *
  * specifically the backtrace embedded in MESSAGE, which diag.c's own
  * crash_handler() doc comment says is deliberately truncated to
- * GHOSTCON_DIAG_HEAD_FRAMES (8) frames.
+ * GC_DIAG_HEAD_FRAMES (8) frames.
  */
 static bool journal_has_entry(pid_t pid, char *out_buf, size_t out_cap)
 {
@@ -76,7 +76,7 @@ static bool journal_has_entry(pid_t pid, char *out_buf, size_t out_cap)
 }
 
 /* diag.c's crash_handler() truncates the journald-embedded backtrace to the first
- * GHOSTCON_DIAG_HEAD_FRAMES (8) frames
+ * GC_DIAG_HEAD_FRAMES (8) frames
  *
  * a bare abort() only produces a 2-3 frame real stack (main -> abort -> libc
  * internals), which is too shallow to ever exceed that cap, so a test using it
@@ -204,9 +204,9 @@ int main(void)
     }
     printf("PASS: journald MESSAGE contains a real, symbolized backtrace\n");
 
-    /* Truncation: diag.c caps the embedded head at GHOSTCON_DIAG_HEAD_FRAMES=8
-     * frames joined by " | ", so at most 7 separators should appear regardless of
-     * how deep the real stack is (RECURSE_DEPTH=20 guarantees the real stack is
+    /* Truncation: diag.c caps the embedded head at GC_DIAG_HEAD_FRAMES=8 frames
+     * joined by " | ", so at most 7 separators should appear regardless of how
+     * deep the real stack is (RECURSE_DEPTH=20 guarantees the real stack is
      * deeper than that cap, so this is a genuine truncation check, not a vacuous
      * one).
      */
@@ -215,7 +215,7 @@ int main(void)
         seps++;
     if (seps > 7)
     {
-        fprintf(stderr, "FAIL: backtrace head has %d separators (>7) for a %d-deep real stack -- GHOSTCON_DIAG_HEAD_FRAMES truncation not enforced: %s\n",
+        fprintf(stderr, "FAIL: backtrace head has %d separators (>7) for a %d-deep real stack -- GC_DIAG_HEAD_FRAMES truncation not enforced: %s\n",
                 seps, RECURSE_DEPTH, head);
         return 1;
     }

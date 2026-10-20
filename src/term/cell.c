@@ -15,10 +15,10 @@
 typedef struct
 {
     uint32_t lo, hi;
-} gc_width_range_t;
+} width_range_t;
 
 /* Combining / zero-width marks and controls (from Markus Kuhn). */
-static const gc_width_range_t gc_combining[] = {
+static const width_range_t combining_ranges[] = {
     {0x0300,0x036F}, {0x0483,0x0486}, {0x0488,0x0489}, {0x0591,0x05BD},
     {0x05BF,0x05BF}, {0x05C1,0x05C2}, {0x05C4,0x05C5}, {0x05C7,0x05C7},
     {0x0610,0x061A}, {0x064B,0x065E}, {0x0670,0x0670}, {0x06D6,0x06ED},
@@ -59,7 +59,7 @@ static const gc_width_range_t gc_combining[] = {
 /* East Asian wide/fullwidth ranges (from Markus Kuhn's wcwidth, which
  * Ghostty's UCD-derived table agrees with for practical input).
  */
-static const gc_width_range_t gc_wide[] = {
+static const width_range_t wide_ranges[] = {
     {0x1100,0x115F}, {0x231A,0x231B}, {0x2329,0x232A}, {0x23E9,0x23EC},
     {0x23F0,0x23F0}, {0x23F3,0x23F3}, {0x25FD,0x25FE}, {0x2614,0x2615},
     {0x2648,0x2653}, {0x267F,0x267F}, {0x2693,0x2693}, {0x26A1,0x26A1},
@@ -105,15 +105,15 @@ uint8_t ghostcon_unicode_width(uint32_t cp)
     if (cp < 0x20 || (cp >= 0x7F && cp < 0xA0)) return 0;
 
     /* Combining marks and zero-width characters */
-    size_t lo = 0, hi = sizeof(gc_combining) / sizeof(gc_combining[0]);
+    size_t lo = 0, hi = sizeof(combining_ranges) / sizeof(combining_ranges[0]);
     while (lo < hi)
     {
         size_t mid = (lo + hi) / 2;
-        if (cp < gc_combining[mid].lo)
+        if (cp < combining_ranges[mid].lo)
         {
             hi = mid;
         }
-        else if (cp > gc_combining[mid].hi)
+        else if (cp > combining_ranges[mid].hi)
         {
             lo = mid + 1;
         }
@@ -125,15 +125,15 @@ uint8_t ghostcon_unicode_width(uint32_t cp)
 
     /* East Asian wide/fullwidth */
     lo = 0;
-    hi = sizeof(gc_wide) / sizeof(gc_wide[0]);
+    hi = sizeof(wide_ranges) / sizeof(wide_ranges[0]);
     while (lo < hi)
     {
         size_t mid = (lo + hi) / 2;
-        if (cp < gc_wide[mid].lo)
+        if (cp < wide_ranges[mid].lo)
         {
             hi = mid;
         }
-        else if (cp > gc_wide[mid].hi)
+        else if (cp > wide_ranges[mid].hi)
         {
             lo = mid + 1;
         }

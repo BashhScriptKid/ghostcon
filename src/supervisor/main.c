@@ -270,7 +270,7 @@ static pid_t query_pty_child_pid(const char *registry_socket, int vtnum)
         return -1;
     }
 
-    char req[GHOSTCON_PTYSERV_LINE_MAX];
+    char req[GC_PTYSERV_LINE_MAX];
     size_t req_len = ghostcon_ptyserv_format_get(req, sizeof(req), vtnum);
     if (req_len == 0 || write(fd, req, req_len) != (ssize_t)req_len)
     {
@@ -278,7 +278,7 @@ static pid_t query_pty_child_pid(const char *registry_socket, int vtnum)
         return -1;
     }
 
-    char resp[GHOSTCON_PTYSERV_LINE_MAX];
+    char resp[GC_PTYSERV_LINE_MAX];
     ssize_t r = read(fd, resp, sizeof(resp) - 1);
     close(fd);
     if (r <= 0)
@@ -286,7 +286,7 @@ static pid_t query_pty_child_pid(const char *registry_socket, int vtnum)
     resp[r] = '\0';
 
     int pid = -1;
-    char socket_path[GHOSTCON_PTYSERV_LINE_MAX];
+    char socket_path[GC_PTYSERV_LINE_MAX];
     if (!ghostcon_ptyserv_parse_ok(resp, &pid, socket_path))
         return -1;
     return (pid_t)pid;
@@ -518,7 +518,7 @@ int main(int argc, char **argv)
      * see spawn_renderer's own comment on why a positional gap here would be a
      * real bug, not just untidy.
      */
-    const char *registry_socket = argc > 2 ? argv[2] : GHOSTCON_PTYSERV_SOCKET_PATH;
+    const char *registry_socket = argc > 2 ? argv[2] : GC_PTYSERV_SOCKET_PATH;
     /* argv takes priority; otherwise GHOSTCON_DRM_NODE env var (this machine's
      * GPU is card1, not the common-case card0 default --found the hard way:
      * DEFAULT_DRM_NODE alone left ghostcon-core unable to open any DRM device,

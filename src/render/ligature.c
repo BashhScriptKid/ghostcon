@@ -28,7 +28,7 @@ static bool is_ligature_trigger(uint32_t cp)
 static uint32_t cell_codepoint_or_zero(ghostcon_cell_t cell)
 {
     ghostcon_cell_content_tag_t tag = ghostcon_cell_get_tag(cell);
-    return (tag == GHOSTCON_CELL_CODEPOINT || tag == GHOSTCON_CELL_CODEPOINT_GRAPHEME)
+    return (tag == GC_CELL_CODEPOINT || tag == GC_CELL_CODEPOINT_GRAPHEME)
         ? ghostcon_cell_get_codepoint(cell) : 0;
 }
 
@@ -48,10 +48,10 @@ int ghostcon_ligature_scan_row(const ghostcon_row_t *row, ghostcon_atlas_t *atla
 
         uint16_t run_start = x;
         uint16_t style = ghostcon_cell_get_style(row->cells[x]);
-        uint32_t cps[GHOSTCON_LIGATURE_MAX_RUN_LEN];
+        uint32_t cps[GC_LIGATURE_MAX_RUN_LEN];
         int run_len = 0;
 
-        while (x < row->cols && run_len < GHOSTCON_LIGATURE_MAX_RUN_LEN)
+        while (x < row->cols && run_len < GC_LIGATURE_MAX_RUN_LEN)
         {
             ghostcon_cell_t c = row->cells[x];
             uint32_t c_cp = cell_codepoint_or_zero(c);
@@ -69,10 +69,10 @@ int ghostcon_ligature_scan_row(const ghostcon_row_t *row, ghostcon_atlas_t *atla
         if (run_len < 2)
             continue;
 
-        uint32_t out_gidx[GHOSTCON_LIGATURE_MAX_RUN_LEN];
-        float out_adv[GHOSTCON_LIGATURE_MAX_RUN_LEN];
+        uint32_t out_gidx[GC_LIGATURE_MAX_RUN_LEN];
+        float out_adv[GC_LIGATURE_MAX_RUN_LEN];
         int shaped = ghostcon_atlas_shape_run(atlas, cps, run_len, out_gidx, out_adv,
-                                               GHOSTCON_LIGATURE_MAX_RUN_LEN);
+                                               GC_LIGATURE_MAX_RUN_LEN);
         (void)out_adv;
 
         /* Only trust a straight 1:1 mapping

@@ -21,7 +21,7 @@ typedef struct
 {
     int fd; /* connected to the pty child's socket, or -1 if unconnected */
     int ctl_fd; /* connected to the pty child's resize control socket
-                    (see ptyserv/protocol.h's GHOSTCON_PTY_CTL_SOCKET_FMT),
+                    (see ptyserv/protocol.h's GC_PTY_CTL_SOCKET_FMT),
                     or -1 if unconnected/unavailable -- not fatal if this
                     one fails, resizes just silently won't propagate */
     int pty_child_pid; /* from the registry response, for callers that
@@ -30,7 +30,7 @@ typedef struct
                            lifecycle directly, that's ghost-ptyserv's job */
 } ghostcon_transport_t;
 
-/* Connects to registry_socket_path (typically GHOSTCON_PTYSERV_SOCKET_PATH), asks
+/* Connects to registry_socket_path (typically GC_PTYSERV_SOCKET_PATH), asks
  * for vtnum's pty child, then connects to that child's socket.
  *
  * On success, the pty child immediately starts streaming its ring buffer replay

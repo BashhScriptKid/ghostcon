@@ -10,7 +10,7 @@ void ghostcon_sixel_state_init(ghostcon_sixel_state_t *st)
 
 void ghostcon_sixel_state_deinit(ghostcon_sixel_state_t *st)
 {
-    for (int i = 0; i < GHOSTCON_SIXEL_MAX_PLACEMENTS; i++)
+    for (int i = 0; i < GC_SIXEL_MAX_PLACEMENTS; i++)
         free(st->placements[i].pixels);
     memset(st, 0, sizeof *st);
 }
@@ -18,7 +18,7 @@ void ghostcon_sixel_state_deinit(ghostcon_sixel_state_t *st)
 static ghostcon_sixel_placement_t
 *alloc_placement_slot(ghostcon_sixel_state_t *st)
 {
-    for (int i = 0; i < GHOSTCON_SIXEL_MAX_PLACEMENTS; i++)
+    for (int i = 0; i < GC_SIXEL_MAX_PLACEMENTS; i++)
     {
         if (!st->placements[i].in_use)
         {
@@ -90,7 +90,7 @@ static void parse_color_intro(const char **p, const char *end, color_reg_t *regs
     if (nvals < 1)
         return;
     int pc = (int)vals[0];
-    if (pc < 0 || pc >= GHOSTCON_SIXEL_COLOR_REGISTERS)
+    if (pc < 0 || pc >= GC_SIXEL_COLOR_REGISTERS)
         return;
     *current_reg = pc;
     if (nvals < 5)
@@ -281,7 +281,7 @@ static void sixel_set_column(uint8_t *pixels, int32_t width, int32_t height, int
  */
 static void sixel_paint(const char *body, size_t body_len, uint8_t *pixels, int32_t width, int32_t height)
 {
-    color_reg_t regs[GHOSTCON_SIXEL_COLOR_REGISTERS];
+    color_reg_t regs[GC_SIXEL_COLOR_REGISTERS];
     memset(regs, 0, sizeof regs);
     int current_reg = 0;
 
@@ -380,12 +380,12 @@ void ghostcon_sixel_decode(ghostcon_sixel_state_t *st, const int32_t *dcs_params
     int32_t width, height;
     sixel_measure(body, body_len, &width, &height);
     if (width <= 0 || height <= 0 ||
-        (uint32_t)width > GHOSTCON_SIXEL_MAX_DIM ||
-        (uint32_t)height > GHOSTCON_SIXEL_MAX_DIM)
+        (uint32_t)width > GC_SIXEL_MAX_DIM ||
+        (uint32_t)height > GC_SIXEL_MAX_DIM)
         return; /* nothing decodable -- silently ignore, no ack channel to report on */
 
     size_t pixel_len = (size_t)width * (size_t)height * 4;
-    if (pixel_len > GHOSTCON_SIXEL_MAX_IMAGE_BYTES)
+    if (pixel_len > GC_SIXEL_MAX_IMAGE_BYTES)
         return;
 
     uint8_t *pixels = malloc(pixel_len);
@@ -409,7 +409,7 @@ void ghostcon_sixel_decode(ghostcon_sixel_state_t *st, const int32_t *dcs_params
 
     sixel_paint(body, body_len, pixels, width, height);
 
-    if (st->total_bytes + pixel_len > GHOSTCON_SIXEL_MAX_TOTAL_BYTES)
+    if (st->total_bytes + pixel_len > GC_SIXEL_MAX_TOTAL_BYTES)
     {
         free(pixels);
         return;

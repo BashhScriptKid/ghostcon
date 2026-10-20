@@ -17,8 +17,8 @@
  * or "ERR <reason>\n"
  */
 
-#define GHOSTCON_PTYSERV_SOCKET_PATH "/run/ghostcon/ptyserv.sock"
-#define GHOSTCON_PTYSERV_LINE_MAX 256
+#define GC_PTYSERV_SOCKET_PATH "/run/ghostcon/ptyserv.sock"
+#define GC_PTYSERV_LINE_MAX 256
 
 /* pty-ttyN child sockets live alongside the registry socket, one per VT ("%s" is
  * the registry socket's directory
@@ -27,7 +27,7 @@
  * /run/ghostcon, so it works both under a real /run/ghostcon (production) and an
  * arbitrary temp directory (tests, no root required).
  */
-#define GHOSTCON_PTY_CHILD_SOCKET_FMT "%s/pty-tty%d.sock"
+#define GC_PTY_CHILD_SOCKET_FMT "%s/pty-tty%d.sock"
 
 /* Resize control socket, one per VT alongside the data socket above.
  *
@@ -42,7 +42,7 @@
  * A dedicated socket avoids both problems: plain-text framing is safe here since
  * nothing but resize messages ever crosses it.
  */
-#define GHOSTCON_PTY_CTL_SOCKET_FMT "%s/pty-tty%d.ctl.sock"
+#define GC_PTY_CTL_SOCKET_FMT "%s/pty-tty%d.ctl.sock"
 
 /* Fixed-size overwrite-oldest ring buffer of PTY output, replayed in full
  * to every newly connected renderer before live forwarding resumes.
@@ -50,7 +50,7 @@
  * Not specified in PLAN.md. This default is the ghost-ptyserv port's own
  * choice, documented here since nothing else pins it down.
  */
-#define GHOSTCON_PTY_RINGBUF_DEFAULT_SIZE (1u << 20) /* 1 MiB */
+#define GC_PTY_RINGBUF_DEFAULT_SIZE (1u << 20) /* 1 MiB */
 
 /* Registry request/response parsing helpers */
 
@@ -70,7 +70,7 @@ extern bool ghostcon_ptyserv_parse_get(const char *line, int *vtnum);
 extern size_t ghostcon_ptyserv_format_ok(char *buf, size_t buf_len, int pid, const char *socket_path);
 
 /* Parses an "OK pid=<pid> socket=<path>\n" response line. socket_path must
- * be at least GHOSTCON_PTYSERV_LINE_MAX bytes. Returns true on success.
+ * be at least GC_PTYSERV_LINE_MAX bytes. Returns true on success.
  */
 extern bool ghostcon_ptyserv_parse_ok(const char *line, int *pid, char *socket_path);
 
@@ -84,7 +84,7 @@ extern bool ghostcon_ptyserv_parse_ok(const char *line, int *pid, char *socket_p
  * rather than guessing.
  *
  * Returns written length, or 0 if it wouldn't fit. Sent over the control
- * socket (GHOSTCON_PTY_CTL_SOCKET_FMT), never the data socket.
+ * socket (GC_PTY_CTL_SOCKET_FMT), never the data socket.
  */
 extern size_t ghostcon_ptyserv_format_resize(char *buf, size_t buf_len, int rows, int cols, int xpixel, int ypixel);
 
@@ -102,7 +102,7 @@ extern bool ghostcon_ptyserv_parse_resize(const char *line, int *rows, int *cols
 /* Formats "CLEAR\n" into buf. Returns written length, or 0 if it wouldn't
  * fit.
  *
- * Sent over the control socket (GHOSTCON_PTY_CTL_SOCKET_FMT) by pty_child.c
+ * Sent over the control socket (GC_PTY_CTL_SOCKET_FMT) by pty_child.c
  * the moment its session dies (before respawning)
  *
  * Tells ghostcon-core the screen's previous owner is gone so it can

@@ -6,27 +6,27 @@
 /* Cell content tag (2 bits) */
 typedef enum
 {
-    GHOSTCON_CELL_CODEPOINT         = 0, /* single codepoint (or empty) */
-    GHOSTCON_CELL_CODEPOINT_GRAPHEME = 1, /* first cp of multi-cp grapheme */
-    GHOSTCON_CELL_BG_COLOR_PALETTE  = 2, /* no text, only bg from palette */
-    GHOSTCON_CELL_BG_COLOR_RGB      = 3, /* no text, only bg as RGB       */
+    GC_CELL_CODEPOINT         = 0, /* single codepoint (or empty) */
+    GC_CELL_CODEPOINT_GRAPHEME = 1, /* first cp of multi-cp grapheme */
+    GC_CELL_BG_COLOR_PALETTE  = 2, /* no text, only bg from palette */
+    GC_CELL_BG_COLOR_RGB      = 3, /* no text, only bg as RGB       */
 } ghostcon_cell_content_tag_t;
 
 /* Wide char status (2 bits) */
 typedef enum
 {
-    GHOSTCON_CELL_WIDE_NARROW      = 0,
-    GHOSTCON_CELL_WIDE_WIDE        = 1, /* width-2 char (followed by spacer_tail) */
-    GHOSTCON_CELL_WIDE_SPACER_TAIL = 2, /* second cell of wide char */
-    GHOSTCON_CELL_WIDE_SPACER_HEAD = 3, /* wide char wraps to next line */
+    GC_CELL_WIDE_NARROW      = 0,
+    GC_CELL_WIDE_WIDE        = 1, /* width-2 char (followed by spacer_tail) */
+    GC_CELL_WIDE_SPACER_TAIL = 2, /* second cell of wide char */
+    GC_CELL_WIDE_SPACER_HEAD = 3, /* wide char wraps to next line */
 } ghostcon_cell_wide_t;
 
 /* Semantic content type (2 bits) */
 typedef enum
 {
-    GHOSTCON_CELL_SEMANTIC_OUTPUT = 0,
-    GHOSTCON_CELL_SEMANTIC_INPUT  = 1,
-    GHOSTCON_CELL_SEMANTIC_PROMPT = 2,
+    GC_CELL_SEMANTIC_OUTPUT = 0,
+    GC_CELL_SEMANTIC_INPUT  = 1,
+    GC_CELL_SEMANTIC_PROMPT = 2,
 } ghostcon_cell_semantic_t;
 
 /* RGB color */
@@ -72,9 +72,13 @@ typedef struct
 #define GC_CELL_HYPERLINK_ID_SHIFT 47
 #define GC_CELL_HYPERLINK_ID_MASK  ((uint64_t)0x7FFF << 47)
 
-/* Style ID type (15-bit, 0 = default style) */
+/* Style ID type (15-bit, 0 = default style)
+ *
+ * The default style's id is GC_STYLE_DEFAULT_ID, in style.h -- this header
+ * only owns the type and its range, and style.h includes this one, so the
+ * constant cannot live here without an include cycle.
+ */
 typedef uint16_t ghostcon_style_id_t;
-#define GC_STYLE_ID_DEFAULT 0
 #define GC_STYLE_ID_MAX     0x7FFF
 
 /* Codepoint extracted from content field */
@@ -208,13 +212,13 @@ static inline bool ghostcon_cell_is_empty(ghostcon_cell_t c)
 static inline bool ghostcon_cell_has_text(ghostcon_cell_t c)
 {
     ghostcon_cell_content_tag_t t = ghostcon_cell_get_tag(c);
-    return t == GHOSTCON_CELL_CODEPOINT ||
-           t == GHOSTCON_CELL_CODEPOINT_GRAPHEME;
+    return t == GC_CELL_CODEPOINT ||
+           t == GC_CELL_CODEPOINT_GRAPHEME;
 }
 
 static inline bool ghostcon_cell_has_grapheme(ghostcon_cell_t c)
 {
-    return ghostcon_cell_get_tag(c) == GHOSTCON_CELL_CODEPOINT_GRAPHEME;
+    return ghostcon_cell_get_tag(c) == GC_CELL_CODEPOINT_GRAPHEME;
 }
 
 /* Grid width: 2 for wide/spacer_head cells, 1 otherwise */
@@ -222,8 +226,8 @@ static inline uint8_t ghostcon_cell_grid_width(ghostcon_cell_t c)
 {
     switch (ghostcon_cell_get_wide(c))
     {
-    case GHOSTCON_CELL_WIDE_WIDE:
-    case GHOSTCON_CELL_WIDE_SPACER_HEAD:
+    case GC_CELL_WIDE_WIDE:
+    case GC_CELL_WIDE_SPACER_HEAD:
         return 2;
     default:
         return 1;
@@ -243,13 +247,13 @@ static inline ghostcon_cell_t
 ghostcon_cell_make(uint32_t codepoint)
 {
     ghostcon_cell_t c = { .raw = 0 };
-    ghostcon_cell_set_tag(&c, GHOSTCON_CELL_CODEPOINT);
+    ghostcon_cell_set_tag(&c, GC_CELL_CODEPOINT);
     ghostcon_cell_set_codepoint(&c, codepoint);
     return c;
 }
 
 /* Zero-initialized cell constant */
-#define GHOSTCON_CELL_EMPTY ((ghostcon_cell_t){ .raw = 0 })
+#define GC_CELL_EMPTY ((ghostcon_cell_t){ .raw = 0 })
 
 /* Unicode display width: 0 (combining/zero-width), 1, or 2 (wide) */
 extern uint8_t ghostcon_unicode_width(uint32_t codepoint);

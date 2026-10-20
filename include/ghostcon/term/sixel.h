@@ -1,5 +1,4 @@
-#ifndef GHOSTCON_TERM_SIXEL_H
-#define GHOSTCON_TERM_SIXEL_H
+#pragma once
 
 /* Sixel graphics (DCS <P1>;<P2>;<P3> q <sixel-data> ST)
  *
@@ -30,11 +29,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define GHOSTCON_SIXEL_MAX_PLACEMENTS   64
-#define GHOSTCON_SIXEL_MAX_DIM          4096u
-#define GHOSTCON_SIXEL_MAX_IMAGE_BYTES  (16u * 1024u * 1024u) /* decoded RGBA cap, per image */
-#define GHOSTCON_SIXEL_MAX_TOTAL_BYTES  (128u * 1024u * 1024u) /* across all placements */
-#define GHOSTCON_SIXEL_COLOR_REGISTERS  256
+#define GC_SIXEL_MAX_PLACEMENTS   64
+#define GC_SIXEL_MAX_DIM          4096u
+#define GC_SIXEL_MAX_IMAGE_BYTES  (16u * 1024u * 1024u) /* decoded RGBA cap, per image */
+#define GC_SIXEL_MAX_TOTAL_BYTES  (128u * 1024u * 1024u) /* across all placements */
+#define GC_SIXEL_COLOR_REGISTERS  256
 
 typedef struct
 {
@@ -52,7 +51,7 @@ typedef struct
 } ghostcon_sixel_placement_t;
 
 typedef struct ghostcon_sixel_state {
-    ghostcon_sixel_placement_t placements[GHOSTCON_SIXEL_MAX_PLACEMENTS];
+    ghostcon_sixel_placement_t placements[GC_SIXEL_MAX_PLACEMENTS];
     size_t                     total_bytes;
 } ghostcon_sixel_state_t;
 
@@ -87,5 +86,3 @@ typedef struct
  * pass 0 for either to suppress it.
  */
 extern void ghostcon_sixel_decode(ghostcon_sixel_state_t *st, const int32_t *dcs_params, size_t params_count, const char *body, size_t body_len, int32_t cursor_col, int32_t cursor_row, int32_t cell_w, int32_t cell_h, ghostcon_sixel_cursor_move_t *out_move);
-
-#endif

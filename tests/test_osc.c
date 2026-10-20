@@ -189,14 +189,14 @@ int main(void)
      * printed. A: prompt start, B: input start, C: output start, D[;code]:
      * command finished (+ exit code).
      */
-    CHECK(term.screen.semantic_current == GHOSTCON_CELL_SEMANTIC_OUTPUT,
+    CHECK(term.screen.semantic_current == GC_CELL_SEMANTIC_OUTPUT,
           "semantic state starts as OUTPUT (default)");
     const char *p133_a = "\x1b]133;A\x1b\\";
     ghostcon_term_feed(&term, (const uint8_t *)p133_a, strlen(p133_a));
     const char *prompt_text = "$ ";
     ghostcon_term_feed(&term, (const uint8_t *)prompt_text, strlen(prompt_text));
     ghostcon_cell_t prompt_cell = term.screen.rows[0].cells[0];
-    CHECK(ghostcon_cell_get_semantic(prompt_cell) == GHOSTCON_CELL_SEMANTIC_PROMPT,
+    CHECK(ghostcon_cell_get_semantic(prompt_cell) == GC_CELL_SEMANTIC_PROMPT,
           "OSC 133;A marks subsequently-printed cells as PROMPT");
 
     const char *p133_b = "\x1b]133;B\x1b\\";
@@ -204,7 +204,7 @@ int main(void)
     const char *input_text = "ls";
     ghostcon_term_feed(&term, (const uint8_t *)input_text, strlen(input_text));
     ghostcon_cell_t input_cell = term.screen.rows[0].cells[2];
-    CHECK(ghostcon_cell_get_semantic(input_cell) == GHOSTCON_CELL_SEMANTIC_INPUT,
+    CHECK(ghostcon_cell_get_semantic(input_cell) == GC_CELL_SEMANTIC_INPUT,
           "OSC 133;B marks subsequently-printed cells as INPUT");
 
     const char *p133_c = "\x1b]133;C\x1b\\";
@@ -212,14 +212,14 @@ int main(void)
     const char *output_text = "file.txt";
     ghostcon_term_feed(&term, (const uint8_t *)output_text, strlen(output_text));
     ghostcon_cell_t output_cell = term.screen.rows[0].cells[4];
-    CHECK(ghostcon_cell_get_semantic(output_cell) == GHOSTCON_CELL_SEMANTIC_OUTPUT,
+    CHECK(ghostcon_cell_get_semantic(output_cell) == GC_CELL_SEMANTIC_OUTPUT,
           "OSC 133;C marks subsequently-printed cells as OUTPUT");
 
     const char *p133_d = "\x1b]133;D;0\x1b\\";
     ghostcon_term_feed(&term, (const uint8_t *)p133_d, strlen(p133_d));
     CHECK(term.screen.semantic_last_exit_code == 0,
           "OSC 133;D;0 records exit code 0");
-    CHECK(term.screen.semantic_current == GHOSTCON_CELL_SEMANTIC_PROMPT,
+    CHECK(term.screen.semantic_current == GC_CELL_SEMANTIC_PROMPT,
           "OSC 133;D returns state to PROMPT");
 
     const char *p133_d_nonzero = "\x1b]133;D;127\x1b\\";
@@ -234,7 +234,7 @@ int main(void)
      */
     const char *p633_a = "\x1b]633;A\x1b\\";
     ghostcon_term_feed(&term, (const uint8_t *)p633_a, strlen(p633_a));
-    CHECK(term.screen.semantic_current == GHOSTCON_CELL_SEMANTIC_PROMPT,
+    CHECK(term.screen.semantic_current == GC_CELL_SEMANTIC_PROMPT,
           "OSC 633;A also marks PROMPT (shared letter set with 133)");
 
     const char *p633_cwd = "\x1b]633;P;Cwd=/var/log\x1b\\";

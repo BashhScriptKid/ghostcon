@@ -71,21 +71,55 @@ static inline int gc_log_domain_matches(const char *spec, const char *domain)
     }
 }
 
+/* The domain list, in one place.
+ *
+ * The macro below needs an index per domain, so that the "is this domain enabled"
+ * verdict can be cached once per domain instead of once per call site, and so
+ * that a domain that is not in this list is a compile error rather than a tag
+ * that silently matches nothing.
+ */
+#define GC_LOG_DOMAINS(X) \
+    X(vt) \
+    X(drm) \
+    X(cursor) \
+    X(input) \
+    X(selection) \
+    X(config) \
+    X(pty) \
+    X(stream)
+
+enum gc_log_domain_id
+{
+#define GC_LOG_DOMAIN_ID(name) GC_LOG_DOMAIN_##name,
+    GC_LOG_DOMAINS(GC_LOG_DOMAIN_ID)
+#undef GC_LOG_DOMAIN_ID
+    GC_LOG_DOMAIN_COUNT
+};
+
+/* The cached verdict for one domain.
+ *
+ * The cache is a function-local static of an inline function, so there is
+ * one copy per translation unit that logs -- not one per call site. The
+ * first call in a translation unit pays getenv(); every later call is a
+ * byte test.
+ *
+ * 0 = not resolved yet, 1 = disabled, 2 = enabled.
+ */
+static inline signed char gc_log_domain_state(int domain_id, const char *domain)
+{
+    static signed char state[GC_LOG_DOMAIN_COUNT];
+    if (state[domain_id] == 0)
+        state[domain_id] = gc_log_domain_matches(getenv("GHOSTCON_LOG"), domain) ? 2 : 1;
+    return state[domain_id];
+}
+
 /* Note the GNU ##__VA_ARGS__ tail-comma elision: with no varargs, e.g.
  * GC_LOG(vt, "switching away"), expands to plain fprintf. Works under
  * -std=c11 (warning_level=2, no -pedantic) with GCC/Clang.
  */
 #define GC_LOG(domain, fmt, ...)                                         \
     do {                                                                 \
-        /* Cached per-domain verdict (-1 = uninitialized): GHOSTCON_LOG   \
-           is static after startup, so paying getenv() once per site      \
-           and then a single byte-test per call is cheap enough to        \
-           keep enabled sites in hot paths. */                            \
-        static signed char gc_log_state = -1;                            \
-        if (gc_log_state < 0)                                            \
-            gc_log_state = (signed char)gc_log_domain_matches(            \
-                getenv("GHOSTCON_LOG"), #domain);                         \
-        if (gc_log_state)                                                \
+        if (gc_log_domain_state(GC_LOG_DOMAIN_##domain, #domain) == 2)   \
             fprintf(stderr, "gc(" #domain "):" fmt "\n",                  \
                     ##__VA_ARGS__);                                       \
     } while (0)

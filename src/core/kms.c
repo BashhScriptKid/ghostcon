@@ -172,7 +172,7 @@ static bool find_plane_of_type(int fd, int crtc_index, uint64_t want_type, uint3
  * a driver reporting something absurd like 4096 doesn't allocate an oversized
  * buffer for no reason) rather than second-guessing it down to kmscon's number.
  */
-#define GHOSTCON_CURSOR_MAX_SIZE 256
+#define GC_CURSOR_MAX_SIZE 256
 
 /* Port of kmscon's generate_ibeam_cursor() (src/terminal.c) shape/ algorithm
  *
@@ -338,7 +338,7 @@ bool ghostcon_kms_set_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t 
      * machine).
      *
      * Sized to the smaller of the two queried DRM_CAP_CURSOR_WIDTH/ HEIGHT caps
-     * (this machine: 256x256), clamped only by GHOSTCON_CURSOR_MAX_SIZE's sanity
+     * (this machine: 256x256), clamped only by GC_CURSOR_MAX_SIZE's sanity
      * ceiling, not a hardcoded target --see that macro's own doc comment for why.
      * kms->cursor_w/h is shared by every state, only (re)computed once (the first
      * time this is called with either plane just discovered), since it doesn't
@@ -348,12 +348,12 @@ bool ghostcon_kms_set_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t 
     {
         uint64_t cap_w = 0, cap_h = 0;
         if (drmGetCap(kms->fd, DRM_CAP_CURSOR_WIDTH, &cap_w) != 0 || cap_w == 0)
-            cap_w = GHOSTCON_CURSOR_MAX_SIZE; /* DRM's own documented fallback when unqueryable */
+            cap_w = GC_CURSOR_MAX_SIZE; /* DRM's own documented fallback when unqueryable */
         if (drmGetCap(kms->fd, DRM_CAP_CURSOR_HEIGHT, &cap_h) != 0 || cap_h == 0)
-            cap_h = GHOSTCON_CURSOR_MAX_SIZE;
+            cap_h = GC_CURSOR_MAX_SIZE;
         uint32_t canvas = (uint32_t)(cap_w < cap_h ? cap_w : cap_h);
-        if (canvas == 0 || canvas > GHOSTCON_CURSOR_MAX_SIZE)
-            canvas = GHOSTCON_CURSOR_MAX_SIZE;
+        if (canvas == 0 || canvas > GC_CURSOR_MAX_SIZE)
+            canvas = GC_CURSOR_MAX_SIZE;
         kms->cursor_w = canvas;
         kms->cursor_h = canvas;
     }

@@ -68,7 +68,7 @@ bool ghostcon_transport_connect(ghostcon_transport_t *t, const char *registry_so
         return false;
     }
 
-    char req[GHOSTCON_PTYSERV_LINE_MAX];
+    char req[GC_PTYSERV_LINE_MAX];
     size_t req_len = ghostcon_ptyserv_format_get(req, sizeof(req), vtnum);
     if (req_len == 0 || !write_all(reg_fd, req, req_len))
     {
@@ -77,7 +77,7 @@ bool ghostcon_transport_connect(ghostcon_transport_t *t, const char *registry_so
         return false;
     }
 
-    char resp[GHOSTCON_PTYSERV_LINE_MAX];
+    char resp[GC_PTYSERV_LINE_MAX];
     ssize_t r = read(reg_fd, resp, sizeof(resp) - 1);
     close(reg_fd);
     if (r <= 0)
@@ -88,7 +88,7 @@ bool ghostcon_transport_connect(ghostcon_transport_t *t, const char *registry_so
     resp[r] = '\0';
 
     int pid;
-    char pty_socket[GHOSTCON_PTYSERV_LINE_MAX];
+    char pty_socket[GC_PTYSERV_LINE_MAX];
     if (!ghostcon_ptyserv_parse_ok(resp, &pid, pty_socket))
     {
         fprintf(stderr, "transport: registry error for vt %d: %s", vtnum, resp);
@@ -150,11 +150,11 @@ bool ghostcon_transport_connect(ghostcon_transport_t *t, const char *registry_so
      * Same retry budget as the data socket connect above, so both sockets get an
      * equally fair chance to catch up with pty_child.c's startup.
      */
-    char ctl_dir[GHOSTCON_PTYSERV_LINE_MAX];
+    char ctl_dir[GC_PTYSERV_LINE_MAX];
     snprintf(ctl_dir, sizeof(ctl_dir), "%s", pty_socket);
     dirname_inplace(ctl_dir);
-    char ctl_path[GHOSTCON_PTYSERV_LINE_MAX];
-    snprintf(ctl_path, sizeof(ctl_path), GHOSTCON_PTY_CTL_SOCKET_FMT, ctl_dir, vtnum);
+    char ctl_path[GC_PTYSERV_LINE_MAX];
+    snprintf(ctl_path, sizeof(ctl_path), GC_PTY_CTL_SOCKET_FMT, ctl_dir, vtnum);
     for (int i = 0; i < 50 && t->ctl_fd < 0; i++)
     {
         t->ctl_fd = connect_unix(ctl_path);
@@ -213,7 +213,7 @@ bool ghostcon_transport_resize(ghostcon_transport_t *t, int rows, int cols, int 
     if (t->ctl_fd < 0)
         return true; /* no control connection -- best-effort, not an error */
 
-    char msg[GHOSTCON_PTYSERV_LINE_MAX];
+    char msg[GC_PTYSERV_LINE_MAX];
     size_t msg_len = ghostcon_ptyserv_format_resize(msg, sizeof(msg), rows, cols, xpixel, ypixel);
     if (msg_len == 0)
         return false;
@@ -226,7 +226,7 @@ bool ghostcon_transport_request_dump(ghostcon_transport_t *t)
     if (t->ctl_fd < 0)
         return true; /* no control connection -- best-effort, not an error */
 
-    char msg[GHOSTCON_PTYSERV_LINE_MAX];
+    char msg[GC_PTYSERV_LINE_MAX];
     size_t msg_len = ghostcon_ptyserv_format_dump(msg, sizeof(msg));
     if (msg_len == 0)
         return false;
@@ -239,7 +239,7 @@ bool ghostcon_transport_read_ctl(ghostcon_transport_t *t, bool *out_clear)
     if (t->ctl_fd < 0)
         return false;
 
-    char line[GHOSTCON_PTYSERV_LINE_MAX];
+    char line[GC_PTYSERV_LINE_MAX];
     ssize_t r = read(t->ctl_fd, line, sizeof(line) - 1);
     if (r <= 0)
     {

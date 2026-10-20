@@ -252,16 +252,16 @@ static bool osc_handle_semantic(ghostcon_stream_t *st, ghostcon_screen_t *s, lon
         switch (fields[1][0])
         {
         case 'A': /* prompt start */
-            s->semantic_current = GHOSTCON_CELL_SEMANTIC_PROMPT;
+            s->semantic_current = GC_CELL_SEMANTIC_PROMPT;
             break;
         case 'B': /* prompt end / command input start */
-            s->semantic_current = GHOSTCON_CELL_SEMANTIC_INPUT;
+            s->semantic_current = GC_CELL_SEMANTIC_INPUT;
             break;
         case 'C': /* command output start */
-            s->semantic_current = GHOSTCON_CELL_SEMANTIC_OUTPUT;
+            s->semantic_current = GC_CELL_SEMANTIC_OUTPUT;
             break;
         case 'D': /* command finished: 133;D[;exit_code] */
-            s->semantic_current = GHOSTCON_CELL_SEMANTIC_PROMPT;
+            s->semantic_current = GC_CELL_SEMANTIC_PROMPT;
             if (nfields >= 3)
                 s->semantic_last_exit_code = (int)strtol(fields[2], NULL, 10);
             break;

@@ -33,13 +33,13 @@ size_t ghostcon_ptyserv_format_ok(char *buf, size_t buf_len, int pid, const char
 bool ghostcon_ptyserv_parse_ok(const char *line, int *pid, char *socket_path)
 {
     int p;
-    char path[GHOSTCON_PTYSERV_LINE_MAX];
+    char path[GC_PTYSERV_LINE_MAX];
     // NOLINTNEXTLINE(bugprone-unchecked-string-to-number-conversion) -- return count checked
     if (sscanf(line, "OK pid=%d socket=%255s", &p, path) != 2)
         return false;
     *pid = p;
-    strncpy(socket_path, path, GHOSTCON_PTYSERV_LINE_MAX - 1);
-    socket_path[GHOSTCON_PTYSERV_LINE_MAX - 1] = '\0';
+    strncpy(socket_path, path, GC_PTYSERV_LINE_MAX - 1);
+    socket_path[GC_PTYSERV_LINE_MAX - 1] = '\0';
     return true;
 }
 

@@ -66,7 +66,7 @@ typedef struct
  * headroom over any real ligature sequence (longest common ones, e.g.
  * "<!--", "www", are well under this).
  */
-#define GHOSTCON_LIGATURE_MAX_RUN_LEN 8
+#define GC_LIGATURE_MAX_RUN_LEN 8
 
 /* Scans `row` left-to-right for maximal runs of adjacent, same-style cells whose
  * codepoint is in the ligature-trigger charset, shapes each one through the

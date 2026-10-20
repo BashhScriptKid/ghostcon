@@ -447,8 +447,8 @@ static int pty_child_setup(pty_child_t *pc, int argc, char **argv)
     }
 
     /* Resize control socket -- see protocol.h's own doc comment on
-     * GHOSTCON_PTY_CTL_SOCKET_FMT for why this is a separate socket rather than
-     * an in-band command on the data socket above.
+     * GC_PTY_CTL_SOCKET_FMT for why this is a separate socket rather than an
+     * in-band command on the data socket above.
      *
      * Not fatal if this fails to bind: the session still works, just without live
      * TIOCSWINSZ propagation (the pre-existing behavior, unchanged) -- found
@@ -457,10 +457,10 @@ static int pty_child_setup(pty_child_t *pc, int argc, char **argv)
      * master at all, not even once at startup, so ioctl(TIOCGWINSZ) callers got
      * whatever forkpty()'s bare default happened to be.
      */
-    char dir_buf[GHOSTCON_PTYSERV_LINE_MAX];
+    char dir_buf[GC_PTYSERV_LINE_MAX];
     snprintf(dir_buf, sizeof(dir_buf), "%s", pc->socket_path);
-    char ctl_path[GHOSTCON_PTYSERV_LINE_MAX];
-    snprintf(ctl_path, sizeof(ctl_path), GHOSTCON_PTY_CTL_SOCKET_FMT,
+    char ctl_path[GC_PTYSERV_LINE_MAX];
+    snprintf(ctl_path, sizeof(ctl_path), GC_PTY_CTL_SOCKET_FMT,
              dirname(dir_buf), pc->vtnum);
     pc->ctl_listen_fd = listen_unix(ctl_path);
     if (pc->ctl_listen_fd < 0)
@@ -469,7 +469,7 @@ static int pty_child_setup(pty_child_t *pc, int argc, char **argv)
     pc->ctl_fd = -1;
     pc->renderer_fd = -1;
 
-    ringbuf_init(&pc->rb, GHOSTCON_PTY_RINGBUF_DEFAULT_SIZE);
+    ringbuf_init(&pc->rb, GC_PTY_RINGBUF_DEFAULT_SIZE);
 
     return 0;
 }
@@ -729,7 +729,7 @@ static void pty_child_handle_ctl_listen(pty_child_t *pc)
 
 static void pty_child_handle_ctl(pty_child_t *pc)
 {
-    char line[GHOSTCON_PTYSERV_LINE_MAX];
+    char line[GC_PTYSERV_LINE_MAX];
     ssize_t r = read(pc->ctl_fd, line, sizeof(line) - 1);
     if (r <= 0)
     {
@@ -772,10 +772,10 @@ static void pty_child_handle_ctl(pty_child_t *pc)
     if (ghostcon_ptyserv_parse_dump(line))
     {
         /* Real raw bytes leading up to right now (up to
-         * GHOSTCON_PTY_RINGBUF_DEFAULT_SIZE's worth), not a synthetic
-         * reproduction -- pairs with core/main.c's Ctrl+Alt+D live screen-state
-         * dump so both can be replayed/diffed against tools/ghostty_dump.c for
-         * the exact same moment.
+         * GC_PTY_RINGBUF_DEFAULT_SIZE's worth), not a synthetic reproduction --
+         * pairs with core/main.c's Ctrl+Alt+D live screen-state dump so both can
+         * be replayed/diffed against tools/ghostty_dump.c for the exact same
+         * moment.
          */
         char dump_path[64];
         snprintf(dump_path, sizeof(dump_path),

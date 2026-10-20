@@ -342,8 +342,8 @@ struct ghostcon_input {
  *
  * see config.h's own repeat_delay_ms/repeat_rate_ms doc comment.
  */
-#define GHOSTCON_REPEAT_DELAY_MS_DEFAULT 250
-#define GHOSTCON_REPEAT_RATE_MS_DEFAULT 50
+#define GC_REPEAT_DELAY_MS_DEFAULT 250
+#define GC_REPEAT_RATE_MS_DEFAULT 50
 
 /* libinput's own recommended way to tell a touchpad from a mouse --NOT
  * guessing from the device name string, which varies wildly across
@@ -420,8 +420,8 @@ ghostcon_input_t
     input->viewport_h = viewport_h;
     input->pointer_x = viewport_w / 2;
     input->pointer_y = viewport_h / 2;
-    input->repeat_delay_ms = repeat_delay_ms > 0 ? repeat_delay_ms : GHOSTCON_REPEAT_DELAY_MS_DEFAULT;
-    input->repeat_rate_ms = repeat_rate_ms > 0 ? repeat_rate_ms : GHOSTCON_REPEAT_RATE_MS_DEFAULT;
+    input->repeat_delay_ms = repeat_delay_ms > 0 ? repeat_delay_ms : GC_REPEAT_DELAY_MS_DEFAULT;
+    input->repeat_rate_ms = repeat_rate_ms > 0 ? repeat_rate_ms : GC_REPEAT_RATE_MS_DEFAULT;
 
     /* Sane defaults until config.c's [keybindings] table pushes real values via
      * ghostcon_input_set_clipboard_bindings()

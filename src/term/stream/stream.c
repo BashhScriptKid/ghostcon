@@ -618,7 +618,7 @@ static void stream_state_dcs_passthrough(ghostcon_stream_t *st, uint8_t c)
     {
         if (st->dcs_len + 1 >= st->buf_cap && !gc_stream_dcs_buf_grow(st))
         {
-            /* At GHOSTCON_STREAM_DCS_MAX_BUF or allocation failed
+            /* At GC_STREAM_DCS_MAX_BUF or allocation failed
              * --reject rather than silently truncate-and-accept a
              * corrupt/incomplete image (same posture as apc_overflow
              * elsewhere in this file).

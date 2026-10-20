@@ -9,7 +9,7 @@
  * Why this exists (PLAN.md refactor 3.2, and CLAUDE.md's rendering-parity
  * debugging notes): the old dump paths reported only *style*-based background
  * information, so a cell whose background came from the content-tag mechanism
- * (GHOSTCON_CELL_BG_COLOR_PALETTE / _RGB
+ * (GC_CELL_BG_COLOR_PALETTE / _RGB
  *
  * what ED/EL/ECH and scroll-produced blank rows use) looked like "default" in
  * every existing tool.
@@ -50,10 +50,10 @@ static const char *tag_name(ghostcon_cell_content_tag_t tag)
 {
     switch (tag)
     {
-    case GHOSTCON_CELL_CODEPOINT:          return "codepoint";
-    case GHOSTCON_CELL_CODEPOINT_GRAPHEME: return "grapheme";
-    case GHOSTCON_CELL_BG_COLOR_PALETTE:   return "bg_palette";
-    case GHOSTCON_CELL_BG_COLOR_RGB:       return "bg_rgb";
+    case GC_CELL_CODEPOINT:          return "codepoint";
+    case GC_CELL_CODEPOINT_GRAPHEME: return "grapheme";
+    case GC_CELL_BG_COLOR_PALETTE:   return "bg_palette";
+    case GC_CELL_BG_COLOR_RGB:       return "bg_rgb";
     }
     return "?";
 }
@@ -62,10 +62,10 @@ static const char *wide_name(ghostcon_cell_wide_t wide)
 {
     switch (wide)
     {
-    case GHOSTCON_CELL_WIDE_NARROW:      return "narrow";
-    case GHOSTCON_CELL_WIDE_WIDE:        return "wide";
-    case GHOSTCON_CELL_WIDE_SPACER_TAIL: return "spacer_tail";
-    case GHOSTCON_CELL_WIDE_SPACER_HEAD: return "spacer_head";
+    case GC_CELL_WIDE_NARROW:      return "narrow";
+    case GC_CELL_WIDE_WIDE:        return "wide";
+    case GC_CELL_WIDE_SPACER_TAIL: return "spacer_tail";
+    case GC_CELL_WIDE_SPACER_HEAD: return "spacer_head";
     }
     return "?";
 }
@@ -74,9 +74,9 @@ static const char *semantic_name(ghostcon_cell_semantic_t sem)
 {
     switch (sem)
     {
-    case GHOSTCON_CELL_SEMANTIC_OUTPUT: return "output";
-    case GHOSTCON_CELL_SEMANTIC_INPUT:  return "input";
-    case GHOSTCON_CELL_SEMANTIC_PROMPT: return "prompt";
+    case GC_CELL_SEMANTIC_OUTPUT: return "output";
+    case GC_CELL_SEMANTIC_INPUT:  return "input";
+    case GC_CELL_SEMANTIC_PROMPT: return "prompt";
     }
     return "?";
 }
@@ -181,8 +181,8 @@ static void dump_cells(ghostcon_screen_t *s)
             ghostcon_cell_content_tag_t tag = ghostcon_cell_get_tag(c);
 
             printf("[row=%u col=%u char=", y, x);
-            print_char_field(tag == GHOSTCON_CELL_CODEPOINT ||
-                             tag == GHOSTCON_CELL_CODEPOINT_GRAPHEME
+            print_char_field(tag == GC_CELL_CODEPOINT ||
+                             tag == GC_CELL_CODEPOINT_GRAPHEME
                                  ? ghostcon_cell_get_codepoint(c)
                                  : 0);
             printf(" cp=0x%x tag=%s", ghostcon_cell_get_codepoint(c), tag_name(tag));
@@ -192,11 +192,11 @@ static void dump_cells(ghostcon_screen_t *s)
              * the field the old dump paths omitted, and the whole reason this
              * tool exists.
              */
-            if (tag == GHOSTCON_CELL_BG_COLOR_PALETTE)
+            if (tag == GC_CELL_BG_COLOR_PALETTE)
             {
                 printf(" content=PALETTE:%u", ghostcon_cell_get_palette_idx(c));
             }
-            else if (tag == GHOSTCON_CELL_BG_COLOR_RGB)
+            else if (tag == GC_CELL_BG_COLOR_RGB)
             {
                 ghostcon_rgb_t rgb = ghostcon_cell_get_rgb(c);
                 printf(" content=RGB:#%02x%02x%02x", rgb.r, rgb.g, rgb.b);
@@ -210,7 +210,7 @@ static void dump_cells(ghostcon_screen_t *s)
                 printf(" link=%u", (unsigned)ghostcon_cell_get_hyperlink_id(c));
             if (ghostcon_cell_get_protected(c))
                 printf(" protected=1");
-            if (ghostcon_cell_get_semantic(c) != GHOSTCON_CELL_SEMANTIC_OUTPUT)
+            if (ghostcon_cell_get_semantic(c) != GC_CELL_SEMANTIC_OUTPUT)
                 printf(" semantic=%s", semantic_name(ghostcon_cell_get_semantic(c)));
 
             printf("]\n");

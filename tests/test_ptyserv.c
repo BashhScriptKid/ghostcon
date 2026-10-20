@@ -119,11 +119,11 @@ int main(void)
         return 1;
     }
 
-    char req[GHOSTCON_PTYSERV_LINE_MAX];
+    char req[GC_PTYSERV_LINE_MAX];
     size_t req_len = ghostcon_ptyserv_format_get(req, sizeof(req), TEST_VT);
     write(registry_fd, req, req_len);
 
-    char resp[GHOSTCON_PTYSERV_LINE_MAX];
+    char resp[GC_PTYSERV_LINE_MAX];
     ssize_t r = read(registry_fd, resp, sizeof(resp) - 1);
     close(registry_fd);
     if (r <= 0)
@@ -135,7 +135,7 @@ int main(void)
     resp[r] = '\0';
 
     int pty_child_pid;
-    char pty_socket[GHOSTCON_PTYSERV_LINE_MAX];
+    char pty_socket[GC_PTYSERV_LINE_MAX];
     if (!ghostcon_ptyserv_parse_ok(resp, &pty_child_pid, pty_socket))
     {
         fprintf(stderr, "FAIL: bad registry response: %s\n", resp);
@@ -245,7 +245,7 @@ int main(void)
     }
 
     write(registry_fd2, req, req_len); /* same GET request as before */
-    char resp2[GHOSTCON_PTYSERV_LINE_MAX];
+    char resp2[GC_PTYSERV_LINE_MAX];
     ssize_t r2 = read(registry_fd2, resp2, sizeof(resp2) - 1);
     close(registry_fd2);
     if (r2 <= 0)
@@ -258,7 +258,7 @@ int main(void)
     resp2[r2] = '\0';
 
     int pty_child_pid2;
-    char pty_socket2[GHOSTCON_PTYSERV_LINE_MAX];
+    char pty_socket2[GC_PTYSERV_LINE_MAX];
     if (!ghostcon_ptyserv_parse_ok(resp2, &pty_child_pid2, pty_socket2))
     {
         fprintf(stderr, "FAIL: bad registry response after restart: %s\n", resp2);

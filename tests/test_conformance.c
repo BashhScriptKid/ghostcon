@@ -1706,11 +1706,11 @@ TEST(utf8_wide_char)
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "A\xE4\xB8\xAD");   /* A中 */
     ASSERT_CELL(t, 0, 0, 'A', "A");
-    ASSERT_WIDE(t, 0, 0, GHOSTCON_CELL_WIDE_NARROW, "A narrow");
+    ASSERT_WIDE(t, 0, 0, GC_CELL_WIDE_NARROW, "A narrow");
     ASSERT_CELL(t, 1, 0, 0x4E2D, "中");
-    ASSERT_WIDE(t, 1, 0, GHOSTCON_CELL_WIDE_WIDE, "中 wide");
+    ASSERT_WIDE(t, 1, 0, GC_CELL_WIDE_WIDE, "中 wide");
     ASSERT_CELL(t, 2, 0, 0, "spacer tail empty");
-    ASSERT_WIDE(t, 2, 0, GHOSTCON_CELL_WIDE_SPACER_TAIL, "spacer tail wide");
+    ASSERT_WIDE(t, 2, 0, GC_CELL_WIDE_SPACER_TAIL, "spacer tail wide");
     ASSERT_CURSOR(t, 3, 0, "cursor after wide char");
     ghostcon_term_deinit(&t);
 }
@@ -1724,7 +1724,7 @@ TEST(utf8_wide_split_across_feed)
     ASSERT_CURSOR(t, 1, 0, "cursor during partial sequence");
     ghostcon_term_feed(&t, (const uint8_t *)"\xAD", 1);
     ASSERT_CELL(t, 1, 0, 0x4E2D, "中 completes");
-    ASSERT_WIDE(t, 1, 0, GHOSTCON_CELL_WIDE_WIDE, "中 wide");
+    ASSERT_WIDE(t, 1, 0, GC_CELL_WIDE_WIDE, "中 wide");
     ASSERT_CURSOR(t, 3, 0, "cursor after completed wide char");
     ghostcon_term_deinit(&t);
 }
@@ -1735,7 +1735,7 @@ TEST(utf8_combining)
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "e\xCC\x81");   /* e + combining acute */
     ASSERT_CELL(t, 0, 0, 'e', "base char preserved");
-    ASSERT_TAG(t, 0, 0, GHOSTCON_CELL_CODEPOINT_GRAPHEME, "combining attached");
+    ASSERT_TAG(t, 0, 0, GC_CELL_CODEPOINT_GRAPHEME, "combining attached");
     ASSERT(ghostcon_screen_row(&t.screen, 0)->grapheme, "row grapheme flag");
     ASSERT_CURSOR(t, 1, 0, "cursor does not advance");
     ghostcon_term_deinit(&t);
@@ -1747,9 +1747,9 @@ TEST(utf8_combining_after_wide)
     ASSERT(ghostcon_term_init(&t, 80, 24, 500), "init");
     feed(&t, "\xE4\xB8\xAD" "\xCC\x81");   /* 中 + combining acute */
     ASSERT_CELL(t, 0, 0, 0x4E2D, "中 base");
-    ASSERT_WIDE(t, 0, 0, GHOSTCON_CELL_WIDE_WIDE, "中 still wide");
-    ASSERT_TAG(t, 0, 0, GHOSTCON_CELL_CODEPOINT_GRAPHEME, "combining attached to wide");
-    ASSERT_WIDE(t, 1, 0, GHOSTCON_CELL_WIDE_SPACER_TAIL, "spacer tail intact");
+    ASSERT_WIDE(t, 0, 0, GC_CELL_WIDE_WIDE, "中 still wide");
+    ASSERT_TAG(t, 0, 0, GC_CELL_CODEPOINT_GRAPHEME, "combining attached to wide");
+    ASSERT_WIDE(t, 1, 0, GC_CELL_WIDE_SPACER_TAIL, "spacer tail intact");
     ASSERT_CURSOR(t, 2, 0, "cursor after wide+combining");
     ghostcon_term_deinit(&t);
 }
@@ -1787,8 +1787,8 @@ TEST(utf8_partially_invalid_ghostty_parity)
     feed(&t, "\xF0\x9F" "\xF0\x9F\x98\x84" "\xED\xA0\x80");
     ASSERT_CELL(t, 0, 0, 0xFFFD, "truncated 4-byte lead");
     ASSERT_CELL(t, 1, 0, 0x1F604, "😄 decodes");
-    ASSERT_WIDE(t, 1, 0, GHOSTCON_CELL_WIDE_WIDE, "😄 is wide");
-    ASSERT_WIDE(t, 2, 0, GHOSTCON_CELL_WIDE_SPACER_TAIL, "😄 spacer tail");
+    ASSERT_WIDE(t, 1, 0, GC_CELL_WIDE_WIDE, "😄 is wide");
+    ASSERT_WIDE(t, 2, 0, GC_CELL_WIDE_SPACER_TAIL, "😄 spacer tail");
     ASSERT_CELL(t, 3, 0, 0xFFFD, "lone ED A0 80 part 1");
     ASSERT_CELL(t, 4, 0, 0xFFFD, "lone ED A0 80 part 2");
     ASSERT_CELL(t, 5, 0, 0xFFFD, "lone ED A0 80 part 3");
@@ -1811,8 +1811,8 @@ TEST(utf8_wide_at_margin)
     ASSERT_CELL(t, 78, 0, 'A', "row 0 col 78 keeps A");
     ASSERT_CELL(t, 79, 0, 0, "row 0 col 79 stays empty");
     ASSERT_CELL(t, 0, 1, 0x4E2D, "中 wraps to next row");
-    ASSERT_WIDE(t, 0, 1, GHOSTCON_CELL_WIDE_WIDE, "中 wide on next row");
-    ASSERT_WIDE(t, 1, 1, GHOSTCON_CELL_WIDE_SPACER_TAIL, "spacer tail on next row");
+    ASSERT_WIDE(t, 0, 1, GC_CELL_WIDE_WIDE, "中 wide on next row");
+    ASSERT_WIDE(t, 1, 1, GC_CELL_WIDE_SPACER_TAIL, "spacer tail on next row");
     ASSERT(ghostcon_screen_row(&t.screen, 0)->wrap, "row 0 marked wrapped");
     ASSERT(ghostcon_screen_row(&t.screen, 1)->wrap_continuation, "row 1 continuation");
     ASSERT_CURSOR(t, 2, 1, "cursor after wrapped wide char");
@@ -1826,7 +1826,7 @@ TEST(utf8_wide_last_col_direct)
     feed(&t, "\x1b[1;80H");   /* cursor to col 79 (row 1, col 80) */
     feed(&t, "\xE4\xB8\xAD");
     ASSERT_CELL(t, 79, 0, 0, "spacer head empty");
-    ASSERT_WIDE(t, 79, 0, GHOSTCON_CELL_WIDE_SPACER_HEAD, "spacer head at last col");
+    ASSERT_WIDE(t, 79, 0, GC_CELL_WIDE_SPACER_HEAD, "spacer head at last col");
     ASSERT_CELL(t, 0, 1, 0x4E2D, "wide char on next row");
     ASSERT_CURSOR(t, 2, 1, "cursor on next row");
     ghostcon_term_deinit(&t);

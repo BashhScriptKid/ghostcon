@@ -647,7 +647,7 @@ static void handle_csi_sgr(ghostcon_stream_t *st, ghostcon_screen_t *s)
     /* Process each attribute */
     ghostcon_style_t cur;
     if (s->cursor.style_id == GC_STYLE_DEFAULT_ID)
-        cur = GHOSTCON_STYLE_DEFAULT;
+        cur = GC_STYLE_DEFAULT;
     else
         cur = *ghostcon_style_set_get(s->styles, s->cursor.style_id);
 
@@ -658,7 +658,7 @@ static void handle_csi_sgr(ghostcon_stream_t *st, ghostcon_screen_t *s)
         {
         case GHOSTTY_SGR_ATTR_UNSET:
             /* SGR 0 — reset all attributes */
-            cur = GHOSTCON_STYLE_DEFAULT;
+            cur = GC_STYLE_DEFAULT;
             break;
         case GHOSTTY_SGR_ATTR_BOLD:          cur.flags |= GC_STYLE_BOLD; break;
         case GHOSTTY_SGR_ATTR_RESET_BOLD:    cur.flags &= ~GC_STYLE_BOLD; break;

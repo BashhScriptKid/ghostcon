@@ -152,14 +152,13 @@ size_t ghostcon_selection_extract_text(ghostcon_screen_t *screen, char *out, siz
         for (int16_t x = xstart; x <= xend && oi + 4 < out_len; x++)
         {
             ghostcon_cell_t cell = row->cells[x];
-            if (ghostcon_cell_get_wide(cell) == GHOSTCON_CELL_WIDE_SPACER_TAIL)
+            if (ghostcon_cell_get_wide(cell) == GC_CELL_WIDE_SPACER_TAIL)
                 continue; /* second half of a wide glyph -- already emitted */
             /* ghostcon_cell_has_text() is NOT the right predicate here
              *
-             * a totally blank, never-written cell still has tag
-             * GHOSTCON_CELL_CODEPOINT (0, the default), so has_text() returns
-             * true for it with codepoint 0, which would encode as a literal NUL
-             * byte instead of a space.
+             * a totally blank, never-written cell still has tag GC_CELL_CODEPOINT
+             * (0, the default), so has_text() returns true for it with codepoint
+             * 0, which would encode as a literal NUL byte instead of a space.
              *
              * Check both: is_empty() (c.raw == 0, "nothing was ever written") and
              * an explicit codepoint-0 cell that DOES have the text tag set but

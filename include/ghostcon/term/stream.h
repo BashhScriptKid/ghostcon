@@ -93,7 +93,7 @@ struct ghostcon_stream {
      * Un-chunked DCS payloads (sixel, which has no chunking mechanism in the
      * protocol at all, unlike Kitty) routinely exceed that --see the
      * DCS_PASSTHROUGH case in stream.c, which reallocates buf up to
-     * GHOSTCON_STREAM_DCS_MAX_BUF as needed rather than silently truncating.
+     * GC_STREAM_DCS_MAX_BUF as needed rather than silently truncating.
      * buf_cap/osc_len/dcs_len/apc_len are uint32_t (not uint16_t, the original
      * size before sixel) for the same reason
      *

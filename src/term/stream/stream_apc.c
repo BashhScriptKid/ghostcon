@@ -53,10 +53,10 @@ void gc_stream_apc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s)
  * worst case a hostile/broken client sending an unterminated DCS q could force
  * ghostcon to allocate.
  */
-#define GHOSTCON_STREAM_DCS_MAX_BUF (32u * 1024u * 1024u)
+#define GC_STREAM_DCS_MAX_BUF (32u * 1024u * 1024u)
 
 /* Grows st->buf (transitioning off local_buf on the first call) to fit at least
- * one more byte, up to GHOSTCON_STREAM_DCS_MAX_BUF.
+ * one more byte, up to GC_STREAM_DCS_MAX_BUF.
  *
  * Returns false (leaving st->buf/buf_cap unchanged) if already at cap or
  * allocation fails
@@ -66,11 +66,11 @@ void gc_stream_apc_dispatch(ghostcon_stream_t *st, ghostcon_screen_t *s)
  */
 bool gc_stream_dcs_buf_grow(ghostcon_stream_t *st)
 {
-    if (st->buf_cap >= GHOSTCON_STREAM_DCS_MAX_BUF)
+    if (st->buf_cap >= GC_STREAM_DCS_MAX_BUF)
         return false;
     uint32_t new_cap = st->buf_cap * 2;
-    if (new_cap > GHOSTCON_STREAM_DCS_MAX_BUF)
-        new_cap = GHOSTCON_STREAM_DCS_MAX_BUF;
+    if (new_cap > GC_STREAM_DCS_MAX_BUF)
+        new_cap = GC_STREAM_DCS_MAX_BUF;
     char *new_buf = st->buf == st->local_buf ? malloc(new_cap) : realloc(st->buf, new_cap);
     if (!new_buf)
         return false;

@@ -1476,7 +1476,7 @@ int main(int argc, char **argv)
         return 2;
     }
     app.drm_node = argc > 2 ? argv[2] : DEFAULT_DRM_NODE;
-    const char *registry_socket = argc > 3 ? argv[3] : GHOSTCON_PTYSERV_SOCKET_PATH;
+    const char *registry_socket = argc > 3 ? argv[3] : GC_PTYSERV_SOCKET_PATH;
 
     parse_env_settings(&app);
 

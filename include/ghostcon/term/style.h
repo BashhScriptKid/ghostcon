@@ -60,7 +60,7 @@ typedef struct
 } ghostcon_style_t;
 
 /* Default style constant — empty, fg=default, bg=default */
-extern const ghostcon_style_t GHOSTCON_STYLE_DEFAULT;
+extern const ghostcon_style_t GC_STYLE_DEFAULT;
 
 static inline bool ghostcon_style_eq(const ghostcon_style_t *a, const ghostcon_style_t *b)
 {
@@ -99,5 +99,5 @@ extern void ghostcon_style_set_ref(ghostcon_style_set_t *set, ghostcon_style_id_
 /* Decrement refcount; frees the style slot if refcount reaches 0 */
 extern void ghostcon_style_set_unref(ghostcon_style_set_t *set, ghostcon_style_id_t id);
 
-/* Get style by ID. Returns &GHOSTCON_STYLE_DEFAULT for id=0. */
+/* Get style by ID. Returns &GC_STYLE_DEFAULT for id=0. */
 extern const ghostcon_style_t *ghostcon_style_set_get(const ghostcon_style_set_t *set, ghostcon_style_id_t id);

@@ -42,12 +42,12 @@ erase_fill_cell(ghostcon_screen_t *s)
 
     if (pen->flags & GC_STYLE_BG_TRUECOLOR)
     {
-        ghostcon_cell_set_tag(&fill, GHOSTCON_CELL_BG_COLOR_RGB);
+        ghostcon_cell_set_tag(&fill, GC_CELL_BG_COLOR_RGB);
         ghostcon_cell_set_rgb(&fill, pen->bg_rgb);
     }
     else
     {
-        ghostcon_cell_set_tag(&fill, GHOSTCON_CELL_BG_COLOR_PALETTE);
+        ghostcon_cell_set_tag(&fill, GC_CELL_BG_COLOR_PALETTE);
         ghostcon_cell_set_palette_idx(&fill, pen->bg_palette);
     }
     return fill;
@@ -636,9 +636,9 @@ static void print_cell(ghostcon_screen_t *s, uint32_t cp, ghostcon_cell_wide_t w
     {
         switch (ghostcon_cell_get_wide(*cell))
         {
-        case GHOSTCON_CELL_WIDE_NARROW:
+        case GC_CELL_WIDE_NARROW:
             break;
-        case GHOSTCON_CELL_WIDE_WIDE:
+        case GC_CELL_WIDE_WIDE:
             /* Clear the spacer tail to the right */
             if (s->cursor.x < (int16_t)s->cols - 1)
                 cell_at(s, s->cursor.x + 1, s->cursor.y)->raw = 0;
@@ -646,11 +646,11 @@ static void print_cell(ghostcon_screen_t *s, uint32_t cp, ghostcon_cell_wide_t w
             if (s->cursor.y > 0 && s->cursor.x <= 1)
             {
                 ghostcon_cell_t *head = cell_at(s, (int16_t)s->cols - 1, s->cursor.y - 1);
-                if (ghostcon_cell_get_wide(*head) == GHOSTCON_CELL_WIDE_SPACER_HEAD)
-                    ghostcon_cell_set_wide(head, GHOSTCON_CELL_WIDE_NARROW);
+                if (ghostcon_cell_get_wide(*head) == GC_CELL_WIDE_SPACER_HEAD)
+                    ghostcon_cell_set_wide(head, GC_CELL_WIDE_NARROW);
             }
             break;
-        case GHOSTCON_CELL_WIDE_SPACER_TAIL:
+        case GC_CELL_WIDE_SPACER_TAIL:
             /* Clear the wide cell to the left */
             if (s->cursor.x > 0)
                 cell_at(s, s->cursor.x - 1, s->cursor.y)->raw = 0;
@@ -658,11 +658,11 @@ static void print_cell(ghostcon_screen_t *s, uint32_t cp, ghostcon_cell_wide_t w
             if (s->cursor.y > 0 && s->cursor.x <= 1)
             {
                 ghostcon_cell_t *head = cell_at(s, (int16_t)s->cols - 1, s->cursor.y - 1);
-                if (ghostcon_cell_get_wide(*head) == GHOSTCON_CELL_WIDE_SPACER_HEAD)
-                    ghostcon_cell_set_wide(head, GHOSTCON_CELL_WIDE_NARROW);
+                if (ghostcon_cell_get_wide(*head) == GC_CELL_WIDE_SPACER_HEAD)
+                    ghostcon_cell_set_wide(head, GC_CELL_WIDE_NARROW);
             }
             break;
-        case GHOSTCON_CELL_WIDE_SPACER_HEAD:
+        case GC_CELL_WIDE_SPACER_HEAD:
             break;
         }
     }
@@ -722,7 +722,7 @@ void ghostcon_screen_put_char(ghostcon_screen_t *s, uint32_t codepoint)
         if (s->cursor.x == 0 && left == 1) return;
 
         ghostcon_cell_t *prev = cell_at(s, s->cursor.x - left, s->cursor.y);
-        if (ghostcon_cell_get_wide(*prev) == GHOSTCON_CELL_WIDE_SPACER_TAIL)
+        if (ghostcon_cell_get_wide(*prev) == GC_CELL_WIDE_SPACER_TAIL)
             prev = cell_at(s, s->cursor.x - left - 1, s->cursor.y);
         if (!ghostcon_cell_has_text(*prev)) return;
 
@@ -732,7 +732,7 @@ void ghostcon_screen_put_char(ghostcon_screen_t *s, uint32_t codepoint)
          * tag the cell so the renderer can resolve the full sequence once storage
          * lands.
          */
-        ghostcon_cell_set_tag(prev, GHOSTCON_CELL_CODEPOINT_GRAPHEME);
+        ghostcon_cell_set_tag(prev, GC_CELL_CODEPOINT_GRAPHEME);
         s->rows[row_idx(s, s->cursor.y)].grapheme = true;
         mark_dirty(s, s->cursor.y);
         return;
@@ -755,7 +755,7 @@ void ghostcon_screen_put_char(ghostcon_screen_t *s, uint32_t codepoint)
             memmove(&r->cells[s->cursor.x + shift], &r->cells[s->cursor.x],
                     (size_t)(right - s->cursor.x + 1 - shift) * sizeof(ghostcon_cell_t));
             for (int16_t i = 0; i < shift; i++)
-                r->cells[s->cursor.x + i] = GHOSTCON_CELL_EMPTY;
+                r->cells[s->cursor.x + i] = GC_CELL_EMPTY;
             mark_dirty(s, s->cursor.y);
         }
     }
@@ -763,7 +763,7 @@ void ghostcon_screen_put_char(ghostcon_screen_t *s, uint32_t codepoint)
     switch (width)
     {
     case 1:
-        print_cell(s, codepoint, GHOSTCON_CELL_WIDE_NARROW);
+        print_cell(s, codepoint, GC_CELL_WIDE_NARROW);
         s->last_codepoint = codepoint;
         break;
     /* Wide characters require a spacer: the first cell is flagged wide and
@@ -777,20 +777,20 @@ void ghostcon_screen_put_char(ghostcon_screen_t *s, uint32_t codepoint)
                 /* Not enough room — insert a spacer and wrap first. */
                 if (!s->auto_wrap) return;
                 if (right_limit == (int16_t)s->cols)
-                    print_cell(s, 0, GHOSTCON_CELL_WIDE_SPACER_HEAD);
+                    print_cell(s, 0, GC_CELL_WIDE_SPACER_HEAD);
                 else
-                    print_cell(s, 0, GHOSTCON_CELL_WIDE_NARROW);
+                    print_cell(s, 0, GC_CELL_WIDE_NARROW);
                 soft_wrap(s);
             }
-            print_cell(s, codepoint, GHOSTCON_CELL_WIDE_WIDE);
+            print_cell(s, codepoint, GC_CELL_WIDE_WIDE);
             s->cursor.x++;
             if (s->cursor.x >= (int16_t)s->cols)
                 s->cursor.x = (int16_t)(s->cols - 1);
-            print_cell(s, 0, GHOSTCON_CELL_WIDE_SPACER_TAIL);
+            print_cell(s, 0, GC_CELL_WIDE_SPACER_TAIL);
         }
         else
         {
-            print_cell(s, 0, GHOSTCON_CELL_WIDE_NARROW);
+            print_cell(s, 0, GC_CELL_WIDE_NARROW);
         }
         s->last_codepoint = codepoint;
         break;
@@ -1247,7 +1247,7 @@ void ghostcon_screen_insert_chars(ghostcon_screen_t *s, uint16_t n)
             (size_t)(available - shift) * sizeof(ghostcon_cell_t));
 
     for (int32_t i = s->cursor.x; i < s->cursor.x + shift; i++)
-        r->cells[i] = GHOSTCON_CELL_EMPTY;
+        r->cells[i] = GC_CELL_EMPTY;
 
     mark_dirty(s, s->cursor.y);
 }
@@ -1282,7 +1282,7 @@ void ghostcon_screen_delete_chars(ghostcon_screen_t *s, uint16_t n)
         memmove(&r->cells[s->cursor.x], &r->cells[src], (size_t)remaining * sizeof(ghostcon_cell_t));
 
     for (int32_t i = s->cursor.x + remaining; i <= right; i++)
-        r->cells[i] = GHOSTCON_CELL_EMPTY;
+        r->cells[i] = GC_CELL_EMPTY;
 
     mark_dirty(s, s->cursor.y);
 }

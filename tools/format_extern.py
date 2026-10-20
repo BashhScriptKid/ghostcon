@@ -14,7 +14,7 @@ changes no semantics and no generated code. It only makes the linkage
 visible where the declaration is written -- which is how header-declared
 *variables* must already be spelled:
 
-    extern const ghostcon_style_t GHOSTCON_STYLE_DEFAULT;
+    extern const ghostcon_style_t GC_STYLE_DEFAULT;
 
 Left alone:
   * definitions -- a body follows the parameter list;

@@ -12,8 +12,8 @@
 
 #include <systemd/sd-journal.h>
 
-#define GHOSTCON_DIAG_MAX_FRAMES 32
-#define GHOSTCON_DIAG_HEAD_FRAMES 8
+#define GC_DIAG_MAX_FRAMES 32
+#define GC_DIAG_HEAD_FRAMES 8
 
 static const char *g_component = "ghostcon";
 static int g_vt_num = -1;
@@ -36,14 +36,14 @@ static const int FATAL_SIGNALS[] = { SIGSEGV, SIGABRT, SIGFPE, SIGILL, SIGBUS };
  */
 static void crash_handler(int signum)
 {
-    void *frames[GHOSTCON_DIAG_MAX_FRAMES];
-    int n = backtrace(frames, GHOSTCON_DIAG_MAX_FRAMES);
+    void *frames[GC_DIAG_MAX_FRAMES];
+    int n = backtrace(frames, GC_DIAG_MAX_FRAMES);
 
     char **symbols = backtrace_symbols(frames, n);
 
     char head[2048];
     size_t head_len = 0;
-    int head_frames = n < GHOSTCON_DIAG_HEAD_FRAMES ? n : GHOSTCON_DIAG_HEAD_FRAMES;
+    int head_frames = n < GC_DIAG_HEAD_FRAMES ? n : GC_DIAG_HEAD_FRAMES;
     for (int i = 0; i < head_frames && head_len < sizeof(head); i++)
     {
         int written = snprintf(head + head_len, sizeof(head) - head_len, "%s%s",

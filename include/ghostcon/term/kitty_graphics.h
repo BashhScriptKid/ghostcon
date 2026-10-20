@@ -1,5 +1,4 @@
-#ifndef GHOSTCON_TERM_KITTY_GRAPHICS_H
-#define GHOSTCON_TERM_KITTY_GRAPHICS_H
+#pragma once
 
 /* Kitty graphics protocol (APC _G...ST): image transmission, placement, and
  * deletion.
@@ -58,11 +57,11 @@
 typedef void (*ghostcon_kitty_output_fn)(void *userdata,
                                          const uint8_t *data, size_t len);
 
-#define GHOSTCON_KITTY_MAX_IMAGES      64
-#define GHOSTCON_KITTY_MAX_PLACEMENTS  256
-#define GHOSTCON_KITTY_MAX_DIM         4096u
-#define GHOSTCON_KITTY_MAX_IMAGE_BYTES (16u * 1024u * 1024u)  /* per-image decoded cap */
-#define GHOSTCON_KITTY_MAX_TOTAL_BYTES (128u * 1024u * 1024u) /* across all stored images */
+#define GC_KITTY_MAX_IMAGES      64
+#define GC_KITTY_MAX_PLACEMENTS  256
+#define GC_KITTY_MAX_DIM         4096u
+#define GC_KITTY_MAX_IMAGE_BYTES (16u * 1024u * 1024u)  /* per-image decoded cap */
+#define GC_KITTY_MAX_TOTAL_BYTES (128u * 1024u * 1024u) /* across all stored images */
 
 typedef struct
 {
@@ -105,8 +104,8 @@ typedef struct
  * ghostcon_kitty_graphics;` without including this header.
  */
 typedef struct ghostcon_kitty_graphics {
-    ghostcon_kitty_image_t     images[GHOSTCON_KITTY_MAX_IMAGES];
-    ghostcon_kitty_placement_t placements[GHOSTCON_KITTY_MAX_PLACEMENTS];
+    ghostcon_kitty_image_t     images[GC_KITTY_MAX_IMAGES];
+    ghostcon_kitty_placement_t placements[GC_KITTY_MAX_PLACEMENTS];
     size_t                     total_bytes;
 
     /* A multi-chunk (m=1) transmission's continuation chunks legally omit every
@@ -189,5 +188,3 @@ typedef struct
  * apply.
  */
 extern void ghostcon_kitty_graphics_handle(ghostcon_kitty_graphics_t *kg, const char *body, size_t body_len, int32_t cursor_col, int32_t cursor_row, int32_t cell_w, int32_t cell_h, ghostcon_kitty_output_fn output_fn, void *output_userdata, ghostcon_kitty_cursor_move_t *out_move);
-
-#endif

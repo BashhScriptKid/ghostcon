@@ -42,7 +42,7 @@ typedef struct
 {
     int vtnum;
     pid_t pid;
-    char socket_path[GHOSTCON_PTYSERV_LINE_MAX];
+    char socket_path[GC_PTYSERV_LINE_MAX];
 } vt_entry_t;
 
 static vt_entry_t g_vts[MAX_VTS];
@@ -55,7 +55,7 @@ static char g_pty_child_path_canonical[4096]; /* g_pty_child_path, realpath()-re
     regardless of whether g_pty_child_path came from resolve_sibling_path
     (already absolute-ish, but not guaranteed symlink-free) or
     GHOSTCON_PTY_CHILD_BIN (often a relative test-harness path). */
-static char g_registry_dir[GHOSTCON_PTYSERV_LINE_MAX];
+static char g_registry_dir[GC_PTYSERV_LINE_MAX];
 
 /* Resolves `name` relative to this executable's own directory (via
  * /proc/self/exe) instead of trusting PATH
@@ -147,7 +147,7 @@ static pid_t read_live_pid_file(const char *path)
  */
 static void write_pid_file(const char *path, pid_t pid)
 {
-    char tmp_path[GHOSTCON_PTYSERV_LINE_MAX + 40]; /* headroom over the
+    char tmp_path[GC_PTYSERV_LINE_MAX + 40]; /* headroom over the
         largest `path` a caller passes (see spawn_pty_child's pid_path) */
     snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", path);
 
@@ -175,10 +175,10 @@ static bool spawn_pty_child(int vtnum)
     vt_entry_t *e = &g_vts[g_nvts];
     e->vtnum = vtnum;
     snprintf(e->socket_path, sizeof(e->socket_path),
-             GHOSTCON_PTY_CHILD_SOCKET_FMT, g_registry_dir, vtnum);
+             GC_PTY_CHILD_SOCKET_FMT, g_registry_dir, vtnum);
 
-    char pid_path[GHOSTCON_PTYSERV_LINE_MAX + 32]; /* +32: headroom over
-        GHOSTCON_PTYSERV_LINE_MAX for "/pty-tty<N>.pid" so the compiler's
+    char pid_path[GC_PTYSERV_LINE_MAX + 32]; /* +32: headroom over
+        GC_PTYSERV_LINE_MAX for "/pty-tty<N>.pid" so the compiler's
         (theoretical worst-case-int) truncation warning doesn't fire */
     pid_file_path(pid_path, sizeof(pid_path), vtnum);
 
@@ -252,7 +252,7 @@ static int listen_unix(const char *path)
 
 static void handle_client(int client_fd)
 {
-    char line[GHOSTCON_PTYSERV_LINE_MAX];
+    char line[GC_PTYSERV_LINE_MAX];
     ssize_t r = read(client_fd, line, sizeof(line) - 1);
     if (r <= 0)
     {
@@ -262,7 +262,7 @@ static void handle_client(int client_fd)
     line[r] = '\0';
 
     int vtnum;
-    char reply[GHOSTCON_PTYSERV_LINE_MAX];
+    char reply[GC_PTYSERV_LINE_MAX];
     size_t reply_len;
 
     if (!ghostcon_ptyserv_parse_get(line, &vtnum))
@@ -300,7 +300,7 @@ int main(int argc, char **argv)
 
     const char *registry_socket = argv[1];
 
-    char dir_buf[GHOSTCON_PTYSERV_LINE_MAX];
+    char dir_buf[GC_PTYSERV_LINE_MAX];
     strncpy(dir_buf, registry_socket, sizeof(dir_buf) - 1);
     dir_buf[sizeof(dir_buf) - 1] = '\0';
     strncpy(g_registry_dir, dirname(dir_buf), sizeof(g_registry_dir) - 1);

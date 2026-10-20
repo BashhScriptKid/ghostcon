@@ -76,8 +76,8 @@ int main(void)
     int any_positive = 0;
     for (size_t i = 0; i < sizeof(positive_cases) / sizeof(positive_cases[0]); i++)
     {
-        ghostcon_ligature_glyph_t glyphs[GHOSTCON_LIGATURE_MAX_RUN_LEN];
-        int n = scan_line(atlas, positive_cases[i], glyphs, GHOSTCON_LIGATURE_MAX_RUN_LEN);
+        ghostcon_ligature_glyph_t glyphs[GC_LIGATURE_MAX_RUN_LEN];
+        int n = scan_line(atlas, positive_cases[i], glyphs, GC_LIGATURE_MAX_RUN_LEN);
         if (n < 0)
             continue; /* scan_line already recorded the failure */
         if (n > 0)
@@ -109,8 +109,8 @@ int main(void)
     };
     for (size_t i = 0; i < sizeof(negative_cases) / sizeof(negative_cases[0]); i++)
     {
-        ghostcon_ligature_glyph_t glyphs[GHOSTCON_LIGATURE_MAX_RUN_LEN];
-        int n = scan_line(atlas, negative_cases[i], glyphs, GHOSTCON_LIGATURE_MAX_RUN_LEN);
+        ghostcon_ligature_glyph_t glyphs[GC_LIGATURE_MAX_RUN_LEN];
+        int n = scan_line(atlas, negative_cases[i], glyphs, GC_LIGATURE_MAX_RUN_LEN);
         if (n < 0)
             continue;
         if (n != 0)

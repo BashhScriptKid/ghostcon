@@ -19,12 +19,12 @@
  *
  * no need for a resizable map.
  *
- * GHOSTCON_ATLAS_MAX_GLYPHS is generous headroom, not a hard cap on what any one
+ * GC_ATLAS_MAX_GLYPHS is generous headroom, not a hard cap on what any one
  * session can display (a full atlas just means new glyphs stop being cached and
  * lose the ability to render, which is the same failure mode as the atlas bitmap
  * itself filling up).
  */
-#define GHOSTCON_ATLAS_MAX_GLYPHS 4096
+#define GC_ATLAS_MAX_GLYPHS 4096
 
 /* Gap (pixels) left after every packed glyph, both right and below. gles.c
  * samples the atlas with GL_LINEAR; with zero gap, a glyph's own edge texel gets
@@ -33,7 +33,7 @@
  * fringing/ghosting on glyph edges (found live: visible once the gamma-correction
  * fix made edges crisp enough for the bleed to stand out from the noise).
  */
-#define GHOSTCON_ATLAS_GLYPH_PADDING 1
+#define GC_ATLAS_GLYPH_PADDING 1
 
 /* Bound for a color bitmap glyph's rasterized size
  *
@@ -45,7 +45,7 @@
  *
  * Noto Color Emoji's actual strike is 136x128.
  */
-#define GHOSTCON_ATLAS_COLOR_GLYPH_MAX 160
+#define GC_ATLAS_COLOR_GLYPH_MAX 160
 
 typedef struct
 {
@@ -127,7 +127,7 @@ struct ghostcon_atlas {
            GC_ATLAS_AA_CLEARTYPE } aa_mode;
     bool bgr_order; /* only meaningful when aa_mode == GC_ATLAS_AA_CLEARTYPE */
 
-    atlas_slot_t slots[GHOSTCON_ATLAS_MAX_GLYPHS];
+    atlas_slot_t slots[GC_ATLAS_MAX_GLYPHS];
 };
 
 /* Sentinel stored in fallback_faces[i] for "already tried to open this candidate
@@ -137,15 +137,15 @@ struct ghostcon_atlas {
  * fallback list only ever gets one failed FT_New_Face() attempt, not one per
  * glyph miss for the rest of the session.
  */
-#define GHOSTCON_ATLAS_FACE_FAILED ((FT_Face)(intptr_t)-1)
+#define GC_ATLAS_FACE_FAILED ((FT_Face)(intptr_t)-1)
 
 static atlas_slot_t
 *slot_find(ghostcon_atlas_t *atlas, uint32_t codepoint, bool *found)
 {
     uint32_t h = codepoint * 2654435761u; /* Knuth multiplicative hash */
-    for (uint32_t i = 0; i < GHOSTCON_ATLAS_MAX_GLYPHS; i++)
+    for (uint32_t i = 0; i < GC_ATLAS_MAX_GLYPHS; i++)
     {
-        uint32_t idx = (h + i) % GHOSTCON_ATLAS_MAX_GLYPHS;
+        uint32_t idx = (h + i) % GC_ATLAS_MAX_GLYPHS;
         atlas_slot_t *s = &atlas->slots[idx];
         if (!s->occupied)
         {
@@ -297,7 +297,7 @@ ghostcon_atlas_t
      */
     memset(atlas->bitmap, 0xFF, 6);                                   /* row 0: (0,0) (1,0) */
     memset(atlas->bitmap + (size_t)atlas_dim * 3, 0xFF, 6);           /* row 1: (0,1) (1,1) */
-    atlas->pen_x = 2 + GHOSTCON_ATLAS_GLYPH_PADDING;
+    atlas->pen_x = 2 + GC_ATLAS_GLYPH_PADDING;
     atlas->shelf_h = 2;
 
     atlas->dirty = true;
@@ -332,7 +332,7 @@ void ghostcon_atlas_destroy(ghostcon_atlas_t *atlas)
         for (int i = 0; i < atlas->fallback_set->nfont; i++)
         {
             FT_Face f = atlas->fallback_faces[i];
-            if (f && f != GHOSTCON_ATLAS_FACE_FAILED)
+            if (f && f != GC_ATLAS_FACE_FAILED)
                 FT_Done_Face(f);
         }
         FcFontSetDestroy(atlas->fallback_set);
@@ -359,13 +359,13 @@ void ghostcon_atlas_destroy(ghostcon_atlas_t *atlas)
 static const ghostcon_glyph_t
 *pack_bitmap(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t codepoint, const uint8_t *bitmap, unsigned width, unsigned rows, unsigned pitch, int16_t bearing_x, int16_t bearing_y, float advance)
 {
-    if (atlas->pen_x + width + GHOSTCON_ATLAS_GLYPH_PADDING > atlas->dim)
+    if (atlas->pen_x + width + GC_ATLAS_GLYPH_PADDING > atlas->dim)
     {
         atlas->pen_x = 0;
-        atlas->pen_y += atlas->shelf_h + GHOSTCON_ATLAS_GLYPH_PADDING;
+        atlas->pen_y += atlas->shelf_h + GC_ATLAS_GLYPH_PADDING;
         atlas->shelf_h = 0;
     }
-    if (atlas->pen_y + rows + GHOSTCON_ATLAS_GLYPH_PADDING > atlas->dim)
+    if (atlas->pen_y + rows + GC_ATLAS_GLYPH_PADDING > atlas->dim)
         return NULL; /* atlas full */
 
     for (unsigned row = 0; row < rows; row++)
@@ -391,7 +391,7 @@ static const ghostcon_glyph_t
         .advance = advance,
     };
 
-    atlas->pen_x += width + GHOSTCON_ATLAS_GLYPH_PADDING;
+    atlas->pen_x += width + GC_ATLAS_GLYPH_PADDING;
     if (rows > atlas->shelf_h)
         atlas->shelf_h = rows;
 
@@ -409,13 +409,13 @@ static const ghostcon_glyph_t
 static const ghostcon_glyph_t
 *pack_bitmap_rgba(ghostcon_atlas_t *atlas, atlas_slot_t *slot, uint32_t codepoint, const uint8_t *bitmap, unsigned width, unsigned rows, unsigned pitch, int16_t bearing_x, int16_t bearing_y, float advance)
 {
-    if (atlas->color_pen_x + width + GHOSTCON_ATLAS_GLYPH_PADDING > atlas->dim)
+    if (atlas->color_pen_x + width + GC_ATLAS_GLYPH_PADDING > atlas->dim)
     {
         atlas->color_pen_x = 0;
-        atlas->color_pen_y += atlas->color_shelf_h + GHOSTCON_ATLAS_GLYPH_PADDING;
+        atlas->color_pen_y += atlas->color_shelf_h + GC_ATLAS_GLYPH_PADDING;
         atlas->color_shelf_h = 0;
     }
-    if (atlas->color_pen_y + rows + GHOSTCON_ATLAS_GLYPH_PADDING > atlas->dim)
+    if (atlas->color_pen_y + rows + GC_ATLAS_GLYPH_PADDING > atlas->dim)
         return NULL; /* color atlas full */
 
     for (unsigned row = 0; row < rows; row++)
@@ -442,7 +442,7 @@ static const ghostcon_glyph_t
         .is_color = true,
     };
 
-    atlas->color_pen_x += width + GHOSTCON_ATLAS_GLYPH_PADDING;
+    atlas->color_pen_x += width + GC_ATLAS_GLYPH_PADDING;
     if (rows > atlas->color_shelf_h)
         atlas->color_shelf_h = rows;
 
@@ -529,7 +529,7 @@ find_face_for_codepoint(ghostcon_atlas_t *atlas, uint32_t codepoint, FT_UInt *ou
     for (int i = 0; i < atlas->fallback_set->nfont; i++)
     {
         FT_Face face = atlas->fallback_faces[i];
-        if (face == GHOSTCON_ATLAS_FACE_FAILED)
+        if (face == GC_ATLAS_FACE_FAILED)
             continue;
         if (!face)
         {
@@ -537,7 +537,7 @@ find_face_for_codepoint(ghostcon_atlas_t *atlas, uint32_t codepoint, FT_UInt *ou
             if (FcPatternGetString(atlas->fallback_set->fonts[i], FC_FILE, 0, &path) != FcResultMatch ||
                 FT_New_Face(atlas->ft, (const char *)path, 0, &face))
             {
-                atlas->fallback_faces[i] = GHOSTCON_ATLAS_FACE_FAILED;
+                atlas->fallback_faces[i] = GC_ATLAS_FACE_FAILED;
                 continue;
             }
             FT_Set_Pixel_Sizes(face, 0, (FT_UInt)atlas->font_size_px);
@@ -672,8 +672,8 @@ static const ghostcon_glyph_t
          * would suggest: found live, Noto Color Emoji's closest strike to this
          * project's actual font_size_px is 136x128, already past 128 wide.
          */
-        if (cbmp->width == 0 || cbmp->width > GHOSTCON_ATLAS_COLOR_GLYPH_MAX ||
-            cbmp->rows > GHOSTCON_ATLAS_COLOR_GLYPH_MAX)
+        if (cbmp->width == 0 || cbmp->width > GC_ATLAS_COLOR_GLYPH_MAX ||
+            cbmp->rows > GC_ATLAS_COLOR_GLYPH_MAX)
             return NULL;
 
         /* FreeType's color bitmaps are BGRA, premultiplied alpha. gles.c's
@@ -682,7 +682,7 @@ static const ghostcon_glyph_t
          * premultiplication need undoing here, once, at pack time rather than
          * per-frame in the shader.
          */
-        uint8_t conv[GHOSTCON_ATLAS_COLOR_GLYPH_MAX * GHOSTCON_ATLAS_COLOR_GLYPH_MAX * 4];
+        uint8_t conv[GC_ATLAS_COLOR_GLYPH_MAX * GC_ATLAS_COLOR_GLYPH_MAX * 4];
         for (unsigned row = 0; row < cbmp->rows; row++)
         {
             const uint8_t *src = cbmp->buffer + (size_t)row * (unsigned)cbmp->pitch;
@@ -828,12 +828,12 @@ static const ghostcon_glyph_t
  * real Unicode codepoints top out at 0x10FFFF, well clear of the high bit, so
  * this can never collide with a genuine codepoint's slot.
  */
-#define GHOSTCON_ATLAS_GIDX_SLOT_KEY(gidx) (0x80000000u | (uint32_t)(gidx))
+#define GC_ATLAS_GIDX_SLOT_KEY(gidx) (0x80000000u | (uint32_t)(gidx))
 
 const ghostcon_glyph_t
 *ghostcon_atlas_glyph_by_index(ghostcon_atlas_t *atlas, uint32_t glyph_index)
 {
-    uint32_t key = GHOSTCON_ATLAS_GIDX_SLOT_KEY(glyph_index);
+    uint32_t key = GC_ATLAS_GIDX_SLOT_KEY(glyph_index);
     bool found;
     atlas_slot_t *slot = slot_find(atlas, key, &found);
     if (!slot)

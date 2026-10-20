@@ -1,5 +1,6 @@
 #include "ghostcon/term/dump.h"
 #include "ghostcon/term/cell.h"
+#include "ghostcon/term/style.h"
 #include <stdbool.h>
 
 void ghostcon_screen_dump(FILE *f, ghostcon_screen_t *s)
@@ -26,25 +27,25 @@ void ghostcon_screen_dump(FILE *f, ghostcon_screen_t *s)
         {
             ghostcon_cell_t c = r->cells[x];
             ghostcon_cell_content_tag_t tag = ghostcon_cell_get_tag(c);
-            uint32_t cp = (tag == GHOSTCON_CELL_CODEPOINT || tag == GHOSTCON_CELL_CODEPOINT_GRAPHEME)
+            uint32_t cp = (tag == GC_CELL_CODEPOINT || tag == GC_CELL_CODEPOINT_GRAPHEME)
                 ? ghostcon_cell_get_codepoint(c) : 0;
             uint32_t wide = ghostcon_cell_get_wide(c);
             uint32_t prot = ghostcon_cell_get_protected(c) ? 1u : 0u;
             ghostcon_style_id_t style_id = ghostcon_cell_get_style(c);
-            uint32_t styled = style_id != GC_STYLE_ID_DEFAULT ? 1u : 0u;
-            bool content_bg = (tag == GHOSTCON_CELL_BG_COLOR_PALETTE || tag == GHOSTCON_CELL_BG_COLOR_RGB);
+            uint32_t styled = style_id != GC_STYLE_DEFAULT_ID ? 1u : 0u;
+            bool content_bg = (tag == GC_CELL_BG_COLOR_PALETTE || tag == GC_CELL_BG_COLOR_RGB);
             if (cp == 0 && wide == 0 && prot == 0 && styled == 0 && !content_bg)
                 continue;
 
             uint32_t bg_default, bg_truecolor, bg_palette;
             uint8_t bg_r, bg_g, bg_b;
-            if (tag == GHOSTCON_CELL_BG_COLOR_PALETTE)
+            if (tag == GC_CELL_BG_COLOR_PALETTE)
             {
                 bg_default = 0; bg_truecolor = 0;
                 bg_palette = ghostcon_cell_get_palette_idx(c);
                 bg_r = bg_g = bg_b = 0;
             }
-            else if (tag == GHOSTCON_CELL_BG_COLOR_RGB)
+            else if (tag == GC_CELL_BG_COLOR_RGB)
             {
                 bg_default = 0; bg_truecolor = 1; bg_palette = 0;
                 ghostcon_rgb_t rgb = ghostcon_cell_get_rgb(c);

@@ -20,9 +20,9 @@ typedef struct
     const char *fg, *bg, *cursor;
 } ghostty_theme_preset_t;
 
-const int GHOSTCON_GHOSTTY_PRESET_COUNT = 602;
+const int GC_GHOSTTY_PRESET_COUNT = 602;
 
-const ghostty_theme_preset_t GHOSTCON_GHOSTTY_PRESETS[] = {
+const ghostty_theme_preset_t GC_GHOSTTY_PRESETS[] = {
     { "0x96f", { "#262427", "#ff666d", "#b3e03a", "#ffc739", "#00cde8", "#a392e8", "#9deaf6", "#fcfcfa", "#545452", "#ff7e83", "#bee55e", "#ffd05e", "#1bd5eb", "#b0a3eb", "#acedf8", "#fcfcfa" }, "#fcfcfa", "#262427", "#fcfcfa" },
     { "12-bit Rainbow", { "#000000", "#a03050", "#40d080", "#e09040", "#3060b0", "#603090", "#0090c0", "#dbded8", "#685656", "#c06060", "#90d050", "#e0d000", "#00b0c0", "#801070", "#20b0c0", "#ffffff" }, "#feffff", "#040404", "#e0d000" },
     { "3024 Day", { "#090300", "#db2d20", "#01a252", "#caba00", "#01a0e4", "#a16a94", "#8fbece", "#a5a2a2", "#5c5855", "#dbaec3", "#3a3432", "#4a4543", "#807d7c", "#bcbbba", "#cdab53", "#f7f7f7" }, "#4a4543", "#f7f7f7", "#4a4543" },

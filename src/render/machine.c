@@ -54,11 +54,11 @@ static void override_bg_from_content(const ghostcon_screen_t *screen, ghostcon_c
 {
     ghostcon_cell_content_tag_t tag = ghostcon_cell_get_tag(cell);
     GhosttyColorRgb rgb;
-    if (tag == GHOSTCON_CELL_BG_COLOR_PALETTE)
+    if (tag == GC_CELL_BG_COLOR_PALETTE)
     {
         rgb = ghostcon_palette_resolve(&screen->palette, ghostcon_cell_get_palette_idx(cell));
     }
-    else if (tag == GHOSTCON_CELL_BG_COLOR_RGB)
+    else if (tag == GC_CELL_BG_COLOR_RGB)
     {
         ghostcon_rgb_t raw = ghostcon_cell_get_rgb(cell);
         rgb = (GhosttyColorRgb){ raw.r, raw.g, raw.b };
@@ -159,8 +159,8 @@ void ghostcon_machine_render_dirty(ghostcon_screen_t *screen, ghostcon_atlas_t *
             float py = (float)(y * cell_h);
 
             ghostcon_cell_content_tag_t tag = ghostcon_cell_get_tag(cell);
-            uint32_t cp = (tag == GHOSTCON_CELL_CODEPOINT ||
-                           tag == GHOSTCON_CELL_CODEPOINT_GRAPHEME)
+            uint32_t cp = (tag == GC_CELL_CODEPOINT ||
+                           tag == GC_CELL_CODEPOINT_GRAPHEME)
                 ? ghostcon_cell_get_codepoint(cell) : 0;
 
             /* A ligature-substituted glyph is only safe to draw at its
@@ -261,8 +261,8 @@ void ghostcon_machine_render_dirty(ghostcon_screen_t *screen, ghostcon_atlas_t *
             }
 
             ghostcon_cell_wide_t wide = ghostcon_cell_get_wide(cell);
-            if (wide == GHOSTCON_CELL_WIDE_SPACER_TAIL ||
-                wide == GHOSTCON_CELL_WIDE_SPACER_HEAD)
+            if (wide == GC_CELL_WIDE_SPACER_TAIL ||
+                wide == GC_CELL_WIDE_SPACER_HEAD)
                 continue;
 
             if (cp == 0)
@@ -570,9 +570,9 @@ void ghostcon_machine_render_images(ghostcon_screen_t *screen, ghostcon_gles_t *
         return;
 
     const ghostcon_kitty_graphics_t *kg = ghostcon_screen_active_kitty_graphics(screen);
-    const ghostcon_kitty_placement_t *sorted[GHOSTCON_KITTY_MAX_PLACEMENTS];
+    const ghostcon_kitty_placement_t *sorted[GC_KITTY_MAX_PLACEMENTS];
     int count = 0;
-    for (int i = 0; i < GHOSTCON_KITTY_MAX_PLACEMENTS; i++)
+    for (int i = 0; i < GC_KITTY_MAX_PLACEMENTS; i++)
     {
         if (kg->placements[i].in_use)
             sorted[count++] = &kg->placements[i];
@@ -590,7 +590,7 @@ void ghostcon_machine_render_images(ghostcon_screen_t *screen, ghostcon_gles_t *
      * just stamped into.
      */
     const ghostcon_sixel_state_t *sx = ghostcon_screen_active_sixel_state(screen);
-    for (int i = 0; i < GHOSTCON_SIXEL_MAX_PLACEMENTS; i++)
+    for (int i = 0; i < GC_SIXEL_MAX_PLACEMENTS; i++)
     {
         const ghostcon_sixel_placement_t *p = &sx->placements[i];
         if (!p->in_use)

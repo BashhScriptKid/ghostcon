@@ -1,4 +1,5 @@
 #include "ghostcon/term/row.h"
+#include "ghostcon/term/style.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -65,8 +66,8 @@ void ghostcon_row_fill_range(ghostcon_row_t *row, uint16_t left, uint16_t end, g
     if (left == 0 && end == row->cols)
     {
         row->grapheme = false;
-        row->styled = ghostcon_cell_get_style(fill) != GC_STYLE_ID_DEFAULT ||
-                      ghostcon_cell_get_tag(fill) != GHOSTCON_CELL_CODEPOINT;
+        row->styled = ghostcon_cell_get_style(fill) != GC_STYLE_DEFAULT_ID ||
+                      ghostcon_cell_get_tag(fill) != GC_CELL_CODEPOINT;
         row->hyperlink = false;
     }
 }
