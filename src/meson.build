@@ -160,7 +160,8 @@ if not meson.is_subproject()
         include_directories: include_directories('../include'),
         link_with: term_lib,
         dependencies: [dep_ghostty_vt],
-        c_args: ['-DGHOSTCON_UCD_PATH="' + meson.project_source_root() + '/third_party/UnicodeData.txt"'],
+        c_args: ['-DGHOSTCON_UCD_PATH="' + meson.project_source_root() + '/third_party/UnicodeData.txt"',
+                 '-DGHOSTCON_SYMBOL_TABLE_PATH="' + meson.project_source_root() + '/src/term/cell_symbol_table.gen.c"'],
     )
     test('test_symbol_table', test_symbol_table_exe)
 

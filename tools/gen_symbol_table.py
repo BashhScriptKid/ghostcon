@@ -13,10 +13,20 @@ codepoints are General Category Co (Private Use), not Symbol, so real
 UCD data has nothing to say about them. That carve-out stays hand-added
 in cell.c, layered on top of this generated table, not folded into it.
 """
+import os
 import sys
 
 IN = sys.argv[1]
 OUT = sys.argv[2]
+
+# The Unicode version of the input, if the fetch script recorded it next to
+# it (third_party/UCD_VERSION). It goes into the generated file's header, so
+# the table says which UCD it matches.
+ucd_version = ""
+version_file = os.path.join(os.path.dirname(os.path.abspath(IN)), "UCD_VERSION")
+if os.path.exists(version_file):
+    with open(version_file, 'r', encoding='utf-8') as f:
+        ucd_version = f.read().strip()
 
 SYMBOL_CATEGORIES = {'Sm', 'Sc', 'Sk', 'So'}
 
@@ -61,6 +71,13 @@ with open(OUT, 'w') as f:
     f.write(' * Produced by tools/gen_symbol_table.py from the Unicode Character\n')
     f.write(' * Database (UnicodeData.txt). Covers General Category Sm, Sc, Sk, So\n')
     f.write(' * ("Symbol" categories) -- mirrors Ghostty\'s UCD-derived isSymbol().\n')
+    if ucd_version:
+        f.write(f' *\n')
+        f.write(f' * Unicode version: {ucd_version}.\n')
+        f.write(f' *\n')
+        f.write(f' * The table is a snapshot of that version, and\n')
+        f.write(f' * tests/test_symbol_table.c cross-checks it against the same one\n')
+        f.write(f' * (see tools/fetch_ucd.sh for how to move to a newer version).\n')
     f.write(' *\n')
     f.write(' * Does NOT include the Private Use Area (Nerd Font icon glyphs) --\n')
     f.write(' * PUA codepoints are category Co, not Symbol. That carve-out is\n')

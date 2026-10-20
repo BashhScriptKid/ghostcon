@@ -21,6 +21,7 @@ subprojects/packagecache/
 # tools/fetch_ucd.sh, not committed. src/term/cell_symbol_table.gen.c
 # (its generated output) IS committed.
 third_party/UnicodeData.txt
+third_party/UCD_VERSION
 
 # Root clangd/ccls DB symlink (points at a build dir)
 compile_commands.json

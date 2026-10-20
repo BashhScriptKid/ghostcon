@@ -294,6 +294,7 @@ performance, portability, minus the noisy checks documented there).
 | Crash reporting (journald) | `src/core/diag.c` | `test_diag` |
 | Domain debug logging | `include/ghostcon/core/log.h` | `test_log` |
 | Offline state inspection | `tools/gc_inspect.c` (`gc-inspect`) | `test_gc_inspect` |
+| Symbol classification (UCD-derived) | `src/term/cell_symbol_table.gen.c` (**generated** -- do not hand-edit) | `test_symbol_table`, which needs the UCD input: `tools/fetch_ucd.sh` fetches the version the table was built from, and `tools/gen_symbol_table.py` regenerates the table from it |
 
 Two gates run on every push besides the tests themselves:
 

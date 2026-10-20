@@ -18,6 +18,71 @@
 #error "GHOSTCON_UCD_PATH must be defined (path to vendored UnicodeData.txt)"
 #endif
 
+#ifndef GHOSTCON_SYMBOL_TABLE_PATH
+#error "GHOSTCON_SYMBOL_TABLE_PATH must be defined (path to the generated symbol table)"
+#endif
+
+/* The Unicode version the fetched input is, as recorded by
+ * tools/fetch_ucd.sh next to it.
+ */
+static const char *ucd_input_version(void)
+{
+    static char version[32];
+    char path[512];
+    snprintf(path, sizeof path, "%s", GHOSTCON_UCD_PATH);
+    char *slash = strrchr(path, '/');
+    if (!slash)
+        return NULL;
+    snprintf(slash + 1, sizeof path - (size_t)(slash + 1 - path), "UCD_VERSION");
+
+    FILE *f = fopen(path, "r");
+    if (!f)
+        return NULL;
+    if (!fgets(version, sizeof version, f))
+    {
+        fclose(f);
+        return NULL;
+    }
+    fclose(f);
+    version[strcspn(version, "\r\n")] = '\0';
+    return version;
+}
+
+/* The Unicode version the generated table was built from, as recorded in the
+ * table's own header.
+ */
+static const char *table_ucd_version(void)
+{
+    static char version[32];
+    FILE *f = fopen(GHOSTCON_SYMBOL_TABLE_PATH, "r");
+    if (!f)
+        return NULL;
+
+    const char *found = NULL;
+    char line[256];
+    while (fgets(line, sizeof line, f))
+    {
+        const char *p = strstr(line, "Unicode version: ");
+        if (!p)
+            continue;
+        p += strlen("Unicode version: ");
+        size_t i = 0;
+        while (p[i] && p[i] != '\n' && p[i] != '\r' && i + 1 < sizeof version)
+        {
+            version[i] = p[i];
+            i++;
+        }
+        version[i] = '\0';
+        /* The line ends with the sentence's period. */
+        while (i > 0 && (version[i - 1] == '.' || version[i - 1] == ' '))
+            version[--i] = '\0';
+        found = version;
+        break;
+    }
+    fclose(f);
+    return found;
+}
+
 static bool is_symbol_category(const char *cat)
 {
     return strcmp(cat, "Sm") == 0 || strcmp(cat, "Sc") == 0 ||
@@ -134,6 +199,30 @@ int main(void)
         return 77; /* meson's skip code */
     }
     fclose(probe);
+
+    /* The table is a snapshot of one UCD version, and this test compares it
+     * against the UCD.
+     *
+     * If the input is a different version, every codepoint Unicode has changed
+     * since would be reported as a mismatch -- which says nothing about the
+     * table.
+     *
+     * (Unicode 16.0 gave U+20C2..U+20CF to new currency signs, so a 15.x table
+     * and a 16.0 UCD disagree about 143 codepoints.)
+     *
+     * So the versions are compared first, and a mismatch is reported as what it
+     * is: the wrong input, not a broken table.
+     */
+    const char *input_version = ucd_input_version();
+    const char *table_version = table_ucd_version();
+    if (input_version && table_version && strcmp(input_version, table_version) != 0)
+    {
+        printf("SKIP: the fetched UCD is Unicode %s, but the generated table was "
+               "built from Unicode %s -- regenerate the table (see "
+               "tools/fetch_ucd.sh) or fetch the matching version\n",
+               input_version, table_version);
+        return 77; /* meson's skip code */
+    }
 
     return gc_test_run_all();
 }
