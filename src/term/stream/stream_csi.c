@@ -762,24 +762,115 @@ static void handle_csi_sgr(ghostcon_stream_t *st, ghostcon_screen_t *s)
     s->cursor.style_id = ghostcon_style_set_add(s->styles, &cur);
 }
 
-/* CSI dispatch table */
+/* CSI dispatch table
+ *
+ * One row per (final byte, intermediates) pair.
+ *
+ * Intermediate discrimination mirrors Ghostty's `switch
+ * (input.intermediates.len)` structure (stream.zig).
+ *
+ * The private markers < = > ? are collected into intermediates when
+ * they lead a sequence, so DEC private, DA2/DA3, XTSHIFTESCAPE, DECSCA,
+ * and DECSED/DECSEL are all told apart here.
+ */
+typedef struct
+{
+    uint8_t                final;     /* the final byte */
+    uint8_t                inter_len; /* exact number of intermediates */
+    uint8_t                inter0;    /* first intermediate, when inter_len >= 1 */
+    uint8_t                inter1;    /* second intermediate, when inter_len >= 2 */
+    gc_stream_csi_handler_t fn;
+} csi_entry_t;
 
-typedef void (*csi_handler_t)(ghostcon_stream_t *, ghostcon_screen_t *);
+static const csi_entry_t csi_table[] = {
+    /* Sorted by final byte, so csi_lookup() can binary-search for the
+     * first row of a final and walk its variants from there. Keep it
+     * sorted: an out-of-order row is dispatched wrongly, not rejected.
+     *
+     * 't' (window ops) has no handler.
+     */
+    { '@', 0, 0, 0, handle_csi_insert_chars },
+    { 'A', 0, 0, 0, handle_csi_cursor_up },
+    { 'B', 0, 0, 0, handle_csi_cursor_down },
+    { 'C', 0, 0, 0, handle_csi_cursor_forward },
+    { 'D', 0, 0, 0, handle_csi_cursor_back },
+    { 'E', 0, 0, 0, handle_csi_cursor_next_line },
+    { 'F', 0, 0, 0, handle_csi_cursor_prev_line },
+    { 'G', 0, 0, 0, handle_csi_cursor_horizontal_abs },
+    { 'H', 0, 0, 0, handle_csi_cursor_position },
+    { 'I', 0, 0, 0, handle_csi_tab_forward },
+    { 'J', 0, 0, 0, handle_csi_erase_display },
+    { 'J', 1, '?', 0, handle_csi_erase_display },
+    { 'K', 0, 0, 0, handle_csi_erase_line },
+    { 'K', 1, '?', 0, handle_csi_erase_line },
+    { 'L', 0, 0, 0, handle_csi_insert_lines },
+    { 'M', 0, 0, 0, handle_csi_delete_lines },
+    { 'P', 0, 0, 0, handle_csi_delete_chars },
+    { 'S', 0, 0, 0, handle_csi_scroll_up },
+    { 'T', 0, 0, 0, handle_csi_scroll_down },
+    { 'X', 0, 0, 0, handle_csi_erase_chars },
+    { 'Z', 0, 0, 0, handle_csi_tab_back },
+    { '`', 0, 0, 0, handle_csi_cursor_horizontal_abs },
+    { 'a', 0, 0, 0, handle_csi_cursor_forward },
+    { 'b', 0, 0, 0, handle_csi_repeat },
+    { 'c', 0, 0, 0, handle_csi_device_attrib },
+    { 'c', 1, '>', 0, handle_csi_device_attrib },
+    { 'c', 1, '=', 0, handle_csi_device_attrib },
+    { 'd', 0, 0, 0, handle_csi_cursor_vertical_abs },
+    { 'e', 0, 0, 0, handle_csi_cursor_down },
+    { 'f', 0, 0, 0, handle_csi_horizontal_vertical_position },
+    { 'g', 0, 0, 0, handle_csi_tab_clear },
+    { 'h', 0, 0, 0, handle_csi_set_mode },
+    { 'h', 1, '?', 0, handle_csi_dec_set },
+    { 'l', 0, 0, 0, handle_csi_reset_mode },
+    { 'l', 1, '?', 0, handle_csi_dec_reset },
+    { 'm', 0, 0, 0, handle_csi_sgr },
+    { 'n', 0, 0, 0, handle_csi_device_status_report },
+    { 'p', 1, '$', 0, handle_csi_request_mode },
+    { 'p', 2, '?', '$', handle_csi_request_mode },
+    { 'q', 1, ' ', 0, handle_csi_cursor_style },
+    { 'q', 1, '"', 0, handle_csi_decsca },
+    { 'r', 0, 0, 0, handle_csi_set_scroll_region },
+    { 'r', 1, '?', 0, handle_csi_restore_mode },
+    { 's', 0, 0, 0, handle_csi_set_margin_region },
+    { 's', 1, '?', 0, handle_csi_save_mode },
+    { 's', 1, '>', 0, handle_csi_shift_escape },
+    { 'u', 0, 0, 0, handle_csi_restore_cursor },
+    { 'u', 1, '>', 0, handle_csi_kitty_push },
+    { 'u', 1, '<', 0, handle_csi_kitty_pop },
+    { 'u', 1, '=', 0, handle_csi_kitty_set },
+    { 'u', 1, '?', 0, handle_csi_kitty_query },
+};
+
+bool gc_stream_csi_table_sorted(void)
+{
+    /* The table is searched by binary search, so it has to stay sorted by final
+     * byte, and no two rows may be identical -- an out-of-order or duplicated row
+     * is dispatched wrongly rather than rejected, and a CSI sequence the table
+     * does not match is silently ignored.
+     *
+     * Exposed so a test can check the invariant instead of it living only in a
+     * comment.
+     */
+    const size_t n = sizeof(csi_table) / sizeof(csi_table[0]);
+    for (size_t i = 1; i < n; i++)
+    {
+        const csi_entry_t *a = &csi_table[i - 1];
+        const csi_entry_t *b = &csi_table[i];
+        if (a->final > b->final)
+            return false;
+        if (a->final == b->final &&
+            a->inter_len == b->inter_len &&
+            a->inter0 == b->inter0 &&
+            a->inter1 == b->inter1)
+            return false;
+    }
+    return true;
+}
 
 static gc_stream_csi_handler_t
 csi_lookup(ghostcon_stream_t *st, uint8_t final_byte)
 {
-    /* Intermediate discrimination mirrors Ghostty's `switch
-     * (input.intermediates.len)` structure (stream.zig).
-     *
-     * The private markers < = > ? are collected into intermediates when
-     * they lead a sequence, so DEC private, DA2/DA3, XTSHIFTESCAPE, DECSCA,
-     * and DECSED/DECSEL are all told apart here.
-     */
-    const uint8_t inter_len = st->intermediates_idx;
-    const uint8_t inter0 = (inter_len > 0) ? st->intermediates[0] : 0;
-    const bool has_inter = (inter_len > 0);
-
     /* Ghostty drops any CSI sequence whose parameter count reached MAX_PARAMS
      * (24)
      *
@@ -789,92 +880,34 @@ csi_lookup(ghostcon_stream_t *st, uint8_t final_byte)
     if (st->params_idx >= GC_STREAM_MAX_PARAMS)
         return NULL;
 
-    /* Finals that have intermediate variants (DEC private and friends) */
-    switch (final_byte)
+    const uint8_t inter_len = st->intermediates_idx;
+    const uint8_t inter0 = (inter_len > 0) ? st->intermediates[0] : 0;
+    const uint8_t inter1 = (inter_len > 1) ? st->intermediates[1] : 0;
+
+    const size_t n = sizeof(csi_table) / sizeof(csi_table[0]);
+    size_t lo = 0;
+    size_t hi = n;
+    while (lo < hi)
     {
-    case 'J':
-        if (inter_len == 0) return handle_csi_erase_display;
-        if (inter_len == 1 && inter0 == '?') return handle_csi_erase_display;
-        return NULL;
-    case 'K':
-        if (inter_len == 0) return handle_csi_erase_line;
-        if (inter_len == 1 && inter0 == '?') return handle_csi_erase_line;
-        return NULL;
-    case 'h':
-        if (inter_len == 0) return handle_csi_set_mode;
-        if (inter_len == 1 && inter0 == '?') return handle_csi_dec_set;
-        return NULL;
-    case 'l':
-        if (inter_len == 0) return handle_csi_reset_mode;
-        if (inter_len == 1 && inter0 == '?') return handle_csi_dec_reset;
-        return NULL;
-    case 'r':
-        if (inter_len == 0) return handle_csi_set_scroll_region;
-        if (inter_len == 1 && inter0 == '?') return handle_csi_restore_mode;
-        return NULL;
-    case 's':
-        if (inter_len == 0) return handle_csi_set_margin_region;
-        if (inter_len == 1 && inter0 == '?') return handle_csi_save_mode;
-        if (inter_len == 1 && inter0 == '>') return handle_csi_shift_escape;
-        return NULL;
-    case 'q':
-        if (inter_len == 1 && inter0 == ' ') return handle_csi_cursor_style;
-        if (inter_len == 1 && inter0 == '"') return handle_csi_decsca;
-        return NULL;
-    case 'c':
-        if (inter_len == 0) return handle_csi_device_attrib;
-        if (inter_len == 1 && inter0 == '>') return handle_csi_device_attrib;
-        if (inter_len == 1 && inter0 == '=') return handle_csi_device_attrib;
-        return NULL;
-    case 'p':
-        if (inter_len == 1 && inter0 == '$') return handle_csi_request_mode;
-        if (inter_len == 2 && inter0 == '?' && st->intermediates[1] == '$')
-            return handle_csi_request_mode;
-        return NULL;
-    case 'u':
-        if (inter_len == 0) return handle_csi_restore_cursor;
-        if (inter_len == 1 && inter0 == '>') return handle_csi_kitty_push;
-        if (inter_len == 1 && inter0 == '<') return handle_csi_kitty_pop;
-        if (inter_len == 1 && inter0 == '=') return handle_csi_kitty_set;
-        if (inter_len == 1 && inter0 == '?') return handle_csi_kitty_query;
-        return NULL;
-    default:
-        break;
+        size_t mid = lo + (hi - lo) / 2;
+        if (csi_table[mid].final < final_byte)
+            lo = mid + 1;
+        else
+            hi = mid;
     }
 
-    /* Everything else must be a plain (intermediate-less) sequence */
-    if (has_inter) return NULL;
-
-    switch (final_byte)
+    for (size_t i = lo; i < n; i++)
     {
-    case 'A': return handle_csi_cursor_up;
-    case 'B': return handle_csi_cursor_down;
-    case 'C': return handle_csi_cursor_forward;
-    case 'D': return handle_csi_cursor_back;
-    case 'E': return handle_csi_cursor_next_line;
-    case 'F': return handle_csi_cursor_prev_line;
-    case 'G': return handle_csi_cursor_horizontal_abs;
-    case 'H': return handle_csi_cursor_position;
-    case 'f': return handle_csi_horizontal_vertical_position;
-    case 'L': return handle_csi_insert_lines;
-    case 'M': return handle_csi_delete_lines;
-    case 'P': return handle_csi_delete_chars;
-    case 'X': return handle_csi_erase_chars;
-    case '@': return handle_csi_insert_chars;
-    case 'S': return handle_csi_scroll_up;
-    case 'T': return handle_csi_scroll_down;
-    case 'm': return handle_csi_sgr;
-    case 'g': return handle_csi_tab_clear;
-    case 'n': return handle_csi_device_status_report;
-    case 'I': return handle_csi_tab_forward;       /* CHT */
-    case 'Z': return handle_csi_tab_back;           /* CBT */
-    case 'a': return handle_csi_cursor_forward;     /* HPR */
-    case 'b': return handle_csi_repeat;             /* REP */
-    case 'd': return handle_csi_cursor_vertical_abs; /* VPA */
-    case 'e': return handle_csi_cursor_down;        /* VPR */
-    case 't': break; /* window ops */
-    case '`': return handle_csi_cursor_horizontal_abs; /* HPA */
-    default: break;
+        const csi_entry_t *e = &csi_table[i];
+        if (e->final != final_byte)
+            break;  /* past the last row for this final */
+        if (e->inter_len != inter_len)
+            continue;
+        if (e->inter_len >= 1 && e->inter0 != inter0)
+            continue;
+        if (e->inter_len >= 2 && e->inter1 != inter1)
+            continue;
+        return e->fn;
     }
     return NULL;
 }

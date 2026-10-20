@@ -134,6 +134,20 @@ if not meson.is_subproject()
     )
     test('test_conformance', conformance_exe)
 
+    # Coverage for the CSI sequences that carry an intermediate (the
+    # private markers < = > ? $ space ") -- the rows where csi_table[] has
+    # more than one entry for the same final byte. A row added out of
+    # order would misdispatch one of these silently.
+    csi_dispatch_exe = executable('test_csi_dispatch',
+        '../tests/test_csi_dispatch.c',
+        # ../src for the parser's private header (stream_internal.h), which
+        # declares the dispatch-table invariant check.
+        include_directories: include_directories('../include', '../src'),
+        link_with: term_lib,
+        dependencies: [dep_ghostty_vt],
+    )
+    test('test_csi_dispatch', csi_dispatch_exe)
+
     # Full-UCD-sweep cross-check for ghostcon_cell_is_symbol() -- see
     # tools/gen_symbol_table.py (which produces cell_symbol_table.gen.c
     # from the same vendored file) and test_symbol_table.c's own doc

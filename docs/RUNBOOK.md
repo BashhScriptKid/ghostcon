@@ -387,13 +387,20 @@ back to `main.c` through `ghostcon_input_dispatch()`'s out-params
    ```
    Shared helpers (`PARAM*`, `csi_param_count()`, `clamp_loop_count()`,
    `stream_output()`) come from `src/term/stream_internal.h`.
-2. Register it in `csi_lookup()` in the same file — one line in the
-   intermediate-less switch:
+2. Register it in `csi_table[]` in the same file — one row:
    ```c
-   case 'x': return handle_csi_my_thing;
+   { 'x', 0, 0, 0, handle_csi_my_thing },
    ```
-   Sequences that take intermediates/private markers (`?`, `>`, `$`,
-   space, `"`) go in the first (intermediate-discriminating) switch.
+   A sequence that takes an intermediate (a private marker: `?`, `>`,
+   `<`, `=`, `$`, space, `"`) adds a row per variant, giving the number
+   of intermediates and then the intermediates themselves:
+   ```c
+   { 'x', 1, '?', 0, handle_csi_my_thing },
+   ```
+   The table is sorted by final byte, because `csi_lookup()` searches it
+   with a binary search. `test_csi_dispatch` checks both that it is
+   sorted and that each variant still dispatches, so put a new row in the
+   right place rather than at the end.
 3. If it needs new screen state, add accessors in
    `src/term/screen.c`/`screen.h` (not in the parser).
 4. Tests: add a case to `tests/test_conformance.c` (escape-level
