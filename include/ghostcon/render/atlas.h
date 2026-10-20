@@ -79,13 +79,13 @@ typedef struct ghostcon_atlas ghostcon_atlas_t;
  * atlas_dim: atlas width and height in pixels. Square and power-of-two is
  * recommended (for example 1024 or 2048).
  */
-ghostcon_atlas_t *ghostcon_atlas_create(const char *font_family,
-                                         const char *font_variant,
-                                         const char *antialiasing,
-                                         const char *subpixel_order,
-                                         int font_size_px,
-                                         uint32_t atlas_dim);
-void ghostcon_atlas_destroy(ghostcon_atlas_t *atlas);
+extern ghostcon_atlas_t *ghostcon_atlas_create(const char *font_family,
+                                                const char *font_variant,
+                                                const char *antialiasing,
+                                                const char *subpixel_order,
+                                                int font_size_px,
+                                                uint32_t atlas_dim);
+extern void ghostcon_atlas_destroy(ghostcon_atlas_t *atlas);
 
 /* Looks up the glyph for a codepoint, rasterizing and packing it into the atlas
  * on first use.
@@ -100,8 +100,8 @@ void ghostcon_atlas_destroy(ghostcon_atlas_t *atlas);
  * Returns NULL only if no font in that chain has an outline for it either, or the
  * atlas is full.
  */
-const ghostcon_glyph_t *ghostcon_atlas_glyph(ghostcon_atlas_t *atlas,
-                                              uint32_t codepoint);
+extern const ghostcon_glyph_t *ghostcon_atlas_glyph(ghostcon_atlas_t *atlas,
+                                                     uint32_t codepoint);
 
 /* Looks up a glyph by its raw FreeType glyph index in the atlas's PRIMARY
  * face, rather than by codepoint.
@@ -122,8 +122,8 @@ const ghostcon_glyph_t *ghostcon_atlas_glyph(ghostcon_atlas_t *atlas,
  * [2] Ligature shaping only ever runs against the primary face's own
  *     hb_font_t.
  */
-const ghostcon_glyph_t *ghostcon_atlas_glyph_by_index(ghostcon_atlas_t *atlas,
-                                                        uint32_t glyph_index);
+extern const ghostcon_glyph_t *ghostcon_atlas_glyph_by_index(ghostcon_atlas_t *atlas,
+                                                               uint32_t glyph_index);
 
 /* Shapes `count` codepoints[1] through HarfBuzz using the atlas's primary font, writing up
  * to max_out resulting glyph indices/advances (pixels) into
@@ -142,8 +142,8 @@ const ghostcon_glyph_t *ghostcon_atlas_glyph_by_index(ghostcon_atlas_t *atlas,
  * [1] A candidate ligature-trigger run, e.g. the three
  *     codepoints of "->"
  */
-int ghostcon_atlas_shape_run(ghostcon_atlas_t *atlas, const uint32_t *codepoints, int count,
-                              uint32_t *out_glyph_indices, float *out_advances, int max_out);
+extern int ghostcon_atlas_shape_run(ghostcon_atlas_t *atlas, const uint32_t *codepoints, int count,
+                                     uint32_t *out_glyph_indices, float *out_advances, int max_out);
 
 /* The PRIMARY face's glyph index for `codepoint` with no shaping applied i.e.
  * what ghostcon_atlas_glyph(atlas, codepoint) would have drawn.
@@ -156,21 +156,21 @@ int ghostcon_atlas_shape_run(ghostcon_atlas_t *atlas, const uint32_t *codepoints
  * Returns 0 (FreeType's own "no glyph" sentinel) if the primary face has no
  * outline for codepoint at all.
  */
-uint32_t ghostcon_atlas_plain_glyph_index(ghostcon_atlas_t *atlas, uint32_t codepoint);
+extern uint32_t ghostcon_atlas_plain_glyph_index(ghostcon_atlas_t *atlas, uint32_t codepoint);
 
 /* CPU-side atlas bitmap: atlas_dim * atlas_dim * 3 bytes, RGB (one byte per
  * channel) per pixel
  *
  * upload as GL_RGB.
  */
-const uint8_t *ghostcon_atlas_bitmap(const ghostcon_atlas_t *atlas);
-uint32_t ghostcon_atlas_dim(const ghostcon_atlas_t *atlas);
+extern const uint8_t *ghostcon_atlas_bitmap(const ghostcon_atlas_t *atlas);
+extern uint32_t ghostcon_atlas_dim(const ghostcon_atlas_t *atlas);
 
 /* True if the bitmap changed since the last ghostcon_atlas_clear_dirty()
  * call (i.e. the GPU texture needs re-uploading).
  */
-bool ghostcon_atlas_dirty(const ghostcon_atlas_t *atlas);
-void ghostcon_atlas_clear_dirty(ghostcon_atlas_t *atlas);
+extern bool ghostcon_atlas_dirty(const ghostcon_atlas_t *atlas);
+extern void ghostcon_atlas_clear_dirty(ghostcon_atlas_t *atlas);
 
 /* CPU-side COLOR atlas bitmap: atlas_dim * atlas_dim * 4 bytes, RGBA (straight,
  * not premultiplied
@@ -184,13 +184,13 @@ void ghostcon_atlas_clear_dirty(ghostcon_atlas_t *atlas);
  *
  * see this header's own doc comment on ghostcon_glyph_t.is_color for why.
  */
-const uint8_t *ghostcon_atlas_color_bitmap(const ghostcon_atlas_t *atlas);
-bool ghostcon_atlas_color_dirty(const ghostcon_atlas_t *atlas);
-void ghostcon_atlas_color_clear_dirty(ghostcon_atlas_t *atlas);
+extern const uint8_t *ghostcon_atlas_color_bitmap(const ghostcon_atlas_t *atlas);
+extern bool ghostcon_atlas_color_dirty(const ghostcon_atlas_t *atlas);
+extern void ghostcon_atlas_color_clear_dirty(ghostcon_atlas_t *atlas);
 
 /* Monospace cell size derived from the loaded font's metrics. */
-void ghostcon_atlas_cell_size(const ghostcon_atlas_t *atlas,
-                               int *cell_w, int *cell_h);
+extern void ghostcon_atlas_cell_size(const ghostcon_atlas_t *atlas,
+                                      int *cell_w, int *cell_h);
 
 /* Baseline offset from a cell's top edge, pixels
  *
@@ -199,4 +199,4 @@ void ghostcon_atlas_cell_size(const ghostcon_atlas_t *atlas,
  * Use this (not cell_h) to position glyph quads so descenders (g, q, y, p, j)
  * land inside the cell instead of spilling into the row below.
  */
-int ghostcon_atlas_ascent(const ghostcon_atlas_t *atlas);
+extern int ghostcon_atlas_ascent(const ghostcon_atlas_t *atlas);

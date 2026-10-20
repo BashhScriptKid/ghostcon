@@ -16,7 +16,7 @@
  * fits. Returns bytes written (excluding the NUL), or 0 if out_len is
  * insufficient for the full encoded length.
  */
-size_t ghostcon_base64_encode(const uint8_t *data, size_t len, char *out, size_t out_len);
+extern size_t ghostcon_base64_encode(const uint8_t *data, size_t len, char *out, size_t out_len);
 
 /* Decodes NUL-terminated base64 string `in` into `out`.
  *
@@ -29,4 +29,4 @@ size_t ghostcon_base64_encode(const uint8_t *data, size_t len, char *out, size_t
  * Returns bytes written to `out`, truncated (not overflowed) if out_len is
  * insufficient.
  */
-size_t ghostcon_base64_decode(const char *in, uint8_t *out, size_t out_len);
+extern size_t ghostcon_base64_decode(const char *in, uint8_t *out, size_t out_len);

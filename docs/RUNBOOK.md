@@ -15,7 +15,7 @@ meson test -C build-release          # currently 22 tests
 
 ## 0. Code style
 
-Four rules, each enforced by a script in `tools/`. The scripts are the
+Five rules, each enforced by a script in `tools/`. The scripts are the
 executable specification; update both if a rule changes. Run them from
 the repository root before sending changes:
 
@@ -24,6 +24,7 @@ python3 tools/format_comments.py   --check
 python3 tools/format_braces.py     --check
 python3 tools/format_signatures.py --check
 python3 tools/format_pointers.py   --check
+python3 tools/format_extern.py     --check
 ```
 
 Each accepts `--apply` to rewrite in place and is idempotent. All four
@@ -147,6 +148,38 @@ is why a pointer return splits above the `*` rather than below it
 function-pointer declarators (`bool (*fn)(int)`) is left alone;
 expressions such as `width * height` are not touched because the token
 before the `*` is not a type.
+
+### Explicit `extern` on prototypes
+
+A function declaration with no body -- a prototype -- that is neither
+`static` nor a `typedef` says `extern` explicitly:
+
+```c
+extern size_t ghostcon_mouse_encode(const ghostcon_screen_t *screen,
+                                     ghostcon_mouse_button_t button,
+                                     ...);
+```
+
+C11 6.7.2p4 gives such a declaration external linkage "exactly as if"
+it were declared with the storage-class specifier `extern`, so this
+changes no semantics and no generated code. It makes the linkage
+visible where the declaration is written, which is how header-declared
+*variables* must already be spelled:
+
+```c
+extern const ghostcon_style_t GHOSTCON_STYLE_DEFAULT;
+```
+
+Left alone: definitions (a body follows the parameter list), `static`
+prototypes (internal linkage, where `extern` would contradict it),
+function-pointer typedefs (`typedef void (*fn)(int)`), and
+declarations that span a preprocessor line.
+
+Wrapped parameter lists keep their alignment. When the parameters
+start on the same line as the open paren, the continuation lines are
+aligned under that paren and move right with it; when the open paren
+ends its line, the parameters start on the next line with a fixed
+hanging indent, which the keyword does not affect.
 
 ### Comments — wrapped block style
 

@@ -141,8 +141,8 @@ typedef struct ghostcon_kitty_graphics {
     int64_t active_transfer_placement_id;
 } ghostcon_kitty_graphics_t;
 
-void ghostcon_kitty_graphics_init(ghostcon_kitty_graphics_t *kg);
-void ghostcon_kitty_graphics_deinit(ghostcon_kitty_graphics_t *kg);
+extern void ghostcon_kitty_graphics_init(ghostcon_kitty_graphics_t *kg);
+extern void ghostcon_kitty_graphics_deinit(ghostcon_kitty_graphics_t *kg);
 
 /* Looks up an image by id (NULL if not present or not yet fully transmitted).
  *
@@ -152,7 +152,7 @@ void ghostcon_kitty_graphics_deinit(ghostcon_kitty_graphics_t *kg);
  * no accessor needed for that part) but needs this to resolve each placement's
  * image_id back to pixel data.
  */
-const ghostcon_kitty_image_t *ghostcon_kitty_graphics_find_image(
+extern const ghostcon_kitty_image_t *ghostcon_kitty_graphics_find_image(
     const ghostcon_kitty_graphics_t *kg, uint32_t id);
 
 /* Describes a cursor move the CALLER (term/stream.c, which owns the screen and
@@ -189,12 +189,12 @@ typedef struct
  * return, out_move (if non-NULL) describes any cursor move the caller should
  * apply.
  */
-void ghostcon_kitty_graphics_handle(ghostcon_kitty_graphics_t *kg,
-                                    const char *body, size_t body_len,
-                                    int32_t cursor_col, int32_t cursor_row,
-                                    int32_t cell_w, int32_t cell_h,
-                                    ghostcon_kitty_output_fn output_fn,
-                                    void *output_userdata,
-                                    ghostcon_kitty_cursor_move_t *out_move);
+extern void ghostcon_kitty_graphics_handle(ghostcon_kitty_graphics_t *kg,
+                                           const char *body, size_t body_len,
+                                           int32_t cursor_col, int32_t cursor_row,
+                                           int32_t cell_w, int32_t cell_h,
+                                           ghostcon_kitty_output_fn output_fn,
+                                           void *output_userdata,
+                                           ghostcon_kitty_cursor_move_t *out_move);
 
 #endif

@@ -95,7 +95,7 @@ runs; `tools/corpus/*.seq` are reasonable seeds.
 
 ## Style checks
 
-Formatting is enforced by three idempotent tools (not clang-format); see
+Formatting is enforced by five idempotent tools (not clang-format); see
 `docs/RUNBOOK.md` section 0 for the rules:
 
 ```sh
@@ -103,6 +103,7 @@ python3 tools/format_comments.py   --check
 python3 tools/format_braces.py     --check
 python3 tools/format_signatures.py --check
 python3 tools/format_pointers.py   --check
+python3 tools/format_extern.py     --check
 ```
 
 Add `--apply` to rewrite in place.

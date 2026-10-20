@@ -281,7 +281,7 @@ typedef struct
 /* Fills `cfg` with the hardcoded defaults (matching what every binary
  * already falls back to today when no env var is set).
  */
-void ghostcon_config_defaults(ghostcon_config_t *cfg);
+extern void ghostcon_config_defaults(ghostcon_config_t *cfg);
 
 /* Loads `path`, overlaying its values onto the defaults.
  *
@@ -290,7 +290,7 @@ void ghostcon_config_defaults(ghostcon_config_t *cfg);
  * returns true with `cfg` left at pure defaults. Returns false only if the file
  * exists but fails to parse.
  */
-bool ghostcon_config_load(const char *path, ghostcon_config_t *cfg);
+extern bool ghostcon_config_load(const char *path, ghostcon_config_t *cfg);
 
 /* setenv()s GHOSTCON_* for every config-backed value in `cfg`, plus
  * GHOSTCON_CONFIG_PATH itself (unconditionally, so supervisor/ghostcon-core know
@@ -303,8 +303,8 @@ bool ghostcon_config_load(const char *path, ghostcon_config_t *cfg);
  *
  * Call at startup with false, and again on every hot-reload with true.
  */
-void ghostcon_config_export_env(const ghostcon_config_t *cfg, const char *config_path,
-                                 bool overwrite);
+extern void ghostcon_config_export_env(const ghostcon_config_t *cfg, const char *config_path,
+                                        bool overwrite);
 
 /* Hot-reload watch (inotify)
  *
@@ -318,7 +318,7 @@ void ghostcon_config_export_env(const ghostcon_config_t *cfg, const char *config
  *
  * caller should just skip live-reload).
  */
-int ghostcon_config_watch_open(const char *path);
+extern int ghostcon_config_watch_open(const char *path);
 
 /* Call when the fd from ghostcon_config_watch_open() is POLLIN-ready.
  *
@@ -329,4 +329,4 @@ int ghostcon_config_watch_open(const char *path);
  * false for an unrelated file changing in the same directory, or a spurious
  * wakeup.
  */
-bool ghostcon_config_watch_check(int inotify_fd, const char *path);
+extern bool ghostcon_config_watch_check(int inotify_fd, const char *path);

@@ -67,23 +67,23 @@ typedef struct ghostcon_vtctl ghostcon_vtctl_t;
  * the supervisor/undead-head decides when to chvt), or ACTIVE if it already is.
  * Returns NULL on failure (see stderr).
  */
-ghostcon_vtctl_t *ghostcon_vtctl_open(int vt_num);
+extern ghostcon_vtctl_t *ghostcon_vtctl_open(int vt_num);
 
 /* Restores KD_TEXT + VT_AUTO (and the pre-existing keyboard mode, unless that
  * mode was a switching-blocking one
  *
  * see vtctl.c) and closes the tty fd.
  */
-void ghostcon_vtctl_close(ghostcon_vtctl_t *vt);
+extern void ghostcon_vtctl_close(ghostcon_vtctl_t *vt);
 
-ghostcon_vt_state_t ghostcon_vtctl_state(const ghostcon_vtctl_t *vt);
+extern ghostcon_vt_state_t ghostcon_vtctl_state(const ghostcon_vtctl_t *vt);
 
 /* Self-pipe read fd
  *
  * poll() this for POLLIN in the main event loop. Readable means an acquire or
  * release signal arrived and ghostcon_vtctl_process_pending() needs to run.
  */
-int ghostcon_vtctl_signal_fd(const ghostcon_vtctl_t *vt);
+extern int ghostcon_vtctl_signal_fd(const ghostcon_vtctl_t *vt);
 
 /* Called once per coalesced signal, immediately BEFORE that signal's ioctl ack
  *
@@ -130,8 +130,8 @@ typedef enum
  * No ioctl, no callback, no /dev/ttyN — this is the piece of the handshake a
  * unit test can pin down; ghostcon_vtctl_process_pending() is the thin executor.
  */
-int ghostcon_vtctl_transition(ghostcon_vt_state_t *state, char event,
-                              ghostcon_vt_op_t *ops, int max);
+extern int ghostcon_vtctl_transition(ghostcon_vt_state_t *state, char event,
+                                     ghostcon_vt_op_t *ops, int max);
 
 /* Drains the self-pipe and updates state, invoking `pre_ack` (if non-NULL)
  * immediately before each individual signal's ack.
@@ -151,6 +151,6 @@ int ghostcon_vtctl_transition(ghostcon_vt_state_t *state, char event,
  *
  * only the release side has the ordering hazard).
  */
-void ghostcon_vtctl_process_pending(ghostcon_vtctl_t *vt,
-                                    ghostcon_vtctl_pre_ack_fn pre_ack,
-                                    void *userdata);
+extern void ghostcon_vtctl_process_pending(ghostcon_vtctl_t *vt,
+                                           ghostcon_vtctl_pre_ack_fn pre_ack,
+                                           void *userdata);

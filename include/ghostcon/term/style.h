@@ -83,21 +83,21 @@ static inline bool ghostcon_style_eq(const ghostcon_style_t *a, const ghostcon_s
 typedef struct ghostcon_style_set ghostcon_style_set_t;
 
 /* Create a style set with initial capacity */
-ghostcon_style_set_t *ghostcon_style_set_create(uint16_t capacity);
+extern ghostcon_style_set_t *ghostcon_style_set_create(uint16_t capacity);
 
 /* Destroy a style set */
-void ghostcon_style_set_destroy(ghostcon_style_set_t *set);
+extern void ghostcon_style_set_destroy(ghostcon_style_set_t *set);
 
 /* Add a style, returning its ID. If the style already exists, increments
  * refcount. Returns GC_STYLE_DEFAULT_ID if style == default.
  */
-ghostcon_style_id_t ghostcon_style_set_add(ghostcon_style_set_t *set, const ghostcon_style_t *style);
+extern ghostcon_style_id_t ghostcon_style_set_add(ghostcon_style_set_t *set, const ghostcon_style_t *style);
 
 /* Increment refcount for an existing ID */
-void ghostcon_style_set_ref(ghostcon_style_set_t *set, ghostcon_style_id_t id);
+extern void ghostcon_style_set_ref(ghostcon_style_set_t *set, ghostcon_style_id_t id);
 
 /* Decrement refcount; frees the style slot if refcount reaches 0 */
-void ghostcon_style_set_unref(ghostcon_style_set_t *set, ghostcon_style_id_t id);
+extern void ghostcon_style_set_unref(ghostcon_style_set_t *set, ghostcon_style_id_t id);
 
 /* Get style by ID. Returns &GHOSTCON_STYLE_DEFAULT for id=0. */
-const ghostcon_style_t *ghostcon_style_set_get(const ghostcon_style_set_t *set, ghostcon_style_id_t id);
+extern const ghostcon_style_t *ghostcon_style_set_get(const ghostcon_style_set_t *set, ghostcon_style_id_t id);

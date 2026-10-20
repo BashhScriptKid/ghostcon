@@ -41,7 +41,7 @@
  * Returns GHOSTTY_KEY_UNIDENTIFIED for anything not in the W3C UI Events
  * "code" table this mirrors.
  */
-GhosttyKey ghostcon_input_evdev_to_ghostty_key(uint32_t evdev_code);
+extern GhosttyKey ghostcon_input_evdev_to_ghostty_key(uint32_t evdev_code);
 
 /* Encodes one key event given already-resolved modifier/text state (the caller
  *
@@ -54,13 +54,13 @@ GhosttyKey ghostcon_input_evdev_to_ghostty_key(uint32_t evdev_code);
  * legitimately encode to nothing, e.g. a bare modifier press), or SIZE_MAX on
  * encoder error.
  */
-size_t ghostcon_input_encode_key(GhosttyKeyEncoder encoder,
-                                  GhosttyKeyAction action,
-                                  uint32_t evdev_code,
-                                  GhosttyMods mods,
-                                  const char *utf8, size_t utf8_len,
-                                  uint32_t unshifted_codepoint,
-                                  char *out, size_t out_len);
+extern size_t ghostcon_input_encode_key(GhosttyKeyEncoder encoder,
+                                         GhosttyKeyAction action,
+                                         uint32_t evdev_code,
+                                         GhosttyMods mods,
+                                         const char *utf8, size_t utf8_len,
+                                         uint32_t unshifted_codepoint,
+                                         char *out, size_t out_len);
 
 /* Parses a Ghostty-style keybinding trigger string ("ctrl+shift+c") --mirrors
  * Ghostty's own Trigger.parse() syntax (mod names joined by '+', single-letter or
@@ -74,7 +74,7 @@ size_t ghostcon_input_encode_key(GhosttyKeyEncoder encoder,
  * duplicates. Returns false (out-params untouched) on any unrecognized token or
  * an empty/malformed spec.
  */
-bool ghostcon_parse_keybinding(const char *spec, GhosttyMods *out_mods, uint32_t *out_evdev_code);
+extern bool ghostcon_parse_keybinding(const char *spec, GhosttyMods *out_mods, uint32_t *out_evdev_code);
 
 typedef struct ghostcon_input ghostcon_input_t;
 
@@ -97,12 +97,12 @@ typedef struct ghostcon_input ghostcon_input_t;
  * or reload, the values below are passed fresh to
  * ghostcon_input_dispatch() instead of being fixed here.
  */
-ghostcon_input_t *ghostcon_input_open(const char *seat_id, int viewport_w, int viewport_h,
-                                       int repeat_delay_ms, int repeat_rate_ms);
-void ghostcon_input_close(ghostcon_input_t *input);
+extern ghostcon_input_t *ghostcon_input_open(const char *seat_id, int viewport_w, int viewport_h,
+                                              int repeat_delay_ms, int repeat_rate_ms);
+extern void ghostcon_input_close(ghostcon_input_t *input);
 
 /* fd suitable for poll()'ing in the main event loop. */
-int ghostcon_input_fd(const ghostcon_input_t *input);
+extern int ghostcon_input_fd(const ghostcon_input_t *input);
 
 /* Key auto-repeat timer fd, suitable for poll()ing (POLLIN) alongside
  * ghostcon_input_fd() above.
@@ -114,7 +114,7 @@ int ghostcon_input_fd(const ghostcon_input_t *input);
  * ghostcon_input_open() time), in which case auto-repeat silently does
  * nothing.
  */
-int ghostcon_input_repeat_fd(const ghostcon_input_t *input);
+extern int ghostcon_input_repeat_fd(const ghostcon_input_t *input);
 
 /* Call when ghostcon_input_repeat_fd()'s fd is POLLIN-ready: drains the
  * timer and, if a key is still marked as repeating, resends the exact bytes
@@ -123,7 +123,7 @@ int ghostcon_input_repeat_fd(const ghostcon_input_t *input);
  * Returns false only on a transport write failure, matching
  * ghostcon_input_dispatch()'s own convention.
  */
-bool ghostcon_input_repeat_fire(ghostcon_input_t *input, ghostcon_transport_t *transport);
+extern bool ghostcon_input_repeat_fire(ghostcon_input_t *input, ghostcon_transport_t *transport);
 
 /* Mirrors the handful of terminal modes the key encoder needs to know about
  * (currently just DECCKM/application-cursor) from live screen state into
@@ -132,7 +132,7 @@ bool ghostcon_input_repeat_fire(ghostcon_input_t *input, ghostcon_transport_t *t
  * Cheap. Call before dispatch each time, there's no dirty-tracking for this
  * on the screen side.
  */
-void ghostcon_input_sync_modes(ghostcon_input_t *input, const ghostcon_screen_t *screen);
+extern void ghostcon_input_sync_modes(ghostcon_input_t *input, const ghostcon_screen_t *screen);
 
 /* Pushes the configured copy/paste keybindings (already parsed via
  * ghostcon_parse_keybinding()) into this input context
@@ -145,9 +145,9 @@ void ghostcon_input_sync_modes(ghostcon_input_t *input, const ghostcon_screen_t 
  * Defaults (ctrl+shift+c/v) are already set at ghostcon_input_open() time, so
  * copy/paste work correctly even before the first call to this.
  */
-void ghostcon_input_set_clipboard_bindings(ghostcon_input_t *input,
-                                            GhosttyMods copy_mods, uint32_t copy_evdev,
-                                            GhosttyMods paste_mods, uint32_t paste_evdev);
+extern void ghostcon_input_set_clipboard_bindings(ghostcon_input_t *input,
+                                                   GhosttyMods copy_mods, uint32_t copy_evdev,
+                                                   GhosttyMods paste_mods, uint32_t paste_evdev);
 
 /* Pushes the [mouse]/[touchpad] config tables (config.h's own doc comment has the
  * field-by-field libinput mapping) into this input context, applying immediately
@@ -164,11 +164,11 @@ void ghostcon_input_set_clipboard_bindings(ghostcon_input_t *input,
  * libinput's own default sensitivity) are already set at ghostcon_input_open()
  * time.
  */
-void ghostcon_input_set_mouse_config(ghostcon_input_t *input, bool enable,
-                                      float scroll_speed, float sensitivity);
-void ghostcon_input_set_touchpad_config(ghostcon_input_t *input, bool enable,
-                                         float scroll_speed, bool tap_to_click,
-                                         bool natural_scroll, float sensitivity);
+extern void ghostcon_input_set_mouse_config(ghostcon_input_t *input, bool enable,
+                                             float scroll_speed, float sensitivity);
+extern void ghostcon_input_set_touchpad_config(ghostcon_input_t *input, bool enable,
+                                                float scroll_speed, bool tap_to_click,
+                                                bool natural_scroll, float sensitivity);
 
 /* Reported by ghostcon_input_dispatch() below
  *
@@ -259,7 +259,7 @@ typedef struct
  *
  * See handle_dump_shortcut()'s own doc comment for why this exists.
  */
-bool ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport,
-                              ghostcon_screen_t *screen, int cell_w, int cell_h,
-                              int *out_zoom_delta, ghostcon_input_pointer_t *out_pointer,
-                              bool *out_dump_requested, bool active);
+extern bool ghostcon_input_dispatch(ghostcon_input_t *input, ghostcon_transport_t *transport,
+                                     ghostcon_screen_t *screen, int cell_w, int cell_h,
+                                     int *out_zoom_delta, ghostcon_input_pointer_t *out_pointer,
+                                     bool *out_dump_requested, bool active);

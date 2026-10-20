@@ -13,4 +13,4 @@
  *
  * See tools/run_compare.sh for that comparison workflow.
  */
-void ghostcon_screen_dump(FILE *f, ghostcon_screen_t *screen);
+extern void ghostcon_screen_dump(FILE *f, ghostcon_screen_t *screen);

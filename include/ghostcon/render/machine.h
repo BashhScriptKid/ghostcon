@@ -22,11 +22,11 @@
  * when false, behaves exactly as before this parameter existed (no row scan, no
  * HarfBuzz call, zero overhead).
  */
-void ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
-                                    ghostcon_atlas_t *atlas,
-                                    ghostcon_gles_t *gles,
-                                    int cell_w, int cell_h,
-                                    bool ligatures);
+extern void ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
+                                           ghostcon_atlas_t *atlas,
+                                           ghostcon_gles_t *gles,
+                                           int cell_w, int cell_h,
+                                           bool ligatures);
 
 /* Pushes a solid-color quad for the cursor at its current screen position, shaped
  * per screen->cursor.cursor_style (block/underline/ bar), unless DECTCEM
@@ -41,9 +41,9 @@ void ghostcon_machine_render_dirty(ghostcon_screen_t *screen,
  * approach the rest of this renderer already uses), not just on cursor-moved
  * frames.
  */
-void ghostcon_machine_render_cursor(ghostcon_screen_t *screen,
-                                     ghostcon_gles_t *gles,
-                                     int cell_w, int cell_h);
+extern void ghostcon_machine_render_cursor(ghostcon_screen_t *screen,
+                                            ghostcon_gles_t *gles,
+                                            int cell_w, int cell_h);
 
 /* Pushes one semi-transparent, alpha-blended rect per selected row (not per cell
  *
@@ -62,9 +62,9 @@ void ghostcon_machine_render_cursor(ghostcon_screen_t *screen,
  * no dirty-region tracking needed, ghostcon_gles_begin()'s full framebuffer clear
  * each frame already means a cleared selection just stops being redrawn.
  */
-void ghostcon_machine_render_selection(ghostcon_screen_t *screen,
-                                        ghostcon_gles_t *gles,
-                                        int cell_w, int cell_h);
+extern void ghostcon_machine_render_selection(ghostcon_screen_t *screen,
+                                               ghostcon_gles_t *gles,
+                                               int cell_w, int cell_h);
 
 /* Walks ghostcon_screen_active_kitty_graphics(screen)->placements[] (whichever
  * screen
@@ -94,6 +94,6 @@ void ghostcon_machine_render_selection(ghostcon_screen_t *screen,
  * sixel has no z-order concept, so every sixel placement always draws above text
  * (the same bucket Kitty's default z>=0 placements use).
  */
-void ghostcon_machine_render_images(ghostcon_screen_t *screen,
-                                     ghostcon_gles_t *gles,
-                                     int cell_w, int cell_h);
+extern void ghostcon_machine_render_images(ghostcon_screen_t *screen,
+                                            ghostcon_gles_t *gles,
+                                            int cell_w, int cell_h);

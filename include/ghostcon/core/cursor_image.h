@@ -47,7 +47,7 @@ typedef enum
  * BMP carries no hotspot metadata, so callers of this function should treat the
  * hotspot as (0,0).
  */
-uint32_t *ghostcon_cursor_load_bmp(const char *path, uint32_t *out_w, uint32_t *out_h);
+extern uint32_t *ghostcon_cursor_load_bmp(const char *path, uint32_t *out_w, uint32_t *out_h);
 
 /* Writes `pixels` (ARGB8888, row-major, w*h entries) as an uncompressed 32-bit
  * BMP to `path`. Returns false on an open/write failure.
@@ -58,8 +58,8 @@ uint32_t *ghostcon_cursor_load_bmp(const char *path, uint32_t *out_w, uint32_t *
  * default handling, since this reader/writer pair always treats byte 3 of each
  * pixel as alpha).
  */
-bool ghostcon_cursor_write_bmp(const char *path, const uint32_t *pixels,
-                                uint32_t w, uint32_t h);
+extern bool ghostcon_cursor_write_bmp(const char *path, const uint32_t *pixels,
+                                       uint32_t w, uint32_t h);
 
 /* Reads one named cursor image (e.g. "text", "hand2") out of an Xcursor theme
  * directory.
@@ -80,9 +80,9 @@ bool ghostcon_cursor_write_bmp(const char *path, const uint32_t *pixels,
  * file, or no image chunks in it). *out_hot_x and *out_hot_y are set from the
  * file's own hotspot metadata for the size that was picked.
  */
-uint32_t *ghostcon_cursor_load_xcursor(const char *theme_dir, const char *name,
-                                        uint32_t *out_w, uint32_t *out_h,
-                                        uint32_t *out_hot_x, uint32_t *out_hot_y);
+extern uint32_t *ghostcon_cursor_load_xcursor(const char *theme_dir, const char *name,
+                                               uint32_t *out_w, uint32_t *out_h,
+                                               uint32_t *out_hot_x, uint32_t *out_hot_y);
 
 /* Resizes an ARGB8888 buffer from src_w x src_h to dst_w x dst_h using
  * nearest-neighbor sampling
@@ -97,8 +97,8 @@ uint32_t *ghostcon_cursor_load_xcursor(const char *theme_dir, const char *name,
  *
  * callers needing to skip a pointless copy check that themselves.
  */
-uint32_t *ghostcon_cursor_scale(const uint32_t *src, uint32_t src_w, uint32_t src_h,
-                                 uint32_t dst_w, uint32_t dst_h);
+extern uint32_t *ghostcon_cursor_scale(const uint32_t *src, uint32_t src_w, uint32_t src_h,
+                                        uint32_t dst_w, uint32_t dst_h);
 
 /* Crops `src` (ARGB8888, src_w x src_h) down to the tightest rectangle containing
  * every non-transparent (alpha != 0) pixel
@@ -118,6 +118,6 @@ uint32_t *ghostcon_cursor_scale(const uint32_t *src, uint32_t src_w, uint32_t sr
  * or NULL if `src` is fully transparent (nothing to crop to --caller should keep
  * the original image as-is in that case) or allocation fails.
  */
-uint32_t *ghostcon_cursor_crop_to_content(const uint32_t *src, uint32_t src_w, uint32_t src_h,
-                                           uint32_t *out_w, uint32_t *out_h,
-                                           uint32_t *hot_x, uint32_t *hot_y);
+extern uint32_t *ghostcon_cursor_crop_to_content(const uint32_t *src, uint32_t src_w, uint32_t src_h,
+                                                  uint32_t *out_w, uint32_t *out_h,
+                                                  uint32_t *hot_x, uint32_t *hot_y);

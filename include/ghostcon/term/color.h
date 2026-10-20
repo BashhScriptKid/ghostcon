@@ -19,13 +19,13 @@ typedef struct
     GhosttyColorRgb cursor_color; /* cursor color */
 } ghostcon_palette_t;
 
-void ghostcon_palette_init(ghostcon_palette_t *pal);
-void ghostcon_palette_set(ghostcon_palette_t *pal, int idx, GhosttyColorRgb rgb);
-void ghostcon_palette_reset(ghostcon_palette_t *pal, uint8_t idx);
-GhosttyColorRgb ghostcon_palette_resolve(const ghostcon_palette_t *pal, uint8_t idx);
-void ghostcon_palette_set_default_fg(ghostcon_palette_t *pal, GhosttyColorRgb c);
-void ghostcon_palette_set_default_bg(ghostcon_palette_t *pal, GhosttyColorRgb c);
-void ghostcon_palette_set_cursor(ghostcon_palette_t *pal, GhosttyColorRgb c);
+extern void ghostcon_palette_init(ghostcon_palette_t *pal);
+extern void ghostcon_palette_set(ghostcon_palette_t *pal, int idx, GhosttyColorRgb rgb);
+extern void ghostcon_palette_reset(ghostcon_palette_t *pal, uint8_t idx);
+extern GhosttyColorRgb ghostcon_palette_resolve(const ghostcon_palette_t *pal, uint8_t idx);
+extern void ghostcon_palette_set_default_fg(ghostcon_palette_t *pal, GhosttyColorRgb c);
+extern void ghostcon_palette_set_default_bg(ghostcon_palette_t *pal, GhosttyColorRgb c);
+extern void ghostcon_palette_set_cursor(ghostcon_palette_t *pal, GhosttyColorRgb c);
 
 /* OSC color-spec parsing (OSC 4/10/11/12)
  *
@@ -48,10 +48,10 @@ void ghostcon_palette_set_cursor(ghostcon_palette_t *pal, GhosttyColorRgb c);
 /* Parses a color-spec string into `out`. Returns false (leaving `out`
  * untouched) if `spec` isn't a recognized format.
  */
-bool ghostcon_color_parse_spec(const char *spec, GhosttyColorRgb *out);
+extern bool ghostcon_color_parse_spec(const char *spec, GhosttyColorRgb *out);
 
 /* Formats `c` as an xterm-style query reply value: "rgb:RRRR/GGGG/BBBB"
  * (each 8-bit channel replicated to 16 bits, matching real terminals' OSC
  * 4/10/11/12 query response convention). `out` must be at least 19 bytes.
  */
-void ghostcon_color_format_spec(GhosttyColorRgb c, char *out, size_t out_len);
+extern void ghostcon_color_format_spec(GhosttyColorRgb c, char *out, size_t out_len);

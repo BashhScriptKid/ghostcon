@@ -17,10 +17,10 @@
     long:
         static void foo(int a, int b)
 
-Prototypes are left alone. Definitions whose return type contains a
-comment or a function-pointer declarator are skipped, as are parameter
-lists containing line comments, multi-line comments, or preprocessor
-lines (anything that can't safely be moved onto one line).
+Prototypes are left alone. Definitions whose return type contains
+a comment or a function-pointer declarator are skipped, as are
+parameter lists containing line comments, multi-line comments, or
+preprocessor lines (anything that can't safely be moved onto one line).
 """
 import glob, re, sys
 
@@ -185,6 +185,91 @@ def analyze_defs(s, toks, ms):
             depth+=1
         elif t=='}': depth=max(0,depth-1)
     return defs, is_macro
+
+def analyze_protos(s, toks, ms):
+    """Yield (spec_start, name, open_paren, close_paren) token indices for
+    file-scope function PROTOTYPES -- declarations with no body.
+
+    A prototype's parameter list sits at paren depth 0 and is preceded by
+    the declared name. A function-pointer declarator's parameter list is
+    nested inside another paren, and an __attribute__((...)) argument is
+    nested too, so neither is mistaken for a prototype.
+    """
+    is_macro = []
+    for p, _ in toks:
+        is_macro.append(line_start(s, p) in ms)
+    depth = 0
+    depths = []
+    for p, t in toks:
+        depths.append(depth)
+        if t == '{':
+            depth += 1
+        elif t == '}':
+            depth = max(0, depth - 1)
+    depth = 0
+    depths_after = []
+    for p, t in toks:
+        if t == '{':
+            depth += 1
+        elif t == '}':
+            depth = max(0, depth - 1)
+        depths_after.append(depth)
+    stack = []
+    close_of = {}
+    paren_depth = []
+    d = 0
+    for i, (p, t) in enumerate(toks):
+        paren_depth.append(d)
+        if t == '(':
+            d += 1
+            stack.append(i)
+        elif t == ')':
+            d = max(0, d - 1)
+            if stack:
+                close_of[stack.pop()] = i
+    out = []
+    for i, (p, t) in enumerate(toks):
+        if t != '(' or i not in close_of or i == 0:
+            continue
+        if depths[i] != 0 or paren_depth[i] != 0:
+            continue
+        name_i = i - 1
+        if not IDENT.fullmatch(toks[name_i][1]):
+            continue
+        if toks[name_i][1] in ATTRS:
+            continue
+        close_i = close_of[i]
+        # a prototype ends at ';'; a definition has a body
+        k = close_i + 1
+        is_proto = False
+        while k < len(toks):
+            tt = toks[k][1]
+            if tt == '{' or is_macro[k]:
+                break
+            if tt == ';':
+                is_proto = True
+                break
+            k += 1
+        if not is_proto:
+            continue
+        # walk back over the return type to the start of the declaration
+        j = name_i - 1
+        tstart = name_i
+        while j >= 0:
+            if depths_after[j] != 0:
+                break
+            tt = toks[j][1]
+            if is_macro[j]:
+                j -= 1
+                continue
+            if tt == '*' or tt in TYPE_TOKENS or IDENT.fullmatch(tt):
+                tstart = j
+                j -= 1
+                continue
+            break
+        out.append((tstart, name_i, i, close_i))
+    return out
+
 
 def collapse_ws(inner):
     """Collapse whitespace runs without touching literals or comments.

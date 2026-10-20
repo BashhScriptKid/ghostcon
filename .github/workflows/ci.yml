@@ -72,6 +72,8 @@ jobs:
         run: python3 tools/format_signatures.py --check
       - name: format_pointers
         run: python3 tools/format_pointers.py --check
+      - name: format_extern
+        run: python3 tools/format_extern.py --check
 
   fuzz:
     name: Fuzz term parser

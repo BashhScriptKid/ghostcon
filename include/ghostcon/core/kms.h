@@ -108,20 +108,20 @@ typedef struct
  *
  * see the ownership note above). Not closed by ghostcon_kms_deinit.
  */
-bool ghostcon_kms_init(ghostcon_kms_t *kms, int drm_fd);
-void ghostcon_kms_deinit(ghostcon_kms_t *kms);
+extern bool ghostcon_kms_init(ghostcon_kms_t *kms, int drm_fd);
+extern void ghostcon_kms_deinit(ghostcon_kms_t *kms);
 
 /* Creates kms->gbm_surf at the chosen mode's resolution (GBM_BO_USE_SCANOUT
  * | GBM_BO_USE_RENDERING). Call before creating the EGL surface that wraps
  * it.
  */
-bool ghostcon_kms_create_scanout_surface(ghostcon_kms_t *kms);
+extern bool ghostcon_kms_create_scanout_surface(ghostcon_kms_t *kms);
 
 /* Blocking atomic commit that brings the CRTC/connector online showing
  * whatever was just rendered into the GBM surface (call once, after the
  * first eglSwapBuffers).
  */
-bool ghostcon_kms_modeset(ghostcon_kms_t *kms);
+extern bool ghostcon_kms_modeset(ghostcon_kms_t *kms);
 
 /* Non-blocking atomic page flip to the most recently swapped GBM buffer (call
  * after every subsequent eglSwapBuffers).
@@ -131,7 +131,7 @@ bool ghostcon_kms_modeset(ghostcon_kms_t *kms);
  * single-buffered flip queue, matching PLAN.md's "no zero-copy" simplicity note
  * for the renderer.
  */
-bool ghostcon_kms_page_flip(ghostcon_kms_t *kms);
+extern bool ghostcon_kms_page_flip(ghostcon_kms_t *kms);
 
 /* Moves the hardware cursor sprite to (x, y) in screen pixel coordinates
  * (top-left origin, same space as everything else in this tree)
@@ -152,7 +152,7 @@ bool ghostcon_kms_page_flip(ghostcon_kms_t *kms);
  *
  * matches this module's usual "optional hardware feature" tolerance.
  */
-bool ghostcon_kms_move_cursor(ghostcon_kms_t *kms, int x, int y);
+extern bool ghostcon_kms_move_cursor(ghostcon_kms_t *kms, int x, int y);
 
 /* Sets/replaces the cursor image for one state (GC_CURSOR_STATE_DEFAULT/ LINK).
  *
@@ -179,10 +179,10 @@ bool ghostcon_kms_move_cursor(ghostcon_kms_t *kms, int x, int y);
  * actually gets committed (FB_ID isn't touched by move_cursor()'s fast path once
  * already enabled).
  */
-bool ghostcon_kms_set_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t state,
-                                    const uint32_t *pixels, uint32_t w, uint32_t h,
-                                    uint32_t hot_x, uint32_t hot_y,
-                                    unsigned int fallback_font_height);
+extern bool ghostcon_kms_set_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t state,
+                                           const uint32_t *pixels, uint32_t w, uint32_t h,
+                                           uint32_t hot_x, uint32_t hot_y,
+                                           unsigned int fallback_font_height);
 
 /* Switches which pre-loaded state's image is bound to the plane --e.g. call
  * when the pointer moves onto/off an OSC-8 hyperlink cell. A cheap atomic
@@ -191,4 +191,4 @@ bool ghostcon_kms_set_cursor_image(ghostcon_kms_t *kms, ghostcon_cursor_state_t 
  * No-op if `state` is already the active one (avoids a redundant commit on
  * every motion event while hovering the same state continuously).
  */
-bool ghostcon_kms_set_cursor_state(ghostcon_kms_t *kms, ghostcon_cursor_state_t state);
+extern bool ghostcon_kms_set_cursor_state(ghostcon_kms_t *kms, ghostcon_cursor_state_t state);

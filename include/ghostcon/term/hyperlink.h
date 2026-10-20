@@ -25,19 +25,19 @@
 
 typedef struct ghostcon_hyperlink_set ghostcon_hyperlink_set_t;
 
-ghostcon_hyperlink_set_t *ghostcon_hyperlink_set_create(uint16_t capacity);
-void ghostcon_hyperlink_set_destroy(ghostcon_hyperlink_set_t *set);
+extern ghostcon_hyperlink_set_t *ghostcon_hyperlink_set_create(uint16_t capacity);
+extern void ghostcon_hyperlink_set_destroy(ghostcon_hyperlink_set_t *set);
 
 /* Interns `uri`, returning its id. Repeated calls with the same URI string
  * return the same id with an incremented refcount. Returns
  * GC_HYPERLINK_ID_NONE if `uri` is empty or the table is full.
  */
-ghostcon_style_id_t ghostcon_hyperlink_set_add(ghostcon_hyperlink_set_t *set, const char *uri);
+extern ghostcon_style_id_t ghostcon_hyperlink_set_add(ghostcon_hyperlink_set_t *set, const char *uri);
 
-void ghostcon_hyperlink_set_ref(ghostcon_hyperlink_set_t *set, ghostcon_style_id_t id);
-void ghostcon_hyperlink_set_unref(ghostcon_hyperlink_set_t *set, ghostcon_style_id_t id);
+extern void ghostcon_hyperlink_set_ref(ghostcon_hyperlink_set_t *set, ghostcon_style_id_t id);
+extern void ghostcon_hyperlink_set_unref(ghostcon_hyperlink_set_t *set, ghostcon_style_id_t id);
 
 /* Returns the URI for `id`, or NULL for GC_HYPERLINK_ID_NONE / an id that's
  * since been fully unreffed.
  */
-const char *ghostcon_hyperlink_set_get(const ghostcon_hyperlink_set_t *set, ghostcon_style_id_t id);
+extern const char *ghostcon_hyperlink_set_get(const ghostcon_hyperlink_set_t *set, ghostcon_style_id_t id);

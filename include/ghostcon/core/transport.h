@@ -38,14 +38,14 @@ typedef struct
  *
  * the first ghostcon_transport_read() calls will see that.
  */
-bool ghostcon_transport_connect(ghostcon_transport_t *t,
-                                 const char *registry_socket_path,
-                                 int vtnum);
+extern bool ghostcon_transport_connect(ghostcon_transport_t *t,
+                                        const char *registry_socket_path,
+                                        int vtnum);
 
-void ghostcon_transport_close(ghostcon_transport_t *t);
+extern void ghostcon_transport_close(ghostcon_transport_t *t);
 
 /* fd suitable for poll()'ing in the main event loop. */
-int ghostcon_transport_fd(const ghostcon_transport_t *t);
+extern int ghostcon_transport_fd(const ghostcon_transport_t *t);
 
 /* Thin wrappers over read()/write() on the transport fd
  *
@@ -56,8 +56,8 @@ int ghostcon_transport_fd(const ghostcon_transport_t *t);
  * Returns the same semantics as read(2)/write(2): byte count, 0 on EOF (pty child
  * process exited), -1 on error (errno set).
  */
-ssize_t ghostcon_transport_read(ghostcon_transport_t *t, uint8_t *buf, size_t len);
-ssize_t ghostcon_transport_write(ghostcon_transport_t *t, const uint8_t *buf, size_t len);
+extern ssize_t ghostcon_transport_read(ghostcon_transport_t *t, uint8_t *buf, size_t len);
+extern ssize_t ghostcon_transport_write(ghostcon_transport_t *t, const uint8_t *buf, size_t len);
 
 /* Sends a resize notification over the control socket connected alongside the
  * main data socket in ghostcon_transport_connect(). xpixel/ypixel are the
@@ -69,8 +69,8 @@ ssize_t ghostcon_transport_write(ghostcon_transport_t *t, const uint8_t *buf, si
  *
  * see ctl_fd's own doc comment on why that's not fatal.
  */
-bool ghostcon_transport_resize(ghostcon_transport_t *t, int rows, int cols,
-                               int xpixel, int ypixel);
+extern bool ghostcon_transport_resize(ghostcon_transport_t *t, int rows, int cols,
+                                      int xpixel, int ypixel);
 
 /* Sends "DUMP" over the control socket
  *
@@ -79,7 +79,7 @@ bool ghostcon_transport_resize(ghostcon_transport_t *t, int rows, int cols,
  * Same "no control connection --best-effort, not an error" semantics as
  * ghostcon_transport_resize() above.
  */
-bool ghostcon_transport_request_dump(ghostcon_transport_t *t);
+extern bool ghostcon_transport_request_dump(ghostcon_transport_t *t);
 
 /* Reads and parses one message off the control socket (see ctl_fd's own doc
  * comment)
@@ -94,4 +94,4 @@ bool ghostcon_transport_request_dump(ghostcon_transport_t *t);
  * matching ctl_fd's existing "not fatal if unavailable" contract). Returns false
  * only if ctl_fd was already < 0 when called.
  */
-bool ghostcon_transport_read_ctl(ghostcon_transport_t *t, bool *out_clear);
+extern bool ghostcon_transport_read_ctl(ghostcon_transport_t *t, bool *out_clear);

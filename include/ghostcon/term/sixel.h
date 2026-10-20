@@ -56,8 +56,8 @@ typedef struct ghostcon_sixel_state {
     size_t                     total_bytes;
 } ghostcon_sixel_state_t;
 
-void ghostcon_sixel_state_init(ghostcon_sixel_state_t *st);
-void ghostcon_sixel_state_deinit(ghostcon_sixel_state_t *st);
+extern void ghostcon_sixel_state_init(ghostcon_sixel_state_t *st);
+extern void ghostcon_sixel_state_deinit(ghostcon_sixel_state_t *st);
 
 /* Same shape as ghostcon_kitty_cursor_move_t (kitty_graphics.h) --see that
  * struct's own doc comment.
@@ -86,11 +86,11 @@ typedef struct
  *
  * pass 0 for either to suppress it.
  */
-void ghostcon_sixel_decode(ghostcon_sixel_state_t *st,
-                           const int32_t *dcs_params, size_t params_count,
-                           const char *body, size_t body_len,
-                           int32_t cursor_col, int32_t cursor_row,
-                           int32_t cell_w, int32_t cell_h,
-                           ghostcon_sixel_cursor_move_t *out_move);
+extern void ghostcon_sixel_decode(ghostcon_sixel_state_t *st,
+                                  const int32_t *dcs_params, size_t params_count,
+                                  const char *body, size_t body_len,
+                                  int32_t cursor_col, int32_t cursor_row,
+                                  int32_t cell_w, int32_t cell_h,
+                                  ghostcon_sixel_cursor_move_t *out_move);
 
 #endif

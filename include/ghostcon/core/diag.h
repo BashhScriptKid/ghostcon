@@ -24,7 +24,7 @@
  * instance is for, or -1 if not applicable (e.g. ghost-ptyserv, which isn't
  * per-VT).
  */
-void ghostcon_diag_init(const char *component, int vt_num);
+extern void ghostcon_diag_init(const char *component, int vt_num);
 
 /* Logs a non-fatal warning to journald with the same structured fields
  * diag's crash handler uses, without a signal/crash involved.
@@ -32,5 +32,5 @@ void ghostcon_diag_init(const char *component, int vt_num);
  * Useful for "this shouldn't happen but isn't fatal" conditions elsewhere
  * in the codebase. printf-style format string.
  */
-void ghostcon_diag_log_warning(const char *fmt, ...)
+extern void ghostcon_diag_log_warning(const char *fmt, ...)
     __attribute__((format(printf, 1, 2)));

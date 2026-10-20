@@ -252,7 +252,7 @@ ghostcon_cell_make(uint32_t codepoint)
 #define GHOSTCON_CELL_EMPTY ((ghostcon_cell_t){ .raw = 0 })
 
 /* Unicode display width: 0 (combining/zero-width), 1, or 2 (wide) */
-uint8_t ghostcon_unicode_width(uint32_t codepoint);
+extern uint8_t ghostcon_unicode_width(uint32_t codepoint);
 
 /* Matches Ghostty's isSymbol() (renderer/cell.zig): Unicode General Category
  * "Symbol" (Sm, Sc, Sk, So), backed by a table generated from the UCD.
@@ -288,7 +288,7 @@ uint8_t ghostcon_unicode_width(uint32_t codepoint);
  * symbol_constraint_width()) instead of drawing those glyphs at native size like
  * ordinary text.
  */
-bool ghostcon_cell_is_symbol(uint32_t codepoint);
+extern bool ghostcon_cell_is_symbol(uint32_t codepoint);
 
 /* Codepoint ranges whose glyphs are specifically designed to tile/ connect
  * edge-to-edge across adjacent cells: Legacy Computing (sextants etc.) and
@@ -306,4 +306,4 @@ bool ghostcon_cell_is_symbol(uint32_t codepoint);
  * symbol_constraint_width(), since squeezing a tiling glyph down would visibly
  * break the tiling.
  */
-bool ghostcon_cell_is_graphics_element(uint32_t codepoint);
+extern bool ghostcon_cell_is_graphics_element(uint32_t codepoint);

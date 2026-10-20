@@ -82,11 +82,11 @@ typedef struct ghostcon_gles ghostcon_gles_t;
  * See FRAG_SRC's doc comment in gles.c for what this actually changes (not what
  * you'd guess).
  */
-ghostcon_gles_t *ghostcon_gles_create(uint32_t viewport_w, uint32_t viewport_h,
-                                       bool want_linear_blending);
-void ghostcon_gles_destroy(ghostcon_gles_t *gles);
+extern ghostcon_gles_t *ghostcon_gles_create(uint32_t viewport_w, uint32_t viewport_h,
+                                              bool want_linear_blending);
+extern void ghostcon_gles_destroy(ghostcon_gles_t *gles);
 
-void ghostcon_gles_resize(ghostcon_gles_t *gles, uint32_t w, uint32_t h);
+extern void ghostcon_gles_resize(ghostcon_gles_t *gles, uint32_t w, uint32_t h);
 
 /* Uploads the atlas bitmap to the GPU texture if ghostcon_atlas_dirty() is true
  * (and clears the dirty flag)
@@ -130,7 +130,7 @@ void ghostcon_gles_resize(ghostcon_gles_t *gles, uint32_t w, uint32_t h);
  *
  * [2] Means nothing new rasterized since some earlier instance's last sync
  */
-void ghostcon_gles_sync_atlas(ghostcon_gles_t *gles, ghostcon_atlas_t *atlas, bool force);
+extern void ghostcon_gles_sync_atlas(ghostcon_gles_t *gles, ghostcon_atlas_t *atlas, bool force);
 
 /* Resets the quad batch for a new frame, clearing the framebuffer to (bg_r, bg_g,
  * bg_b) first iff `clear` is true.
@@ -165,8 +165,8 @@ void ghostcon_gles_sync_atlas(ghostcon_gles_t *gles, ghostcon_atlas_t *atlas, bo
  *     this scale, which in practice means every frame, full stop, not just
  *     first-frame-after-acquire
  */
-void ghostcon_gles_begin(ghostcon_gles_t *gles, bool clear,
-                          float bg_r, float bg_g, float bg_b);
+extern void ghostcon_gles_begin(ghostcon_gles_t *gles, bool clear,
+                                 float bg_r, float bg_g, float bg_b);
 
 /* Appends an opaque solid-color rect to the FOREGROUND layer (cursor block,
  * selection overlay). Drawn after glyphs, on top of everything.
@@ -184,28 +184,28 @@ void ghostcon_gles_begin(ghostcon_gles_t *gles, bool clear,
  *     a z<0 image was always hidden under the batch's opaque background
  *     fills.
  */
-void ghostcon_gles_push_rect(ghostcon_gles_t *gles,
-                              float x, float y, float w, float h,
-                              float r, float g, float b, float a);
+extern void ghostcon_gles_push_rect(ghostcon_gles_t *gles,
+                                     float x, float y, float w, float h,
+                                     float r, float g, float b, float a);
 
 /* Appends an opaque solid-color rect to the BACKGROUND layer (cell
  * background fills only). Drawn in its own draw call, before glyphs and
  * before z<0 Kitty image placements.
  */
-void ghostcon_gles_push_bg_rect(ghostcon_gles_t *gles,
-                                float x, float y, float w, float h,
-                                float r, float g, float b, float a);
+extern void ghostcon_gles_push_bg_rect(ghostcon_gles_t *gles,
+                                       float x, float y, float w, float h,
+                                       float r, float g, float b, float a);
 
 /* Appends a glyph quad at (x, y) sized (w, h), sampling `glyph`'s UV rect, tinted
  * with the foreground color. bg_r/g/b is the cell's resolved background color,
  * used only for the gamma alpha correction curve (see
  * ghostcon_gles_set_gamma_correct below).
  */
-void ghostcon_gles_push_glyph(ghostcon_gles_t *gles,
-                               float x, float y, float w, float h,
-                               const ghostcon_glyph_t *glyph,
-                               float r, float g, float b, float a,
-                               float bg_r, float bg_g, float bg_b);
+extern void ghostcon_gles_push_glyph(ghostcon_gles_t *gles,
+                                      float x, float y, float w, float h,
+                                      const ghostcon_glyph_t *glyph,
+                                      float r, float g, float b, float a,
+                                      float bg_r, float bg_g, float bg_b);
 
 /* Whether glyph edges get the luminance-based alpha correction curve (ported from
  * Ghostty's cell_text.f.glsl) that biases FreeType's raw coverage value to look
@@ -214,7 +214,7 @@ void ghostcon_gles_push_glyph(ghostcon_gles_t *gles,
  *
  * Defaults to on; takes effect on the next ghostcon_gles_end().
  */
-void ghostcon_gles_set_gamma_correct(ghostcon_gles_t *gles, bool enabled);
+extern void ghostcon_gles_set_gamma_correct(ghostcon_gles_t *gles, bool enabled);
 
 /* True if ghostcon_gles_create()'s want_linear_blending actually resulted in a
  * working offscreen sRGB FBO + blit pipeline[1]
@@ -230,12 +230,12 @@ void ghostcon_gles_set_gamma_correct(ghostcon_gles_t *gles, bool enabled);
  *
  * [1] tl;dr: both the needed extensions present AND the FBO completed
  */
-bool ghostcon_gles_linear_blending_active(const ghostcon_gles_t *gles);
+extern bool ghostcon_gles_linear_blending_active(const ghostcon_gles_t *gles);
 
 /* Issues the draw calls for everything pushed since ghostcon_gles_begin,
  * then eglSwapBuffers via the caller's ghostcon_egl_t.
  */
-void ghostcon_gles_end(ghostcon_gles_t *gles);
+extern void ghostcon_gles_end(ghostcon_gles_t *gles);
 
 /* Arbitrary-texture images (Kitty graphics protocol placements)
  *
@@ -268,9 +268,9 @@ typedef struct ghostcon_gles_image ghostcon_gles_image_t;
 /* Uploads `rgba` (width*height*bpp bytes, bpp 3=RGB or 4=RGBA, no row
  * padding) as a new GPU texture. Returns NULL on failure.
  */
-ghostcon_gles_image_t *ghostcon_gles_image_create(const uint8_t *pixels,
-                                                   int width, int height, int bpp);
-void ghostcon_gles_image_destroy(ghostcon_gles_image_t *img);
+extern ghostcon_gles_image_t *ghostcon_gles_image_create(const uint8_t *pixels,
+                                                          int width, int height, int bpp);
+extern void ghostcon_gles_image_destroy(ghostcon_gles_image_t *img);
 
 /* Queues a placement draw for one of the two points in end()'s sequence described
  * above
@@ -289,10 +289,10 @@ void ghostcon_gles_image_destroy(ghostcon_gles_image_t *img);
  * only the tier (above_text) controls where it actually lands in the draw
  * sequence.
  */
-void ghostcon_gles_queue_image(ghostcon_gles_t *gles, ghostcon_gles_image_t *img,
-                               float x, float y, float w, float h,
-                               float src_x, float src_y, float src_w, float src_h,
-                               float alpha, bool above_text);
+extern void ghostcon_gles_queue_image(ghostcon_gles_t *gles, ghostcon_gles_image_t *img,
+                                      float x, float y, float w, float h,
+                                      float src_x, float src_y, float src_w, float src_h,
+                                      float alpha, bool above_text);
 
 /* Returns a GPU texture for Kitty image `image_id`, uploading from `pixels` on
  * first use and re-uploading whenever `generation` differs from what's currently
@@ -315,10 +315,10 @@ void ghostcon_gles_queue_image(ghostcon_gles_t *gles, ghostcon_gles_image_t *img
  * [1] The term-layer image store bumps its generation counter each time an id
  *     is re-transmitted (see term/kitty_graphics.h)
  */
-ghostcon_gles_image_t *ghostcon_gles_kitty_tex_get(ghostcon_gles_t *gles,
-                                                   const struct ghostcon_kitty_graphics *kg,
-                                                   uint32_t image_id, uint32_t generation,
-                                                   const uint8_t *pixels, int width, int height, int bpp);
+extern ghostcon_gles_image_t *ghostcon_gles_kitty_tex_get(ghostcon_gles_t *gles,
+                                                          const struct ghostcon_kitty_graphics *kg,
+                                                          uint32_t image_id, uint32_t generation,
+                                                          const uint8_t *pixels, int width, int height, int bpp);
 
 /* Same caching contract as ghostcon_gles_kitty_tex_get above,
  * but keyed by sixel placement SLOT[1] rather than image id.
@@ -331,10 +331,10 @@ ghostcon_gles_image_t *ghostcon_gles_kitty_tex_get(ghostcon_gles_t *gles,
  *
  * [2] sixel decode always produces RGBA (see term/sixel.c)
  */
-ghostcon_gles_image_t *ghostcon_gles_sixel_tex_get(ghostcon_gles_t *gles,
-                                                   const struct ghostcon_sixel_state *sx,
-                                                   int slot, uint32_t generation,
-                                                   const uint8_t *pixels, int width, int height);
+extern ghostcon_gles_image_t *ghostcon_gles_sixel_tex_get(ghostcon_gles_t *gles,
+                                                          const struct ghostcon_sixel_state *sx,
+                                                          int slot, uint32_t generation,
+                                                          const uint8_t *pixels, int width, int height);
 
 /* Reads back the just-rendered frame and writes it out as a binary PPM (P6).
  *
@@ -351,4 +351,4 @@ ghostcon_gles_image_t *ghostcon_gles_sixel_tex_get(ghostcon_gles_t *gles,
  *
  * see core/main.c's Ctrl+Alt+D dump hotkey.
  */
-bool ghostcon_gles_screenshot_ppm(ghostcon_gles_t *gles, const char *path);
+extern bool ghostcon_gles_screenshot_ppm(ghostcon_gles_t *gles, const char *path);

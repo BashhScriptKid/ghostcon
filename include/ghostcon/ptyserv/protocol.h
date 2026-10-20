@@ -57,23 +57,23 @@
 /* Formats "GET <vtnum>\n" into buf (size buf_len). Returns written length,
  * or 0 if it wouldn't fit.
  */
-size_t ghostcon_ptyserv_format_get(char *buf, size_t buf_len, int vtnum);
+extern size_t ghostcon_ptyserv_format_get(char *buf, size_t buf_len, int vtnum);
 
 /* Parses a "GET <vtnum>\n" request line. Returns true and sets *vtnum on
  * success.
  */
-bool ghostcon_ptyserv_parse_get(const char *line, int *vtnum);
+extern bool ghostcon_ptyserv_parse_get(const char *line, int *vtnum);
 
 /* Formats "OK pid=<pid> socket=<path>\n" into buf. Returns written length,
  * or 0 if it wouldn't fit.
  */
-size_t ghostcon_ptyserv_format_ok(char *buf, size_t buf_len,
-                                   int pid, const char *socket_path);
+extern size_t ghostcon_ptyserv_format_ok(char *buf, size_t buf_len,
+                                          int pid, const char *socket_path);
 
 /* Parses an "OK pid=<pid> socket=<path>\n" response line. socket_path must
  * be at least GHOSTCON_PTYSERV_LINE_MAX bytes. Returns true on success.
  */
-bool ghostcon_ptyserv_parse_ok(const char *line, int *pid, char *socket_path);
+extern bool ghostcon_ptyserv_parse_ok(const char *line, int *pid, char *socket_path);
 
 /* Formats "RESIZE <rows> <cols> <xpixel> <ypixel>\n" into buf.
  *
@@ -87,8 +87,8 @@ bool ghostcon_ptyserv_parse_ok(const char *line, int *pid, char *socket_path);
  * Returns written length, or 0 if it wouldn't fit. Sent over the control
  * socket (GHOSTCON_PTY_CTL_SOCKET_FMT), never the data socket.
  */
-size_t ghostcon_ptyserv_format_resize(char *buf, size_t buf_len, int rows, int cols,
-                                      int xpixel, int ypixel);
+extern size_t ghostcon_ptyserv_format_resize(char *buf, size_t buf_len, int rows, int cols,
+                                             int xpixel, int ypixel);
 
 /* Parses a "RESIZE <rows> <cols> <xpixel> <ypixel>\n" line.
  *
@@ -99,8 +99,8 @@ size_t ghostcon_ptyserv_format_resize(char *buf, size_t buf_len, int rows, int c
  * (kept parseable rather than rejected, since nothing else
  * on this internal control socket needs strict versioning).
  */
-bool ghostcon_ptyserv_parse_resize(const char *line, int *rows, int *cols,
-                                   int *xpixel, int *ypixel);
+extern bool ghostcon_ptyserv_parse_resize(const char *line, int *rows, int *cols,
+                                          int *xpixel, int *ypixel);
 
 /* Formats "CLEAR\n" into buf. Returns written length, or 0 if it wouldn't
  * fit.
@@ -112,10 +112,10 @@ bool ghostcon_ptyserv_parse_resize(const char *line, int *rows, int *cols,
  * optionally wipe the display + scrollback rather than leaving
  * the old session's last screenful visible under the new login prompt.
  */
-size_t ghostcon_ptyserv_format_clear(char *buf, size_t buf_len);
+extern size_t ghostcon_ptyserv_format_clear(char *buf, size_t buf_len);
 
 /* Parses a "CLEAR\n" line. Returns true if `line` is a CLEAR message. */
-bool ghostcon_ptyserv_parse_clear(const char *line);
+extern bool ghostcon_ptyserv_parse_clear(const char *line);
 
 /* Formats "DUMP\n" into buf. Returns written length, or 0 if it wouldn't
  * fit.
@@ -131,7 +131,7 @@ bool ghostcon_ptyserv_parse_clear(const char *line);
  * [1] the real, raw bytes leading up to the moment of the dump,
  *     not a synthetic reproduction.
  */
-size_t ghostcon_ptyserv_format_dump(char *buf, size_t buf_len);
+extern size_t ghostcon_ptyserv_format_dump(char *buf, size_t buf_len);
 
 /* Parses a "DUMP\n" line. Returns true if `line` is a DUMP message. */
-bool ghostcon_ptyserv_parse_dump(const char *line);
+extern bool ghostcon_ptyserv_parse_dump(const char *line);

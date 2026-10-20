@@ -91,5 +91,5 @@ typedef struct
  * number of entries written (0 if `atlas` has no HarfBuzz font, i.e. harfbuzz
  * wasn't available at build time).
  */
-int ghostcon_ligature_scan_row(const ghostcon_row_t *row, ghostcon_atlas_t *atlas,
-                                ghostcon_ligature_glyph_t *out_glyphs, int max_glyphs);
+extern int ghostcon_ligature_scan_row(const ghostcon_row_t *row, ghostcon_atlas_t *atlas,
+                                       ghostcon_ligature_glyph_t *out_glyphs, int max_glyphs);

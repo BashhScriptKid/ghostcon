@@ -27,4 +27,4 @@
  * error, same "unrecognized falls back to default" convention as
  * antialiasing/etc. NULL/empty name always returns false.
  */
-bool ghostcon_theme_apply(ghostcon_palette_t *pal, const char *name);
+extern bool ghostcon_theme_apply(ghostcon_palette_t *pal, const char *name);
