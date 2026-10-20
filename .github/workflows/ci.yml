@@ -64,16 +64,8 @@ jobs:
       - name: Install dependencies
         run: |
           pacman -Syu --noconfirm --needed python
-      - name: format_comments
-        run: python3 tools/format_comments.py --check
-      - name: format_braces
-        run: python3 tools/format_braces.py --check
-      - name: format_signatures
-        run: python3 tools/format_signatures.py --check
-      - name: format_pointers
-        run: python3 tools/format_pointers.py --check
-      - name: format_extern
-        run: python3 tools/format_extern.py --check
+      - name: format
+        run: python3 tools/format.py --check
 
   fuzz:
     name: Fuzz term parser

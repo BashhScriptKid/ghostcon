@@ -16,16 +16,17 @@ meson test -C build-release          # currently 22 tests
 ## 0. Code style
 
 Five rules, each enforced by a script in `tools/`. The scripts are the
-executable specification; update both if a rule changes. Run them from
-the repository root before sending changes:
+executable specification; update both if a rule changes. One command
+runs them all, from the repository root:
 
 ```sh
-python3 tools/format_comments.py   --check
-python3 tools/format_braces.py     --check
-python3 tools/format_signatures.py --check
-python3 tools/format_pointers.py   --check
-python3 tools/format_extern.py     --check
+python3 tools/format.py            # rewrite in place
+python3 tools/format.py --check    # report only (what CI runs)
 ```
+
+Run a single rule with `--only <rule>`, e.g. `--only extern`. The
+rules are also runnable directly, e.g. `python3
+tools/format_signatures.py --check`.
 
 Each accepts `--apply` to rewrite in place and is idempotent. All four
 are tokenizer-based, not full C parsers: they ignore comments and
