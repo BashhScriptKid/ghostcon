@@ -437,6 +437,110 @@ static bool parse_i64(const char *s, size_t len, int64_t *out)
     return true;
 }
 
+/* How a control key's value is extracted.
+ *
+ * CHAR keys carry a single character (the action, the medium, the delete
+ * mode); I32/I64 keys carry a signed decimal integer.
+ */
+typedef enum
+{
+    KITTY_VALUE_CHAR,
+    KITTY_VALUE_I32,
+    KITTY_VALUE_I64,
+} kitty_value_kind_t;
+
+/* One row per recognized control key.
+ *
+ * key     the single character in front of '='
+ * kind    how the value is extracted
+ * min_len shortest accepted value (character kinds only)
+ * max_len longest accepted value (character kinds only)
+ * offset  byte offset of the destination field inside kitty_control_t
+ *
+ * The table replaced a 17-arm strcmp() chain, where every new key meant another
+ * branch in a function that was already the second-worst hotspot in the tree --
+ * and where a key whose value did not parse fell through to the next arm instead
+ * of being rejected, which is exactly the kind of silent misdispatch a table
+ * makes obvious.
+ */
+typedef struct
+{
+    char               key;
+    kitty_value_kind_t kind;
+    size_t             min_len;
+    size_t             max_len;
+    size_t             offset;
+} kitty_control_key_t;
+
+static const kitty_control_key_t kitty_control_keys[] = {
+    { 'a', KITTY_VALUE_CHAR, 1, 1, offsetof(kitty_control_t, action) },
+    { 't', KITTY_VALUE_CHAR, 1, 1, offsetof(kitty_control_t, medium) },
+    { 'd', KITTY_VALUE_CHAR, 1, SIZE_MAX, offsetof(kitty_control_t, delete_mode) },
+    { 'f', KITTY_VALUE_I32, 0, 0, offsetof(kitty_control_t, format) },
+    { 's', KITTY_VALUE_I32, 0, 0, offsetof(kitty_control_t, width) },
+    { 'v', KITTY_VALUE_I32, 0, 0, offsetof(kitty_control_t, height) },
+    { 'i', KITTY_VALUE_I64, 0, 0, offsetof(kitty_control_t, image_id) },
+    { 'p', KITTY_VALUE_I64, 0, 0, offsetof(kitty_control_t, placement_id) },
+    { 'm', KITTY_VALUE_I32, 0, 0, offsetof(kitty_control_t, more) },
+    { 'q', KITTY_VALUE_I32, 0, 0, offsetof(kitty_control_t, quiet) },
+    { 'z', KITTY_VALUE_I32, 0, 0, offsetof(kitty_control_t, z) },
+    { 'x', KITTY_VALUE_I32, 0, 0, offsetof(kitty_control_t, crop_x) },
+    { 'y', KITTY_VALUE_I32, 0, 0, offsetof(kitty_control_t, crop_y) },
+    { 'w', KITTY_VALUE_I32, 0, 0, offsetof(kitty_control_t, crop_w) },
+    { 'h', KITTY_VALUE_I32, 0, 0, offsetof(kitty_control_t, crop_h) },
+    { 'c', KITTY_VALUE_I32, 0, 0, offsetof(kitty_control_t, cell_cols) },
+    { 'r', KITTY_VALUE_I32, 0, 0, offsetof(kitty_control_t, cell_rows) },
+    { 'C', KITTY_VALUE_I32, 0, 0, offsetof(kitty_control_t, no_cursor_move) },
+};
+
+#define KITTY_CONTROL_KEY_COUNT (sizeof kitty_control_keys / sizeof kitty_control_keys[0])
+
+/* Stores a value into the field the table row points at.
+ *
+ * memcpy rather than a typed pointer store, so the row's offset stays the
+ * single source of truth for the field layout.
+ */
+static void kitty_control_store(kitty_control_t *c, const kitty_control_key_t *row, const char *val, size_t val_len)
+{
+    switch (row->kind)
+    {
+    case KITTY_VALUE_CHAR:
+        if (val_len < row->min_len || val_len > row->max_len)
+            return;
+        memcpy((char *)c + row->offset, val, 1);
+        return;
+    case KITTY_VALUE_I32:
+    {
+        int64_t iv = 0;
+        if (!parse_i64(val, val_len, &iv))
+            return;
+        int32_t v = (int32_t)iv;
+        memcpy((char *)c + row->offset, &v, sizeof v);
+        return;
+    }
+    case KITTY_VALUE_I64:
+    {
+        int64_t iv = 0;
+        if (!parse_i64(val, val_len, &iv))
+            return;
+        memcpy((char *)c + row->offset, &iv, sizeof iv);
+        return;
+    }
+    }
+}
+
+/* Finds the table row for a single-character key. */
+static const kitty_control_key_t
+*kitty_control_key_find(char key)
+{
+    for (size_t i = 0; i < KITTY_CONTROL_KEY_COUNT; i++)
+    {
+        if (kitty_control_keys[i].key == key)
+            return &kitty_control_keys[i];
+    }
+    return NULL;
+}
+
 /* control is the substring before the payload's ';' (or the whole body if
  * there is no payload section). Mutates a scratch copy, so the caller must
  * pass a writable, NUL-terminated buffer.
@@ -444,14 +548,14 @@ static bool parse_i64(const char *s, size_t len, int64_t *out)
 static kitty_control_t
 kitty_parse_control(char *control)
 {
-    kitty_control_t c = {0};
-    c.format = -1; c.width = -1; c.height = -1;
-    c.image_id = -1; c.placement_id = -1; c.more = -1; c.quiet = -1;
-    /* z legitimately ranges negative (spec: z<0 renders behind text) ---1
-     * collides with a real value a client would actually send (it's the most
-     * common "just behind text" choice), so it can't double as the "absent"
-     * sentinel the way -1 safely does for every other field here (all of which
-     * are spec-defined non-negative).
+    /* Every field's "absent" sentinel is spelled out here rather than assigned
+     * one line at a time below.
+     *
+     * -1 is the sentinel for every field except z, which legitimately ranges
+     * negative (spec: z<0 renders behind text) -- -1 collides with a real value a
+     * client would actually send (it's the most common "just behind text"
+     * choice), so it can't double as the "absent" sentinel the way -1 safely does
+     * for every other field here (all of which are spec-defined non-negative).
      *
      * Found live: every placement sent with z=-1 was silently coerced to the z=0
      * default by the old `ctl->z >= 0 ? ctl->z : 0` check below, so a z<0
@@ -462,11 +566,24 @@ kitty_parse_control(char *control)
      * zindex test page, which never actually verified genuine text-over-image
      * compositing, only that both colors existed somewhere on screen.
      */
-    c.z = INT32_MIN;
-    c.crop_x = -1; c.crop_y = -1; c.crop_w = -1; c.crop_h = -1;
-    c.cell_cols = -1; c.cell_rows = -1;
-    c.no_cursor_move = -1;
-    c.valid = true;
+    kitty_control_t c = {
+        .format = -1,
+        .width = -1,
+        .height = -1,
+        .image_id = -1,
+        .placement_id = -1,
+        .more = -1,
+        .quiet = -1,
+        .z = INT32_MIN,
+        .crop_x = -1,
+        .crop_y = -1,
+        .crop_w = -1,
+        .crop_h = -1,
+        .cell_cols = -1,
+        .cell_rows = -1,
+        .no_cursor_move = -1,
+        .valid = true,
+    };
 
     char *save = NULL;
     for (char *tok = strtok_r(control, ",", &save); tok;
@@ -482,126 +599,103 @@ kitty_parse_control(char *control)
         const char *key = tok;
         const char *val = eq + 1;
         size_t val_len = strlen(val);
-        int64_t iv;
 
-        if (strcmp(key, "a") == 0 && val_len == 1)
-        {
-            c.action = val[0];
-        }
-        else if (strcmp(key, "t") == 0 && val_len == 1)
-        {
-            c.medium = val[0];
-        }
-        else if (strcmp(key, "d") == 0 && val_len >= 1)
-        {
-            c.delete_mode = val[0];
-        }
-        else if (strcmp(key, "f") == 0 && parse_i64(val, val_len, &iv))
-        {
-            c.format = (int32_t)iv;
-        }
-        else if (strcmp(key, "s") == 0 && parse_i64(val, val_len, &iv))
-        {
-            c.width = (int32_t)iv;
-        }
-        else if (strcmp(key, "v") == 0 && parse_i64(val, val_len, &iv))
-        {
-            c.height = (int32_t)iv;
-        }
-        else if (strcmp(key, "i") == 0 && parse_i64(val, val_len, &iv))
-        {
-            c.image_id = iv;
-        }
-        else if (strcmp(key, "p") == 0 && parse_i64(val, val_len, &iv))
-        {
-            c.placement_id = iv;
-        }
-        else if (strcmp(key, "m") == 0 && parse_i64(val, val_len, &iv))
-        {
-            c.more = (int32_t)iv;
-        }
-        else if (strcmp(key, "q") == 0 && parse_i64(val, val_len, &iv))
-        {
-            c.quiet = (int32_t)iv;
-        }
-        else if (strcmp(key, "z") == 0 && parse_i64(val, val_len, &iv))
-        {
-            c.z = (int32_t)iv;
-        }
-        else if (strcmp(key, "x") == 0 && parse_i64(val, val_len, &iv))
-        {
-            c.crop_x = (int32_t)iv;
-        }
-        else if (strcmp(key, "y") == 0 && parse_i64(val, val_len, &iv))
-        {
-            c.crop_y = (int32_t)iv;
-        }
-        else if (strcmp(key, "w") == 0 && parse_i64(val, val_len, &iv))
-        {
-            c.crop_w = (int32_t)iv;
-        }
-        else if (strcmp(key, "h") == 0 && parse_i64(val, val_len, &iv))
-        {
-            c.crop_h = (int32_t)iv;
-        }
-        else if (strcmp(key, "c") == 0 && parse_i64(val, val_len, &iv))
-        {
-            c.cell_cols = (int32_t)iv;
-        }
-        else if (strcmp(key, "r") == 0 && parse_i64(val, val_len, &iv))
-        {
-            c.cell_rows = (int32_t)iv;
-        }
-        else if (strcmp(key, "C") == 0 && parse_i64(val, val_len, &iv))
-        {
-            c.no_cursor_move = (int32_t)iv;
-        }
-        /* Unrecognized keys (I=, o=, etc.) are accepted and ignored
-         * --forward-compatible with clients that send extra hints this v1
-         * doesn't act on.
+        /* Every recognized key is a single character; anything longer is
+         * unknown and ignored.
          */
+        if (key[0] == '\0' || key[1] != '\0')
+            continue;
+        const kitty_control_key_t *row = kitty_control_key_find(key[0]);
+        if (!row)
+        {
+            /* Unrecognized keys (I=, o=, etc.) are accepted and ignored
+             * --forward-compatible with clients that send extra hints this v1
+             * doesn't act on.
+             */
+            continue;
+        }
+        kitty_control_store(&c, row, val, val_len);
     }
     return c;
 }
 
-/* Acks */
-
-static void kitty_ack(ghostcon_kitty_output_fn output_fn, void *userdata, int32_t quiet, uint32_t image_id, int64_t placement_id, const char *status /* "OK" or "error=CODE:message" */)
+/* The transmission medium (the t= control key).
+ *
+ * DIRECT carries the image bytes in the escape sequence itself
+ *
+ * the other three carry the name of a shared-memory segment or a file,
+ * base64-encoded.
+ */
+typedef enum
 {
-    if (!output_fn)
-        return;
-    /* Matches Ghostty's Response.encode() exactly: no id (and this v1 doesn't
-     * implement I=/image-number at all) means there's nothing for the client to
-     * attach a response to, so the terminal stays silent --even for an error.
-     *
-     * A malformed command with no i= at all (e.g. missing i= entirely)
-     * legitimately gets no reply on real Ghostty; echoing "i=0;error=..." back,
-     * as an earlier version of this function did unconditionally, is protocol
-     * noise a well-behaved client isn't expecting.
-     */
-    if (image_id == 0)
-        return;
-    /* q=1 suppresses OK acks (errors still sent); q=2 suppresses all. */
-    bool is_error = strncmp(status, "error", 5) == 0;
-    if (quiet >= 2)
-        return;
-    if (quiet >= 1 && !is_error)
-        return;
+    KITTY_MEDIUM_DIRECT,
+    KITTY_MEDIUM_SHM,
+    KITTY_MEDIUM_TEMP_FILE,
+    KITTY_MEDIUM_CACHE_FILE,
+} kitty_medium_t;
 
-    char buf[192];
-    int n;
-    if (placement_id > 0)
-    {
-        n = snprintf(buf, sizeof buf, "\x1b_Gi=%u,p=%lld;%s\x1b\\",
-                     image_id, (long long)placement_id, status);
-    }
-    else
-    {
-        n = snprintf(buf, sizeof buf, "\x1b_Gi=%u;%s\x1b\\", image_id, status);
-    }
-    if (n > 0)
-        output_fn(userdata, (const uint8_t *)buf, (size_t)n);
-}
+/* Command context
+ *
+ * One context per APC "G" command, carried through the transmit and placement
+ * handlers.
+ *
+ * It exists because the transmit path has ~20 failure exits that all have to
+ * report the same five things (who to write to, how loudly, which image, which
+ * placement, and what went wrong).
+ *
+ * Re-typing those at every exit is how a mismatch between two of them becomes a
+ * silent protocol bug rather than a compile error.
+ */
+typedef struct
+{
+    ghostcon_kitty_graphics_t    *kg;
+    const kitty_control_t        *ctl;
+    ghostcon_kitty_output_fn      output_fn;
+    void                        *userdata;
+    ghostcon_kitty_cursor_move_t *out_move;
+    int32_t cursor_col, cursor_row, cell_w, cell_h;
+
+    /* Ack target.
+     *
+     * image_id 0 means "no response at all" (see kitty_ack).
+     */
+    int32_t  quiet;
+    uint32_t image_id;
+    int64_t  placement_id;
+
+    /* The transmission medium (t= key). */
+    kitty_medium_t medium;
+
+    /* Transfer state, filled in as the command is resolved. */
+    bool     also_display;
+    bool     more;
+    bool     continuing;
+    int64_t  resolved_id;
+    bool     resolved_display;
+    int32_t  resolved_z;
+    int32_t  resolved_crop_x, resolved_crop_y, resolved_crop_w, resolved_crop_h;
+    int32_t  resolved_cell_cols, resolved_cell_rows;
+    int32_t  resolved_no_cursor_move;
+    int64_t  resolved_placement_id;
+    int32_t  bpp;
+    bool     is_png;
+    int32_t  width, height;
+    size_t   expected_len;
+
+    /* The buffer this command owns, released by kitty_fail() unless it is
+     * handed over to the image slot.
+     */
+    uint8_t *pending;
+    size_t   pending_len;
+
+    /* The image slot this command owns, released by kitty_fail(). */
+    ghostcon_kitty_image_t *img;
+    bool release_img;
+    bool clear_active;
+
+    /* The failure status, set by whichever step rejected the command. */
+    const char *error;
+} kitty_cmd_t;
 
 /* Image store */
 
@@ -687,6 +781,74 @@ static ghostcon_kitty_placement_t
     return NULL; /* ENOSPC */
 }
 
+/* Acks */
+
+static void kitty_ack(const kitty_cmd_t *cmd, const char *status /* "OK" or "error=CODE:message" */)
+{
+    if (!cmd->output_fn)
+        return;
+    /* Matches Ghostty's Response.encode() exactly: no id (and this v1 doesn't
+     * implement I=/image-number at all) means there's nothing for the client to
+     * attach a response to, so the terminal stays silent --even for an error.
+     *
+     * A malformed command with no i= at all (e.g. missing i= entirely)
+     * legitimately gets no reply on real Ghostty; echoing "i=0;error=..." back,
+     * as an earlier version of this function did unconditionally, is protocol
+     * noise a well-behaved client isn't expecting.
+     */
+    if (cmd->image_id == 0)
+        return;
+    /* q=1 suppresses OK acks (errors still sent); q=2 suppresses all. */
+    bool is_error = strncmp(status, "error", 5) == 0;
+    if (cmd->quiet >= 2)
+        return;
+    if (cmd->quiet >= 1 && !is_error)
+        return;
+
+    char buf[192];
+    int n;
+    if (cmd->placement_id > 0)
+    {
+        n = snprintf(buf, sizeof buf, "\x1b_Gi=%u,p=%lld;%s\x1b\\",
+                     cmd->image_id, (long long)cmd->placement_id, status);
+    }
+    else
+    {
+        n = snprintf(buf, sizeof buf, "\x1b_Gi=%u;%s\x1b\\", cmd->image_id, status);
+    }
+    if (n > 0)
+        cmd->output_fn(cmd->userdata, (const uint8_t *)buf, (size_t)n);
+}
+
+/* Releases everything the command owns and reports the failure.
+ *
+ * Every failure exit in the transmit path is one line:
+ *
+ *     return kitty_fail(cmd, "error=...");
+ *
+ * The buffer and the image slot the command took ownership of are released
+ * here, so a failing command cannot leak either one -- the two things that
+ * actually leak memory in a terminal that reads images off the filesystem.
+ */
+static void kitty_fail(kitty_cmd_t *cmd, const char *status)
+{
+    if (cmd->pending)
+    {
+        free(cmd->pending);
+        cmd->pending = NULL;
+        cmd->pending_len = 0;
+    }
+    if (cmd->release_img && cmd->img)
+    {
+        free_image(cmd->kg, cmd->img);
+        cmd->img = NULL;
+        cmd->release_img = false;
+    }
+    if (cmd->clear_active)
+        cmd->kg->active_transfer_id = -1;
+    kitty_ack(cmd, status);
+}
+
 /* Lifecycle */
 
 void ghostcon_kitty_graphics_init(ghostcon_kitty_graphics_t *kg)
@@ -737,66 +899,95 @@ static void compute_cursor_move(int32_t no_cursor_move, int32_t draw_w_px, int32
     out_move->col = anchor_col + cols + 1;
 }
 
-static void handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl, const char *payload, size_t payload_len, bool also_display, int32_t cursor_col, int32_t cursor_row, int32_t cell_w, int32_t cell_h, ghostcon_kitty_output_fn output_fn, void *userdata, ghostcon_kitty_cursor_move_t *out_move)
+/* Resolves the image id and the placement-affecting keys for this chunk.
+ *
+ * A continuation chunk (m=1 was sent previously, this chunk lacking its own
+ * i=/a=) resolves back to whichever transfer is currently in progress --see the
+ * struct's own doc comment on why this can't just require i= on every chunk.
+ *
+ * Returns false if the command cannot proceed
+ *
+ * the caller acks.
+ */
+static bool kitty_resolve_transfer(kitty_cmd_t *cmd)
 {
-    int32_t quiet = ctl->quiet >= 0 ? ctl->quiet : 0;
-
-    /* Continuation chunks (m=1 sent previously, this chunk lacking its own
-     * i=/a=) resolve back to whichever transfer is currently in progress
-     * --see the struct's own doc comment on why this can't just require i=
-     * on every chunk.
-     */
-    int64_t resolved_id = ctl->image_id;
-    bool resolved_display = also_display;
+    const kitty_control_t *ctl = cmd->ctl;
+    cmd->resolved_id = ctl->image_id;
+    cmd->resolved_display = cmd->also_display;
     /* Placement-affecting keys that are only meaningful/sent on the first chunk
      *
      * default to this chunk's own (usually absent) values, overridden below from
      * the saved snapshot only when resolving back to an in-progress transfer.
      */
-    int32_t resolved_z = ctl->z;
-    int32_t resolved_crop_x = ctl->crop_x, resolved_crop_y = ctl->crop_y;
-    int32_t resolved_crop_w = ctl->crop_w, resolved_crop_h = ctl->crop_h;
-    int32_t resolved_cell_cols = ctl->cell_cols, resolved_cell_rows = ctl->cell_rows;
-    int32_t resolved_no_cursor_move = ctl->no_cursor_move;
-    int64_t resolved_placement_id = ctl->placement_id;
-    if (resolved_id < 0)
-    {
-        if (kg->active_transfer_id < 0)
-        {
-            kitty_ack(output_fn, userdata, quiet, 0, -1, "error=EINVAL:missing or invalid i=");
-            return;
-        }
-        resolved_id = kg->active_transfer_id;
-        resolved_display = kg->active_transfer_display;
-        resolved_z = kg->active_transfer_z;
-        resolved_crop_x = kg->active_transfer_crop_x;
-        resolved_crop_y = kg->active_transfer_crop_y;
-        resolved_crop_w = kg->active_transfer_crop_w;
-        resolved_crop_h = kg->active_transfer_crop_h;
-        resolved_cell_cols = kg->active_transfer_cell_cols;
-        resolved_cell_rows = kg->active_transfer_cell_rows;
-        resolved_no_cursor_move = kg->active_transfer_no_cursor_move;
-        resolved_placement_id = kg->active_transfer_placement_id;
-    }
-    if (resolved_id > UINT32_MAX)
-    {
-        kitty_ack(output_fn, userdata, quiet, 0, -1, "error=EINVAL:missing or invalid i=");
-        return;
-    }
-    uint32_t id = (uint32_t)resolved_id;
-    also_display = resolved_display;
+    cmd->resolved_z = ctl->z;
+    cmd->resolved_crop_x = ctl->crop_x;
+    cmd->resolved_crop_y = ctl->crop_y;
+    cmd->resolved_crop_w = ctl->crop_w;
+    cmd->resolved_crop_h = ctl->crop_h;
+    cmd->resolved_cell_cols = ctl->cell_cols;
+    cmd->resolved_cell_rows = ctl->cell_rows;
+    cmd->resolved_no_cursor_move = ctl->no_cursor_move;
+    cmd->resolved_placement_id = ctl->placement_id;
 
-    if (ctl->medium && ctl->medium != 'd' && ctl->medium != 's' &&
-        ctl->medium != 't' && ctl->medium != 'f')
+    if (cmd->resolved_id < 0)
     {
-        kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                  "error=EBADF:unsupported transmission medium");
-        return;
+        if (cmd->kg->active_transfer_id < 0)
+        {
+            /* No image id and no transfer to continue: the ack carries no id,
+             * so the terminal stays silent (see kitty_ack).
+             */
+            cmd->image_id = 0;
+            cmd->placement_id = -1;
+            return false;
+        }
+        cmd->resolved_id = cmd->kg->active_transfer_id;
+        cmd->resolved_display = cmd->kg->active_transfer_display;
+        cmd->resolved_z = cmd->kg->active_transfer_z;
+        cmd->resolved_crop_x = cmd->kg->active_transfer_crop_x;
+        cmd->resolved_crop_y = cmd->kg->active_transfer_crop_y;
+        cmd->resolved_crop_w = cmd->kg->active_transfer_crop_w;
+        cmd->resolved_crop_h = cmd->kg->active_transfer_crop_h;
+        cmd->resolved_cell_cols = cmd->kg->active_transfer_cell_cols;
+        cmd->resolved_cell_rows = cmd->kg->active_transfer_cell_rows;
+        cmd->resolved_no_cursor_move = cmd->kg->active_transfer_no_cursor_move;
+        cmd->resolved_placement_id = cmd->kg->active_transfer_placement_id;
     }
-    bool from_shm = ctl->medium == 's';
-    bool from_temp_file = ctl->medium == 't';
-    bool from_cache_file = ctl->medium == 'f';
-    if ((from_shm || from_temp_file || from_cache_file) && ctl->more == 1)
+    if (cmd->resolved_id > UINT32_MAX)
+    {
+        cmd->image_id = 0;
+        cmd->placement_id = -1;
+        return false;
+    }
+    cmd->image_id = (uint32_t)cmd->resolved_id;
+    cmd->also_display = cmd->resolved_display;
+    return true;
+}
+
+/* Resolves the transmission medium (t=) and rejects the combinations that
+ * cannot work.
+ */
+static bool kitty_resolve_medium(kitty_cmd_t *cmd)
+{
+    switch (cmd->ctl->medium)
+    {
+    case 0:
+    case 'd':
+        cmd->medium = KITTY_MEDIUM_DIRECT;
+        break;
+    case 's':
+        cmd->medium = KITTY_MEDIUM_SHM;
+        break;
+    case 't':
+        cmd->medium = KITTY_MEDIUM_TEMP_FILE;
+        break;
+    case 'f':
+        cmd->medium = KITTY_MEDIUM_CACHE_FILE;
+        break;
+    default:
+        cmd->error = "error=EBADF:unsupported transmission medium";
+        return false;
+    }
+    if (cmd->medium != KITTY_MEDIUM_DIRECT && cmd->ctl->more == 1)
     {
         /* Chunked path/name assembly is legal per spec (a path is just another
          * base64 payload, mechanically chunkable like anything else) but never
@@ -810,365 +1001,417 @@ static void handle_transmit(ghostcon_kitty_graphics_t *kg, const kitty_control_t
          *
          * Reject cleanly rather than silently mishandling it.
          */
-        kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                  "error=EBADF:chunked shared-memory/temp-file transmission is not supported");
-        return;
+        cmd->error = "error=EBADF:chunked shared-memory/temp-file transmission is not supported";
+        return false;
     }
+    return true;
+}
 
-    ghostcon_kitty_image_t *img = find_image(kg, id);
-    bool continuing = img && img->receiving;
-
-    /* f= (like s=/v=/i= below) is only meaningful on the first chunk of a
-     * multi-chunk transfer
-     *
-     * continuation chunks legally omit it, so re-deriving bpp from ctl->format on
-     * every chunk would silently default to 32 (RGBA) instead of the format
-     * actually agreed on in chunk 1, corrupting the declared size for every later
-     * chunk.
-     *
-     * PNG (f=100) is tracked the same way, via img->bpp == 0 (raw formats are
-     * always 3 or 4, so 0 is unambiguous) rather than a separate flag on the
-     * image struct.
-     */
-    int32_t bpp;
-    bool is_png;
-    if (continuing)
+/* Determines the pixel format of the transfer: raw RGB/RGBA or PNG.
+ *
+ * f= (like s=/v=/i= below) is only meaningful on the first chunk of a
+ * multi-chunk transfer
+ *
+ * continuation chunks legally omit it, so re-deriving bpp from ctl->format on
+ * every chunk would silently default to 32 (RGBA) instead of the format
+ * actually agreed on in chunk 1, corrupting the declared size for every later
+ * chunk.
+ *
+ * PNG (f=100) is tracked the same way, via img->bpp == 0 (raw formats are
+ * always 3 or 4, so 0 is unambiguous) rather than a separate flag on the
+ * image struct.
+ */
+static bool kitty_resolve_format(kitty_cmd_t *cmd)
+{
+    if (cmd->continuing)
     {
-        bpp = img->bpp;
-        is_png = (bpp == 0);
+        cmd->bpp = cmd->img->bpp;
+        cmd->is_png = (cmd->bpp == 0);
+        return true;
+    }
+    int32_t fmt = cmd->ctl->format >= 0 ? cmd->ctl->format : 32;
+    cmd->is_png = (fmt == 100);
+    if (cmd->is_png)
+    {
+        cmd->bpp = 0; /* unknown until decode -- PNG carries its own dimensions */
+        return true;
+    }
+    cmd->bpp = (fmt == 24) ? 3 : (fmt == 32) ? 4 : -1;
+    if (cmd->bpp < 0)
+    {
+        cmd->error = "error=EBADF:unsupported format";
+        return false;
+    }
+    return true;
+}
+
+/* Raw formats: width/height come from s=/v= and expected_len is the exact decoded
+ * pixel size.
+ *
+ * PNG: dimensions come from the decoded PNG itself (Ghostty ignores s=/v= for
+ * f=100 the same way --graphics_command.zig's width/height table maps .png to
+ * null), so there's nothing to validate here yet; expected_len instead bounds how
+ * many raw (still-compressed) bytes this transfer may accumulate before decode,
+ * same cap as everything else in this module, matching Ghostty's own pre-decode
+ * size cap on the still-compressed data (graphics_image.zig's "image data too
+ * large" check, `data.items.len + data.len > max_size`).
+ */
+static bool kitty_resolve_dimensions(kitty_cmd_t *cmd)
+{
+    if (cmd->is_png)
+    {
+        cmd->width = 0;
+        cmd->height = 0;
+        cmd->expected_len = GHOSTCON_KITTY_MAX_IMAGE_BYTES;
+        return true;
+    }
+    if (cmd->continuing)
+    {
+        cmd->width = cmd->img->width;
+        cmd->height = cmd->img->height;
     }
     else
     {
-        int32_t fmt = ctl->format >= 0 ? ctl->format : 32;
-        is_png = (fmt == 100);
-        if (is_png)
+        cmd->width = cmd->ctl->width;
+        cmd->height = cmd->ctl->height;
+        if (cmd->width <= 0 || cmd->height <= 0 ||
+            (uint32_t)cmd->width > GHOSTCON_KITTY_MAX_DIM ||
+            (uint32_t)cmd->height > GHOSTCON_KITTY_MAX_DIM)
         {
-            bpp = 0; /* unknown until decode -- PNG carries its own dimensions */
+            cmd->error = "error=EINVAL:missing or out-of-range s=/v=";
+            return false;
         }
-        else
+    }
+    cmd->expected_len = (size_t)cmd->width * (size_t)cmd->height * (size_t)cmd->bpp;
+    if (cmd->expected_len > GHOSTCON_KITTY_MAX_IMAGE_BYTES)
+    {
+        cmd->error = "error=EINVAL:image too large";
+        return false;
+    }
+    return true;
+}
+
+/* Reads the transfer's bytes into the buffer the command owns.
+ *
+ * For the file and shared-memory media the payload is the base64-encoded
+ * segment name or file PATH (per spec, the payload is always base64
+ * regardless of medium
+ *
+ * only what it MEANS differs), not image bytes.
+ */
+static bool kitty_fetch_payload(kitty_cmd_t *cmd, const char *payload, size_t payload_len)
+{
+    if (cmd->medium == KITTY_MEDIUM_DIRECT)
+    {
+        size_t cap = b64_decoded_max(payload_len);
+        uint8_t *buf = cap ? malloc(cap) : NULL;
+        if (cap && !buf)
         {
-            bpp = (fmt == 24) ? 3 : (fmt == 32) ? 4 : -1;
-            if (bpp < 0)
-            {
-                kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                          "error=EBADF:unsupported format");
-                return;
-            }
+            cmd->error = "error=ENOMEM:allocation failed";
+            return false;
         }
+        size_t len = payload_len ? b64_decode(payload, payload_len, buf, cap) : 0;
+        if (len == SIZE_MAX)
+        {
+            free(buf);
+            cmd->error = "error=EINVAL:malformed base64 payload";
+            return false;
+        }
+        cmd->pending = buf;
+        cmd->pending_len = len;
+        return true;
     }
 
-    /* Raw formats: width/height come from s=/v= and expected_len is the exact
-     * decoded pixel size.
-     *
-     * PNG: dimensions come from the decoded PNG itself (Ghostty ignores s=/v= for
-     * f=100 the same way --graphics_command.zig's width/height table maps .png to
-     * null), so there's nothing to validate here yet; expected_len instead bounds
-     * how many raw (still-compressed) bytes this transfer may accumulate before
-     * decode, same cap as everything else in this module, matching Ghostty's own
-     * pre-decode size cap on the still-compressed data (graphics_image.zig's
-     * "image data too large" check, `data.items.len + data.len > max_size`).
-     */
-    int32_t width = 0, height = 0;
-    size_t expected_len;
-    if (is_png)
+    size_t name_cap = b64_decoded_max(payload_len);
+    uint8_t *name_buf = malloc(name_cap + 1);
+    if (!name_buf)
     {
-        expected_len = GHOSTCON_KITTY_MAX_IMAGE_BYTES;
+        cmd->error = "error=ENOMEM:allocation failed";
+        return false;
     }
-    else
+    size_t name_len = payload_len ? b64_decode(payload, payload_len, name_buf, name_cap) : 0;
+    if (name_len == SIZE_MAX)
     {
-        if (continuing)
-        {
-            width = img->width;
-            height = img->height;
-        }
-        else
-        {
-            width = ctl->width;
-            height = ctl->height;
-            if (width <= 0 || height <= 0 ||
-                (uint32_t)width > GHOSTCON_KITTY_MAX_DIM ||
-                (uint32_t)height > GHOSTCON_KITTY_MAX_DIM)
-            {
-                kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                          "error=EINVAL:missing or out-of-range s=/v=");
-                return;
-            }
-        }
-        expected_len = (size_t)width * (size_t)height * (size_t)bpp;
-        if (expected_len > GHOSTCON_KITTY_MAX_IMAGE_BYTES)
-        {
-            kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                      "error=EINVAL:image too large");
-            return;
-        }
-    }
-
-    uint8_t *decoded;
-    size_t decoded_len;
-    if (from_shm || from_temp_file || from_cache_file)
-    {
-        /* payload/payload_len here is the base64-encoded shm segment name or file
-         * PATH (per spec, the payload is always base64 regardless of medium
-         *
-         * only what it MEANS differs), not image bytes.
-         */
-        size_t name_cap = b64_decoded_max(payload_len);
-        uint8_t *name_buf = malloc(name_cap + 1);
-        if (!name_buf)
-        {
-            kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                      "error=ENOMEM:allocation failed");
-            return;
-        }
-        size_t name_len = payload_len ? b64_decode(payload, payload_len, name_buf, name_cap) : 0;
-        if (name_len == SIZE_MAX)
-        {
-            free(name_buf);
-            kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                      "error=EINVAL:malformed base64 payload");
-            return;
-        }
-        name_buf[name_len] = '\0';
-        /* POSIX shm names/paths cannot contain internal NULs
-         *
-         * same check Ghostty applies to the decoded path/name before calling
-         * shm_open()/openFile(), and for the same reason (a NUL would silently
-         * truncate the string the syscall actually sees).
-         */
-        if (strlen((char *)name_buf) != name_len)
-        {
-            free(name_buf);
-            kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                      "error=EINVAL:invalid shared-memory/file path");
-            return;
-        }
-        if (from_shm)
-            decoded = read_shm_segment((char *)name_buf, GHOSTCON_KITTY_MAX_IMAGE_BYTES, &decoded_len);
-        else if (from_temp_file)
-            decoded = read_temp_file((char *)name_buf, GHOSTCON_KITTY_MAX_IMAGE_BYTES, &decoded_len);
-        else
-            decoded = read_cache_file((char *)name_buf, GHOSTCON_KITTY_MAX_IMAGE_BYTES, &decoded_len);
         free(name_buf);
-        if (!decoded)
-        {
-            kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                      from_shm ? "error=EBADF:unable to read shared memory segment"
-                               : "error=EBADF:unable to read file");
-            return;
-        }
+        cmd->error = "error=EINVAL:malformed base64 payload";
+        return false;
     }
-    else
-    {
-        size_t decoded_cap = b64_decoded_max(payload_len);
-        decoded = decoded_cap ? malloc(decoded_cap) : NULL;
-        if (decoded_cap && !decoded)
-        {
-            kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                      "error=ENOMEM:allocation failed");
-            return;
-        }
-        decoded_len = payload_len ? b64_decode(payload, payload_len, decoded, decoded_cap) : 0;
-        if (decoded_len == SIZE_MAX)
-        {
-            free(decoded);
-            kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                      "error=EINVAL:malformed base64 payload");
-            return;
-        }
-    }
-
-    bool more = ctl->more == 1;
-
-    if (!continuing)
-    {
-        img = alloc_image_slot(kg, id);
-        if (!img)
-        {
-            free(decoded);
-            kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                      "error=ENOSPC:too many images");
-            return;
-        }
-        img->width = width;
-        img->height = height;
-        img->bpp = bpp;
-        if (more)
-        {
-            img->recv_buf = malloc(expected_len ? expected_len : 1);
-            if (!img->recv_buf)
-            {
-                free(decoded);
-                free_image(kg, img);
-                kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                          "error=ENOMEM:allocation failed");
-                return;
-            }
-            img->recv_len = 0;
-            img->receiving = true;
-            kg->active_transfer_id = (int64_t)id;
-            kg->active_transfer_display = also_display;
-            kg->active_transfer_z = resolved_z;
-            kg->active_transfer_crop_x = resolved_crop_x;
-            kg->active_transfer_crop_y = resolved_crop_y;
-            kg->active_transfer_crop_w = resolved_crop_w;
-            kg->active_transfer_crop_h = resolved_crop_h;
-            kg->active_transfer_cell_cols = resolved_cell_cols;
-            kg->active_transfer_cell_rows = resolved_cell_rows;
-            kg->active_transfer_no_cursor_move = resolved_no_cursor_move;
-            kg->active_transfer_placement_id = resolved_placement_id;
-        }
-    }
-
-    if (more)
-    {
-        if (img->recv_len + decoded_len > expected_len)
-        {
-            free(decoded);
-            free_image(kg, img);
-            kg->active_transfer_id = -1;
-            kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                      "error=EINVAL:payload exceeds declared size");
-            return;
-        }
-        if (decoded && decoded_len > 0)
-            memcpy(img->recv_buf + img->recv_len, decoded, decoded_len);
-        img->recv_len += decoded_len;
-        free(decoded);
-        return; /* no ack for intermediate chunks */
-    }
-
-    /* Final (or only) chunk.
+    name_buf[name_len] = '\0';
+    /* POSIX shm names/paths cannot contain internal NULs
      *
-     * Raw formats require the accumulated size to match the declared
-     * width*height*bpp exactly; PNG's compressed size is whatever it happens to
-     * be, so there's nothing to match against here --decode_png_rgba below is
-     * what actually validates it (a truncated or corrupt PNG simply fails to
-     * decode).
+     * same check Ghostty applies to the decoded path/name before calling
+     * shm_open()/openFile(), and for the same reason (a NUL would silently
+     * truncate the string the syscall actually sees).
      */
+    if (strlen((char *)name_buf) != name_len)
+    {
+        free(name_buf);
+        cmd->error = "error=EINVAL:invalid shared-memory/file path";
+        return false;
+    }
+    uint8_t *data = NULL;
+    size_t data_len = 0;
+    if (cmd->medium == KITTY_MEDIUM_SHM)
+        data = read_shm_segment((char *)name_buf, GHOSTCON_KITTY_MAX_IMAGE_BYTES, &data_len);
+    else if (cmd->medium == KITTY_MEDIUM_TEMP_FILE)
+        data = read_temp_file((char *)name_buf, GHOSTCON_KITTY_MAX_IMAGE_BYTES, &data_len);
+    else
+        data = read_cache_file((char *)name_buf, GHOSTCON_KITTY_MAX_IMAGE_BYTES, &data_len);
+    free(name_buf);
+    if (!data)
+    {
+        cmd->error = (cmd->medium == KITTY_MEDIUM_SHM)
+                         ? "error=EBADF:unable to read shared memory segment"
+                         : "error=EBADF:unable to read file";
+        return false;
+    }
+    cmd->pending = data;
+    cmd->pending_len = data_len;
+    return true;
+}
+
+/* Claims the image slot for this transfer, and (for a chunked transfer) the
+ * receive buffer the chunks accumulate into.
+ */
+static bool kitty_begin_transfer(kitty_cmd_t *cmd)
+{
+    cmd->more = (cmd->ctl->more == 1);
+    if (cmd->continuing)
+        return true; /* the slot (and its receive buffer) already exist */
+
+    ghostcon_kitty_image_t *img = alloc_image_slot(cmd->kg, cmd->image_id);
+    if (!img)
+    {
+        cmd->error = "error=ENOSPC:too many images";
+        return false;
+    }
+    cmd->img = img;
+    cmd->release_img = true;
+    img->width = cmd->width;
+    img->height = cmd->height;
+    img->bpp = cmd->bpp;
+    if (!cmd->more)
+        return true;
+
+    img->recv_buf = malloc(cmd->expected_len ? cmd->expected_len : 1);
+    if (!img->recv_buf)
+    {
+        cmd->error = "error=ENOMEM:allocation failed";
+        return false;
+    }
+    img->recv_len = 0;
+    img->receiving = true;
+    cmd->kg->active_transfer_id = (int64_t)cmd->image_id;
+    cmd->kg->active_transfer_display = cmd->also_display;
+    cmd->kg->active_transfer_z = cmd->resolved_z;
+    cmd->kg->active_transfer_crop_x = cmd->resolved_crop_x;
+    cmd->kg->active_transfer_crop_y = cmd->resolved_crop_y;
+    cmd->kg->active_transfer_crop_w = cmd->resolved_crop_w;
+    cmd->kg->active_transfer_crop_h = cmd->resolved_crop_h;
+    cmd->kg->active_transfer_cell_cols = cmd->resolved_cell_cols;
+    cmd->kg->active_transfer_cell_rows = cmd->resolved_cell_rows;
+    cmd->kg->active_transfer_no_cursor_move = cmd->resolved_no_cursor_move;
+    cmd->kg->active_transfer_placement_id = cmd->resolved_placement_id;
+    return true;
+}
+
+/* Appends one chunk to the transfer's receive buffer. */
+static bool kitty_accumulate_chunk(kitty_cmd_t *cmd)
+{
+    if (cmd->img->recv_len + cmd->pending_len > cmd->expected_len)
+    {
+        cmd->release_img = true;
+        cmd->clear_active = true;
+        cmd->error = "error=EINVAL:payload exceeds declared size";
+        return false;
+    }
+    if (cmd->pending && cmd->pending_len > 0)
+        memcpy(cmd->img->recv_buf + cmd->img->recv_len, cmd->pending, cmd->pending_len);
+    cmd->img->recv_len += cmd->pending_len;
+    free(cmd->pending);
+    cmd->pending = NULL;
+    cmd->pending_len = 0;
+    return true;
+}
+
+/* Turns the accumulated (or single-shot) payload into the image's pixels.
+ *
+ * Raw formats require the accumulated size to match the declared width*height*bpp
+ * exactly; PNG's compressed size is whatever it happens to be, so there's nothing
+ * to match against here --decode_png_rgba is what actually validates it (a
+ * truncated or corrupt PNG simply fails to decode).
+ */
+static bool kitty_finalize_transfer(kitty_cmd_t *cmd)
+{
     uint8_t *final_pixels;
     size_t final_len;
-    if (img->receiving)
+    if (cmd->img->receiving)
     {
-        if (!is_png && img->recv_len + decoded_len != expected_len)
+        if (!cmd->is_png && cmd->img->recv_len + cmd->pending_len != cmd->expected_len)
         {
-            free(decoded);
-            free_image(kg, img);
-            kg->active_transfer_id = -1;
-            kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                      "error=EINVAL:size mismatch");
-            return;
+            cmd->release_img = true;
+            cmd->clear_active = true;
+            cmd->error = "error=EINVAL:size mismatch";
+            return false;
         }
-        if (decoded && decoded_len > 0)
-            memcpy(img->recv_buf + img->recv_len, decoded, decoded_len);
-        img->recv_len += decoded_len;
-        free(decoded);
-        final_pixels = img->recv_buf;
-        final_len = is_png ? img->recv_len : expected_len;
-        img->recv_buf = NULL;
-        img->receiving = false;
-        kg->active_transfer_id = -1;
+        if (cmd->pending && cmd->pending_len > 0)
+            memcpy(cmd->img->recv_buf + cmd->img->recv_len, cmd->pending, cmd->pending_len);
+        cmd->img->recv_len += cmd->pending_len;
+        free(cmd->pending);
+        cmd->pending = NULL;
+        cmd->pending_len = 0;
+        final_pixels = cmd->img->recv_buf;
+        final_len = cmd->is_png ? cmd->img->recv_len : cmd->expected_len;
+        cmd->img->recv_buf = NULL;
+        cmd->img->receiving = false;
+        cmd->kg->active_transfer_id = -1;
     }
     else
     {
-        if (!is_png && decoded_len != expected_len)
+        if (!cmd->is_png && cmd->pending_len != cmd->expected_len)
         {
-            free(decoded);
-            free_image(kg, img);
-            kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                      "error=EINVAL:size mismatch");
-            return;
+            cmd->release_img = true;
+            cmd->error = "error=EINVAL:size mismatch";
+            return false;
         }
-        final_pixels = decoded;
-        final_len = decoded_len;
+        final_pixels = cmd->pending;
+        final_len = cmd->pending_len;
     }
 
-    if (is_png)
+    if (cmd->is_png)
     {
         int32_t png_w = 0, png_h = 0;
         uint8_t *rgba = decode_png_rgba(final_pixels, final_len, &png_w, &png_h);
         free(final_pixels);
+        cmd->pending = NULL;
+        cmd->pending_len = 0;
         if (!rgba)
         {
-            free_image(kg, img);
-            kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                      "error=EINVAL:invalid or unsupported PNG data");
-            return;
+            cmd->release_img = true;
+            cmd->error = "error=EINVAL:invalid or unsupported PNG data";
+            return false;
         }
         final_pixels = rgba;
         final_len = (size_t)png_w * (size_t)png_h * 4;
-        width = png_w;
-        height = png_h;
-        bpp = 4;
+        cmd->width = png_w;
+        cmd->height = png_h;
+        cmd->bpp = 4;
     }
 
-    if (kg->total_bytes + final_len > GHOSTCON_KITTY_MAX_TOTAL_BYTES)
+    /* The command owns the finished pixels until the image slot takes them. */
+    cmd->pending = final_pixels;
+    cmd->pending_len = final_len;
+
+    if (cmd->kg->total_bytes + final_len > GHOSTCON_KITTY_MAX_TOTAL_BYTES)
     {
-        free(final_pixels);
-        free_image(kg, img);
-        kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                  "error=ENOSPC:total image memory limit exceeded");
-        return;
+        cmd->release_img = true;
+        cmd->error = "error=ENOSPC:total image memory limit exceeded";
+        return false;
     }
 
-    img->width = width;
-    img->height = height;
-    img->bpp = bpp;
-    img->pixels = final_pixels;
-    img->pixel_len = final_len;
-    img->generation++;
-    kg->total_bytes += final_len;
-
-    if (also_display)
-    {
-        ghostcon_kitty_placement_t *p = alloc_placement_slot(
-            kg, id, resolved_placement_id > 0 ? (uint32_t)resolved_placement_id : 0);
-        if (!p)
-        {
-            kitty_ack(output_fn, userdata, quiet, id, resolved_placement_id,
-                      "error=ENOSPC:too many placements");
-            return;
-        }
-        p->image_id = id;
-        p->placement_id = resolved_placement_id > 0 ? (uint32_t)resolved_placement_id : 0;
-        p->anchor_col = cursor_col;
-        p->anchor_row = cursor_row;
-        p->z = resolved_z != INT32_MIN ? resolved_z : 0;
-        p->crop_x = resolved_crop_x >= 0 ? resolved_crop_x : 0;
-        p->crop_y = resolved_crop_y >= 0 ? resolved_crop_y : 0;
-        p->crop_w = resolved_crop_w >= 0 ? resolved_crop_w : 0;
-        p->crop_h = resolved_crop_h >= 0 ? resolved_crop_h : 0;
-        p->cell_cols = resolved_cell_cols >= 0 ? resolved_cell_cols : 0;
-        p->cell_rows = resolved_cell_rows >= 0 ? resolved_cell_rows : 0;
-
-        int32_t draw_w_px = p->crop_w > 0 ? p->crop_w : img->width;
-        int32_t draw_h_px = p->crop_h > 0 ? p->crop_h : img->height;
-        if (p->cell_cols > 0 && p->cell_rows > 0)
-        {
-            draw_w_px = p->cell_cols * cell_w;
-            draw_h_px = p->cell_rows * cell_h;
-        }
-        compute_cursor_move(resolved_no_cursor_move, draw_w_px, draw_h_px,
-                            p->anchor_col, cell_w, cell_h, out_move);
-    }
-
-    kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id, "OK");
+    cmd->img->width = cmd->width;
+    cmd->img->height = cmd->height;
+    cmd->img->bpp = cmd->bpp;
+    cmd->img->pixels = final_pixels;
+    cmd->img->pixel_len = final_len;
+    cmd->img->generation++;
+    cmd->kg->total_bytes += final_len;
+    cmd->pending = NULL; /* ownership moved into the image slot */
+    cmd->pending_len = 0;
+    return true;
 }
 
-static void handle_placement(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl, int32_t cursor_col, int32_t cursor_row, int32_t cell_w, int32_t cell_h, ghostcon_kitty_output_fn output_fn, void *userdata, ghostcon_kitty_cursor_move_t *out_move)
+/* Creates the placement for a transmit-and-display command. */
+static bool kitty_place_image(kitty_cmd_t *cmd)
 {
-    int32_t quiet = ctl->quiet >= 0 ? ctl->quiet : 0;
-
-    if (ctl->image_id < 0 || ctl->image_id > UINT32_MAX)
+    if (!cmd->also_display)
+        return true;
+    uint32_t placement_id = cmd->resolved_placement_id > 0 ? (uint32_t)cmd->resolved_placement_id : 0;
+    ghostcon_kitty_placement_t *p = alloc_placement_slot(cmd->kg, cmd->image_id, placement_id);
+    if (!p)
     {
-        kitty_ack(output_fn, userdata, quiet, 0, -1, "error=EINVAL:missing or invalid i=");
+        /* The failure ack names the resolved placement, while the success ack
+         * names the placement of this chunk -- for a chunked transfer those
+         * differ, since only the first chunk carries p=.
+         */
+        cmd->placement_id = cmd->resolved_placement_id;
+        cmd->error = "error=ENOSPC:too many placements";
+        return false;
+    }
+    p->image_id = cmd->image_id;
+    p->placement_id = placement_id;
+    p->anchor_col = cmd->cursor_col;
+    p->anchor_row = cmd->cursor_row;
+    p->z = cmd->resolved_z != INT32_MIN ? cmd->resolved_z : 0;
+    p->crop_x = cmd->resolved_crop_x >= 0 ? cmd->resolved_crop_x : 0;
+    p->crop_y = cmd->resolved_crop_y >= 0 ? cmd->resolved_crop_y : 0;
+    p->crop_w = cmd->resolved_crop_w >= 0 ? cmd->resolved_crop_w : 0;
+    p->crop_h = cmd->resolved_crop_h >= 0 ? cmd->resolved_crop_h : 0;
+    p->cell_cols = cmd->resolved_cell_cols >= 0 ? cmd->resolved_cell_cols : 0;
+    p->cell_rows = cmd->resolved_cell_rows >= 0 ? cmd->resolved_cell_rows : 0;
+
+    int32_t draw_w_px = p->crop_w > 0 ? p->crop_w : cmd->img->width;
+    int32_t draw_h_px = p->crop_h > 0 ? p->crop_h : cmd->img->height;
+    if (p->cell_cols > 0 && p->cell_rows > 0)
+    {
+        draw_w_px = p->cell_cols * cmd->cell_w;
+        draw_h_px = p->cell_rows * cmd->cell_h;
+    }
+    compute_cursor_move(cmd->resolved_no_cursor_move, draw_w_px, draw_h_px,
+                        p->anchor_col, cmd->cell_w, cmd->cell_h, cmd->out_move);
+    return true;
+}
+
+/* Transmits an image, or one chunk of one. */
+static void handle_transmit(kitty_cmd_t *cmd, const char *payload, size_t payload_len)
+{
+    if (!kitty_resolve_transfer(cmd) || !kitty_resolve_medium(cmd))
+    {
+        kitty_fail(cmd, cmd->error);
         return;
     }
-    uint32_t id = (uint32_t)ctl->image_id;
-    ghostcon_kitty_image_t *img = find_image(kg, id);
+    cmd->img = find_image(cmd->kg, cmd->image_id);
+    cmd->continuing = cmd->img && cmd->img->receiving;
+    if (!kitty_resolve_format(cmd) ||
+        !kitty_resolve_dimensions(cmd) ||
+        !kitty_fetch_payload(cmd, payload, payload_len) ||
+        !kitty_begin_transfer(cmd))
+    {
+        kitty_fail(cmd, cmd->error);
+        return;
+    }
+    if (cmd->more)
+    {
+        if (!kitty_accumulate_chunk(cmd))
+        {
+            kitty_fail(cmd, cmd->error);
+            return;
+        }
+        return; /* no ack for intermediate chunks */
+    }
+    if (!kitty_finalize_transfer(cmd) || !kitty_place_image(cmd))
+    {
+        kitty_fail(cmd, cmd->error);
+        return;
+    }
+    kitty_ack(cmd, "OK");
+}
+
+static void handle_placement(kitty_cmd_t *cmd)
+{
+    const kitty_control_t *ctl = cmd->ctl;
+    if (ctl->image_id < 0 || ctl->image_id > UINT32_MAX)
+    {
+        cmd->image_id = 0;
+        cmd->placement_id = -1;
+        kitty_fail(cmd, "error=EINVAL:missing or invalid i=");
+        return;
+    }
+    cmd->image_id = (uint32_t)ctl->image_id;
+    const ghostcon_kitty_image_t *img = find_image(cmd->kg, cmd->image_id);
     if (!img || !img->pixels)
     {
-        kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                  "error=ENOENT:no image with that id");
+        kitty_fail(cmd, "error=ENOENT:no image with that id");
         return;
     }
 
@@ -1180,26 +1423,27 @@ static void handle_placement(ghostcon_kitty_graphics_t *kg, const kitty_control_
     {
         if (cx < 0 || cy < 0 || cx + cw > img->width || cy + ch > img->height)
         {
-            kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                      "error=EINVAL:crop rect out of bounds");
+            kitty_fail(cmd, "error=EINVAL:crop rect out of bounds");
             return;
         }
     }
 
-    ghostcon_kitty_placement_t *p = alloc_placement_slot(
-        kg, id, ctl->placement_id > 0 ? (uint32_t)ctl->placement_id : 0);
+    uint32_t placement_id = ctl->placement_id > 0 ? (uint32_t)ctl->placement_id : 0;
+    ghostcon_kitty_placement_t *p = alloc_placement_slot(cmd->kg, cmd->image_id, placement_id);
     if (!p)
     {
-        kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id,
-                  "error=ENOSPC:too many placements");
+        kitty_fail(cmd, "error=ENOSPC:too many placements");
         return;
     }
-    p->image_id = id;
-    p->placement_id = ctl->placement_id > 0 ? (uint32_t)ctl->placement_id : 0;
-    p->anchor_col = cursor_col;
-    p->anchor_row = cursor_row;
+    p->image_id = cmd->image_id;
+    p->placement_id = placement_id;
+    p->anchor_col = cmd->cursor_col;
+    p->anchor_row = cmd->cursor_row;
     p->z = ctl->z != INT32_MIN ? ctl->z : 0;
-    p->crop_x = cx; p->crop_y = cy; p->crop_w = cw; p->crop_h = ch;
+    p->crop_x = cx;
+    p->crop_y = cy;
+    p->crop_w = cw;
+    p->crop_h = ch;
     p->cell_cols = ctl->cell_cols >= 0 ? ctl->cell_cols : 0;
     p->cell_rows = ctl->cell_rows >= 0 ? ctl->cell_rows : 0;
 
@@ -1207,17 +1451,18 @@ static void handle_placement(ghostcon_kitty_graphics_t *kg, const kitty_control_
     int32_t draw_h_px = ch > 0 ? ch : img->height;
     if (p->cell_cols > 0 && p->cell_rows > 0)
     {
-        draw_w_px = p->cell_cols * cell_w;
-        draw_h_px = p->cell_rows * cell_h;
+        draw_w_px = p->cell_cols * cmd->cell_w;
+        draw_h_px = p->cell_rows * cmd->cell_h;
     }
     compute_cursor_move(ctl->no_cursor_move, draw_w_px, draw_h_px,
-                        p->anchor_col, cell_w, cell_h, out_move);
+                        p->anchor_col, cmd->cell_w, cmd->cell_h, cmd->out_move);
 
-    kitty_ack(output_fn, userdata, quiet, id, ctl->placement_id, "OK");
+    kitty_ack(cmd, "OK");
 }
 
-static void handle_delete(ghostcon_kitty_graphics_t *kg, const kitty_control_t *ctl)
+static void handle_delete(kitty_cmd_t *cmd)
 {
+    const kitty_control_t *ctl = cmd->ctl;
     /* Matches Ghostty's graphics_exec.zig delete() exactly: "Delete never
      * responds on success"
      *
@@ -1230,8 +1475,8 @@ static void handle_delete(ghostcon_kitty_graphics_t *kg, const kitty_control_t *
     if (ctl->delete_mode == 'a')
     {
         for (int i = 0; i < GHOSTCON_KITTY_MAX_IMAGES; i++)
-            free_image(kg, &kg->images[i]);
-        memset(kg->placements, 0, sizeof kg->placements);
+            free_image(cmd->kg, &cmd->kg->images[i]);
+        memset(cmd->kg->placements, 0, sizeof cmd->kg->placements);
         return;
     }
     if (ctl->delete_mode == 'i')
@@ -1239,12 +1484,12 @@ static void handle_delete(ghostcon_kitty_graphics_t *kg, const kitty_control_t *
         if (ctl->image_id < 0 || ctl->image_id > UINT32_MAX)
             return;
         uint32_t id = (uint32_t)ctl->image_id;
-        delete_placements_for_image(kg, id, ctl->placement_id);
+        delete_placements_for_image(cmd->kg, id, ctl->placement_id);
         if (ctl->placement_id < 0)
         {
-            ghostcon_kitty_image_t *img = find_image(kg, id);
+            ghostcon_kitty_image_t *img = find_image(cmd->kg, id);
             if (img)
-                free_image(kg, img);
+                free_image(cmd->kg, img);
         }
     }
     /* Unsupported delete modes (per this v1's scope
@@ -1294,11 +1539,23 @@ void ghostcon_kitty_graphics_handle(ghostcon_kitty_graphics_t *kg, const char *b
     control_copy[control_len] = '\0';
 
     kitty_control_t ctl = kitty_parse_control(control_copy);
+    kitty_cmd_t cmd = {
+        .kg = kg,
+        .ctl = &ctl,
+        .output_fn = output_fn,
+        .userdata = output_userdata,
+        .out_move = out_move,
+        .cursor_col = cursor_col,
+        .cursor_row = cursor_row,
+        .cell_w = cell_w,
+        .cell_h = cell_h,
+        .quiet = ctl.quiet >= 0 ? ctl.quiet : 0,
+        .image_id = ctl.image_id > 0 ? (uint32_t)ctl.image_id : 0,
+        .placement_id = ctl.placement_id,
+    };
     if (!ctl.valid)
     {
-        kitty_ack(output_fn, output_userdata, ctl.quiet >= 0 ? ctl.quiet : 0,
-                 ctl.image_id > 0 ? (uint32_t)ctl.image_id : 0, ctl.placement_id,
-                 "error=EINVAL:malformed control data");
+        kitty_fail(&cmd, "error=EINVAL:malformed control data");
         return;
     }
 
@@ -1306,26 +1563,21 @@ void ghostcon_kitty_graphics_handle(ghostcon_kitty_graphics_t *kg, const char *b
     switch (action)
     {
     case 't':
-        handle_transmit(kg, &ctl, payload, payload_len, false,
-                        cursor_col, cursor_row, cell_w, cell_h,
-                        output_fn, output_userdata, out_move);
+        cmd.also_display = false;
+        handle_transmit(&cmd, payload, payload_len);
         break;
     case 'T':
-        handle_transmit(kg, &ctl, payload, payload_len, true,
-                        cursor_col, cursor_row, cell_w, cell_h,
-                        output_fn, output_userdata, out_move);
+        cmd.also_display = true;
+        handle_transmit(&cmd, payload, payload_len);
         break;
     case 'p':
-        handle_placement(kg, &ctl, cursor_col, cursor_row, cell_w, cell_h,
-                         output_fn, output_userdata, out_move);
+        handle_placement(&cmd);
         break;
     case 'd':
-        handle_delete(kg, &ctl);
+        handle_delete(&cmd);
         break;
     default:
-        kitty_ack(output_fn, output_userdata, ctl.quiet >= 0 ? ctl.quiet : 0,
-                 ctl.image_id > 0 ? (uint32_t)ctl.image_id : 0, ctl.placement_id,
-                 "error=EINVAL:unsupported action");
+        kitty_fail(&cmd, "error=EINVAL:unsupported action");
         break;
     }
 }
